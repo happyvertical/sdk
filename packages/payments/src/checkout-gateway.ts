@@ -25,7 +25,9 @@ import { PaymentError } from './errors.js';
 /**
  * `getCheckout` was asked for a checkout this gateway did not create (for
  * example a webhook for an invoice made by hand at the provider). Callers
- * acknowledge and ignore it, like an event with `checkoutId: null`.
+ * acknowledge and ignore it, like an event with `checkoutId: null`. Its code
+ * is `PAYMENT_NOT_OWNED` — routine, and distinct from the
+ * `PAYMENT_VERIFICATION_FAILED` of a forged or foreign-store delivery.
  */
 export class CryptoCheckoutNotOwnedError extends PaymentError {
   readonly checkoutId: string;
@@ -33,7 +35,7 @@ export class CryptoCheckoutNotOwnedError extends PaymentError {
   constructor(checkoutId: string) {
     super(
       `Checkout ${checkoutId} was not created by this gateway.`,
-      'PAYMENT_VERIFICATION_FAILED',
+      'PAYMENT_NOT_OWNED',
     );
     this.name = 'CryptoCheckoutNotOwnedError';
     this.checkoutId = checkoutId;

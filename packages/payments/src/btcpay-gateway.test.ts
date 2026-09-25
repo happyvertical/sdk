@@ -306,9 +306,16 @@ describe('createBtcpayCheckoutGateway', () => {
     expect(
       (await gateway.listCheckouts({ orderId: 'f' })).map((c) => c.id),
     ).toEqual(['inv_2']);
-    await expect(gateway.getCheckout('inv_1')).rejects.toBeInstanceOf(
-      CryptoCheckoutNotOwnedError,
-    );
+    const notOwned = await gateway
+      .getCheckout('inv_1')
+      .catch((error: unknown) => error);
+    expect(notOwned).toBeInstanceOf(CryptoCheckoutNotOwnedError);
+    expect(notOwned).not.toBeInstanceOf(PaymentVerificationError);
+    expect(notOwned).toMatchObject({
+      code: 'PAYMENT_NOT_OWNED',
+      checkoutId: 'inv_1',
+      retryable: false,
+    });
     // An earlier marker version still counts as ours.
     invoiceOf(world, 'inv_2').metadata.hvCheckoutGateway = 'crypto-checkout:v0';
     expect((await gateway.getCheckout('inv_2')).id).toBe('inv_2');
