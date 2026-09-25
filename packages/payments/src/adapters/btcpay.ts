@@ -136,7 +136,15 @@ export interface BtcpayClientOptions {
   timeoutMs?: number;
 }
 
-/** A Greenfield request failed. Never carries the API key. */
+/**
+ * A Greenfield request failed. Never carries the API key.
+ *
+ * `retryable` is true only when repeating the same call cannot duplicate a
+ * side effect: a read (`GET`) that failed on the network, with 429, or with
+ * 5xx, or any request refused with 429. A `createInvoice` that failed on the
+ * network or with 5xx may still have created the invoice, so it is not
+ * retryable: resolve it with `listInvoices({ orderId })` instead.
+ */
 export class BtcpayApiError extends PaymentProviderError {
   readonly status: number;
   readonly apiCode?: string;
@@ -145,11 +153,13 @@ export class BtcpayApiError extends PaymentProviderError {
     message: string,
     status: number,
     apiCode?: string,
-    options: { cause?: unknown } = {},
+    options: { cause?: unknown; method?: 'GET' | 'POST' } = {},
   ) {
+    const { method = 'GET', ...rest } = options;
     super(message, {
-      ...options,
-      retryable: status === 0 || status === 429 || status >= 500,
+      ...rest,
+      retryable:
+        status === 429 || (method === 'GET' && (status === 0 || status >= 500)),
     });
     this.name = 'BtcpayApiError';
     this.status = status;
@@ -180,7 +190,12 @@ export class BtcpayClient {
     this.timeoutMs = timeoutMs;
   }
 
-  /** `POST /api/v1/stores/{storeId}/invoices`. Not idempotent at BTCPay. */
+  /**
+   * `POST /api/v1/stores/{storeId}/invoices`. Not idempotent at BTCPay: after
+   * a network or 5xx failure the invoice may exist, so the error is not
+   * `retryable` — look it up with `listInvoices({ orderId })` before creating
+   * another.
+   */
   async createInvoice(input: BtcpayCreateInvoiceInput): Promise<BtcpayInvoice> {
     const amount = requireDecimal(input.amount, 'BTCPay invoice amount');
     const currency = requireString(input.currency, 'BTCPay invoice currency');
@@ -284,7 +299,7 @@ export class BtcpayClient {
         `BTCPay ${method} ${redactPath(path)} failed: ${errorName(error)}.`,
         0,
         undefined,
-        { cause: error },
+        { cause: error, method },
       );
     }
     const text = await response.text();
@@ -310,6 +325,7 @@ export class BtcpayClient {
           (message ? `: ${message}` : '.'),
         response.status,
         code,
+        { method },
       );
     }
     return parsed;

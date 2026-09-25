@@ -336,6 +336,30 @@ describe('BtcpayClient', () => {
     });
   });
 
+  it('never marks an ambiguous createInvoice failure retryable', async () => {
+    const offline = vi.fn(async () => {
+      throw new DOMException('timed out', 'TimeoutError');
+    });
+    await expect(
+      client(offline).createInvoice({ amount: '1.00', currency: 'CAD' }),
+    ).rejects.toMatchObject({ status: 0, retryable: false });
+    expect(
+      await client(offline)
+        .createInvoice({ amount: '1.00', currency: 'CAD' })
+        .catch((error: Error) => error.message),
+    ).toContain('timed out');
+
+    const unavailable = vi.fn(async () => jsonResponse({}, 502));
+    await expect(
+      client(unavailable).createInvoice({ amount: '1.00', currency: 'CAD' }),
+    ).rejects.toMatchObject({ status: 502, retryable: false });
+
+    const limited = vi.fn(async () => jsonResponse({}, 429));
+    await expect(
+      client(limited).createInvoice({ amount: '1.00', currency: 'CAD' }),
+    ).rejects.toMatchObject({ status: 429, retryable: true });
+  });
+
   it('rejects malformed success bodies', async () => {
     await expect(
       client(vi.fn(async () => new Response('not json'))).getInvoice('x'),
