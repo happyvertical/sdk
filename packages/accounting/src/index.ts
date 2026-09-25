@@ -38,6 +38,7 @@ import type {
   StripeOptions,
 } from './types.js';
 
+export { StripeApiError } from './errors.js';
 // Re-export all types
 export * from './types.js';
 

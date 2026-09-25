@@ -173,7 +173,12 @@ export interface InvoiceLineItemInput {
    * currency unit.
    */
   unitPrice: number;
-  /** Discount amount */
+  /**
+   * Total discount for this line (not per unit), in the currency's major
+   * unit. Must be between 0 and `quantity × unitPrice`. The Stripe provider
+   * applies it as an amount-off discount on the invoice item, so the invoice
+   * shows the discount and Stripe Tax taxes the discounted amount.
+   */
   discount?: number;
   /** Tax rate (decimal, e.g., 0.0825 for 8.25%) */
   taxRate?: number;
@@ -392,7 +397,18 @@ export interface ExternalInvoice extends ExternalRecord {
   totalAmount: number;
   amountPaid: number;
   balance: number;
-  status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'voided';
+  /**
+   * `uncollectible` is an open balance the seller has written off (Stripe
+   * `uncollectible`); it can still be paid or voided later.
+   */
+  status:
+    | 'draft'
+    | 'sent'
+    | 'viewed'
+    | 'paid'
+    | 'overdue'
+    | 'voided'
+    | 'uncollectible';
   currency: string;
 }
 
@@ -688,6 +704,11 @@ export interface InvoiceOperations {
   send(externalId: string): Promise<void>;
   /** Void/cancel invoice */
   void(externalId: string): Promise<void>;
+  /**
+   * Write off an open invoice as uncollectible. Optional: providers without
+   * the concept omit it.
+   */
+  markUncollectible?(externalId: string): Promise<void>;
 }
 
 /**

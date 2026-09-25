@@ -7,6 +7,7 @@
  */
 
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { StripeApiError } from '../../errors.js';
 import type {
   AccountingProviderType,
   AuditMatch,
@@ -66,6 +67,12 @@ interface StripeCustomer {
   address?: StripeAddress | null;
   balance?: number | null;
   currency?: string | null;
+interface StripeCoupon {
+  id: string;
+  amount_off?: number | null;
+  currency?: string | null;
+  percent_off?: number | null;
+  valid?: boolean | null;
 }
 
 interface StripeAddress {
@@ -154,6 +161,7 @@ export class StripeProvider implements StripeAccountingProvider {
 
   private readonly options: StripeOptions;
   private readonly fetchImpl: typeof fetch;
+  private readonly couponIds = new Map<string, string>();
 
   readonly customers: CustomerOperations;
   readonly invoices: InvoiceOperations;
@@ -232,9 +240,7 @@ export class StripeProvider implements StripeAccountingProvider {
 
         if (!response.ok) {
           const errorText = await response.text();
-          const error = new Error(
-            `Stripe API error (${response.status}): ${errorText}`,
-          );
+          const error = new StripeApiError(response.status, errorText);
 
           if (response.status < 500 && response.status !== 429) {
             throw error;
@@ -267,6 +273,64 @@ export class StripeProvider implements StripeAccountingProvider {
     }
 
     throw lastError || new Error('Stripe request failed after retries');
+  }
+
+  /**
+   * @internal
+   * A reusable amount-off coupon for a line discount, created on first use.
+   * Its id is derived from the currency and amount, so every replay and every
+   * invoice with the same discount shares one coupon instead of creating one
+   * per line.
+   */
+  async amountOffCoupon(currency: string, amount: number): Promise<string> {
+    const normalized = currency.toLowerCase();
+    const id = `hv_amount_off_${normalized}_${amount}`;
+    const cached = this.couponIds.get(id);
+    if (cached) {
+      return cached;
+    }
+
+    const path = `/v1/coupons/${encodeURIComponent(id)}`;
+    let coupon: StripeCoupon;
+    try {
+      coupon = await this.request<StripeCoupon>('GET', path);
+    } catch (error) {
+      if (!(error instanceof StripeApiError) || error.status !== 404) {
+        throw error;
+      }
+      try {
+        coupon = await this.request<StripeCoupon>('POST', '/v1/coupons', {
+          id,
+          amount_off: amount,
+          currency: normalized,
+          duration: 'forever',
+          name: 'Discount',
+          metadata: { hv_purpose: 'invoice_line_discount' },
+        });
+      } catch (createError) {
+        // A concurrent push created it first.
+        if (
+          !(createError instanceof StripeApiError) ||
+          createError.code !== 'resource_already_exists'
+        ) {
+          throw createError;
+        }
+        coupon = await this.request<StripeCoupon>('GET', path);
+      }
+    }
+
+    if (
+      coupon.amount_off !== amount ||
+      (coupon.currency || '').toLowerCase() !== normalized ||
+      coupon.percent_off ||
+      coupon.valid === false
+    ) {
+      throw new Error(
+        `Stripe coupon ${id} exists but is not a valid ${amount} ${normalized} amount-off coupon`,
+      );
+    }
+    this.couponIds.set(id, coupon.id);
+    return coupon.id;
   }
 
   private buildUrl(
@@ -1047,6 +1111,8 @@ function mapStripeInvoiceStatus(
       return 'paid';
     case 'void':
       return 'voided';
+    case 'uncollectible':
+      return 'uncollectible';
     case 'open':
       if (dueDate && dueDate * 1000 < Date.now()) {
         return 'overdue';
@@ -1319,6 +1385,31 @@ function stripeMinorUnitsToMoney(
   return amount / stripeCurrencyMinorUnitFactor(currency);
 }
 
+/** The line's discount in Stripe units, validated against the line total. */
+function lineDiscountToStripe(
+  lineItem: InvoiceInput['lineItems'][number],
+  currency: string,
+): number | undefined {
+  if (lineItem.discount === undefined || lineItem.discount === 0) {
+    return undefined;
+  }
+  if (!Number.isFinite(lineItem.discount) || lineItem.discount < 0) {
+    throw new Error(
+      `Invoice line '${lineItem.description}' discount must be a non-negative amount`,
+    );
+  }
+  const discount = moneyToStripeMinorUnits(lineItem.discount, currency);
+  const lineTotal = Math.round(
+    moneyToStripeMinorUnits(lineItem.unitPrice, currency) * lineItem.quantity,
+  );
+  if (discount > lineTotal) {
+    throw new Error(
+      `Invoice line '${lineItem.description}' discount exceeds the line total`,
+    );
+  }
+  return discount > 0 ? discount : undefined;
+}
+
 function lineServicePeriod(
   lineItem: InvoiceInput['lineItems'][number],
 ): { start: Date; end: Date } | undefined {
@@ -1341,6 +1432,10 @@ function lineServicePeriod(
     );
   }
   return { start: periodStart, end: periodEnd };
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
 }
 
 function centsToMoney(cents: number): number {
