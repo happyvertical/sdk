@@ -666,8 +666,8 @@ class StripeInvoiceOperations implements InvoiceOperations {
 
   /**
    * Close an invoice paid on another rail (`paid_out_of_band`). An invoice
-   * already marked paid out of band is left as is; one Stripe collected
-   * itself throws (a second collection needs a refund, not a silent close).
+   * already marked paid out of band, or paid with nothing collected, is left
+   * as is; one Stripe collected money for itself throws (a second collection needs a refund, not a silent close).
    * A draft is finalized first without automatic collection, and refused if
    * finalization raised the amount due. A void invoice throws; an
    * uncollectible one can still be paid, as in Stripe.
