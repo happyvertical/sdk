@@ -7,6 +7,7 @@
  */
 
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { StripeApiError } from '../../errors.js';
 import type {
   AccountingProviderType,
   AuditMatch,
@@ -27,12 +28,16 @@ import type {
   InvoiceInput,
   InvoiceOperations,
   ListOptions,
+  PaymentChargeStatus,
   PaymentInput,
   PaymentOperations,
+  SavedPaymentMethodChargeInput,
+  SavedPaymentMethodChargeResult,
   StripeAccountingProvider,
   StripeBillingOperations,
   StripeCheckoutLineItem,
   StripeCheckoutSession,
+  StripeCheckoutSessionDetails,
   StripeCheckoutSessionInput,
   StripeCustomerPortalSession,
   StripeCustomerPortalSessionInput,
@@ -44,6 +49,7 @@ import type {
   VendorOperations,
   WebhookEvent,
   WebhookOperations,
+  WebhookPaymentSummary,
 } from '../../types.js';
 
 type StripePrimitive = string | number | boolean | Date | null | undefined;
@@ -60,12 +66,32 @@ interface StripeListResponse<T> {
 
 interface StripeCustomer {
   id: string;
+  created?: number | null;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
   address?: StripeAddress | null;
   balance?: number | null;
   currency?: string | null;
+  metadata?: Record<string, string> | null;
+  invoice_settings?: {
+    default_payment_method?: string | { id: string } | null;
+  } | null;
+}
+
+interface StripeSearchResponse<T> {
+  object: 'search_result';
+  data: T[];
+  has_more?: boolean;
+  next_page?: string | null;
+}
+
+interface StripeCoupon {
+  id: string;
+  amount_off?: number | null;
+  currency?: string | null;
+  percent_off?: number | null;
+  valid?: boolean | null;
 }
 
 interface StripeAddress {
@@ -91,6 +117,8 @@ interface StripeInvoice {
   amount_remaining?: number | null;
   status?: string | null;
   currency?: string | null;
+  collection_method?: string | null;
+  auto_advance?: boolean | null;
   metadata?: Record<string, string> | null;
 }
 
@@ -101,21 +129,44 @@ interface StripeInvoiceItem {
 
 interface StripePaymentIntent {
   id: string;
+  object?: string | null;
   amount?: number | null;
   currency?: string | null;
   created?: number | null;
   status?: string | null;
   invoice?: string | null;
+  customer?: string | { id: string } | null;
+  payment_method?: string | { id: string } | null;
   payment_method_types?: string[] | null;
   latest_charge?: string | null;
+  metadata?: Record<string, string> | null;
+  last_payment_error?: {
+    code?: string | null;
+    decline_code?: string | null;
+    message?: string | null;
+  } | null;
+}
+
+interface StripeSetupIntent {
+  id: string;
+  payment_method?: string | { id: string } | null;
 }
 
 interface StripeCheckoutSessionResponse {
   id: string;
   url?: string | null;
-  customer?: string | null;
-  subscription?: string | null;
-  payment_intent?: string | null;
+  mode?: string | null;
+  status?: string | null;
+  payment_status?: string | null;
+  customer?: string | { id: string } | null;
+  subscription?: string | { id: string } | null;
+  payment_intent?: string | StripePaymentIntent | null;
+  setup_intent?: string | StripeSetupIntent | null;
+  currency?: string | null;
+  amount_subtotal?: number | null;
+  amount_total?: number | null;
+  total_details?: { amount_tax?: number | null } | null;
+  metadata?: Record<string, string> | null;
 }
 
 interface StripePortalSessionResponse {
@@ -142,6 +193,7 @@ interface StripeWebhookPayload {
     object?: {
       id?: string | null;
       object?: string | null;
+      [key: string]: unknown;
     } | null;
   } | null;
 }
@@ -154,6 +206,7 @@ export class StripeProvider implements StripeAccountingProvider {
 
   private readonly options: StripeOptions;
   private readonly fetchImpl: typeof fetch;
+  private readonly couponIds = new Map<string, string>();
 
   readonly customers: CustomerOperations;
   readonly invoices: InvoiceOperations;
@@ -162,7 +215,7 @@ export class StripeProvider implements StripeAccountingProvider {
   readonly payments: PaymentOperations;
   readonly audit: AuditOperations;
   readonly webhooks: WebhookOperations;
-  readonly billing: StripeBillingOperations;
+  readonly billing: Required<StripeBillingOperations>;
 
   constructor(options: StripeOptions) {
     this.options = {
@@ -191,7 +244,7 @@ export class StripeProvider implements StripeAccountingProvider {
     options: { idempotencyKey?: string } = {},
   ): Promise<T> {
     const timeout = this.options.timeout || 30000;
-    const maxRetries = this.options.maxRetries || 3;
+    const maxRetries = this.options.maxRetries ?? 3;
     const idempotencyKey =
       method === 'POST'
         ? (options.idempotencyKey ?? `sdk-${randomUUID()}`)
@@ -232,9 +285,7 @@ export class StripeProvider implements StripeAccountingProvider {
 
         if (!response.ok) {
           const errorText = await response.text();
-          const error = new Error(
-            `Stripe API error (${response.status}): ${errorText}`,
-          );
+          const error = new StripeApiError(response.status, errorText);
 
           if (response.status < 500 && response.status !== 429) {
             throw error;
@@ -269,6 +320,64 @@ export class StripeProvider implements StripeAccountingProvider {
     throw lastError || new Error('Stripe request failed after retries');
   }
 
+  /**
+   * @internal
+   * A reusable amount-off coupon for a line discount, created on first use.
+   * Its id is derived from the currency and amount, so every replay and every
+   * invoice with the same discount shares one coupon instead of creating one
+   * per line.
+   */
+  async amountOffCoupon(currency: string, amount: number): Promise<string> {
+    const normalized = currency.toLowerCase();
+    const id = `hv_amount_off_${normalized}_${amount}`;
+    const cached = this.couponIds.get(id);
+    if (cached) {
+      return cached;
+    }
+
+    const path = `/v1/coupons/${encodeURIComponent(id)}`;
+    let coupon: StripeCoupon;
+    try {
+      coupon = await this.request<StripeCoupon>('GET', path);
+    } catch (error) {
+      if (!(error instanceof StripeApiError) || error.status !== 404) {
+        throw error;
+      }
+      try {
+        coupon = await this.request<StripeCoupon>('POST', '/v1/coupons', {
+          id,
+          amount_off: amount,
+          currency: normalized,
+          duration: 'forever',
+          name: 'Discount',
+          metadata: { hv_purpose: 'invoice_line_discount' },
+        });
+      } catch (createError) {
+        // A concurrent push created it first.
+        if (
+          !(createError instanceof StripeApiError) ||
+          createError.code !== 'resource_already_exists'
+        ) {
+          throw createError;
+        }
+        coupon = await this.request<StripeCoupon>('GET', path);
+      }
+    }
+
+    if (
+      coupon.amount_off !== amount ||
+      (coupon.currency || '').toLowerCase() !== normalized ||
+      coupon.percent_off ||
+      coupon.valid === false
+    ) {
+      throw new Error(
+        `Stripe coupon ${id} exists but is not a valid ${amount} ${normalized} amount-off coupon`,
+      );
+    }
+    this.couponIds.set(id, coupon.id);
+    return coupon.id;
+  }
+
   private buildUrl(
     endpoint: string,
     params?: Record<string, StripeFormValue>,
@@ -290,10 +399,29 @@ class StripeCustomerOperations implements CustomerOperations {
   constructor(private readonly provider: StripeProvider) {}
 
   async push(customer: CustomerInput): Promise<SyncResult> {
+    if (customer.idempotencyKey !== undefined) {
+      assertIdempotencyKey(customer.idempotencyKey);
+      // After Stripe's idempotency window a replayed key creates a new
+      // customer, so first look for the one an earlier attempt created.
+      const existing = await this.findByLocalId(customer.id);
+      if (existing) {
+        return {
+          action: 'created',
+          externalId: existing.id,
+          syncedAt: new Date(),
+        };
+      }
+    }
+
     const response = await this.provider.request<StripeCustomer>(
       'POST',
       '/v1/customers',
       mapCustomerToStripe(customer),
+      {
+        idempotencyKey: customer.idempotencyKey
+          ? `${customer.idempotencyKey}:customer`
+          : undefined,
+      },
     );
 
     return {
@@ -301,6 +429,39 @@ class StripeCustomerOperations implements CustomerOperations {
       externalId: response.id,
       syncedAt: new Date(),
     };
+  }
+
+  /**
+   * The oldest customer tagged with this local id. Stripe search is
+   * eventually consistent (normally under a minute); inside that lag the
+   * idempotency key, retained for at least 24 hours, covers the replay.
+   */
+  private async findByLocalId(
+    localId: string,
+  ): Promise<StripeCustomer | undefined> {
+    const matches: StripeCustomer[] = [];
+    let page: string | undefined;
+    do {
+      const response = await this.provider.request<
+        StripeSearchResponse<StripeCustomer>
+      >('GET', '/v1/customers/search', {
+        query: `metadata['local_id']:'${escapeSearchValue(localId)}'`,
+        limit: 100,
+        page,
+      });
+      matches.push(
+        ...response.data.filter(
+          (customer) => customer.metadata?.local_id === localId,
+        ),
+      );
+      page = response.has_more ? response.next_page || undefined : undefined;
+    } while (page);
+
+    return matches.sort(
+      (left, right) =>
+        (left.created ?? 0) - (right.created ?? 0) ||
+        left.id.localeCompare(right.id),
+    )[0];
   }
 
   async pull(externalId: string): Promise<ExternalCustomer> {
@@ -345,6 +506,16 @@ class StripeInvoiceOperations implements InvoiceOperations {
       throw new Error('Stripe invoices require customerExternalId');
     }
 
+    const currency = invoice.currency || 'usd';
+    const collectionMethod = resolveCollectionMethod(invoice);
+    // Validate every line before any provider request.
+    const lines = invoice.lineItems.map((lineItem) => ({
+      lineItem,
+      unitAmount: moneyToStripeMinorUnits(lineItem.unitPrice, currency),
+      discount: lineDiscountToStripe(lineItem, currency),
+      period: lineServicePeriod(lineItem),
+    }));
+
     const existingInvoice = invoice.idempotencyKey
       ? await this.findInvoiceByLocalId(invoice.customerExternalId, invoice.id)
       : undefined;
@@ -363,24 +534,25 @@ class StripeInvoiceOperations implements InvoiceOperations {
         )
       : new Set<number>();
 
-    for (const [index, lineItem] of invoice.lineItems.entries()) {
+    for (const [index, line] of lines.entries()) {
       if (existingLineItemIndexes.has(index)) {
         continue;
       }
+      const { lineItem, unitAmount, discount, period } = line;
+      const coupon = discount
+        ? await this.provider.amountOffCoupon(currency, discount)
+        : undefined;
       await this.provider.request(
         'POST',
         '/v1/invoiceitems',
         {
           customer: invoice.customerExternalId,
-          currency: invoice.currency || 'usd',
+          currency,
           description: lineItem.description,
           quantity: lineItem.quantity,
-          unit_amount_decimal: String(
-            moneyToStripeMinorUnits(
-              lineItem.unitPrice,
-              invoice.currency || 'usd',
-            ),
-          ),
+          unit_amount_decimal: String(unitAmount),
+          period,
+          discounts: coupon ? [{ coupon }] : undefined,
           tax_behavior: invoice.automaticTax ? 'exclusive' : undefined,
           metadata: normalizeMetadata({
             local_invoice_id: invoice.id,
@@ -401,7 +573,7 @@ class StripeInvoiceOperations implements InvoiceOperations {
     const response = await this.provider.request<StripeInvoice>(
       'POST',
       '/v1/invoices',
-      mapInvoiceToStripe(invoice),
+      mapInvoiceToStripe(invoice, collectionMethod),
       {
         idempotencyKey: invoice.idempotencyKey
           ? `${invoice.idempotencyKey}:invoice`
@@ -439,7 +611,7 @@ class StripeInvoiceOperations implements InvoiceOperations {
     await this.provider.request<StripeInvoice>(
       'POST',
       `/v1/invoices/${encodeURIComponent(invoice.externalId)}`,
-      mapInvoiceUpdateToStripe(invoice),
+      mapInvoiceUpdateToStripe(invoice, resolveCollectionMethod(invoice)),
     );
 
     return {
@@ -449,10 +621,45 @@ class StripeInvoiceOperations implements InvoiceOperations {
     };
   }
 
+  /**
+   * `send_invoice` invoices are emailed through Stripe's send endpoint.
+   * `charge_automatically` invoices are finalized with automatic collection
+   * on, so Stripe charges the customer's default payment method and applies
+   * its retry settings; the outcome arrives as `invoice.paid` or
+   * `invoice.payment_failed`.
+   */
   async send(externalId: string): Promise<void> {
+    const path = `/v1/invoices/${encodeURIComponent(externalId)}`;
+    const invoice = await this.provider.request<StripeInvoice>('GET', path);
+    if (invoice.collection_method !== 'charge_automatically') {
+      await this.provider.request('POST', `${path}/send`);
+      return;
+    }
+    if (invoice.status === 'draft') {
+      await this.provider.request(
+        'POST',
+        `${path}/finalize`,
+        { auto_advance: true },
+        { idempotencyKey: `${externalId}:finalize` },
+      );
+      return;
+    }
+    if (invoice.status === 'open' && invoice.auto_advance === false) {
+      await this.provider.request(
+        'POST',
+        path,
+        { auto_advance: true },
+        { idempotencyKey: `${externalId}:auto_advance` },
+      );
+    }
+  }
+
+  async markUncollectible(externalId: string): Promise<void> {
     await this.provider.request(
       'POST',
-      `/v1/invoices/${encodeURIComponent(externalId)}/send`,
+      `/v1/invoices/${encodeURIComponent(externalId)}/mark_uncollectible`,
+      undefined,
+      { idempotencyKey: `${externalId}:mark_uncollectible` },
     );
   }
 
@@ -536,6 +743,128 @@ class StripePaymentOperations implements PaymentOperations {
     >('GET', '/v1/payment_intents', mapListOptions(options));
     return response.data.map(mapStripePaymentIntent);
   }
+
+  async chargeSavedPaymentMethod(
+    input: SavedPaymentMethodChargeInput,
+  ): Promise<SavedPaymentMethodChargeResult> {
+    assertIdempotencyKey(input.idempotencyKey);
+    if (!input.customerExternalId) {
+      throw new Error('Saved payment method charges require a customer');
+    }
+    const currency = normalizeCurrencyCode(input.currency);
+    const stripeAmount = minorUnitsToStripeAmount(input.amountMinor, currency);
+    if (stripeAmount <= 0) {
+      throw new Error(
+        'Charge amount must be a positive integer of minor units',
+      );
+    }
+    const chargeKey = input.idempotencyKey;
+    const base = {
+      provider: 'stripe' as const,
+      customerExternalId: input.customerExternalId,
+      amountMinor: input.amountMinor,
+      currency,
+      chargeKey,
+    };
+
+    // After Stripe's idempotency window a replayed key would charge again, so
+    // first look for the PaymentIntent an earlier attempt created.
+    const existing = await this.findByChargeKey(chargeKey);
+    if (existing) {
+      assertSameCharge(
+        existing,
+        input.customerExternalId,
+        stripeAmount,
+        currency,
+        input.paymentMethodExternalId,
+      );
+      return { ...base, ...mapChargeOutcome(existing) };
+    }
+
+    let paymentMethod = input.paymentMethodExternalId;
+    if (!paymentMethod) {
+      const customer = await this.provider.request<StripeCustomer>(
+        'GET',
+        `/v1/customers/${encodeURIComponent(input.customerExternalId)}`,
+      );
+      paymentMethod = idOf(customer.invoice_settings?.default_payment_method);
+      if (!paymentMethod) {
+        return {
+          ...base,
+          status: 'failed',
+          failureCode: 'payment_method_missing',
+          failureMessage: 'The customer has no default payment method.',
+        };
+      }
+    }
+
+    try {
+      const paymentIntent = await this.provider.request<StripePaymentIntent>(
+        'POST',
+        '/v1/payment_intents',
+        {
+          amount: stripeAmount,
+          currency: currency.toLowerCase(),
+          customer: input.customerExternalId,
+          payment_method: paymentMethod,
+          off_session: true,
+          confirm: true,
+          description: input.description,
+          metadata: normalizeMetadata({
+            ...input.metadata,
+            [CHARGE_KEY_METADATA]: chargeKey,
+          }),
+        },
+        { idempotencyKey: `${chargeKey}:payment_intent` },
+      );
+      return { ...base, ...mapChargeOutcome(paymentIntent) };
+    } catch (error) {
+      // A decline or an authentication requirement is a charge outcome, not
+      // a transport failure: Stripe returns 402 with the failed PaymentIntent.
+      if (
+        error instanceof StripeApiError &&
+        error.status === 402 &&
+        error.type === 'card_error'
+      ) {
+        const paymentIntent = isRecord(error.paymentIntent)
+          ? (error.paymentIntent as unknown as StripePaymentIntent)
+          : undefined;
+        return {
+          ...base,
+          ...(paymentIntent ? mapChargeOutcome(paymentIntent) : {}),
+          paymentMethodExternalId:
+            idOf(paymentIntent?.payment_method) ?? paymentMethod,
+          status:
+            error.code === 'authentication_required'
+              ? 'requires_action'
+              : 'failed',
+          failureCode: error.code,
+          declineCode: error.declineCode,
+          failureMessage: error.stripeMessage,
+          raw: paymentIntent ? withoutClientSecret(paymentIntent) : undefined,
+        };
+      }
+      throw error;
+    }
+  }
+
+  private async findByChargeKey(
+    chargeKey: string,
+  ): Promise<StripePaymentIntent | undefined> {
+    const response = await this.provider.request<
+      StripeSearchResponse<StripePaymentIntent>
+    >('GET', '/v1/payment_intents/search', {
+      query: `metadata['${CHARGE_KEY_METADATA}']:'${escapeSearchValue(chargeKey)}'`,
+      limit: 10,
+    });
+    return response.data
+      .filter((intent) => intent.metadata?.[CHARGE_KEY_METADATA] === chargeKey)
+      .sort(
+        (left, right) =>
+          (left.created ?? 0) - (right.created ?? 0) ||
+          left.id.localeCompare(right.id),
+      )[0];
+  }
 }
 
 class StripeBillingOperationsImpl implements StripeBillingOperations {
@@ -551,14 +880,63 @@ class StripeBillingOperationsImpl implements StripeBillingOperations {
       { idempotencyKey: input.idempotencyKey },
     );
 
+    return mapCheckoutSessionResponse(response);
+  }
+
+  async retrieveCheckoutSession(
+    sessionExternalId: string,
+  ): Promise<StripeCheckoutSessionDetails> {
+    const session = await this.provider.request<StripeCheckoutSessionResponse>(
+      'GET',
+      `/v1/checkout/sessions/${encodeURIComponent(sessionExternalId)}`,
+      { expand: ['setup_intent', 'payment_intent'] },
+    );
+    const intent =
+      typeof session.setup_intent === 'object' && session.setup_intent
+        ? session.setup_intent
+        : typeof session.payment_intent === 'object' && session.payment_intent
+          ? session.payment_intent
+          : undefined;
+    const currency = session.currency
+      ? session.currency.toUpperCase()
+      : undefined;
+    const minor = (amount?: number | null) =>
+      currency && typeof amount === 'number'
+        ? stripeAmountToMinorUnitsOrUndefined(amount, currency)
+        : undefined;
+
     return {
-      externalId: response.id,
-      url: response.url || null,
-      customerExternalId: response.customer || undefined,
-      subscriptionExternalId: response.subscription || undefined,
-      paymentIntentExternalId: response.payment_intent || undefined,
-      raw: response,
+      ...mapCheckoutSessionResponse(session),
+      raw: withoutClientSecrets(session),
+      status: oneOf(session.status, ['open', 'complete', 'expired'] as const),
+      paymentStatus: oneOf(session.payment_status, [
+        'paid',
+        'unpaid',
+        'no_payment_required',
+      ] as const),
+      paymentMethodExternalId: idOf(intent?.payment_method),
+      currency,
+      amountSubtotalMinor: minor(session.amount_subtotal),
+      amountTaxMinor: minor(session.total_details?.amount_tax),
+      amountTotalMinor: minor(session.amount_total),
+      metadata: { ...(session.metadata || {}) },
     };
+  }
+
+  async setDefaultPaymentMethod(
+    customerExternalId: string,
+    paymentMethodExternalId: string,
+  ): Promise<void> {
+    if (!customerExternalId || !paymentMethodExternalId) {
+      throw new Error(
+        'setDefaultPaymentMethod requires a customer and a payment method',
+      );
+    }
+    await this.provider.request(
+      'POST',
+      `/v1/customers/${encodeURIComponent(customerExternalId)}`,
+      { invoice_settings: { default_payment_method: paymentMethodExternalId } },
+    );
   }
 
   async createCustomerPortalSession(
@@ -734,7 +1112,15 @@ class StripeWebhookOperations implements WebhookOperations {
     }
 
     const resource = event?.data?.object;
+    const payment =
+      resource?.object === 'payment_intent' && typeof resource.id === 'string'
+        ? mapWebhookPayment(
+            resource as unknown as StripePaymentIntent,
+            event?.type || undefined,
+          )
+        : undefined;
     return {
+      ...(payment ? { payment } : {}),
       type: event?.type || 'unknown',
       id: typeof event?.id === 'string' ? event.id : undefined,
       provider: 'stripe',
@@ -808,9 +1194,10 @@ function mapCustomerToStripe(
         }
       : undefined,
     metadata: normalizeMetadata({
-      local_id: customer.id,
       payment_terms: customer.paymentTerms,
       ...customer.metadata,
+      // Written last: idempotent creation reconciles customers by it.
+      local_id: customer.id,
     }),
   };
 
@@ -823,11 +1210,13 @@ function mapCustomerToStripe(
 
 function mapInvoiceToStripe(
   invoice: InvoiceInput,
+  collectionMethod: 'send_invoice' | 'charge_automatically',
 ): Record<string, StripeFormValue> {
   return {
     customer: invoice.customerExternalId,
-    collection_method: 'send_invoice',
-    due_date: invoice.dueDate,
+    collection_method: collectionMethod,
+    // Stripe rejects a due date on automatically charged invoices.
+    due_date: collectionMethod === 'send_invoice' ? invoice.dueDate : undefined,
     auto_advance: false,
     pending_invoice_items_behavior: 'include',
     automatic_tax: invoice.automaticTax ? { enabled: true } : undefined,
@@ -846,9 +1235,14 @@ function mapInvoiceToStripe(
 
 function mapInvoiceUpdateToStripe(
   invoice: InvoiceInput,
+  collectionMethod: 'send_invoice' | 'charge_automatically',
 ): Record<string, StripeFormValue> {
   return {
-    due_date: invoice.dueDate,
+    // Sent only when the caller sets it, so existing updates are unchanged.
+    // Stripe accepts a collection method change on draft invoices and rejects
+    // it on finalized ones rather than ignoring it.
+    collection_method: invoice.collectionMethod ? collectionMethod : undefined,
+    due_date: collectionMethod === 'send_invoice' ? invoice.dueDate : undefined,
     metadata: normalizeMetadata({
       local_id: invoice.id,
       invoice_number: invoice.invoiceNumber,
@@ -862,21 +1256,80 @@ function mapInvoiceUpdateToStripe(
 function mapCheckoutSessionToStripe(
   input: StripeCheckoutSessionInput,
 ): Record<string, StripeFormValue> {
+  const mode = input.mode || 'subscription';
+  const lineItems = input.lineItems || [];
+  if (mode === 'setup') {
+    if (lineItems.length > 0) {
+      throw new Error('Stripe setup-mode Checkout does not accept line items');
+    }
+    if (!input.currency && !input.paymentMethodTypes?.length) {
+      throw new Error(
+        'Stripe setup-mode Checkout requires currency or paymentMethodTypes',
+      );
+    }
+    if (input.automaticTax) {
+      throw new Error('Stripe setup-mode Checkout does not calculate tax');
+    }
+  } else if (lineItems.length === 0) {
+    throw new Error(`Stripe ${mode}-mode Checkout requires line items`);
+  }
+  if (input.setupFutureUsage && mode !== 'payment') {
+    throw new Error('setupFutureUsage applies only to payment-mode Checkout');
+  }
+  if (input.customerUpdate && !input.customerExternalId) {
+    throw new Error('customerUpdate requires customerExternalId');
+  }
+
   return {
-    mode: input.mode || 'subscription',
+    mode,
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
     customer: input.customerExternalId,
     customer_email: input.customerExternalId ? undefined : input.customerEmail,
     client_reference_id: input.clientReferenceId,
     allow_promotion_codes: input.allowPromotionCodes,
-    line_items: input.lineItems.map(mapCheckoutLineItem),
+    currency: input.currency ? input.currency.toLowerCase() : undefined,
+    payment_method_types: input.paymentMethodTypes,
+    automatic_tax: input.automaticTax ? { enabled: true } : undefined,
+    billing_address_collection: input.billingAddressCollection,
+    customer_update: input.customerUpdate
+      ? {
+          address: input.customerUpdate.address,
+          name: input.customerUpdate.name,
+          shipping: input.customerUpdate.shipping,
+        }
+      : undefined,
+    payment_intent_data: input.setupFutureUsage
+      ? { setup_future_usage: input.setupFutureUsage }
+      : undefined,
+    line_items:
+      mode === 'setup'
+        ? undefined
+        : lineItems.map((lineItem) =>
+            mapCheckoutLineItem(lineItem, Boolean(input.automaticTax)),
+          ),
     metadata: normalizeMetadata(input.metadata || {}),
+  };
+}
+
+function mapCheckoutSessionResponse(
+  response: StripeCheckoutSessionResponse,
+): StripeCheckoutSession {
+  return {
+    externalId: response.id,
+    url: response.url || null,
+    mode: oneOf(response.mode, ['payment', 'setup', 'subscription'] as const),
+    customerExternalId: idOf(response.customer),
+    subscriptionExternalId: idOf(response.subscription),
+    paymentIntentExternalId: idOf(response.payment_intent),
+    setupIntentExternalId: idOf(response.setup_intent),
+    raw: withoutClientSecrets(response),
   };
 }
 
 function mapCheckoutLineItem(
   lineItem: StripeCheckoutLineItem,
+  automaticTax = false,
 ): Record<string, StripeFormValue> {
   if (lineItem.price) {
     return {
@@ -889,21 +1342,37 @@ function mapCheckoutLineItem(
     throw new Error('Stripe checkout line item requires price or priceData');
   }
 
-  const productData = lineItem.priceData.product
+  const { priceData } = lineItem;
+  const productData = priceData.product
     ? undefined
-    : { name: lineItem.priceData.productName || 'Subscription' };
+    : { name: priceData.productName || 'Subscription' };
+  const hasStripeAmount = priceData.unitAmount !== undefined;
+  const hasMinorAmount = priceData.unitAmountMinor !== undefined;
+  if (hasStripeAmount === hasMinorAmount) {
+    throw new Error(
+      'Stripe checkout priceData requires exactly one of unitAmount or unitAmountMinor',
+    );
+  }
+  const unitAmount = hasMinorAmount
+    ? minorUnitsToStripeAmount(
+        priceData.unitAmountMinor as number,
+        normalizeCurrencyCode(priceData.currency),
+      )
+    : priceData.unitAmount;
 
   return {
     quantity: lineItem.quantity || 1,
     price_data: {
-      currency: lineItem.priceData.currency,
-      unit_amount: lineItem.priceData.unitAmount,
-      product: lineItem.priceData.product,
+      currency: priceData.currency.toLowerCase(),
+      unit_amount: unitAmount,
+      tax_behavior:
+        priceData.taxBehavior ?? (automaticTax ? 'exclusive' : undefined),
+      product: priceData.product,
       product_data: productData,
-      recurring: lineItem.priceData.recurring
+      recurring: priceData.recurring
         ? {
-            interval: lineItem.priceData.recurring.interval,
-            interval_count: lineItem.priceData.recurring.intervalCount,
+            interval: priceData.recurring.interval,
+            interval_count: priceData.recurring.intervalCount,
           }
         : undefined,
     },
@@ -1036,6 +1505,8 @@ function mapStripeInvoiceStatus(
       return 'paid';
     case 'void':
       return 'voided';
+    case 'uncollectible':
+      return 'uncollectible';
     case 'open':
       if (dueDate && dueDate * 1000 < Date.now()) {
         return 'overdue';
@@ -1306,6 +1777,340 @@ function stripeMinorUnitsToMoney(
   currency?: string | null,
 ): number {
   return amount / stripeCurrencyMinorUnitFactor(currency);
+}
+
+const CHARGE_KEY_METADATA = 'hv_charge_key';
+
+function assertIdempotencyKey(key: string): void {
+  if (typeof key !== 'string' || key.trim() === '') {
+    throw new Error('idempotencyKey must be a non-empty string');
+  }
+}
+
+/** Escape a value for a single-quoted Stripe Search Query Language string. */
+function escapeSearchValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function resolveCollectionMethod(
+  invoice: InvoiceInput,
+): 'send_invoice' | 'charge_automatically' {
+  const method = invoice.collectionMethod ?? 'send_invoice';
+  if (method !== 'send_invoice' && method !== 'charge_automatically') {
+    throw new Error(`Unsupported invoice collectionMethod '${method}'`);
+  }
+  return method;
+}
+
+/** The line's discount in Stripe units, validated against the line total. */
+function lineDiscountToStripe(
+  lineItem: InvoiceInput['lineItems'][number],
+  currency: string,
+): number | undefined {
+  if (lineItem.discount === undefined || lineItem.discount === 0) {
+    return undefined;
+  }
+  if (!Number.isFinite(lineItem.discount) || lineItem.discount < 0) {
+    throw new Error(
+      `Invoice line '${lineItem.description}' discount must be a non-negative amount`,
+    );
+  }
+  const discount = moneyToStripeMinorUnits(lineItem.discount, currency);
+  const lineTotal = Math.round(
+    moneyToStripeMinorUnits(lineItem.unitPrice, currency) * lineItem.quantity,
+  );
+  if (discount > lineTotal) {
+    throw new Error(
+      `Invoice line '${lineItem.description}' discount exceeds the line total`,
+    );
+  }
+  return discount > 0 ? discount : undefined;
+}
+
+function lineServicePeriod(
+  lineItem: InvoiceInput['lineItems'][number],
+): { start: Date; end: Date } | undefined {
+  const { periodStart, periodEnd } = lineItem;
+  if (!periodStart && !periodEnd) {
+    return undefined;
+  }
+  if (!(periodStart instanceof Date) || !(periodEnd instanceof Date)) {
+    throw new Error(
+      `Invoice line '${lineItem.description}' needs both periodStart and periodEnd`,
+    );
+  }
+  if (
+    Number.isNaN(periodStart.getTime()) ||
+    Number.isNaN(periodEnd.getTime()) ||
+    periodEnd.getTime() < periodStart.getTime()
+  ) {
+    throw new Error(
+      `Invoice line '${lineItem.description}' has an invalid service period`,
+    );
+  }
+  return { start: periodStart, end: periodEnd };
+}
+
+function mapChargeOutcome(
+  paymentIntent: StripePaymentIntent,
+): Pick<
+  SavedPaymentMethodChargeResult,
+  | 'status'
+  | 'paymentExternalId'
+  | 'paymentMethodExternalId'
+  | 'failureCode'
+  | 'declineCode'
+  | 'failureMessage'
+  | 'raw'
+> {
+  const error = paymentIntent.last_payment_error;
+  const status = mapPaymentIntentChargeStatus(
+    paymentIntent.status,
+    error?.code,
+  );
+  return {
+    status,
+    paymentExternalId: paymentIntent.id,
+    paymentMethodExternalId: idOf(paymentIntent.payment_method),
+    failureCode: status === 'succeeded' ? undefined : error?.code || undefined,
+    declineCode:
+      status === 'succeeded' ? undefined : error?.decline_code || undefined,
+    failureMessage:
+      status === 'succeeded' ? undefined : error?.message || undefined,
+    raw: withoutClientSecret(paymentIntent),
+  };
+}
+
+/**
+ * A PaymentIntent found by charge key after Stripe's idempotency window must
+ * be the charge this call describes; a key reused for a different amount,
+ * currency, or customer is refused instead of reporting the wrong charge.
+ */
+function assertSameCharge(
+  paymentIntent: StripePaymentIntent,
+  customerExternalId: string,
+  stripeAmount: number,
+  currency: string,
+  paymentMethodExternalId?: string,
+): void {
+  const customer = idOf(paymentIntent.customer);
+  const paymentMethod = idOf(paymentIntent.payment_method);
+  if (
+    paymentIntent.amount !== stripeAmount ||
+    (paymentIntent.currency || '').toUpperCase() !== currency ||
+    (customer !== undefined && customer !== customerExternalId) ||
+    (paymentMethodExternalId !== undefined &&
+      paymentMethod !== undefined &&
+      paymentMethod !== paymentMethodExternalId)
+  ) {
+    throw new Error(
+      `idempotencyKey was already used for a different charge (${paymentIntent.id}); use a new key for a new charge`,
+    );
+  }
+}
+
+/** Remove `client_secret` from a Stripe object and its expanded intents. */
+function withoutClientSecrets<T extends object>(value: T): T {
+  const copy = withoutClientSecret(value) as Record<string, unknown>;
+  for (const key of ['payment_intent', 'setup_intent']) {
+    const nested = copy[key];
+    if (isRecord(nested)) {
+      copy[key] = withoutClientSecret(nested);
+    }
+  }
+  return copy as T;
+}
+
+/**
+ * Drop the intent client secret before handing objects to callers, including
+ * `next_action`, whose redirect URL and SDK payload embed the same secret.
+ */
+function withoutClientSecret<T extends object>(value: T): T {
+  const {
+    client_secret: _secret,
+    next_action: _nextAction,
+    ...rest
+  } = value as T & { client_secret?: unknown; next_action?: unknown };
+  return rest as T;
+}
+
+function mapPaymentIntentChargeStatus(
+  status?: string | null,
+  errorCode?: string | null,
+): PaymentChargeStatus {
+  switch (status) {
+    case 'succeeded':
+      return 'succeeded';
+    case 'processing':
+    case 'requires_capture':
+      return 'processing';
+    case 'requires_action':
+    case 'requires_confirmation':
+      return 'requires_action';
+    case 'canceled':
+      return 'canceled';
+    case 'requires_payment_method':
+      return errorCode === 'authentication_required'
+        ? 'requires_action'
+        : 'failed';
+    default:
+      return 'processing';
+  }
+}
+
+function mapWebhookPayment(
+  paymentIntent: StripePaymentIntent,
+  eventType?: string,
+): WebhookPaymentSummary {
+  const error = paymentIntent.last_payment_error;
+  let status = mapPaymentIntentChargeStatus(paymentIntent.status, error?.code);
+  if (eventType === 'payment_intent.succeeded') status = 'succeeded';
+  if (eventType === 'payment_intent.canceled') status = 'canceled';
+  if (eventType === 'payment_intent.payment_failed') {
+    status =
+      error?.code === 'authentication_required' ? 'requires_action' : 'failed';
+  }
+  const currency = paymentIntent.currency
+    ? paymentIntent.currency.toUpperCase()
+    : undefined;
+  const metadata = { ...(paymentIntent.metadata || {}) };
+  return {
+    status,
+    paymentExternalId: paymentIntent.id,
+    customerExternalId: idOf(paymentIntent.customer),
+    amountMinor:
+      currency && typeof paymentIntent.amount === 'number'
+        ? stripeAmountToMinorUnitsOrUndefined(paymentIntent.amount, currency)
+        : undefined,
+    currency,
+    chargeKey: metadata[CHARGE_KEY_METADATA],
+    failureCode: status === 'succeeded' ? undefined : error?.code || undefined,
+    declineCode:
+      status === 'succeeded' ? undefined : error?.decline_code || undefined,
+    failureMessage:
+      status === 'succeeded' ? undefined : error?.message || undefined,
+    metadata,
+  };
+}
+
+function idOf(
+  value: string | { id?: string | null } | null | undefined,
+): string | undefined {
+  if (typeof value === 'string') {
+    return value || undefined;
+  }
+  return value?.id || undefined;
+}
+
+function oneOf<const T extends string>(
+  value: string | null | undefined,
+  allowed: readonly T[],
+): T | undefined {
+  return allowed.find((candidate) => candidate === value);
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizeCurrencyCode(currency: string): string {
+  const code = String(currency ?? '')
+    .trim()
+    .toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code)) {
+    throw new Error(`Currency '${currency}' must be a three-letter code`);
+  }
+  return code;
+}
+
+/** ISO 4217 minor-unit exponents other than 2. */
+const ISO_ZERO_DECIMAL_CURRENCIES = new Set([
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'ISK',
+  'JPY',
+  'KMF',
+  'KRW',
+  'PYG',
+  'RWF',
+  'UGX',
+  'UYI',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+]);
+const ISO_THREE_DECIMAL_CURRENCIES = new Set([
+  'BHD',
+  'IQD',
+  'JOD',
+  'KWD',
+  'LYD',
+  'OMR',
+  'TND',
+]);
+const ISO_FOUR_DECIMAL_CURRENCIES = new Set(['CLF', 'UYW']);
+
+/**
+ * ISO 4217 minor-unit exponent (2 for USD, 0 for JPY and ISK), from the
+ * explicit tables above rather than the runtime's `Intl`/CLDR display digits,
+ * which differ for some currencies (for example RSD, IQD, MGA) and change
+ * between ICU releases.
+ */
+function isoMinorUnitExponent(currency: string): number {
+  if (ISO_ZERO_DECIMAL_CURRENCIES.has(currency)) return 0;
+  if (ISO_THREE_DECIMAL_CURRENCIES.has(currency)) return 3;
+  if (ISO_FOUR_DECIMAL_CURRENCIES.has(currency)) return 4;
+  return 2;
+}
+
+/**
+ * Integer ISO minor units → Stripe's smallest unit. They differ where Stripe
+ * keeps a two-decimal representation for a zero-decimal currency (ISK, UGX).
+ */
+function minorUnitsToStripeAmount(
+  amountMinor: number,
+  currency: string,
+): number {
+  if (!Number.isSafeInteger(amountMinor)) {
+    throw new Error(
+      `Amount ${amountMinor} must be a safe integer number of minor units`,
+    );
+  }
+  const iso = 10 ** isoMinorUnitExponent(currency);
+  const stripe = stripeCurrencyMinorUnitFactor(currency);
+  if (stripe >= iso) {
+    return amountMinor * (stripe / iso);
+  }
+  const divisor = iso / stripe;
+  if (amountMinor % divisor !== 0) {
+    throw new Error(
+      `Amount ${amountMinor} ${currency} minor units is not representable in Stripe's currency unit`,
+    );
+  }
+  return amountMinor / divisor;
+}
+
+function stripeAmountToMinorUnitsOrUndefined(
+  amount: number,
+  currency: string,
+): number | undefined {
+  if (!Number.isSafeInteger(amount)) {
+    return undefined;
+  }
+  // Reads (webhooks, session totals) omit an amount that is not a whole
+  // number of ISO minor units instead of failing a verified event.
+  const iso = 10 ** isoMinorUnitExponent(currency);
+  const stripe = stripeCurrencyMinorUnitFactor(currency);
+  const minor = (amount * iso) / stripe;
+  return Number.isSafeInteger(minor) ? minor : undefined;
 }
 
 function centsToMoney(cents: number): number {

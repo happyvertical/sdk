@@ -71,8 +71,21 @@ function isPermanentlyRejected(message) {
   return /cannot publish over (the )?previously published version|cannot be republished/i.test(message);
 }
 
+// npm prints `npm notice` tarball details (and `npm warn` lines) before the
+// real failure, so the first stderr line is usually not the reason (#1272).
+// Prefer the first `npm error` / `npm ERR!` / `E<status>` line, then the first
+// line that is not a notice or warning, then the first line.
 function firstLine(error) {
-  return (error instanceof Error ? error.message : String(error)).split('\n')[0];
+  const lines = (error instanceof Error ? error.message : String(error))
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return (
+    lines.find((line) => /^npm (error|ERR!)\s/i.test(line) || /\bE\d{3}\b/.test(line)) ??
+    lines.find((line) => !/^npm (notice|warn|WARN)\b/.test(line)) ??
+    lines[0] ??
+    ''
+  );
 }
 
 async function downloadTarball({ spec, primary, runNpm, fetchImpl }) {
@@ -185,7 +198,7 @@ export async function mirrorRelease({
           log(`Mirrored ${spec} to ${target}`);
         } catch (error) {
           const message = firstLine(error);
-          if (isPermanentlyRejected(message)) {
+          if (isPermanentlyRejected(error instanceof Error ? error.message : String(error))) {
             // npmjs reserves an unpublished version forever; retrying cannot
             // help. An older one is skipped so later versions still mirror,
             // but if it is the newest, npmjs is genuinely behind: report it.
