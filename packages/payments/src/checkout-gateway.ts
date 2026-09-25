@@ -20,6 +20,26 @@
  *   revived.
  */
 
+import { PaymentError } from './errors.js';
+
+/**
+ * `getCheckout` was asked for a checkout this gateway did not create (for
+ * example a webhook for an invoice made by hand at the provider). Callers
+ * acknowledge and ignore it, like an event with `checkoutId: null`.
+ */
+export class CryptoCheckoutNotOwnedError extends PaymentError {
+  readonly checkoutId: string;
+
+  constructor(checkoutId: string) {
+    super(
+      `Checkout ${checkoutId} was not created by this gateway.`,
+      'PAYMENT_VERIFICATION_FAILED',
+    );
+    this.name = 'CryptoCheckoutNotOwnedError';
+    this.checkoutId = checkoutId;
+  }
+}
+
 /** Where a checkout is in its lifecycle. */
 export type CryptoCheckoutStatus =
   /** Awaiting payment; the rate is locked until `expiresAt`. */
@@ -100,7 +120,7 @@ export interface CreateCryptoCheckoutInput {
   currency: string;
   description?: string;
   buyerEmail?: string;
-  /** String metadata stored on the checkout and returned verbatim. */
+  /** String metadata stored on the checkout and returned verbatim (only these keys). */
   metadata?: Record<string, string>;
   /** Where the payer is sent after paying. */
   redirectUrl?: string;
@@ -121,6 +141,7 @@ export interface CryptoCheckoutGateway {
   readonly id: string;
   /** Return the live checkout for `orderId`, or create one. */
   createCheckout(input: CreateCryptoCheckoutInput): Promise<CryptoCheckout>;
+  /** Throws `CryptoCheckoutNotOwnedError` for a checkout it did not create. */
   getCheckout(checkoutId: string): Promise<CryptoCheckout>;
   listCheckouts(input: { orderId: string }): Promise<CryptoCheckout[]>;
   /**

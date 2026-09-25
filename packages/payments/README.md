@@ -97,7 +97,7 @@ API key needs only `btcpay.store.canviewinvoices` and
 
 ### Crypto checkout gateway (provider-neutral)
 
-`CryptoCheckoutGateway` (root export, types only) is the narrow port billing
+`CryptoCheckoutGateway` (root export) is the narrow port billing
 code uses for **hosted crypto checkouts priced in fiat**. BTCPay is one
 implementation (`createBtcpayCheckoutGateway` from
 `@happyvertical/payments/btcpay`); a dedicated crypto-payments service can
@@ -115,7 +115,11 @@ implement the same port later without changing callers.
   status, txid).
 - `verifyWebhook(rawBody, headers)` authenticates a delivery and returns ids
   only (`eventId` is stable across redeliveries). Always act on
-  `getCheckout()`, never on the webhook body.
+  `getCheckout()`, never on the webhook body. `getCheckout()` throws
+  `CryptoCheckoutNotOwnedError` for a checkout the gateway did not create (for
+  example an invoice made by hand at the provider): acknowledge and ignore it.
+- Returned `metadata` holds only the caller's own keys, so it round-trips
+  into `createCheckout`.
 
 **Settlement belongs to the gateway.** `settled` means the gateway's own
 confirmation policy is met; callers never count confirmations. For BTCPay that

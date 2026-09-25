@@ -4,6 +4,7 @@ import {
   BtcpayClient,
   createBtcpayCheckoutGateway,
 } from './adapters/btcpay.js';
+import { CryptoCheckoutNotOwnedError } from './checkout-gateway.js';
 import {
   PaymentConfigurationError,
   PaymentVerificationError,
@@ -202,8 +203,10 @@ describe('createBtcpayCheckoutGateway', () => {
       rate: '100000.00',
       rateSource: 'kraken',
       checkoutUrl: 'https://pay.example/i/inv_1',
-      metadata: { orderId: 'order-1', purpose: 'credit_purchase' },
+      metadata: { purpose: 'credit_purchase' },
     });
+    // Only the caller's keys come back, so they round-trip into createCheckout.
+    expect(Object.keys(first.metadata)).toEqual(['purpose']);
 
     const again = await gateway.createCheckout({
       orderId: 'order-1',
@@ -303,6 +306,12 @@ describe('createBtcpayCheckoutGateway', () => {
     expect(
       (await gateway.listCheckouts({ orderId: 'f' })).map((c) => c.id),
     ).toEqual(['inv_2']);
+    await expect(gateway.getCheckout('inv_1')).rejects.toBeInstanceOf(
+      CryptoCheckoutNotOwnedError,
+    );
+    // An earlier marker version still counts as ours.
+    invoiceOf(world, 'inv_2').metadata.hvCheckoutGateway = 'crypto-checkout:v0';
+    expect((await gateway.getCheckout('inv_2')).id).toBe('inv_2');
     await expect(
       gateway.createCheckout({
         orderId: 'g',

@@ -5,14 +5,15 @@
  * `expirationMinutes` and settles by the invoice `speedPolicy`; this adapter
  * only maps BTCPay's states and never counts confirmations.
  */
-import type {
-  CreateCryptoCheckoutInput,
-  CryptoCheckout,
-  CryptoCheckoutEvent,
-  CryptoCheckoutException,
-  CryptoCheckoutGateway,
-  CryptoCheckoutPayment,
-  CryptoCheckoutStatus,
+import {
+  type CreateCryptoCheckoutInput,
+  type CryptoCheckout,
+  type CryptoCheckoutEvent,
+  type CryptoCheckoutException,
+  type CryptoCheckoutGateway,
+  CryptoCheckoutNotOwnedError,
+  type CryptoCheckoutPayment,
+  type CryptoCheckoutStatus,
 } from '../checkout-gateway.js';
 import {
   PaymentConfigurationError,
@@ -246,7 +247,9 @@ export function createBtcpayCheckoutGateway(
     },
 
     async getCheckout(checkoutId: string) {
-      return load(await client.getInvoice(requireText(checkoutId, 'id')));
+      const invoice = await client.getInvoice(requireText(checkoutId, 'id'));
+      if (!isOwned(invoice)) throw new CryptoCheckoutNotOwnedError(invoice.id);
+      return load(invoice);
     },
 
     async listCheckouts(input: { orderId: string }) {
@@ -382,13 +385,19 @@ function toCheckout(
 
   const metadata: Record<string, string> = {};
   for (const [key, value] of Object.entries(invoice.metadata)) {
-    if (typeof value === 'string') metadata[key] = value;
+    // Only the caller's own keys; the adapter's are surfaced as fields.
+    if (typeof value === 'string' && !RESERVED_METADATA.has(key)) {
+      metadata[key] = value;
+    }
   }
 
   return {
     gateway: BTCPAY_GATEWAY_ID,
     id: invoice.id,
-    orderId: metadata.orderId,
+    orderId:
+      typeof invoice.metadata.orderId === 'string'
+        ? invoice.metadata.orderId
+        : undefined,
     status,
     exception,
     amount,
@@ -416,11 +425,15 @@ function formatMinorUnits(amount: number, decimals: number): string {
     : `${text.slice(0, -decimals)}.${text.slice(-decimals)}`;
 }
 
+function isOwned(invoice: BtcpayInvoice): boolean {
+  // Any version of the marker: bumping OWNER_VALUE must not orphan live
+  // invoices written by an earlier version.
+  const marker = invoice.metadata[OWNER_KEY];
+  return typeof marker === 'string' && marker.startsWith('crypto-checkout:');
+}
+
 function ownedBy(invoice: BtcpayInvoice, orderId: string): boolean {
-  return (
-    invoice.metadata.orderId === orderId &&
-    invoice.metadata[OWNER_KEY] === OWNER_VALUE
-  );
+  return invoice.metadata.orderId === orderId && isOwned(invoice);
 }
 
 function paymentStatus(
