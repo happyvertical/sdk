@@ -63,6 +63,50 @@ test('reports not-mirrored when npmjs refuses the publish (the suspended-account
   assert.match(result.notMirrored[0], /@happyvertical\/a@0\.90\.0: npm error 404/);
 });
 
+test('reports the npm error line, not the leading npm notice lines (#1272)', async () => {
+  const { runNpm } = registries({
+    primary: { '@happyvertical/a': ['0.89.12', '0.90.0'] },
+    npmjs: { '@happyvertical/a': ['0.89.12'] },
+    publishError: [
+      'npm notice',
+      'npm notice 📦  @happyvertical/a@0.90.0',
+      'npm notice Tarball Contents',
+      'npm warn publish npm auto-corrected some errors in your package.json',
+      'npm error code E404',
+      'npm error 404 Not Found - PUT https://registry.npmjs.org/@happyvertical%2fa - Not found',
+    ].join('\n'),
+  });
+  const result = await mirrorRelease({ ...base, packages: ['@happyvertical/a'], runNpm });
+  assert.equal(result.status, 'not-mirrored');
+  assert.equal(result.notMirrored[0], '@happyvertical/a@0.90.0: npm error code E404');
+});
+
+test('falls back to the first non-notice line when npm prints no error line (#1272)', async () => {
+  const { runNpm } = registries({
+    primary: { '@happyvertical/a': ['0.89.12', '0.90.0'] },
+    npmjs: { '@happyvertical/a': ['0.89.12'] },
+    publishError: 'npm notice\nnpm notice Tarball Details\nsocket hang up',
+  });
+  const result = await mirrorRelease({ ...base, packages: ['@happyvertical/a'], runNpm });
+  assert.equal(result.notMirrored[0], '@happyvertical/a@0.90.0: socket hang up');
+});
+
+test('a permanent refusal after npm notice lines is still recognized (#1272)', async () => {
+  const older = registries({
+    primary: { '@happyvertical/a': ['0.89.12', '0.90.0', '0.90.1'] },
+    npmjs: { '@happyvertical/a': ['0.89.12'] },
+  });
+  const run = (args, options) => {
+    if (args[0] === 'publish' && args[1].endsWith('-0.90.0.tgz')) {
+      throw new Error('npm notice Tarball Details\nnpm error code E403\nnpm error 403 You cannot publish over the previously published versions: 0.90.0.');
+    }
+    return older.runNpm(args, options);
+  };
+  const result = await mirrorRelease({ ...base, packages: ['@happyvertical/a'], runNpm: run });
+  assert.equal(result.status, 'complete');
+  assert.equal(result.skipped.length, 1);
+});
+
 test('does not trust a successful publish call: end state decides (smrt#3086)', async () => {
   const { runNpm, published } = registries({
     primary: { '@happyvertical/a': ['0.89.12', '0.90.0'] },
