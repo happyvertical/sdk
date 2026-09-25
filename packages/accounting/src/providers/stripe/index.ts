@@ -191,7 +191,7 @@ export class StripeProvider implements StripeAccountingProvider {
     options: { idempotencyKey?: string } = {},
   ): Promise<T> {
     const timeout = this.options.timeout || 30000;
-    const maxRetries = this.options.maxRetries || 3;
+    const maxRetries = this.options.maxRetries ?? 3;
     const idempotencyKey =
       method === 'POST'
         ? (options.idempotencyKey ?? `sdk-${randomUUID()}`)
