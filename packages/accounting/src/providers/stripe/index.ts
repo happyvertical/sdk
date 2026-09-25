@@ -34,6 +34,7 @@ import type {
   StripeBillingOperations,
   StripeCheckoutLineItem,
   StripeCheckoutSession,
+  StripeCheckoutSessionDetails,
   StripeCheckoutSessionInput,
   StripeCustomerPortalSession,
   StripeCustomerPortalSessionInput,
@@ -112,6 +113,8 @@ interface StripeInvoice {
   amount_remaining?: number | null;
   status?: string | null;
   currency?: string | null;
+  collection_method?: string | null;
+  auto_advance?: boolean | null;
   metadata?: Record<string, string> | null;
 }
 
@@ -129,14 +132,26 @@ interface StripePaymentIntent {
   invoice?: string | null;
   payment_method_types?: string[] | null;
   latest_charge?: string | null;
+interface StripeSetupIntent {
+  id: string;
+  payment_method?: string | { id: string } | null;
 }
 
 interface StripeCheckoutSessionResponse {
   id: string;
   url?: string | null;
-  customer?: string | null;
-  subscription?: string | null;
-  payment_intent?: string | null;
+  mode?: string | null;
+  status?: string | null;
+  payment_status?: string | null;
+  customer?: string | { id: string } | null;
+  subscription?: string | { id: string } | null;
+  payment_intent?: string | StripePaymentIntent | null;
+  setup_intent?: string | StripeSetupIntent | null;
+  currency?: string | null;
+  amount_subtotal?: number | null;
+  amount_total?: number | null;
+  total_details?: { amount_tax?: number | null } | null;
+  metadata?: Record<string, string> | null;
 }
 
 interface StripePortalSessionResponse {
@@ -542,7 +557,7 @@ class StripeInvoiceOperations implements InvoiceOperations {
     const response = await this.provider.request<StripeInvoice>(
       'POST',
       '/v1/invoices',
-      mapInvoiceToStripe(invoice),
+      mapInvoiceToStripe(invoice, collectionMethod),
       {
         idempotencyKey: invoice.idempotencyKey
           ? `${invoice.idempotencyKey}:invoice`
@@ -580,7 +595,7 @@ class StripeInvoiceOperations implements InvoiceOperations {
     await this.provider.request<StripeInvoice>(
       'POST',
       `/v1/invoices/${encodeURIComponent(invoice.externalId)}`,
-      mapInvoiceUpdateToStripe(invoice),
+      mapInvoiceUpdateToStripe(invoice, resolveCollectionMethod(invoice)),
     );
 
     return {
@@ -590,10 +605,45 @@ class StripeInvoiceOperations implements InvoiceOperations {
     };
   }
 
+  /**
+   * `send_invoice` invoices are emailed through Stripe's send endpoint.
+   * `charge_automatically` invoices are finalized with automatic collection
+   * on, so Stripe charges the customer's default payment method and applies
+   * its retry settings; the outcome arrives as `invoice.paid` or
+   * `invoice.payment_failed`.
+   */
   async send(externalId: string): Promise<void> {
+    const path = `/v1/invoices/${encodeURIComponent(externalId)}`;
+    const invoice = await this.provider.request<StripeInvoice>('GET', path);
+    if (invoice.collection_method !== 'charge_automatically') {
+      await this.provider.request('POST', `${path}/send`);
+      return;
+    }
+    if (invoice.status === 'draft') {
+      await this.provider.request(
+        'POST',
+        `${path}/finalize`,
+        { auto_advance: true },
+        { idempotencyKey: `${externalId}:finalize` },
+      );
+      return;
+    }
+    if (invoice.status === 'open' && invoice.auto_advance === false) {
+      await this.provider.request(
+        'POST',
+        path,
+        { auto_advance: true },
+        { idempotencyKey: `${externalId}:auto_advance` },
+      );
+    }
+  }
+
+  async markUncollectible(externalId: string): Promise<void> {
     await this.provider.request(
       'POST',
-      `/v1/invoices/${encodeURIComponent(externalId)}/send`,
+      `/v1/invoices/${encodeURIComponent(externalId)}/mark_uncollectible`,
+      undefined,
+      { idempotencyKey: `${externalId}:mark_uncollectible` },
     );
   }
 
@@ -692,14 +742,62 @@ class StripeBillingOperationsImpl implements StripeBillingOperations {
       { idempotencyKey: input.idempotencyKey },
     );
 
+    return mapCheckoutSessionResponse(response);
+  }
+
+  async retrieveCheckoutSession(
+    sessionExternalId: string,
+  ): Promise<StripeCheckoutSessionDetails> {
+    const session = await this.provider.request<StripeCheckoutSessionResponse>(
+      'GET',
+      `/v1/checkout/sessions/${encodeURIComponent(sessionExternalId)}`,
+      { expand: ['setup_intent', 'payment_intent'] },
+    );
+    const intent =
+      typeof session.setup_intent === 'object' && session.setup_intent
+        ? session.setup_intent
+        : typeof session.payment_intent === 'object' && session.payment_intent
+          ? session.payment_intent
+          : undefined;
+    const currency = session.currency
+      ? session.currency.toUpperCase()
+      : undefined;
+    const minor = (amount?: number | null) =>
+      currency && typeof amount === 'number'
+        ? stripeAmountToMinorUnitsOrUndefined(amount, currency)
+        : undefined;
+
     return {
-      externalId: response.id,
-      url: response.url || null,
-      customerExternalId: response.customer || undefined,
-      subscriptionExternalId: response.subscription || undefined,
-      paymentIntentExternalId: response.payment_intent || undefined,
-      raw: response,
+      ...mapCheckoutSessionResponse(session),
+      status: oneOf(session.status, ['open', 'complete', 'expired'] as const),
+      paymentStatus: oneOf(session.payment_status, [
+        'paid',
+        'unpaid',
+        'no_payment_required',
+      ] as const),
+      paymentMethodExternalId: idOf(intent?.payment_method),
+      currency,
+      amountSubtotalMinor: minor(session.amount_subtotal),
+      amountTaxMinor: minor(session.total_details?.amount_tax),
+      amountTotalMinor: minor(session.amount_total),
+      metadata: { ...(session.metadata || {}) },
     };
+  }
+
+  async setDefaultPaymentMethod(
+    customerExternalId: string,
+    paymentMethodExternalId: string,
+  ): Promise<void> {
+    if (!customerExternalId || !paymentMethodExternalId) {
+      throw new Error(
+        'setDefaultPaymentMethod requires a customer and a payment method',
+      );
+    }
+    await this.provider.request(
+      'POST',
+      `/v1/customers/${encodeURIComponent(customerExternalId)}`,
+      { invoice_settings: { default_payment_method: paymentMethodExternalId } },
+    );
   }
 
   async createCustomerPortalSession(
@@ -965,11 +1063,13 @@ function mapCustomerToStripe(
 
 function mapInvoiceToStripe(
   invoice: InvoiceInput,
+  collectionMethod: 'send_invoice' | 'charge_automatically',
 ): Record<string, StripeFormValue> {
   return {
     customer: invoice.customerExternalId,
-    collection_method: 'send_invoice',
-    due_date: invoice.dueDate,
+    collection_method: collectionMethod,
+    // Stripe rejects a due date on automatically charged invoices.
+    due_date: collectionMethod === 'send_invoice' ? invoice.dueDate : undefined,
     auto_advance: false,
     pending_invoice_items_behavior: 'include',
     automatic_tax: invoice.automaticTax ? { enabled: true } : undefined,
@@ -988,9 +1088,10 @@ function mapInvoiceToStripe(
 
 function mapInvoiceUpdateToStripe(
   invoice: InvoiceInput,
+  collectionMethod: 'send_invoice' | 'charge_automatically',
 ): Record<string, StripeFormValue> {
   return {
-    due_date: invoice.dueDate,
+    due_date: collectionMethod === 'send_invoice' ? invoice.dueDate : undefined,
     metadata: normalizeMetadata({
       local_id: invoice.id,
       invoice_number: invoice.invoiceNumber,
@@ -1057,6 +1158,21 @@ function mapCheckoutSessionToStripe(
             mapCheckoutLineItem(lineItem, Boolean(input.automaticTax)),
           ),
     metadata: normalizeMetadata(input.metadata || {}),
+  };
+}
+
+function mapCheckoutSessionResponse(
+  response: StripeCheckoutSessionResponse,
+): StripeCheckoutSession {
+  return {
+    externalId: response.id,
+    url: response.url || null,
+    mode: oneOf(response.mode, ['payment', 'setup', 'subscription'] as const),
+    customerExternalId: idOf(response.customer),
+    subscriptionExternalId: idOf(response.subscription),
+    paymentIntentExternalId: idOf(response.payment_intent),
+    setupIntentExternalId: idOf(response.setup_intent),
+    raw: response,
   };
 }
 
@@ -1523,6 +1639,16 @@ function escapeSearchValue(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
+function resolveCollectionMethod(
+  invoice: InvoiceInput,
+): 'send_invoice' | 'charge_automatically' {
+  const method = invoice.collectionMethod ?? 'send_invoice';
+  if (method !== 'send_invoice' && method !== 'charge_automatically') {
+    throw new Error(`Unsupported invoice collectionMethod '${method}'`);
+  }
+  return method;
+}
+
 /** The line's discount in Stripe units, validated against the line total. */
 function lineDiscountToStripe(
   lineItem: InvoiceInput['lineItems'][number],
@@ -1570,6 +1696,22 @@ function lineServicePeriod(
     );
   }
   return { start: periodStart, end: periodEnd };
+}
+
+function idOf(
+  value: string | { id?: string | null } | null | undefined,
+): string | undefined {
+  if (typeof value === 'string') {
+    return value || undefined;
+  }
+  return value?.id || undefined;
+}
+
+function oneOf<const T extends string>(
+  value: string | null | undefined,
+  allowed: readonly T[],
+): T | undefined {
+  return allowed.find((candidate) => candidate === value);
 }
 
 function stringOrUndefined(value: unknown): string | undefined {
@@ -1620,6 +1762,19 @@ function minorUnitsToStripeAmount(
     );
   }
   return amountMinor / divisor;
+}
+
+function stripeAmountToMinorUnitsOrUndefined(
+  amount: number,
+  currency: string,
+): number | undefined {
+  if (!Number.isSafeInteger(amount)) {
+    return undefined;
+  }
+  const iso = 10 ** isoMinorUnitExponent(currency);
+  const stripe = stripeCurrencyMinorUnitFactor(currency);
+  const minor = (amount * iso) / stripe;
+  return Number.isSafeInteger(minor) ? minor : undefined;
 }
 
 function centsToMoney(cents: number): number {

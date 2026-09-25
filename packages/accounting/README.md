@@ -48,6 +48,15 @@ Invoice lines carry more than an amount:
   currency and amount, id `hv_amount_off_<currency>_<stripe amount>`), so the
   discount shows on the invoice and Stripe Tax taxes the discounted amount.
 
+`collectionMethod: 'charge_automatically'` bills the customer's default
+payment method instead of emailing a payable invoice (the default,
+`send_invoice`). `invoices.send()` then finalizes the invoice with automatic
+collection on: Stripe charges the card, retries failures under your Stripe
+retry settings, and reports the result as `invoice.paid` or
+`invoice.payment_failed`. Automatically charged invoices carry no due date.
+`invoices.markUncollectible()` writes an open invoice off, and invoice reads
+report that state as `status: 'uncollectible'`.
+
 ## Stripe customers
 
 Pass a stable `idempotencyKey` when a retry might create the customer again

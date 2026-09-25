@@ -167,6 +167,18 @@ export interface CustomerInput {
 }
 
 /**
+ * How a provider collects an invoice.
+ *
+ * - `send_invoice`: the customer is sent a payable invoice (default).
+ * - `charge_automatically`: the provider charges the customer's saved default
+ *   payment method when the invoice is sent, and its own retry/dunning rules
+ *   apply to failures. Providers that cannot charge a stored payment method
+ *   (for example, push-payment rails such as BTC) must reject it rather than
+ *   silently falling back to `send_invoice`.
+ */
+export type InvoiceCollectionMethod = 'send_invoice' | 'charge_automatically';
+
+/**
  * Invoice line item input
  */
 export interface InvoiceLineItemInput {
@@ -252,6 +264,15 @@ export interface InvoiceInput {
    * address. The provider-calculated amount is returned by invoice reads.
    */
   automaticTax?: boolean;
+  /**
+   * How the provider collects this invoice. Defaults to `send_invoice`. With
+   * `charge_automatically`, Stripe charges the customer's default payment
+   * method (see `billing.setDefaultPaymentMethod`) once the invoice is sent,
+   * and Stripe's retry settings drive `invoice.payment_failed` /
+   * `invoice.paid` webhooks. `dueDate` is not sent for automatically charged
+   * invoices.
+   */
+  collectionMethod?: InvoiceCollectionMethod;
 }
 
 /**
@@ -529,7 +550,11 @@ export interface StripeCheckoutSessionInput {
   customerExternalId?: string;
   customerEmail?: string;
   clientReferenceId?: string;
-  lineItems: StripeCheckoutLineItem[];
+  /**
+   * Required in `payment` and `subscription` mode; must be omitted in `setup`
+   * mode, which saves a payment method without charging.
+   */
+  lineItems?: StripeCheckoutLineItem[];
   metadata?: Record<string, string | number | boolean | null | undefined>;
   allowPromotionCodes?: boolean;
   /** Stable caller-owned key reused when creating the same Checkout Session. */
@@ -563,10 +588,33 @@ export interface StripeCheckoutSessionInput {
 export interface StripeCheckoutSession {
   externalId: string;
   url: string | null;
+  mode?: StripeCheckoutMode;
   customerExternalId?: string;
   subscriptionExternalId?: string;
   paymentIntentExternalId?: string;
+  /** SetupIntent of a `setup` mode session. */
+  setupIntentExternalId?: string;
   raw?: unknown;
+}
+
+/**
+ * A retrieved Checkout Session, with the saved payment method resolved from
+ * its SetupIntent (`setup` mode) or PaymentIntent (`payment` mode).
+ */
+export interface StripeCheckoutSessionDetails extends StripeCheckoutSession {
+  status?: 'open' | 'complete' | 'expired';
+  paymentStatus?: 'paid' | 'unpaid' | 'no_payment_required';
+  /** The payment method the session collected, once complete. */
+  paymentMethodExternalId?: string;
+  /** Upper-case ISO 4217 code. */
+  currency?: string;
+  /** Line-item amount before discounts and tax, integer ISO minor units. */
+  amountSubtotalMinor?: number;
+  /** Tax calculated by Stripe Tax, integer ISO minor units. */
+  amountTaxMinor?: number;
+  /** Amount collected, integer ISO minor units. */
+  amountTotalMinor?: number;
+  metadata: Record<string, string>;
 }
 
 export interface StripeCustomerPortalSessionInput {
@@ -818,6 +866,21 @@ export interface StripeBillingOperations {
   createCheckoutSession(
     input: StripeCheckoutSessionInput,
   ): Promise<StripeCheckoutSession>;
+  /**
+   * Retrieve a Checkout Session, resolving the payment method it collected
+   * (use after a `setup` mode session completes).
+   */
+  retrieveCheckoutSession(
+    sessionExternalId: string,
+  ): Promise<StripeCheckoutSessionDetails>;
+  /**
+   * Make a saved payment method the customer's default for invoices and for
+   * `payments.chargeSavedPaymentMethod` without an explicit method.
+   */
+  setDefaultPaymentMethod(
+    customerExternalId: string,
+    paymentMethodExternalId: string,
+  ): Promise<void>;
   /** Create a Stripe Customer Portal Session */
   createCustomerPortalSession(
     input: StripeCustomerPortalSessionInput,

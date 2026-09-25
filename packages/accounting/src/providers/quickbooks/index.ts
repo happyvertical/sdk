@@ -1034,6 +1034,12 @@ function mapQBOToCustomer(qbo: QBOCustomer): ExternalCustomer {
 }
 
 function mapInvoiceToQBO(invoice: InvoiceInput): QBOInvoiceCreate {
+  if (invoice.collectionMethod === 'charge_automatically') {
+    // QuickBooks cannot charge a stored payment method for an invoice.
+    throw new Error(
+      'QuickBooks does not support charge_automatically invoice collection',
+    );
+  }
   return {
     CustomerRef: { value: invoice.customerExternalId || invoice.customerId },
     DocNumber: invoice.invoiceNumber,
