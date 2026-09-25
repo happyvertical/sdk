@@ -58,6 +58,17 @@ result as `invoice.paid` or `invoice.payment_failed`. Automatically charged invo
 `invoices.markUncollectible()` writes an open invoice off, and invoice reads
 report that state as `status: 'uncollectible'`.
 
+`invoices.markPaidOutOfBand()` closes an invoice that was paid on another
+rail (for example a crypto payment for a Stripe-issued invoice): Stripe marks
+it `paid_out_of_band`, which stops its emails, dunning, and automatic charges.
+It is idempotent (an invoice already closed out of band, or paid with
+nothing collected — a zero total or a credit balance — is left alone), throws
+for an invoice Stripe collected money for itself (a second collection needs a
+refund, not a silent close), finalizes a draft first without automatic
+collection and refuses it if finalization raised the amount due, pays an
+uncollectible invoice, and refuses a void one. Invoice reads report `paidOutOfBand`, so a consumer can tell such
+an invoice from one Stripe collected.
+
 ## Stripe customers
 
 Pass a stable `idempotencyKey` when a retry might create the customer again
