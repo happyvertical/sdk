@@ -300,8 +300,9 @@ export class BtcpayClient {
    *
    * Invoice payments do not report their confirmation count, so this is the
    * way to check an exact count. BTCPay requires
-   * `btcpay.store.canmodifystoresettings` for it — a broader key than invoice
-   * access; grant it only when exact confirmation counts are needed.
+   * `btcpay.store.canmodifystoresettings` for it, which can also change the
+   * store's wallet: use a separate key and `BtcpayClient` instance for these
+   * reads, never the key that creates invoices.
    */
   async getOnChainWalletTransaction(
     paymentMethodId: string,

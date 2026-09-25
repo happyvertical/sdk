@@ -87,14 +87,17 @@ Invoice payments do not report confirmation counts (an on-chain payment's
 `transactionId` is parsed from its `<txid>-<vout>` id). BTCPay settles by the
 invoice `speedPolicy` (0, 1, 2 or 6 confirmations). For an exact count use
 `getOnChainWalletTransaction('BTC-CHAIN', txid)`, which needs a key with
-`btcpay.store.canmodifystoresettings`.
+`btcpay.store.canmodifystoresettings`. That scope can change the store's
+wallet, so put it on a **separate** key and `BtcpayClient` instance used only
+for confirmation reads, never on the key that creates invoices.
 
 Errors are `BtcpayApiError` (`status`, Greenfield `apiCode`, `retryable` for
 429 and for reads that failed on the network or with 5xx). A `createInvoice`
 that failed on the network or with 5xx may have created the invoice, so it is
-never `retryable`: look it up by `orderId` before creating another. Messages never include the API key. A store
-API key needs only `btcpay.store.canviewinvoices` and
-`btcpay.store.cancreateinvoice` for these calls.
+never `retryable`: look it up by `orderId` before creating another. Messages never include the API key. The invoice
+calls need only `btcpay.store.canviewinvoices` and
+`btcpay.store.cancreateinvoice`; `getOnChainWalletTransaction` alone needs
+`btcpay.store.canmodifystoresettings` (use a separate key, as above).
 
 ### Save a card (setup) → charge later
 

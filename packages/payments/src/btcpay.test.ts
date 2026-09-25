@@ -253,6 +253,12 @@ describe('BtcpayClient', () => {
           amount: '0.1',
           payments: 'not-an-array',
         },
+        {
+          paymentMethodId: 'BTC-LN',
+          payments: [
+            { id: 'b'.repeat(64), value: '0.0001', status: 'Settled' },
+          ],
+        },
       ]),
     );
     const methods = await client(fetch).getInvoicePaymentMethods('inv_1');
@@ -287,6 +293,8 @@ describe('BtcpayClient', () => {
       payments: [],
     });
     expect(methods[1]?.due).toBeUndefined();
+    // A Lightning payment hash has no `-<vout>` suffix: no transaction id.
+    expect(methods[2]?.payments[0]?.transactionId).toBeUndefined();
   });
 
   it('maps Greenfield errors without leaking the API key', async () => {
