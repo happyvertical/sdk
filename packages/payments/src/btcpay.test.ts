@@ -201,6 +201,7 @@ describe('BtcpayClient', () => {
       status: ['New', 'Settled'],
       take: 5,
       skip: 0,
+      includeArchived: true,
     });
     const url = new URL(String(fetch.mock.calls[0]?.[0]));
     expect(url.pathname).toBe('/api/v1/stores/store%2F1/invoices');
@@ -208,6 +209,7 @@ describe('BtcpayClient', () => {
     expect(url.searchParams.getAll('status')).toEqual(['New', 'Settled']);
     expect(url.searchParams.get('take')).toBe('5');
     expect(url.searchParams.get('skip')).toBe('0');
+    expect(url.searchParams.get('includeArchived')).toBe('true');
     expect(invoices).toHaveLength(1);
     expect(invoices[0]?.id).toBe('inv_1');
   });
@@ -289,9 +291,9 @@ describe('BtcpayClient', () => {
       paymentMethodId: 'BTC',
       currency: 'BTC',
       rate: '0.0000001',
-      paymentMethodPaid: '0',
       payments: [],
     });
+    expect(methods[1]?.paymentMethodPaid).toBeUndefined();
     expect(methods[1]?.due).toBeUndefined();
     // A Lightning payment hash has no `-<vout>` suffix: no transaction id.
     expect(methods[2]?.payments[0]?.transactionId).toBeUndefined();

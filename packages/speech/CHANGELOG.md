@@ -1,5 +1,7 @@
 # @happyvertical/speech
 
+## 0.93.0
+
 ## 0.92.0
 
 ## 0.91.0
