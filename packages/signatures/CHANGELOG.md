@@ -1,5 +1,7 @@
 # @happyvertical/signatures
 
+## 0.91.0
+
 ## 0.90.0
 
 ## 0.89.12

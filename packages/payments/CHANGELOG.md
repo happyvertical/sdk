@@ -1,5 +1,13 @@
 # @happyvertical/payments
 
+## 0.91.0
+
+### Minor Changes
+
+- a99de1e: Add `@happyvertical/payments/btcpay`: a stateless BTCPay Greenfield client (`BtcpayClient`) for billing integrations — create, read, and list store invoices by `orderId`, read invoice payment methods and payments, and verify (`isValidBtcpayWebhookSignature`) and parse (`parseBtcpayWebhook`) webhooks. Errors are `BtcpayApiError` with HTTP status, Greenfield code, and retryability; they never include the API key.
+
+  On-chain invoice payments expose their `transactionId` (parsed from the `<txid>-<vout>` payment id).
+
 ## 0.90.0
 
 ## 0.89.12
