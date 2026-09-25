@@ -776,6 +776,7 @@ class StripePaymentOperations implements PaymentOperations {
         input.customerExternalId,
         stripeAmount,
         currency,
+        input.paymentMethodExternalId,
       );
       return { ...base, ...mapChargeOutcome(existing) };
     }
@@ -1890,12 +1891,17 @@ function assertSameCharge(
   customerExternalId: string,
   stripeAmount: number,
   currency: string,
+  paymentMethodExternalId?: string,
 ): void {
   const customer = idOf(paymentIntent.customer);
+  const paymentMethod = idOf(paymentIntent.payment_method);
   if (
     paymentIntent.amount !== stripeAmount ||
     (paymentIntent.currency || '').toUpperCase() !== currency ||
-    (customer !== undefined && customer !== customerExternalId)
+    (customer !== undefined && customer !== customerExternalId) ||
+    (paymentMethodExternalId !== undefined &&
+      paymentMethod !== undefined &&
+      paymentMethod !== paymentMethodExternalId)
   ) {
     throw new Error(
       `idempotencyKey was already used for a different charge (${paymentIntent.id}); use a new key for a new charge`,
@@ -1915,11 +1921,16 @@ function withoutClientSecrets<T extends object>(value: T): T {
   return copy as T;
 }
 
-/** Drop the PaymentIntent client secret before handing objects to callers. */
+/**
+ * Drop the intent client secret before handing objects to callers, including
+ * `next_action`, whose redirect URL and SDK payload embed the same secret.
+ */
 function withoutClientSecret<T extends object>(value: T): T {
-  const { client_secret: _secret, ...rest } = value as T & {
-    client_secret?: unknown;
-  };
+  const {
+    client_secret: _secret,
+    next_action: _nextAction,
+    ...rest
+  } = value as T & { client_secret?: unknown; next_action?: unknown };
   return rest as T;
 }
 
@@ -2048,30 +2059,16 @@ const ISO_THREE_DECIMAL_CURRENCIES = new Set([
 const ISO_FOUR_DECIMAL_CURRENCIES = new Set(['CLF', 'UYW']);
 
 /**
- * ISO 4217 minor-unit exponent (2 for USD, 0 for JPY and ISK). Callers such
- * as smrt-commerce derive minor units from the runtime's `Intl` currency
- * digits (CLDR), which differ from ISO 4217 for a few currencies (for example
- * IQD and MGA). Those currencies are refused rather than risking a charge off
- * by a power of ten.
+ * ISO 4217 minor-unit exponent (2 for USD, 0 for JPY and ISK), from the
+ * explicit tables above rather than the runtime's `Intl`/CLDR display digits,
+ * which differ for some currencies (for example RSD, IQD, MGA) and change
+ * between ICU releases.
  */
 function isoMinorUnitExponent(currency: string): number {
-  const iso = ISO_ZERO_DECIMAL_CURRENCIES.has(currency)
-    ? 0
-    : ISO_THREE_DECIMAL_CURRENCIES.has(currency)
-      ? 3
-      : ISO_FOUR_DECIMAL_CURRENCIES.has(currency)
-        ? 4
-        : 2;
-  const cldr = new Intl.NumberFormat('en', {
-    style: 'currency',
-    currency,
-  }).resolvedOptions().maximumFractionDigits;
-  if (cldr !== iso) {
-    throw new Error(
-      `Currency ${currency} has an ambiguous minor unit (ISO 4217 ${iso}, runtime ${cldr}); minor-unit amounts are not supported for it`,
-    );
-  }
-  return iso;
+  if (ISO_ZERO_DECIMAL_CURRENCIES.has(currency)) return 0;
+  if (ISO_THREE_DECIMAL_CURRENCIES.has(currency)) return 3;
+  if (ISO_FOUR_DECIMAL_CURRENCIES.has(currency)) return 4;
+  return 2;
 }
 
 /**
@@ -2108,15 +2105,9 @@ function stripeAmountToMinorUnitsOrUndefined(
   if (!Number.isSafeInteger(amount)) {
     return undefined;
   }
-  let exponent: number;
-  try {
-    exponent = isoMinorUnitExponent(currency);
-  } catch {
-    // Reads (webhooks, session totals) omit an amount they cannot convert
-    // exactly instead of failing a verified event.
-    return undefined;
-  }
-  const iso = 10 ** exponent;
+  // Reads (webhooks, session totals) omit an amount that is not a whole
+  // number of ISO minor units instead of failing a verified event.
+  const iso = 10 ** isoMinorUnitExponent(currency);
   const stripe = stripeCurrencyMinorUnitFactor(currency);
   const minor = (amount * iso) / stripe;
   return Number.isSafeInteger(minor) ? minor : undefined;

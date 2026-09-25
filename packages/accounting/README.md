@@ -128,9 +128,10 @@ const setup = await stripe.billing.createCheckoutSession({
   idempotencyKey: `card-setup:${accountId}:${attempt}`,
 });
 // On checkout.session.completed:
-const done = await stripe.billing.retrieveCheckoutSession(setup.externalId);
-if (done.status === 'complete' && done.paymentMethodExternalId) {
-  await stripe.billing.setDefaultPaymentMethod(
+// Both methods are optional on StripeBillingOperations; StripeProvider has them.
+const done = await stripe.billing.retrieveCheckoutSession?.(setup.externalId);
+if (done?.status === 'complete' && done.paymentMethodExternalId) {
+  await stripe.billing.setDefaultPaymentMethod?.(
     'cus_123',
     done.paymentMethodExternalId,
   );
@@ -169,18 +170,20 @@ thrown; other Stripe errors throw a `StripeApiError` carrying `status`,
 charge: Stripe replays it inside its idempotency window, and after it the
 adapter finds the PaymentIntent by its `hv_charge_key` metadata. Scope keys
 to the payer and use a new key for a new attempt: a key reused for a
-different amount, currency, customer, or payment method is refused (Stripe
-`idempotency_error`, or an adapter error after the window), never charged.
-Pass `paymentMethodExternalId` to keep retries identical when the customer's
-default card may change in between.
+different amount, currency, customer, or explicit payment method is refused
+(Stripe `idempotency_error`, or an adapter error after the window), never
+charged. Pass `paymentMethodExternalId` to keep retries identical when the
+customer's default card may change in between. Payment webhooks (`payment_intent.*`) carry a normalized `WebhookEvent.payment`
+summary with the status, minor-unit amount, and `chargeKey`.
 
-Minor-unit amounts use ISO 4217 exponents. The few currencies whose runtime
-`Intl` digits disagree with ISO 4217 (for example IQD and MGA) are refused,
-since callers that derive minor units from `Intl` would otherwise be off by a
-power of ten. Payment
-webhooks (`payment_intent.*`) carry a normalized `WebhookEvent.payment`
-summary with the status, minor-unit amount, and `chargeKey`. After `webhooks.verify` succeeds,
-the parsed Stripe webhook exposes its provider event as `WebhookEvent.id`.
+Minor-unit amounts (`amountMinor`, `unitAmountMinor`, and the `*Minor` read
+fields) use ISO 4217 exponents from an explicit table, not the runtime's
+`Intl` display digits, which differ for some currencies (for example RSD,
+IQD, and MGA). Derive minor units the same way before calling.
+
+## Stripe webhooks
+
+After `webhooks.verify` succeeds, the parsed Stripe webhook exposes its provider event as `WebhookEvent.id`.
 Persist that identifier in a durable inbox before applying side effects; the
 in-process parser alone cannot deduplicate deliveries across restarts or
 replicas.

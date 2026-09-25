@@ -526,7 +526,11 @@ export interface SavedPaymentMethodChargeInput {
    * `failureCode: 'payment_method_missing'` and no provider charge.
    */
   paymentMethodExternalId?: string;
-  /** Positive integer minor units of `currency`. */
+  /**
+   * Positive integer minor units of `currency`, by the ISO 4217 exponent
+   * (not the runtime's `Intl` display digits, which differ for a few
+   * currencies such as RSD and IQD).
+   */
   amountMinor: number;
   /** ISO 4217 currency code (case-insensitive). */
   currency: string;
@@ -536,10 +540,13 @@ export interface SavedPaymentMethodChargeInput {
    * including after the provider's own idempotency window. Providers tag the
    * charge with it, and payment webhooks report it as `chargeKey`. Scope it
    * to the payer (keys are global to the provider account) and use a new key
-   * for a new attempt: a key reused with a different amount, currency,
-   * customer, or payment method is refused, not charged. Pass
-   * `paymentMethodExternalId` to pin the method across retries; otherwise a
-   * change of the customer's default between retries is such a difference.
+   * for a new attempt: a key reused with a different amount, currency, or
+   * customer is refused, not charged. A different explicit payment method is
+   * refused too; a change of the customer's default between retries is
+   * refused only inside the provider's idempotency window (Stripe
+   * `idempotency_error`) and afterwards returns the original charge, which
+   * reports the method it actually used. Pass `paymentMethodExternalId` to
+   * pin the method.
    */
   idempotencyKey: string;
   /** Statement/description text shown to the customer where supported. */

@@ -251,16 +251,76 @@ describe('Stripe off-session saved payment method charges (#1270)', () => {
     expect(calls.some((call) => call.method === 'POST')).toBe(false);
   });
 
-  it('refuses currencies whose ISO 4217 and runtime minor units disagree', async () => {
-    const { provider, calls } = createFakeStripe(() => emptySearch);
+  it('refuses an explicit payment method that differs from the original charge', async () => {
+    const { provider } = createFakeStripe(() => ({
+      body: {
+        object: 'search_result',
+        data: [
+          {
+            id: 'pi_original',
+            status: 'succeeded',
+            amount: 2500,
+            currency: 'usd',
+            customer: 'cus_1',
+            payment_method: 'pm_old',
+            metadata: { hv_charge_key: 'topup:policy-7:3' },
+          },
+        ],
+      },
+    }));
     await expect(
       provider.payments.chargeSavedPaymentMethod?.({
         ...charge,
-        currency: 'IQD',
-        amountMinor: 5000,
+        paymentMethodExternalId: 'pm_new',
       }),
-    ).rejects.toThrow('ambiguous minor unit');
-    expect(calls).toHaveLength(0);
+    ).rejects.toThrow('already used for a different charge');
+  });
+
+  it.each([
+    // ISO 4217 exponents from the explicit table, whatever the runtime's
+    // Intl digits say (CLDR shows RSD and IQD with 0 digits).
+    ['RSD', 500, '500'],
+    ['IQD', 5000, '5000'],
+    ['BHD', 1250, '1250'],
+  ])('converts %s by its ISO 4217 exponent', async (currency, minor, expected) => {
+    const { provider, calls } = createFakeStripe((call) =>
+      call.path === '/v1/payment_intents/search'
+        ? emptySearch
+        : { body: { id: 'pi_1', status: 'succeeded' } },
+    );
+    await provider.payments.chargeSavedPaymentMethod?.({
+      ...charge,
+      currency,
+      amountMinor: minor,
+      paymentMethodExternalId: 'pm_card',
+    });
+    expect(calls[1]?.params.amount).toBe(expected);
+  });
+
+  it('never returns the client secret or next_action in raw', async () => {
+    const { provider } = createFakeStripe((call) => {
+      if (call.path === '/v1/payment_intents/search') return emptySearch;
+      return stripeError(402, {
+        type: 'card_error',
+        code: 'authentication_required',
+        payment_intent: {
+          id: 'pi_sca',
+          status: 'requires_action',
+          client_secret: 'pi_sca_secret_x',
+          next_action: {
+            redirect_to_url: {
+              url: 'https://hooks.stripe.test/3ds?payment_intent_client_secret=pi_sca_secret_x',
+            },
+          },
+        },
+      });
+    });
+    const result = await provider.payments.chargeSavedPaymentMethod?.({
+      ...charge,
+      paymentMethodExternalId: 'pm_card',
+    });
+    expect(result?.status).toBe('requires_action');
+    expect(JSON.stringify(result?.raw)).not.toContain('secret');
   });
 
   it('replays a lost response with the same Stripe idempotency key', async () => {
@@ -407,18 +467,19 @@ describe('Stripe off-session saved payment method charges (#1270)', () => {
       expect(canceled.payment?.status).toBe('canceled');
     });
 
-    it('omits an amount it cannot convert exactly instead of failing the event', () => {
+    it('omits an amount that is not whole ISO minor units instead of failing the event', () => {
+      // 50050 at Stripe's two-decimal ISK representation is 500.5 ISK.
       const parsed = provider.webhooks.parse(
         event('payment_intent.succeeded', {
-          id: 'pi_iqd',
+          id: 'pi_isk',
           status: 'succeeded',
-          amount: 5000,
-          currency: 'iqd',
+          amount: 50050,
+          currency: 'isk',
         }),
       );
       expect(parsed.payment).toMatchObject({
         status: 'succeeded',
-        currency: 'IQD',
+        currency: 'ISK',
       });
       expect(parsed.payment?.amountMinor).toBeUndefined();
     });
