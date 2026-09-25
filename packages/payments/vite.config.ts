@@ -13,6 +13,7 @@ export default defineConfig({
         index: resolve(packageDir, 'src/index.ts'),
         'adapters/base-usdc': resolve(packageDir, 'src/adapters/base-usdc.ts'),
         'adapters/btc': resolve(packageDir, 'src/adapters/btc.ts'),
+        'adapters/btcpay': resolve(packageDir, 'src/adapters/btcpay.ts'),
         'adapters/stripe': resolve(packageDir, 'src/adapters/stripe.ts'),
         'testing/conformance': resolve(
           packageDir,

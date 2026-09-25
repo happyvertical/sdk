@@ -30,6 +30,9 @@ import { StripeAdapter } from '@happyvertical/payments/stripe';
   addresses, x402 proof verification, and injected signer payouts.
 - `BtcAdapter`: BTCPay Server invoice, polling/webhook status, tiered
   confirmation policy, and unsigned PSBT payout creation.
+- `BtcpayClient` (`@happyvertical/payments/btcpay`): a stateless BTCPay
+  Greenfield client for billing integrations — see
+  [BTCPay Greenfield client](#btcpay-greenfield-client).
 - `StripeAdapter`: Stripe Checkout URL settlement, webhook verification,
   refunds, Stripe Connect transfers, saved payment methods / card-on-file
   (`createSetupSession` / `getSetupResult`), and the manual-capture card
@@ -37,6 +40,53 @@ import { StripeAdapter } from '@happyvertical/payments/stripe';
 
 The package does not depend on SMRT or a database. Consumers own quote
 persistence, webhook routing, and operational policy.
+
+### BTCPay Greenfield client
+
+`BtcpayClient` is a stateless client for one BTCPay Server store (Greenfield
+2.x). It creates, reads, and lists invoices (filterable by `orderId`), reads an
+invoice's payment methods and payments, and verifies and parses webhooks.
+Decimal amounts stay strings; Greenfield unix-second timestamps become `Date`s.
+BTCPay has no idempotency keys, so callers make creation idempotent by
+listing by `orderId` first.
+
+```ts
+import {
+  BtcpayClient,
+  isValidBtcpayWebhookSignature,
+  parseBtcpayWebhook,
+} from '@happyvertical/payments/btcpay';
+
+const btcpay = new BtcpayClient({ baseUrl, apiKey, storeId });
+const [existing] = await btcpay.listInvoices({ orderId, status: ['New', 'Processing', 'Settled'] });
+const invoice =
+  existing ??
+  (await btcpay.createInvoice({
+    amount: '25.00',
+    currency: 'CAD',
+    orderId,
+    checkout: {
+      speedPolicy: 'MediumSpeed', // 1 confirmation
+      paymentMethods: ['BTC-CHAIN'],
+      expirationMinutes: 15,
+      paymentTolerance: 0,
+      redirectURL: successUrl,
+    },
+  }));
+redirect(invoice.checkoutLink);
+
+// webhook route
+if (!isValidBtcpayWebhookSignature(rawBody, request.headers.get('BTCPay-Sig'), webhookSecret)) {
+  return new Response(null, { status: 400 });
+}
+const delivery = parseBtcpayWebhook(rawBody); // persist delivery.deliveryId to dedupe
+const current = await btcpay.getInvoice(delivery.invoiceId!); // act on re-read state
+```
+
+Errors are `BtcpayApiError` (`status`, Greenfield `apiCode`, `retryable` for
+network failures, 429, and 5xx). Messages never include the API key. A store
+API key needs only `btcpay.store.canviewinvoices` and
+`btcpay.store.cancreateinvoice` for these calls.
 
 ### Save a card (setup) → charge later
 
