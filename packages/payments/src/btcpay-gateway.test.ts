@@ -281,6 +281,58 @@ describe('createBtcpayCheckoutGateway', () => {
     ).rejects.toThrow(/requested 2500 CAD/);
   });
 
+  it('ignores invoices it did not create that share an order id', async () => {
+    const { gateway, world } = gatewayFor();
+    await gateway.createCheckout({
+      orderId: 'f',
+      amount: 100,
+      currency: 'CAD',
+    });
+    const foreign = invoiceOf(world, 'inv_1');
+    foreign.metadata = { orderId: 'f' };
+    foreign.status = 'Weird';
+    const mine = await gateway.createCheckout({
+      orderId: 'f',
+      amount: 100,
+      currency: 'CAD',
+    });
+    expect(mine.id).toBe('inv_2');
+    expect(world.created[1]?.metadata).toMatchObject({
+      hvCheckoutGateway: 'crypto-checkout:v1',
+    });
+    expect(
+      (await gateway.listCheckouts({ orderId: 'f' })).map((c) => c.id),
+    ).toEqual(['inv_2']);
+    await expect(
+      gateway.createCheckout({
+        orderId: 'g',
+        amount: 1,
+        currency: 'CAD',
+        metadata: { hvCheckoutGateway: 'x' },
+      }),
+    ).rejects.toThrow(/reserved/);
+  });
+
+  it('fails loudly on an unknown payment status', async () => {
+    const { gateway, world } = gatewayFor();
+    await gateway.createCheckout({
+      orderId: 'q',
+      amount: 100,
+      currency: 'CAD',
+    });
+    invoiceOf(world, 'inv_1').methods = [
+      {
+        paymentMethodId: 'BTC-CHAIN',
+        rate: '1000',
+        paymentMethodPaid: '0',
+        payments: [{ id: `${TX}-0`, value: '0.001', fee: '0' }],
+      },
+    ];
+    await expect(gateway.getCheckout('inv_1')).rejects.toThrow(
+      /payment with unknown status ''/,
+    );
+  });
+
   it('refuses payment methods that settle in different assets', () => {
     const { client } = fakeBtcpay();
     expect(() =>

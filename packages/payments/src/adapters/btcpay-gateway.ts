@@ -72,8 +72,27 @@ const EXCEPTION = new Map<string, CryptoCheckoutException>([
   ['Marked', 'manually_marked'],
 ]);
 
+/**
+ * Marks invoices this adapter created. Reuse and listing consider only those,
+ * so an invoice made by hand (or by another integration) that happens to
+ * share an order id is never reused or read as one of this port's checkouts.
+ */
+const OWNER_KEY = 'hvCheckoutGateway';
+const OWNER_VALUE = 'crypto-checkout:v1';
+
 /** Keys this adapter writes into BTCPay invoice metadata itself. */
-const RESERVED_METADATA = new Set(['orderId', 'itemDesc', 'buyerEmail']);
+const RESERVED_METADATA = new Set([
+  'orderId',
+  'itemDesc',
+  'buyerEmail',
+  OWNER_KEY,
+]);
+
+const PAYMENT_STATUS = new Map<string, CryptoCheckoutPayment['status']>([
+  ['Processing', 'confirming'],
+  ['Settled', 'settled'],
+  ['Invalid', 'invalid'],
+]);
 
 export function createBtcpayCheckoutGateway(
   options: BtcpayCheckoutGatewayOptions,
@@ -146,8 +165,7 @@ export function createBtcpayCheckoutGateway(
     return invoices
       .filter(
         (invoice) =>
-          invoice.metadata.orderId === orderId &&
-          LIVE_STATUSES.has(invoice.status),
+          ownedBy(invoice, orderId) && LIVE_STATUSES.has(invoice.status),
       )
       .sort(
         (a, b) =>
@@ -195,6 +213,7 @@ export function createBtcpayCheckoutGateway(
         }
         metadata[key] = value;
       }
+      metadata[OWNER_KEY] = OWNER_VALUE;
       if (input.description) metadata.itemDesc = input.description;
       if (input.buyerEmail) metadata.buyerEmail = input.buyerEmail;
       const invoice = await client.createInvoice({
@@ -234,7 +253,7 @@ export function createBtcpayCheckoutGateway(
       const orderId = requireText(input.orderId, 'orderId');
       const invoices = (
         await client.listInvoices({ orderId, includeArchived: true })
-      ).filter((invoice) => invoice.metadata.orderId === orderId);
+      ).filter((invoice) => ownedBy(invoice, orderId));
       return Promise.all(invoices.map(load));
     },
 
@@ -304,7 +323,7 @@ function toCheckout(
   let paidScaled = Decimal.zero();
   for (const method of methods) {
     const hasPayments = method.payments.some(
-      (payment) => payment.status !== 'Invalid',
+      (payment) => paymentStatus(invoice.id, payment.status) !== 'invalid',
     );
     if (method.paymentMethodPaid === undefined) {
       if (hasPayments) {
@@ -350,12 +369,7 @@ function toCheckout(
         fee: Decimal.parse(payment.fee, 'fee').isZero()
           ? undefined
           : payment.fee,
-        status:
-          payment.status === 'Settled'
-            ? 'settled'
-            : payment.status === 'Invalid'
-              ? 'invalid'
-              : 'confirming',
+        status: paymentStatus(invoice.id, payment.status),
         transactionId: payment.transactionId,
         receivedAt: payment.receivedDate,
       };
@@ -400,6 +414,26 @@ function formatMinorUnits(amount: number, decimals: number): string {
   return decimals === 0
     ? text
     : `${text.slice(0, -decimals)}.${text.slice(-decimals)}`;
+}
+
+function ownedBy(invoice: BtcpayInvoice, orderId: string): boolean {
+  return (
+    invoice.metadata.orderId === orderId &&
+    invoice.metadata[OWNER_KEY] === OWNER_VALUE
+  );
+}
+
+function paymentStatus(
+  invoiceId: string,
+  status: string,
+): CryptoCheckoutPayment['status'] {
+  const mapped = PAYMENT_STATUS.get(status);
+  if (!mapped) {
+    throw new PaymentProviderError(
+      `BTCPay invoice ${invoiceId} has a payment with unknown status '${status}'.`,
+    );
+  }
+  return mapped;
 }
 
 function assetOfMethodId(paymentMethodId: string): string {
