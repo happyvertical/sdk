@@ -485,6 +485,105 @@ export interface ExternalPayment extends ExternalRecord {
 }
 
 // =============================================================================
+// Saved Payment Method Charges (provider-neutral)
+// =============================================================================
+
+/**
+ * Outcome of a merchant-initiated charge.
+ *
+ * - `succeeded`: funds are secured.
+ * - `processing`: the provider accepted the charge but settlement is pending;
+ *   wait for the payment webhook before granting value.
+ * - `requires_action`: the customer must authenticate (for example 3-D
+ *   Secure) in an on-session flow; nothing was charged.
+ * - `failed`: declined or unusable payment method; nothing was charged.
+ * - `canceled`: the payment was canceled before completion (webhooks only).
+ */
+export type PaymentChargeStatus =
+  | 'succeeded'
+  | 'processing'
+  | 'requires_action'
+  | 'failed'
+  | 'canceled';
+
+/**
+ * Charge a customer's saved payment method without the customer present
+ * (off-session), for example to top up a prepaid balance.
+ *
+ * Amounts are **integer minor units** of `currency`: the ISO 4217 minor unit
+ * (`1999` USD = 19.99, `1200` JPY = 1200). A provider for a non-ISO asset
+ * documents its smallest unit (for example satoshis for BTC). Providers
+ * convert to their own representation at the boundary.
+ */
+export interface SavedPaymentMethodChargeInput {
+  /** Provider customer that owns the saved payment method. */
+  customerExternalId: string;
+  /**
+   * Saved payment method to charge. Omit to charge the customer's default
+   * payment method; a customer without one yields a `failed` result with
+   * `failureCode: 'payment_method_missing'` and no provider charge.
+   */
+  paymentMethodExternalId?: string;
+  /** Positive integer minor units of `currency`. */
+  amountMinor: number;
+  /** ISO 4217 currency code (case-insensitive). */
+  currency: string;
+  /**
+   * Required stable caller-owned key for this logical charge. Every retry
+   * with the same key returns the original charge instead of charging again,
+   * including after the provider's own idempotency window. Providers tag the
+   * charge with it, and payment webhooks report it as `chargeKey`.
+   */
+  idempotencyKey: string;
+  /** Statement/description text shown to the customer where supported. */
+  description?: string;
+  /** Opaque values stored on the provider charge and returned by webhooks. */
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+}
+
+export interface SavedPaymentMethodChargeResult {
+  status: PaymentChargeStatus;
+  provider: AccountingProviderType;
+  /** Provider payment id (Stripe PaymentIntent), when one was created. */
+  paymentExternalId?: string;
+  customerExternalId: string;
+  paymentMethodExternalId?: string;
+  /** Integer minor units of `currency`. */
+  amountMinor: number;
+  /** Upper-case ISO 4217 code. */
+  currency: string;
+  /** The caller's `idempotencyKey`. */
+  chargeKey: string;
+  /** Provider failure code (for example `card_declined`, `authentication_required`). */
+  failureCode?: string;
+  /** Issuer decline code, when the provider reports one. */
+  declineCode?: string;
+  /** Provider failure message, safe to log (contains no card data). */
+  failureMessage?: string;
+  raw?: unknown;
+}
+
+/**
+ * Payment lifecycle facts normalized from a verified webhook, so hosts can
+ * settle merchant-initiated charges without parsing provider payloads.
+ */
+export interface WebhookPaymentSummary {
+  status: PaymentChargeStatus;
+  paymentExternalId: string;
+  customerExternalId?: string;
+  /** Integer minor units, when the provider amount converts exactly. */
+  amountMinor?: number;
+  /** Upper-case ISO 4217 code. */
+  currency?: string;
+  /** `idempotencyKey` of the `chargeSavedPaymentMethod` call that created it. */
+  chargeKey?: string;
+  failureCode?: string;
+  declineCode?: string;
+  failureMessage?: string;
+  metadata: Record<string, string>;
+}
+
+// =============================================================================
 // Stripe Billing Types
 // =============================================================================
 
@@ -773,6 +872,11 @@ export interface WebhookEvent {
   resourceType?: 'customer' | 'invoice' | 'payment' | 'vendor' | 'bill';
   /** Associated resource external ID */
   resourceId?: string;
+  /**
+   * Normalized payment facts for payment events (Stripe `payment_intent.*`),
+   * including charges made by `payments.chargeSavedPaymentMethod`.
+   */
+  payment?: WebhookPaymentSummary;
 }
 
 // =============================================================================
@@ -852,6 +956,15 @@ export interface PaymentOperations {
   pull(externalId: string): Promise<ExternalPayment>;
   /** List payments from provider */
   list(options?: ListOptions): Promise<ExternalPayment[]>;
+  /**
+   * Charge a saved payment method off-session, idempotently by
+   * `input.idempotencyKey`. Optional: providers that cannot pull funds from a
+   * stored payment method (for example push-payment rails such as BTC) omit
+   * it, which is how callers detect the capability.
+   */
+  chargeSavedPaymentMethod?(
+    input: SavedPaymentMethodChargeInput,
+  ): Promise<SavedPaymentMethodChargeResult>;
 }
 
 /**

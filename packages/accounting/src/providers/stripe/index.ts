@@ -28,8 +28,11 @@ import type {
   InvoiceInput,
   InvoiceOperations,
   ListOptions,
+  PaymentChargeStatus,
   PaymentInput,
   PaymentOperations,
+  SavedPaymentMethodChargeInput,
+  SavedPaymentMethodChargeResult,
   StripeAccountingProvider,
   StripeBillingOperations,
   StripeCheckoutLineItem,
@@ -46,6 +49,7 @@ import type {
   VendorOperations,
   WebhookEvent,
   WebhookOperations,
+  WebhookPaymentSummary,
 } from '../../types.js';
 
 type StripePrimitive = string | number | boolean | Date | null | undefined;
@@ -125,13 +129,24 @@ interface StripeInvoiceItem {
 
 interface StripePaymentIntent {
   id: string;
+  object?: string | null;
   amount?: number | null;
   currency?: string | null;
   created?: number | null;
   status?: string | null;
   invoice?: string | null;
+  customer?: string | { id: string } | null;
+  payment_method?: string | { id: string } | null;
   payment_method_types?: string[] | null;
   latest_charge?: string | null;
+  metadata?: Record<string, string> | null;
+  last_payment_error?: {
+    code?: string | null;
+    decline_code?: string | null;
+    message?: string | null;
+  } | null;
+}
+
 interface StripeSetupIntent {
   id: string;
   payment_method?: string | { id: string } | null;
@@ -178,6 +193,7 @@ interface StripeWebhookPayload {
     object?: {
       id?: string | null;
       object?: string | null;
+      [key: string]: unknown;
     } | null;
   } | null;
 }
@@ -727,6 +743,120 @@ class StripePaymentOperations implements PaymentOperations {
     >('GET', '/v1/payment_intents', mapListOptions(options));
     return response.data.map(mapStripePaymentIntent);
   }
+
+  async chargeSavedPaymentMethod(
+    input: SavedPaymentMethodChargeInput,
+  ): Promise<SavedPaymentMethodChargeResult> {
+    assertIdempotencyKey(input.idempotencyKey);
+    if (!input.customerExternalId) {
+      throw new Error('Saved payment method charges require a customer');
+    }
+    const currency = normalizeCurrencyCode(input.currency);
+    const stripeAmount = minorUnitsToStripeAmount(input.amountMinor, currency);
+    if (stripeAmount <= 0) {
+      throw new Error(
+        'Charge amount must be a positive integer of minor units',
+      );
+    }
+    const chargeKey = input.idempotencyKey;
+    const base = {
+      provider: 'stripe' as const,
+      customerExternalId: input.customerExternalId,
+      amountMinor: input.amountMinor,
+      currency,
+      chargeKey,
+    };
+
+    // After Stripe's idempotency window a replayed key would charge again, so
+    // first look for the PaymentIntent an earlier attempt created.
+    const existing = await this.findByChargeKey(chargeKey);
+    if (existing) {
+      return { ...base, ...mapChargeOutcome(existing) };
+    }
+
+    let paymentMethod = input.paymentMethodExternalId;
+    if (!paymentMethod) {
+      const customer = await this.provider.request<StripeCustomer>(
+        'GET',
+        `/v1/customers/${encodeURIComponent(input.customerExternalId)}`,
+      );
+      paymentMethod = idOf(customer.invoice_settings?.default_payment_method);
+      if (!paymentMethod) {
+        return {
+          ...base,
+          status: 'failed',
+          failureCode: 'payment_method_missing',
+          failureMessage: 'The customer has no default payment method.',
+        };
+      }
+    }
+
+    try {
+      const paymentIntent = await this.provider.request<StripePaymentIntent>(
+        'POST',
+        '/v1/payment_intents',
+        {
+          amount: stripeAmount,
+          currency: currency.toLowerCase(),
+          customer: input.customerExternalId,
+          payment_method: paymentMethod,
+          off_session: true,
+          confirm: true,
+          description: input.description,
+          metadata: normalizeMetadata({
+            ...input.metadata,
+            [CHARGE_KEY_METADATA]: chargeKey,
+          }),
+        },
+        { idempotencyKey: `${chargeKey}:payment_intent` },
+      );
+      return { ...base, ...mapChargeOutcome(paymentIntent) };
+    } catch (error) {
+      // A decline or an authentication requirement is a charge outcome, not
+      // a transport failure: Stripe returns 402 with the failed PaymentIntent.
+      if (
+        error instanceof StripeApiError &&
+        error.status === 402 &&
+        error.type === 'card_error'
+      ) {
+        const paymentIntent = isRecord(error.paymentIntent)
+          ? (error.paymentIntent as unknown as StripePaymentIntent)
+          : undefined;
+        return {
+          ...base,
+          paymentMethodExternalId: paymentMethod,
+          ...(paymentIntent ? mapChargeOutcome(paymentIntent) : {}),
+          status:
+            error.code === 'authentication_required'
+              ? 'requires_action'
+              : 'failed',
+          failureCode: error.code,
+          declineCode: error.declineCode,
+          failureMessage: error.stripeMessage,
+          raw: paymentIntent ? withoutClientSecret(paymentIntent) : undefined,
+        };
+      }
+      throw error;
+    }
+  }
+
+  private async findByChargeKey(
+    chargeKey: string,
+  ): Promise<StripePaymentIntent | undefined> {
+    const response = await this.provider.request<
+      StripeSearchResponse<StripePaymentIntent>
+    >('GET', '/v1/payment_intents/search', {
+      query: `metadata['${CHARGE_KEY_METADATA}']:'${escapeSearchValue(chargeKey)}'`,
+      limit: 10,
+    });
+    return response.data
+      .filter((intent) => intent.metadata?.[CHARGE_KEY_METADATA] === chargeKey)
+      .sort(
+        (left, right) =>
+          (left.created ?? 0) - (right.created ?? 0) ||
+          left.id.localeCompare(right.id),
+      )[0];
+  }
 }
 
 class StripeBillingOperationsImpl implements StripeBillingOperations {
@@ -973,7 +1103,15 @@ class StripeWebhookOperations implements WebhookOperations {
     }
 
     const resource = event?.data?.object;
+    const payment =
+      resource?.object === 'payment_intent' && typeof resource.id === 'string'
+        ? mapWebhookPayment(
+            resource as unknown as StripePaymentIntent,
+            event?.type || undefined,
+          )
+        : undefined;
     return {
+      ...(payment ? { payment } : {}),
       type: event?.type || 'unknown',
       id: typeof event?.id === 'string' ? event.id : undefined,
       provider: 'stripe',
@@ -1628,6 +1766,8 @@ function stripeMinorUnitsToMoney(
   return amount / stripeCurrencyMinorUnitFactor(currency);
 }
 
+const CHARGE_KEY_METADATA = 'hv_charge_key';
+
 function assertIdempotencyKey(key: string): void {
   if (typeof key !== 'string' || key.trim() === '') {
     throw new Error('idempotencyKey must be a non-empty string');
@@ -1698,6 +1838,103 @@ function lineServicePeriod(
   return { start: periodStart, end: periodEnd };
 }
 
+function mapChargeOutcome(
+  paymentIntent: StripePaymentIntent,
+): Pick<
+  SavedPaymentMethodChargeResult,
+  | 'status'
+  | 'paymentExternalId'
+  | 'paymentMethodExternalId'
+  | 'failureCode'
+  | 'declineCode'
+  | 'failureMessage'
+  | 'raw'
+> {
+  const error = paymentIntent.last_payment_error;
+  const status = mapPaymentIntentChargeStatus(
+    paymentIntent.status,
+    error?.code,
+  );
+  return {
+    status,
+    paymentExternalId: paymentIntent.id,
+    paymentMethodExternalId: idOf(paymentIntent.payment_method),
+    failureCode: status === 'succeeded' ? undefined : error?.code || undefined,
+    declineCode:
+      status === 'succeeded' ? undefined : error?.decline_code || undefined,
+    failureMessage:
+      status === 'succeeded' ? undefined : error?.message || undefined,
+    raw: withoutClientSecret(paymentIntent),
+  };
+}
+
+/** Drop the PaymentIntent client secret before handing objects to callers. */
+function withoutClientSecret<T extends object>(value: T): T {
+  const { client_secret: _secret, ...rest } = value as T & {
+    client_secret?: unknown;
+  };
+  return rest as T;
+}
+
+function mapPaymentIntentChargeStatus(
+  status?: string | null,
+  errorCode?: string | null,
+): PaymentChargeStatus {
+  switch (status) {
+    case 'succeeded':
+      return 'succeeded';
+    case 'processing':
+    case 'requires_capture':
+      return 'processing';
+    case 'requires_action':
+    case 'requires_confirmation':
+      return 'requires_action';
+    case 'canceled':
+      return 'canceled';
+    case 'requires_payment_method':
+      return errorCode === 'authentication_required'
+        ? 'requires_action'
+        : 'failed';
+    default:
+      return 'processing';
+  }
+}
+
+function mapWebhookPayment(
+  paymentIntent: StripePaymentIntent,
+  eventType?: string,
+): WebhookPaymentSummary {
+  const error = paymentIntent.last_payment_error;
+  let status = mapPaymentIntentChargeStatus(paymentIntent.status, error?.code);
+  if (eventType === 'payment_intent.succeeded') status = 'succeeded';
+  if (eventType === 'payment_intent.canceled') status = 'canceled';
+  if (eventType === 'payment_intent.payment_failed') {
+    status =
+      error?.code === 'authentication_required' ? 'requires_action' : 'failed';
+  }
+  const currency = paymentIntent.currency
+    ? paymentIntent.currency.toUpperCase()
+    : undefined;
+  const metadata = { ...(paymentIntent.metadata || {}) };
+  return {
+    status,
+    paymentExternalId: paymentIntent.id,
+    customerExternalId: idOf(paymentIntent.customer),
+    amountMinor:
+      currency && typeof paymentIntent.amount === 'number'
+        ? stripeAmountToMinorUnitsOrUndefined(paymentIntent.amount, currency)
+        : undefined,
+    currency,
+    chargeKey: metadata[CHARGE_KEY_METADATA],
+    failureCode: status === 'succeeded' ? undefined : error?.code || undefined,
+    declineCode:
+      status === 'succeeded' ? undefined : error?.decline_code || undefined,
+    failureMessage:
+      status === 'succeeded' ? undefined : error?.message || undefined,
+    metadata,
+  };
+}
+
 function idOf(
   value: string | { id?: string | null } | null | undefined,
 ): string | undefined {
@@ -1716,6 +1953,10 @@ function oneOf<const T extends string>(
 
 function stringOrUndefined(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 function normalizeCurrencyCode(currency: string): string {
