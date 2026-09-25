@@ -158,14 +158,19 @@ const charge = await stripe.payments.chargeSavedPaymentMethod?.({
 switch (charge?.status) {
   case 'succeeded': // funds secured: grant the credit
   case 'processing': // wait for the payment webhook
-  case 'requires_action': // customer must authenticate on-session
+  case 'requires_action': // issuer wants authentication; re-save the card on-session
   case 'failed': // declined or no payment method; see failureCode
 }
 ```
 
 A decline (`failureCode: 'card_declined'`) or an authentication requirement
 (`requires_action`, `failureCode: 'authentication_required'`) is returned, not
-thrown; other Stripe errors throw a `StripeApiError` carrying `status`,
+thrown. Results never include Stripe's client secret, so a `requires_action`
+attempt is not completed later: when the customer is next present, collect
+authentication with a `setup` mode Checkout session and
+`setDefaultPaymentMethod`, then charge again with a new idempotency key (the
+old key returns the original, unauthenticated attempt). Other errors
+throw a `StripeApiError` carrying `status`,
 `type`, and `code`. Every retry with the same key returns the original
 charge: Stripe replays it inside its idempotency window, and after it the
 adapter finds the PaymentIntent by its `hv_charge_key` metadata. Scope keys

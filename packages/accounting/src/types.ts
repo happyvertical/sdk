@@ -496,8 +496,12 @@ export interface ExternalPayment extends ExternalRecord {
  * - `succeeded`: funds are secured.
  * - `processing`: the provider accepted the charge but settlement is pending;
  *   wait for the payment webhook before granting value.
- * - `requires_action`: the customer must authenticate (for example 3-D
- *   Secure) in an on-session flow; nothing was charged.
+ * - `requires_action`: the issuer requires customer authentication (for
+ *   example 3-D Secure); nothing was charged. Results never carry the
+ *   provider's client secret, so do not try to complete this attempt: next
+ *   time the customer is present, have them re-save the card (Stripe:
+ *   `setup` mode Checkout, then `setDefaultPaymentMethod`) and charge again
+ *   under a new idempotency key.
  * - `failed`: declined or unusable payment method; nothing was charged.
  * - `canceled`: the payment was canceled before completion (webhooks only).
  */
