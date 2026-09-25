@@ -1004,21 +1004,65 @@ function mapInvoiceUpdateToStripe(
 function mapCheckoutSessionToStripe(
   input: StripeCheckoutSessionInput,
 ): Record<string, StripeFormValue> {
+  const mode = input.mode || 'subscription';
+  const lineItems = input.lineItems || [];
+  if (mode === 'setup') {
+    if (lineItems.length > 0) {
+      throw new Error('Stripe setup-mode Checkout does not accept line items');
+    }
+    if (!input.currency && !input.paymentMethodTypes?.length) {
+      throw new Error(
+        'Stripe setup-mode Checkout requires currency or paymentMethodTypes',
+      );
+    }
+    if (input.automaticTax) {
+      throw new Error('Stripe setup-mode Checkout does not calculate tax');
+    }
+  } else if (lineItems.length === 0) {
+    throw new Error(`Stripe ${mode}-mode Checkout requires line items`);
+  }
+  if (input.setupFutureUsage && mode !== 'payment') {
+    throw new Error('setupFutureUsage applies only to payment-mode Checkout');
+  }
+  if (input.customerUpdate && !input.customerExternalId) {
+    throw new Error('customerUpdate requires customerExternalId');
+  }
+
   return {
-    mode: input.mode || 'subscription',
+    mode,
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
     customer: input.customerExternalId,
     customer_email: input.customerExternalId ? undefined : input.customerEmail,
     client_reference_id: input.clientReferenceId,
     allow_promotion_codes: input.allowPromotionCodes,
-    line_items: input.lineItems.map(mapCheckoutLineItem),
+    currency: input.currency ? input.currency.toLowerCase() : undefined,
+    payment_method_types: input.paymentMethodTypes,
+    automatic_tax: input.automaticTax ? { enabled: true } : undefined,
+    billing_address_collection: input.billingAddressCollection,
+    customer_update: input.customerUpdate
+      ? {
+          address: input.customerUpdate.address,
+          name: input.customerUpdate.name,
+          shipping: input.customerUpdate.shipping,
+        }
+      : undefined,
+    payment_intent_data: input.setupFutureUsage
+      ? { setup_future_usage: input.setupFutureUsage }
+      : undefined,
+    line_items:
+      mode === 'setup'
+        ? undefined
+        : lineItems.map((lineItem) =>
+            mapCheckoutLineItem(lineItem, Boolean(input.automaticTax)),
+          ),
     metadata: normalizeMetadata(input.metadata || {}),
   };
 }
 
 function mapCheckoutLineItem(
   lineItem: StripeCheckoutLineItem,
+  automaticTax = false,
 ): Record<string, StripeFormValue> {
   if (lineItem.price) {
     return {
@@ -1031,21 +1075,37 @@ function mapCheckoutLineItem(
     throw new Error('Stripe checkout line item requires price or priceData');
   }
 
-  const productData = lineItem.priceData.product
+  const { priceData } = lineItem;
+  const productData = priceData.product
     ? undefined
-    : { name: lineItem.priceData.productName || 'Subscription' };
+    : { name: priceData.productName || 'Subscription' };
+  const hasStripeAmount = priceData.unitAmount !== undefined;
+  const hasMinorAmount = priceData.unitAmountMinor !== undefined;
+  if (hasStripeAmount === hasMinorAmount) {
+    throw new Error(
+      'Stripe checkout priceData requires exactly one of unitAmount or unitAmountMinor',
+    );
+  }
+  const unitAmount = hasMinorAmount
+    ? minorUnitsToStripeAmount(
+        priceData.unitAmountMinor as number,
+        normalizeCurrencyCode(priceData.currency),
+      )
+    : priceData.unitAmount;
 
   return {
     quantity: lineItem.quantity || 1,
     price_data: {
-      currency: lineItem.priceData.currency,
-      unit_amount: lineItem.priceData.unitAmount,
-      product: lineItem.priceData.product,
+      currency: priceData.currency.toLowerCase(),
+      unit_amount: unitAmount,
+      tax_behavior:
+        priceData.taxBehavior ?? (automaticTax ? 'exclusive' : undefined),
+      product: priceData.product,
       product_data: productData,
-      recurring: lineItem.priceData.recurring
+      recurring: priceData.recurring
         ? {
-            interval: lineItem.priceData.recurring.interval,
-            interval_count: lineItem.priceData.recurring.intervalCount,
+            interval: priceData.recurring.interval,
+            interval_count: priceData.recurring.intervalCount,
           }
         : undefined,
     },
@@ -1514,6 +1574,52 @@ function lineServicePeriod(
 
 function stringOrUndefined(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
+}
+
+function normalizeCurrencyCode(currency: string): string {
+  const code = String(currency ?? '')
+    .trim()
+    .toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code)) {
+    throw new Error(`Currency '${currency}' must be a three-letter code`);
+  }
+  return code;
+}
+
+/** ISO 4217 minor-unit exponent (2 for USD, 0 for JPY and ISK). */
+function isoMinorUnitExponent(currency: string): number {
+  const digits = new Intl.NumberFormat('en', {
+    style: 'currency',
+    currency,
+  }).resolvedOptions().maximumFractionDigits;
+  return typeof digits === 'number' ? digits : 2;
+}
+
+/**
+ * Integer ISO minor units → Stripe's smallest unit. They differ where Stripe
+ * keeps a two-decimal representation for a zero-decimal currency (ISK, UGX).
+ */
+function minorUnitsToStripeAmount(
+  amountMinor: number,
+  currency: string,
+): number {
+  if (!Number.isSafeInteger(amountMinor)) {
+    throw new Error(
+      `Amount ${amountMinor} must be a safe integer number of minor units`,
+    );
+  }
+  const iso = 10 ** isoMinorUnitExponent(currency);
+  const stripe = stripeCurrencyMinorUnitFactor(currency);
+  if (stripe >= iso) {
+    return amountMinor * (stripe / iso);
+  }
+  const divisor = iso / stripe;
+  if (amountMinor % divisor !== 0) {
+    throw new Error(
+      `Amount ${amountMinor} ${currency} minor units is not representable in Stripe's currency unit`,
+    );
+  }
+  return amountMinor / divisor;
 }
 
 function centsToMoney(cents: number): number {

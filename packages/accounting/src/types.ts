@@ -486,7 +486,23 @@ export interface StripeRecurringPriceData {
 
 export interface StripeCheckoutPriceData {
   currency: string;
-  unitAmount: number;
+  /**
+   * Unit amount in **Stripe's** smallest currency unit, passed through
+   * unconverted. Stripe's unit differs from the ISO 4217 minor unit for some
+   * currencies (for example ISK and UGX); prefer `unitAmountMinor`. Set
+   * exactly one of `unitAmount` and `unitAmountMinor`.
+   */
+  unitAmount?: number;
+  /**
+   * Unit amount in integer ISO 4217 minor units (`1999` USD, `1200` JPY),
+   * converted to Stripe's unit by the adapter.
+   */
+  unitAmountMinor?: number;
+  /**
+   * Stripe Tax behavior of this ad-hoc price. Defaults to `exclusive` when the
+   * session sets `automaticTax`.
+   */
+  taxBehavior?: 'exclusive' | 'inclusive' | 'unspecified';
   product?: string;
   productName?: string;
   recurring?: StripeRecurringPriceData;
@@ -498,7 +514,15 @@ export interface StripeCheckoutLineItem {
   quantity?: number;
 }
 
+export interface StripeCheckoutCustomerUpdate {
+  /** `auto` saves the address collected in Checkout to the customer. */
+  address?: 'auto' | 'never';
+  name?: 'auto' | 'never';
+  shipping?: 'auto' | 'never';
+}
+
 export interface StripeCheckoutSessionInput {
+  /** Defaults to `subscription`. */
   mode?: StripeCheckoutMode;
   successUrl: string;
   cancelUrl: string;
@@ -510,6 +534,30 @@ export interface StripeCheckoutSessionInput {
   allowPromotionCodes?: boolean;
   /** Stable caller-owned key reused when creating the same Checkout Session. */
   idempotencyKey?: string;
+  /**
+   * Calculate tax with Stripe Tax (`automatic_tax[enabled]`). Stripe needs
+   * the buyer's location: collect it with `billingAddressCollection`, or for
+   * an existing customer without an address set `customerUpdate.address:
+   * 'auto'`. Not valid in `setup` mode.
+   */
+  automaticTax?: boolean;
+  /** Collect the billing address (`auto` collects it only when needed). */
+  billingAddressCollection?: 'auto' | 'required';
+  /** Save details collected in Checkout back to `customerExternalId`. */
+  customerUpdate?: StripeCheckoutCustomerUpdate;
+  /**
+   * Three-letter currency. Required in `setup` mode unless
+   * `paymentMethodTypes` is set.
+   */
+  currency?: string;
+  /** Restrict payment method types (for example `['card']`). */
+  paymentMethodTypes?: string[];
+  /**
+   * `payment` mode only: also save the payment method for later
+   * (`payment_intent_data[setup_future_usage]`); `off_session` allows later
+   * merchant-initiated charges such as automatic top-ups.
+   */
+  setupFutureUsage?: 'off_session' | 'on_session';
 }
 
 export interface StripeCheckoutSession {

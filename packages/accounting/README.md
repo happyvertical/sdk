@@ -70,7 +70,96 @@ const { externalId } = await stripe.customers.sync({
 ## Stripe Checkout and webhooks
 
 `billing.createCheckoutSession` accepts `idempotencyKey`; reuse it when
-retrying the same Checkout Session creation. After `webhooks.verify` succeeds,
+retrying the same Checkout Session creation.
+
+Price ad-hoc Checkout lines with `priceData.unitAmountMinor`, integer ISO 4217
+minor units that the adapter converts to Stripe's unit (ISK and UGX are
+two-decimal at Stripe). `priceData.unitAmount` is still accepted and passed
+through unconverted in Stripe's unit. Set `automaticTax: true` to charge tax
+with Stripe Tax; Stripe needs the buyer's location, so collect it with
+`billingAddressCollection` or, for an existing customer, save it with
+`customerUpdate: { address: 'auto' }`. Ad-hoc prices default to
+`taxBehavior: 'exclusive'` when tax is on.
+
+```ts
+const session = await stripe.billing.createCheckoutSession({
+  mode: 'payment',
+  customerExternalId: 'cus_123',
+  lineItems: [
+    {
+      priceData: { currency: 'CAD', unitAmountMinor: 5000, productName: 'Credit' },
+    },
+  ],
+  automaticTax: true,
+  customerUpdate: { address: 'auto' },
+  setupFutureUsage: 'off_session', // also keep the card for top-ups
+  successUrl,
+  cancelUrl,
+  idempotencyKey: `credit-purchase:${cartId}`,
+});
+```
+
+### Card on file
+
+A `setup` mode session saves a payment method without charging. It takes no
+line items and needs `currency` (or `paymentMethodTypes`). After it completes,
+read the saved method and make it the customer's default so automatically
+charged invoices and off-session charges can use it:
+
+```ts
+const setup = await stripe.billing.createCheckoutSession({
+  mode: 'setup',
+  customerExternalId: 'cus_123',
+  currency: 'CAD',
+  billingAddressCollection: 'required',
+  customerUpdate: { address: 'auto', name: 'auto' },
+  successUrl,
+  cancelUrl,
+  idempotencyKey: `card-setup:${accountId}:${attempt}`,
+});
+// On checkout.session.completed:
+const done = await stripe.billing.retrieveCheckoutSession(setup.externalId);
+if (done.status === 'complete' && done.paymentMethodExternalId) {
+  await stripe.billing.setDefaultPaymentMethod(
+    'cus_123',
+    done.paymentMethodExternalId,
+  );
+}
+```
+
+## Off-session charges
+
+`payments.chargeSavedPaymentMethod()` charges a saved payment method without
+the customer present, for example an automatic prepaid-credit top-up. It is
+provider-neutral and optional on `PaymentOperations`: a provider that cannot
+pull funds from a stored method (such as a push-payment BTC rail) does not
+implement it, so check for it before calling. Amounts are integer minor units
+(`amountMinor`), and `idempotencyKey` is required.
+
+```ts
+const charge = await stripe.payments.chargeSavedPaymentMethod?.({
+  customerExternalId: 'cus_123', // default payment method unless one is given
+  amountMinor: 2500,
+  currency: 'USD',
+  idempotencyKey: `topup:${policyId}:${sequence}`,
+  metadata: { policy: policyId },
+});
+switch (charge?.status) {
+  case 'succeeded': // funds secured: grant the credit
+  case 'processing': // wait for the payment webhook
+  case 'requires_action': // customer must authenticate on-session
+  case 'failed': // declined or no payment method; see failureCode
+}
+```
+
+A decline (`failureCode: 'card_declined'`) or an authentication requirement
+(`requires_action`, `failureCode: 'authentication_required'`) is returned, not
+thrown; other Stripe errors throw a `StripeApiError` carrying `status`,
+`type`, and `code`. Every retry with the same key returns the original
+charge: Stripe replays it inside its idempotency window, and after it the
+adapter finds the PaymentIntent by its `hv_charge_key` metadata. Payment
+webhooks (`payment_intent.*`) carry a normalized `WebhookEvent.payment`
+summary with the status, minor-unit amount, and `chargeKey`. After `webhooks.verify` succeeds,
 the parsed Stripe webhook exposes its provider event as `WebhookEvent.id`.
 Persist that identifier in a durable inbox before applying side effects; the
 in-process parser alone cannot deduplicate deliveries across restarts or
