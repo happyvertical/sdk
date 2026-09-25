@@ -676,7 +676,11 @@ class StripeInvoiceOperations implements InvoiceOperations {
     const path = `/v1/invoices/${encodeURIComponent(externalId)}`;
     let invoice = await this.provider.request<StripeInvoice>('GET', path);
     if (invoice.status === 'paid') {
-      if (invoice.paid_out_of_band === true) return;
+      // Closed out of band before, or settled with nothing collected (a
+      // zero or credit-balance invoice): nothing more to do.
+      if (invoice.paid_out_of_band === true || !(invoice.amount_paid ?? 0)) {
+        return;
+      }
       // Stripe collected it itself: closing it again would hide a second
       // collection. The caller must refund or credit the other payment.
       throw new Error(

@@ -67,6 +67,10 @@ describe('Stripe invoices paid out of band (#1277)', () => {
       '/v1/invoices/in_1',
       '/v1/invoices/in_1/finalize',
     ]);
+    // A retry sees a paid invoice with nothing collected: still a no-op.
+    const retried = fakeWith('paid', { amount_paid: 0, amount_remaining: 0 });
+    await retried.provider.invoices.markPaidOutOfBand?.('in_1');
+    expect(retried.calls).toHaveLength(1);
     const grown = fakeWith(
       'draft',
       {},
