@@ -106,6 +106,14 @@ export function createBtcpayCheckoutGateway(
       'BTCPay gateway paymentMethods must be a non-empty list of ids.',
     );
   }
+  const assets = new Set(
+    paymentMethods.map((method) => assetOfMethodId(method)),
+  );
+  if (assets.size !== 1) {
+    throw new PaymentConfigurationError(
+      'BTCPay gateway paymentMethods must all settle in one asset (for example BTC-CHAIN and BTC-LN).',
+    );
+  }
   const expirationMinutes = positiveInteger(
     options.expirationMinutes ?? 15,
     'expirationMinutes',
@@ -131,7 +139,10 @@ export function createBtcpayCheckoutGateway(
   }
 
   async function liveInvoices(orderId: string): Promise<BtcpayInvoice[]> {
-    const invoices = await client.listInvoices({ orderId });
+    const invoices = await client.listInvoices({
+      orderId,
+      includeArchived: true,
+    });
     return invoices
       .filter(
         (invoice) =>
@@ -204,7 +215,15 @@ export function createBtcpayCheckoutGateway(
           redirectAutomatically: input.redirectUrl ? true : undefined,
         },
       });
-      return load(invoice);
+      const checkout = await load(invoice);
+      if (checkout.currency !== currency || checkout.amount !== input.amount) {
+        // The invoice exists (findable by orderId) but is not the price asked.
+        throw new PaymentProviderError(
+          `BTCPay created invoice ${checkout.id} for ${checkout.amount} ${checkout.currency}; ` +
+            `requested ${input.amount} ${currency}.`,
+        );
+      }
+      return checkout;
     },
 
     async getCheckout(checkoutId: string) {
@@ -213,9 +232,9 @@ export function createBtcpayCheckoutGateway(
 
     async listCheckouts(input: { orderId: string }) {
       const orderId = requireText(input.orderId, 'orderId');
-      const invoices = (await client.listInvoices({ orderId })).filter(
-        (invoice) => invoice.metadata.orderId === orderId,
-      );
+      const invoices = (
+        await client.listInvoices({ orderId, includeArchived: true })
+      ).filter((invoice) => invoice.metadata.orderId === orderId);
       return Promise.all(invoices.map(load));
     },
 
@@ -284,8 +303,26 @@ function toCheckout(
   // exactly and rounded down once.
   let paidScaled = Decimal.zero();
   for (const method of methods) {
+    const hasPayments = method.payments.some(
+      (payment) => payment.status !== 'Invalid',
+    );
+    if (method.paymentMethodPaid === undefined) {
+      if (hasPayments) {
+        throw new PaymentProviderError(
+          `BTCPay invoice ${invoice.id} payment method ${method.paymentMethodId} has payments but no paid amount.`,
+        );
+      }
+      continue;
+    }
     const paid = Decimal.parse(method.paymentMethodPaid, 'paymentMethodPaid');
-    if (paid.isZero()) continue;
+    if (paid.isZero()) {
+      if (hasPayments) {
+        throw new PaymentProviderError(
+          `BTCPay invoice ${invoice.id} payment method ${method.paymentMethodId} reports payments but zero paid.`,
+        );
+      }
+      continue;
+    }
     if (method.rate === undefined) {
       throw new PaymentProviderError(
         `BTCPay invoice ${invoice.id} payment method ${method.paymentMethodId} has payments but no rate.`,
@@ -294,14 +331,16 @@ function toCheckout(
     paidScaled = paidScaled.add(paid.mul(Decimal.parse(method.rate, 'rate')));
   }
 
+  const primary =
+    methods.find((method) => railOf(method.paymentMethodId) === 'onchain') ??
+    methods[0];
+  const settlementAsset = primary
+    ? assetOf(primary.currency, primary.paymentMethodId)
+    : undefined;
   const payments: CryptoCheckoutPayment[] = [];
   let nativePaid = Decimal.zero();
   for (const method of methods) {
-    const asset = (
-      method.currency ??
-      method.paymentMethodId.split('-')[0] ??
-      ''
-    ).toUpperCase();
+    const asset = assetOf(method.currency, method.paymentMethodId);
     for (const payment of method.payments) {
       const mapped: CryptoCheckoutPayment = {
         id: payment.id,
@@ -321,15 +360,12 @@ function toCheckout(
         receivedAt: payment.receivedDate,
       };
       payments.push(mapped);
-      if (mapped.status !== 'invalid') {
+      if (mapped.status !== 'invalid' && asset === settlementAsset) {
         nativePaid = nativePaid.add(Decimal.parse(payment.value, 'payment'));
       }
     }
   }
 
-  const primary =
-    methods.find((method) => railOf(method.paymentMethodId) === 'onchain') ??
-    methods[0];
   const metadata: Record<string, string> = {};
   for (const [key, value] of Object.entries(invoice.metadata)) {
     if (typeof value === 'string') metadata[key] = value;
@@ -344,13 +380,7 @@ function toCheckout(
     amount,
     currency,
     amountPaid: paidScaled.floorToScale(fiatDecimals),
-    settlementAsset: primary
-      ? (
-          primary.currency ??
-          primary.paymentMethodId.split('-')[0] ??
-          ''
-        ).toUpperCase() || undefined
-      : undefined,
+    settlementAsset: settlementAsset || undefined,
     nativeAmountDue: primary?.amount,
     nativeAmountPaid: methods.length ? nativePaid.toString() : undefined,
     rate: primary?.rate,
@@ -370,6 +400,14 @@ function formatMinorUnits(amount: number, decimals: number): string {
   return decimals === 0
     ? text
     : `${text.slice(0, -decimals)}.${text.slice(-decimals)}`;
+}
+
+function assetOfMethodId(paymentMethodId: string): string {
+  return (paymentMethodId.split('-')[0] ?? '').toUpperCase();
+}
+
+function assetOf(currency: string | undefined, paymentMethodId: string) {
+  return (currency ?? assetOfMethodId(paymentMethodId)).toUpperCase();
 }
 
 function railOf(paymentMethodId: string): string {

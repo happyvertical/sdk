@@ -90,6 +90,8 @@ export interface BtcpayListInvoicesInput {
   orderId?: string | string[];
   status?: BtcpayInvoiceStatus | BtcpayInvoiceStatus[];
   textSearch?: string;
+  /** Include archived invoices (Greenfield omits them by default). */
+  includeArchived?: boolean;
   skip?: number;
   take?: number;
 }
@@ -119,8 +121,11 @@ export interface BtcpayInvoicePaymentMethod {
   rate?: string;
   /** Decimal amount due in the payment currency when created. */
   amount: string;
-  /** Decimal amount paid through this method. */
-  paymentMethodPaid: string;
+  /**
+   * Decimal amount paid through this method (Greenfield 1.x: `paid`).
+   * Undefined when BTCPay did not report it — never read absence as zero.
+   */
+  paymentMethodPaid?: string;
   /** Decimal amount paid through all methods, in this method's currency. */
   totalPaid: string;
   /**
@@ -242,6 +247,7 @@ export class BtcpayClient {
     }
     for (const status of toList(input.status)) query.append('status', status);
     if (input.textSearch) query.set('textSearch', input.textSearch);
+    if (input.includeArchived) query.set('includeArchived', 'true');
     if (input.skip !== undefined) {
       query.set('skip', String(requireCount(input.skip, 'skip')));
     }
@@ -471,7 +477,8 @@ function toPaymentMethod(
     paymentLink: readString(value, 'paymentLink'),
     rate: readDecimal(value.rate),
     amount: readDecimal(value.amount) ?? '0',
-    paymentMethodPaid: readDecimal(value.paymentMethodPaid) ?? '0',
+    paymentMethodPaid:
+      readDecimal(value.paymentMethodPaid) ?? readDecimal(value.paid),
     totalPaid: readDecimal(value.totalPaid) ?? '0',
     due: readDecimal(value.due),
     payments: Array.isArray(value.payments)

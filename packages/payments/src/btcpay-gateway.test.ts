@@ -23,6 +23,9 @@ interface FakeInvoice {
   metadata: Record<string, unknown>;
   checkout: Record<string, unknown>;
   methods: Record<string, unknown>[];
+  archived?: boolean;
+  /** Test hook: what BTCPay echoes back as the invoice amount. */
+  echoAmount?: string;
 }
 
 /** A minimal in-memory BTCPay store behind a fetch stub. */
@@ -37,8 +40,9 @@ function fakeBtcpay() {
     storeId: STORE,
     status: invoice.status,
     additionalStatus: invoice.additionalStatus,
-    amount: invoice.amount,
+    amount: invoice.echoAmount ?? invoice.amount,
     currency: invoice.currency,
+    archived: invoice.archived === true,
     checkoutLink: `https://pay.example/i/${invoice.id}`,
     createdTime: invoice.createdTime,
     expirationTime: invoice.createdTime + 900,
@@ -74,15 +78,19 @@ function fakeBtcpay() {
           },
         ],
       };
+      if (hooks.echoAmount) invoice.echoAmount = hooks.echoAmount;
       invoices.set(invoice.id, invoice);
       return json(view(invoice));
     }
     if (path === '/invoices') {
       const orderIds = url.searchParams.getAll('orderId');
+      const archived = url.searchParams.get('includeArchived') === 'true';
       return json(
         [...invoices.values()]
-          .filter((invoice) =>
-            orderIds.includes(String(invoice.metadata.orderId)),
+          .filter(
+            (invoice) =>
+              orderIds.includes(String(invoice.metadata.orderId)) &&
+              (archived || !invoice.archived),
           )
           .map(view),
       );
@@ -99,13 +107,14 @@ function fakeBtcpay() {
     }
     return json({ code: 'unexpected' }, 500);
   };
+  const hooks: { echoAmount?: string } = {};
   const client = new BtcpayClient({
     baseUrl: 'https://btcpay.example',
     apiKey: 'key',
     storeId: STORE,
     fetch,
   });
-  return { client, invoices, created };
+  return { client, invoices, created, hooks };
 }
 
 function invoiceOf(world: ReturnType<typeof fakeBtcpay>, id: string) {
@@ -242,6 +251,86 @@ describe('createBtcpayCheckoutGateway', () => {
     expect(
       (await gateway.listCheckouts({ orderId: 'o' })).map((c) => c.id),
     ).toEqual(['inv_1', 'inv_2', 'inv_3']);
+  });
+
+  it('reuses an archived live invoice instead of creating another', async () => {
+    const { gateway, world } = gatewayFor();
+    await gateway.createCheckout({
+      orderId: 'a',
+      amount: 100,
+      currency: 'CAD',
+    });
+    const invoice = invoiceOf(world, 'inv_1');
+    invoice.status = 'Settled';
+    invoice.archived = true;
+    const again = await gateway.createCheckout({
+      orderId: 'a',
+      amount: 100,
+      currency: 'CAD',
+    });
+    expect(again).toMatchObject({ id: 'inv_1', status: 'settled' });
+    expect(world.created).toHaveLength(1);
+    expect(await gateway.listCheckouts({ orderId: 'a' })).toHaveLength(1);
+  });
+
+  it('refuses a created invoice whose price differs from the request', async () => {
+    const { gateway, world } = gatewayFor();
+    world.hooks.echoAmount = '24.99';
+    await expect(
+      gateway.createCheckout({ orderId: 'e', amount: 2500, currency: 'CAD' }),
+    ).rejects.toThrow(/requested 2500 CAD/);
+  });
+
+  it('refuses payment methods that settle in different assets', () => {
+    const { client } = fakeBtcpay();
+    expect(() =>
+      createBtcpayCheckoutGateway({
+        client,
+        webhookSecret: SECRET,
+        speedPolicy: 'LowSpeed',
+        paymentMethods: ['BTC-CHAIN', 'LTC-CHAIN'],
+      }),
+    ).toThrow(/one asset/);
+  });
+
+  it('refuses a method with payments but no or zero paid amount', async () => {
+    const { gateway, world } = gatewayFor();
+    await gateway.createCheckout({
+      orderId: 'z',
+      amount: 100,
+      currency: 'CAD',
+    });
+    const payment = {
+      id: `${TX}-0`,
+      value: '0.001',
+      fee: '0',
+      status: 'Settled',
+    };
+    invoiceOf(world, 'inv_1').methods = [
+      { paymentMethodId: 'BTC-CHAIN', rate: '1000', payments: [payment] },
+    ];
+    await expect(gateway.getCheckout('inv_1')).rejects.toThrow(
+      /no paid amount/,
+    );
+    invoiceOf(world, 'inv_1').methods = [
+      {
+        paymentMethodId: 'BTC-CHAIN',
+        rate: '1000',
+        paymentMethodPaid: '0',
+        payments: [payment],
+      },
+    ];
+    await expect(gateway.getCheckout('inv_1')).rejects.toThrow(/zero paid/);
+    // Greenfield 1.x names the field `paid`.
+    invoiceOf(world, 'inv_1').methods = [
+      {
+        paymentMethod: 'BTC',
+        rate: '1000',
+        paid: '0.001',
+        payments: [payment],
+      },
+    ];
+    expect((await gateway.getCheckout('inv_1')).amountPaid).toBe(100);
   });
 
   it('converts zero-decimal currencies exactly and refuses bad input', async () => {
