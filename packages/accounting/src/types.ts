@@ -155,6 +155,15 @@ export interface CustomerInput {
   currency?: string;
   /** Additional metadata */
   metadata?: Record<string, unknown>;
+  /**
+   * Stable caller-owned key for creating this provider customer exactly once.
+   * Used only when the customer has no `externalId` yet. A retry with the same
+   * key returns the customer the first attempt created: Stripe replays the
+   * create inside its idempotency window, and after it the adapter finds the
+   * customer by the `local_id` it tags on every customer. Reuse the key only
+   * for the same customer contents.
+   */
+  idempotencyKey?: string;
 }
 
 /**

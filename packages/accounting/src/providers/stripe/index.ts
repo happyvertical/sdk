@@ -61,12 +61,26 @@ interface StripeListResponse<T> {
 
 interface StripeCustomer {
   id: string;
+  created?: number | null;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
   address?: StripeAddress | null;
   balance?: number | null;
   currency?: string | null;
+  metadata?: Record<string, string> | null;
+  invoice_settings?: {
+    default_payment_method?: string | { id: string } | null;
+  } | null;
+}
+
+interface StripeSearchResponse<T> {
+  object: 'search_result';
+  data: T[];
+  has_more?: boolean;
+  next_page?: string | null;
+}
+
 interface StripeCoupon {
   id: string;
   amount_off?: number | null;
@@ -354,10 +368,29 @@ class StripeCustomerOperations implements CustomerOperations {
   constructor(private readonly provider: StripeProvider) {}
 
   async push(customer: CustomerInput): Promise<SyncResult> {
+    if (customer.idempotencyKey !== undefined) {
+      assertIdempotencyKey(customer.idempotencyKey);
+      // After Stripe's idempotency window a replayed key creates a new
+      // customer, so first look for the one an earlier attempt created.
+      const existing = await this.findByLocalId(customer.id);
+      if (existing) {
+        return {
+          action: 'created',
+          externalId: existing.id,
+          syncedAt: new Date(),
+        };
+      }
+    }
+
     const response = await this.provider.request<StripeCustomer>(
       'POST',
       '/v1/customers',
       mapCustomerToStripe(customer),
+      {
+        idempotencyKey: customer.idempotencyKey
+          ? `${customer.idempotencyKey}:customer`
+          : undefined,
+      },
     );
 
     return {
@@ -365,6 +398,39 @@ class StripeCustomerOperations implements CustomerOperations {
       externalId: response.id,
       syncedAt: new Date(),
     };
+  }
+
+  /**
+   * The oldest customer tagged with this local id. Stripe search is
+   * eventually consistent (normally under a minute); inside that lag the
+   * idempotency key, retained for at least 24 hours, covers the replay.
+   */
+  private async findByLocalId(
+    localId: string,
+  ): Promise<StripeCustomer | undefined> {
+    const matches: StripeCustomer[] = [];
+    let page: string | undefined;
+    do {
+      const response = await this.provider.request<
+        StripeSearchResponse<StripeCustomer>
+      >('GET', '/v1/customers/search', {
+        query: `metadata['local_id']:'${escapeSearchValue(localId)}'`,
+        limit: 100,
+        page,
+      });
+      matches.push(
+        ...response.data.filter(
+          (customer) => customer.metadata?.local_id === localId,
+        ),
+      );
+      page = response.has_more ? response.next_page || undefined : undefined;
+    } while (page);
+
+    return matches.sort(
+      (left, right) =>
+        (left.created ?? 0) - (right.created ?? 0) ||
+        left.id.localeCompare(right.id),
+    )[0];
   }
 
   async pull(externalId: string): Promise<ExternalCustomer> {
@@ -883,9 +949,10 @@ function mapCustomerToStripe(
         }
       : undefined,
     metadata: normalizeMetadata({
-      local_id: customer.id,
       payment_terms: customer.paymentTerms,
       ...customer.metadata,
+      // Written last: idempotent creation reconciles customers by it.
+      local_id: customer.id,
     }),
   };
 
@@ -1383,6 +1450,17 @@ function stripeMinorUnitsToMoney(
   currency?: string | null,
 ): number {
   return amount / stripeCurrencyMinorUnitFactor(currency);
+}
+
+function assertIdempotencyKey(key: string): void {
+  if (typeof key !== 'string' || key.trim() === '') {
+    throw new Error('idempotencyKey must be a non-empty string');
+  }
+}
+
+/** Escape a value for a single-quoted Stripe Search Query Language string. */
+function escapeSearchValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 /** The line's discount in Stripe units, validated against the line total. */

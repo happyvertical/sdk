@@ -48,6 +48,25 @@ Invoice lines carry more than an amount:
   currency and amount, id `hv_amount_off_<currency>_<stripe amount>`), so the
   discount shows on the invoice and Stripe Tax taxes the discounted amount.
 
+## Stripe customers
+
+Pass a stable `idempotencyKey` when a retry might create the customer again
+(for example a worker that crashed before storing the returned id). A retry
+with the same key returns the first customer: Stripe replays the create
+inside its idempotency window, and after it the adapter finds the customer by
+the `local_id` metadata it writes on every customer (the oldest one wins if
+earlier retries left duplicates). Reuse the key only for the same customer
+contents.
+
+```ts
+const { externalId } = await stripe.customers.sync({
+  id: account.id,
+  name: account.name,
+  billingAddress: account.address,
+  idempotencyKey: `billing-account:${account.id}`,
+});
+```
+
 ## Stripe Checkout and webhooks
 
 `billing.createCheckoutSession` accepts `idempotencyKey`; reuse it when
