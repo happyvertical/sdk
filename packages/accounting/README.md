@@ -37,6 +37,17 @@ complete billing address before creating the invoice so Stripe can calculate
 tax from that customer tax location. Read the invoice back to persist Stripe's
 calculated `taxAmount`; callers do not supply local tax tables or rates.
 
+Invoice lines carry more than an amount:
+
+- `periodStart` / `periodEnd` (set both) become the Stripe invoice item's
+  service `period`, so the invoice PDF, portal, and revenue reports show the
+  billed window. `periodEnd` is exclusive, like Stripe's own subscription
+  periods, and must not be before `periodStart`.
+- `discount` is the line's total discount in major units. Stripe receives it
+  as an amount-off coupon on the invoice item (one reusable coupon per
+  currency and amount, id `hv_amount_off_<currency>_<stripe amount>`), so the
+  discount shows on the invoice and Stripe Tax taxes the discounted amount.
+
 ## Stripe Checkout and webhooks
 
 `billing.createCheckoutSession` accepts `idempotencyKey`; reuse it when

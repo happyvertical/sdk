@@ -179,9 +179,16 @@ export interface InvoiceLineItemInput {
   taxRate?: number;
   /** Calculated line total */
   amount?: number;
-  /** Service/product date range start */
+  /**
+   * Service period start. Set together with `periodEnd`; the Stripe provider
+   * sends both as the invoice item's `period` (Unix seconds).
+   */
   periodStart?: Date;
-  /** Service/product date range end */
+  /**
+   * Service period end, exclusive (the instant the next period starts), which
+   * is also how Stripe reports subscription line periods. Must not be before
+   * `periodStart`.
+   */
   periodEnd?: Date;
 }
 

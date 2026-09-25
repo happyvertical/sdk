@@ -345,6 +345,16 @@ class StripeInvoiceOperations implements InvoiceOperations {
       throw new Error('Stripe invoices require customerExternalId');
     }
 
+    const currency = invoice.currency || 'usd';
+    const collectionMethod = resolveCollectionMethod(invoice);
+    // Validate every line before any provider request.
+    const lines = invoice.lineItems.map((lineItem) => ({
+      lineItem,
+      unitAmount: moneyToStripeMinorUnits(lineItem.unitPrice, currency),
+      discount: lineDiscountToStripe(lineItem, currency),
+      period: lineServicePeriod(lineItem),
+    }));
+
     const existingInvoice = invoice.idempotencyKey
       ? await this.findInvoiceByLocalId(invoice.customerExternalId, invoice.id)
       : undefined;
@@ -363,24 +373,25 @@ class StripeInvoiceOperations implements InvoiceOperations {
         )
       : new Set<number>();
 
-    for (const [index, lineItem] of invoice.lineItems.entries()) {
+    for (const [index, line] of lines.entries()) {
       if (existingLineItemIndexes.has(index)) {
         continue;
       }
+      const { lineItem, unitAmount, discount, period } = line;
+      const coupon = discount
+        ? await this.provider.amountOffCoupon(currency, discount)
+        : undefined;
       await this.provider.request(
         'POST',
         '/v1/invoiceitems',
         {
           customer: invoice.customerExternalId,
-          currency: invoice.currency || 'usd',
+          currency,
           description: lineItem.description,
           quantity: lineItem.quantity,
-          unit_amount_decimal: String(
-            moneyToStripeMinorUnits(
-              lineItem.unitPrice,
-              invoice.currency || 'usd',
-            ),
-          ),
+          unit_amount_decimal: String(unitAmount),
+          period,
+          discounts: coupon ? [{ coupon }] : undefined,
           tax_behavior: invoice.automaticTax ? 'exclusive' : undefined,
           metadata: normalizeMetadata({
             local_invoice_id: invoice.id,
@@ -1306,6 +1317,30 @@ function stripeMinorUnitsToMoney(
   currency?: string | null,
 ): number {
   return amount / stripeCurrencyMinorUnitFactor(currency);
+}
+
+function lineServicePeriod(
+  lineItem: InvoiceInput['lineItems'][number],
+): { start: Date; end: Date } | undefined {
+  const { periodStart, periodEnd } = lineItem;
+  if (!periodStart && !periodEnd) {
+    return undefined;
+  }
+  if (!(periodStart instanceof Date) || !(periodEnd instanceof Date)) {
+    throw new Error(
+      `Invoice line '${lineItem.description}' needs both periodStart and periodEnd`,
+    );
+  }
+  if (
+    Number.isNaN(periodStart.getTime()) ||
+    Number.isNaN(periodEnd.getTime()) ||
+    periodEnd.getTime() < periodStart.getTime()
+  ) {
+    throw new Error(
+      `Invoice line '${lineItem.description}' has an invalid service period`,
+    );
+  }
+  return { start: periodStart, end: periodEnd };
 }
 
 function centsToMoney(cents: number): number {
