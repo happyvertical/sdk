@@ -119,6 +119,7 @@ interface StripeInvoice {
   currency?: string | null;
   collection_method?: string | null;
   auto_advance?: boolean | null;
+  paid_out_of_band?: boolean | null;
   metadata?: Record<string, string> | null;
 }
 
@@ -660,6 +661,37 @@ class StripeInvoiceOperations implements InvoiceOperations {
       `/v1/invoices/${encodeURIComponent(externalId)}/mark_uncollectible`,
       undefined,
       { idempotencyKey: `${externalId}:mark_uncollectible` },
+    );
+  }
+
+  /**
+   * Close an invoice paid on another rail (`paid_out_of_band`). An already
+   * paid invoice is left as is; a draft is finalized first (without
+   * automatic collection); a void invoice cannot be paid and throws. An
+   * uncollectible invoice can still be paid, as in Stripe.
+   */
+  async markPaidOutOfBand(externalId: string): Promise<void> {
+    const path = `/v1/invoices/${encodeURIComponent(externalId)}`;
+    const invoice = await this.provider.request<StripeInvoice>('GET', path);
+    if (invoice.status === 'paid') return;
+    if (invoice.status === 'void') {
+      throw new Error(
+        `Stripe invoice ${externalId} is void and cannot be marked paid.`,
+      );
+    }
+    if (invoice.status === 'draft') {
+      await this.provider.request(
+        'POST',
+        `${path}/finalize`,
+        { auto_advance: false },
+        { idempotencyKey: `${externalId}:finalize_out_of_band` },
+      );
+    }
+    await this.provider.request(
+      'POST',
+      `${path}/pay`,
+      { paid_out_of_band: true },
+      { idempotencyKey: `${externalId}:paid_out_of_band` },
     );
   }
 
@@ -1448,6 +1480,7 @@ function mapStripeInvoice(invoice: StripeInvoice): ExternalInvoice {
     ),
     status: mapStripeInvoiceStatus(invoice.status, invoice.due_date),
     currency: invoice.currency || 'usd',
+    paidOutOfBand: invoice.paid_out_of_band === true,
     raw: invoice,
   };
 }
