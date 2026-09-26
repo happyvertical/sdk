@@ -25,6 +25,7 @@ import type {
   OpenAIOptions,
   Qwen3TTSOptions,
   SeevioOptions,
+  TypeSafeOptions,
 } from './types';
 import { AI_PROVIDER_TYPES } from './types';
 
@@ -171,6 +172,13 @@ function isSeevioOptions(
   return options.type === 'seevio';
 }
 
+/** Checks if options select TypeSafe's System One decision API. */
+function isTypeSafeOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is TypeSafeOptions {
+  return options.type === 'typesafe';
+}
+
 /**
  * Creates an AI provider instance based on the provided options.
  * Universal version that works in both browser and Node.js environments.
@@ -298,6 +306,9 @@ export async function getAI(
   } else if (isSeevioOptions(options)) {
     const { SeevioProvider } = await import('./providers/seevio.js');
     client = new SeevioProvider(options);
+  } else if (isTypeSafeOptions(options)) {
+    const { TypeSafeProvider } = await import('./providers/typesafe.js');
+    client = new TypeSafeProvider(options);
   } else {
     throw new ValidationError('Unsupported AI provider type', {
       supportedTypes: [...AI_PROVIDER_TYPES],

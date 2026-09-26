@@ -51,6 +51,7 @@ export interface AIRequestControls {
 
 /** Operations reported through {@link AIRequestEvent}. */
 export type AIRequestOperation =
+  | 'decide'
   | 'chat'
   | 'complete'
   | 'message'
@@ -107,6 +108,7 @@ export const AI_PROVIDER_TYPES = [
   'openai-compat-video',
   'byteplus-modelark',
   'seevio',
+  'typesafe',
 ] as const;
 
 /**
@@ -1052,6 +1054,12 @@ export interface AIAdminInterface {
  */
 export interface AICapabilities {
   /**
+   * Whether the provider supports typed, prompt-free decisions.
+   *
+   * Optional to preserve source compatibility for existing capability literals.
+   */
+  decisions?: boolean;
+  /**
    * Whether the provider supports chat completions
    */
   chat: boolean;
@@ -1146,6 +1154,88 @@ export interface TokenUsage {
    * Total tokens used
    */
   totalTokens: number;
+}
+
+/** JSON-compatible data evaluated by a decision provider. */
+export type DecisionValue =
+  | string
+  | number
+  | boolean
+  | null
+  | DecisionValue[]
+  | { [key: string]: DecisionValue };
+
+/** A boolean predicate, expressed without provider-specific terminology. */
+export interface PredicateDecisionQuestion {
+  type: 'predicate';
+  instructions: DecisionValue;
+  criteria?: { true?: DecisionValue; false?: DecisionValue };
+}
+
+/** A selection from named, unordered labels. */
+export interface ChoiceDecisionQuestion {
+  type: 'choice';
+  instructions: DecisionValue;
+  criteria: Record<string, DecisionValue | null>;
+}
+
+/** A position on an ordered rubric. */
+export interface ScoreDecisionQuestion {
+  type: 'score';
+  instructions: DecisionValue;
+  criteria: DecisionValue[];
+}
+
+export type DecisionQuestion =
+  | PredicateDecisionQuestion
+  | ChoiceDecisionQuestion
+  | ScoreDecisionQuestion;
+
+/** A typed batch of independent questions evaluated against one state. */
+export interface DecisionRequest {
+  state: DecisionValue;
+  questions: Record<string, DecisionQuestion>;
+}
+
+/** Request controls for a decision operation. Generation controls do not apply. */
+export interface DecisionOptions extends AIRequestControls {
+  model?: string;
+}
+
+export interface PredicateDecisionAnswer {
+  type: 'predicate';
+  /** Probability that the predicate is true, bounded from zero through one. */
+  probability: number;
+}
+
+export interface ChoiceDecisionAnswer {
+  type: 'choice';
+  choice: string;
+  probabilities: Record<string, number>;
+  confidence: number;
+}
+
+export interface ScoreDecisionAnswer {
+  type: 'score';
+  score: number;
+  probabilities: Record<string, number>;
+  confidence: number;
+  /** Ordered rubric descriptions corresponding to probability keys 0..n-1. */
+  levels: DecisionValue[];
+}
+
+export type DecisionAnswer =
+  | PredicateDecisionAnswer
+  | ChoiceDecisionAnswer
+  | ScoreDecisionAnswer;
+
+export interface DecisionResult {
+  /** Actual model returned by the provider. */
+  model: string;
+  usage?: TokenUsage;
+  /** Provider/model provenance. Probabilities are not cross-provider calibrated. */
+  provenance: { provider: string; model: string };
+  answers: Record<string, DecisionAnswer>;
 }
 
 /**
@@ -1251,6 +1341,15 @@ export interface AIInterface {
    * Optional admin surface for gateway providers that support provisioning.
    */
   admin?: AIAdminInterface;
+
+  /**
+   * Evaluate provider-neutral, typed questions without using text generation.
+   * Optional so third-party implementations remain source compatible.
+   */
+  decide?(
+    request: DecisionRequest,
+    options?: DecisionOptions,
+  ): Promise<DecisionResult>;
 
   /**
    * Generate a chat completion from a sequence of messages.
@@ -2064,6 +2163,14 @@ export interface SeevioOptions extends BaseAIOptions {
   maxResultBytes?: number;
 }
 
+/** TypeSafe System One decision provider. `defaultModel` selects a Jev model. */
+export interface TypeSafeOptions extends BaseAIOptions {
+  type: 'typesafe';
+  apiKey?: string;
+  /** Defaults to https://api.typesafe.ai/v1. */
+  baseUrl?: string;
+}
+
 /**
  * Union type for all provider options
  */
@@ -2080,7 +2187,8 @@ export type GetAIOptions =
   | Qwen3TTSOptions
   | OpenAICompatVideoOptions
   | ByteplusModelArkOptions
-  | SeevioOptions;
+  | SeevioOptions
+  | TypeSafeOptions;
 
 /**
  * Base error class for all AI operations.
