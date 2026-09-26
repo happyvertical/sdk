@@ -474,6 +474,7 @@ for (const site of sites) {
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`
 - `MODELARK_API_KEY` / `ARK_API_KEY`, `MODELARK_BASE_URL`
 - `OPENAI_COMPAT_VIDEO_BASE_URL`, `OPENAI_COMPAT_VIDEO_API_KEY`
+- `TYPESAFE_API_KEY`, `TYPESAFE_BASE_URL` (last-resort decision-only auto-detection)
 
 ## API Overview
 

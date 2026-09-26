@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-
+import { getAIAuto as getNodeAIAuto } from './node/factory';
 import { getAI } from './shared/factory';
 import { SeevioProvider } from './shared/providers/seevio';
 import { TypeSafeProvider } from './shared/providers/typesafe';
@@ -425,5 +425,50 @@ describe('TypeSafeProvider', () => {
         ),
       ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     }
+  });
+
+  it('auto-detects TypeSafe only as a last-resort Node provider', async () => {
+    const keys = [
+      'TYPESAFE_API_KEY',
+      'OPENAI_API_KEY',
+      'ANTHROPIC_API_KEY',
+      'GEMINI_API_KEY',
+      'GOOGLE_API_KEY',
+      'HF_TOKEN',
+      'LITELLM_BASE_URL',
+      'BIFROST_BASE_URL',
+      'OLLAMA_HOST',
+      'OLLAMA_BASE_URL',
+      'MODELARK_API_KEY',
+      'ARK_API_KEY',
+      'OPENAI_COMPAT_VIDEO_BASE_URL',
+      'SEEVIO_API_KEY',
+    ] as const;
+    const previous = new Map(keys.map((key) => [key, process.env[key]]));
+    for (const key of keys) delete process.env[key];
+    process.env.TYPESAFE_API_KEY = 'typesafe-test-key';
+    try {
+      const provider = await getNodeAIAuto({});
+      expect((await provider.getCapabilities()).decisions).toBe(true);
+    } finally {
+      for (const key of keys) {
+        const value = previous.get(key);
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it('normalizes TypeSafe transport failures as retryable AI errors', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+    await expect(
+      new TypeSafeProvider({ type: 'typesafe', apiKey: 'test-key' }).decide(
+        request,
+      ),
+    ).rejects.toMatchObject({
+      code: 'NETWORK_ERROR',
+      retryable: true,
+      provider: 'typesafe',
+    });
   });
 });

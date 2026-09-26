@@ -314,6 +314,9 @@ export async function getAIAuto(
   const hasSeevioSignal = Boolean(
     process.env.SEEVIO_API_KEY || process.env.SEEVIO_BASE_URL,
   );
+  const hasTypeSafeSignal = Boolean(
+    process.env.TYPESAFE_API_KEY || process.env.TYPESAFE_BASE_URL,
+  );
 
   if (hasModelArkSignal && !config.type) {
     return getAIUniversal({
@@ -345,6 +348,15 @@ export async function getAIAuto(
     } as SeevioOptions);
   }
 
+  if (hasTypeSafeSignal && !config.type) {
+    return getAIUniversal({
+      ...config,
+      type: 'typesafe',
+      apiKey: config.apiKey || process.env.TYPESAFE_API_KEY,
+      baseUrl: config.baseUrl || process.env.TYPESAFE_BASE_URL,
+    } as TypeSafeOptions);
+  }
+
   throw new ValidationError(
     'Could not auto-detect AI provider from options or environment',
     {
@@ -367,6 +379,8 @@ export async function getAIAuto(
         'HF_TOKEN',
         'AWS_ACCESS_KEY_ID',
         'AWS_DEFAULT_REGION',
+        'TYPESAFE_API_KEY',
+        'TYPESAFE_BASE_URL',
         'OPENAI_COMPAT_VIDEO_BASE_URL',
         'OPENAI_COMPAT_VIDEO_API_KEY',
         'MODELARK_API_KEY',

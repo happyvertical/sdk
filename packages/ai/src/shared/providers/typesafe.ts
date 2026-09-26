@@ -475,6 +475,17 @@ export class TypeSafeProvider implements AIInterface {
           PROVIDER,
           model,
         );
+      if (!(error instanceof AIError)) {
+        throw new AIError(
+          `Network error calling TypeSafe System One: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          'NETWORK_ERROR',
+          PROVIDER,
+          model,
+          true,
+        );
+      }
       throw error;
     } finally {
       controls.cleanup();
