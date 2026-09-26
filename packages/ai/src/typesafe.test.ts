@@ -313,6 +313,54 @@ describe('TypeSafeProvider', () => {
     expect(JSON.stringify(lifecycle.mock.calls[0][0])).not.toContain('refund');
   });
 
+  it('reports factory timeout and caller abort as terminal lifecycle statuses', async () => {
+    const fetchMock = vi.fn().mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          if (init.signal.aborted) {
+            reject(new DOMException('aborted', 'AbortError'));
+            return;
+          }
+          init.signal.addEventListener(
+            'abort',
+            () => reject(new DOMException('aborted', 'AbortError')),
+            { once: true },
+          );
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const timedOut = vi.fn();
+    const timeoutProvider = await getAI({
+      type: 'typesafe',
+      apiKey: 'test-key',
+      timeout: 1,
+      onRequest: timedOut,
+    });
+    await expect(timeoutProvider.decide!(request)).rejects.toMatchObject({
+      code: 'REQUEST_TIMEOUT',
+    });
+    expect(timedOut).toHaveBeenCalledTimes(1);
+    expect(timedOut).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'decide', status: 'timed_out' }),
+    );
+
+    const aborted = vi.fn();
+    const abortProvider = await getAI({
+      type: 'typesafe',
+      apiKey: 'test-key',
+      onRequest: aborted,
+    });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      abortProvider.decide!(request, { signal: controller.signal }),
+    ).rejects.toMatchObject({ code: 'REQUEST_ABORTED' });
+    expect(aborted).toHaveBeenCalledTimes(1);
+    expect(aborted).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'decide', status: 'aborted' }),
+    );
+  });
+
   it('keeps existing capability literals source-compatible', () => {
     const legacy: AICapabilities = {
       chat: false,
