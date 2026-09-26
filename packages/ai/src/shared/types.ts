@@ -108,6 +108,7 @@ export const AI_PROVIDER_TYPES = [
   'openai-compat-video',
   'byteplus-modelark',
   'seevio',
+  'typesafe',
 ] as const;
 
 /**

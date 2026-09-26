@@ -7,8 +7,10 @@ import { createRateLimitedAI } from './shared/rate-limit';
 import type {
   AICapabilities,
   AIInterface,
+  AIProviderType,
   DecisionRequest,
 } from './shared/types';
+import { AI_PROVIDER_TYPES } from './shared/types';
 
 const request: DecisionRequest = {
   state: { message: 'Please refund my duplicate charge' },
@@ -332,5 +334,48 @@ describe('TypeSafeProvider', () => {
     expect(legacy.decisions).toBeUndefined();
     const legacyProvider: AIInterface = new SeevioProvider({ type: 'seevio' });
     expect(legacyProvider.decide).toBeUndefined();
+    const providerType: AIProviderType = 'typesafe';
+    expect(AI_PROVIDER_TYPES).toContain(providerType);
+  });
+
+  it('accepts structurally equal score legends and rejects malformed present usage', async () => {
+    const structured = validResponse();
+    const structuredRequest: DecisionRequest = {
+      ...request,
+      questions: {
+        ...request.questions,
+        urgency: {
+          type: 'score',
+          instructions: 'How urgent?',
+          criteria: [{ label: 'Low' }, ['Medium'], { label: 'High' }],
+        },
+      },
+    };
+    structured.answers.urgency.legend = {
+      0: { label: 'Low' },
+      1: ['Medium'],
+      2: { label: 'High' },
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(structured)));
+    await expect(
+      new TypeSafeProvider({ type: 'typesafe', apiKey: 'test-key' }).decide(
+        structuredRequest,
+      ),
+    ).resolves.toBeDefined();
+    for (const usage of [
+      'invalid',
+      { input_tokens_typo: 12 },
+      { input_tokens: 1 },
+    ]) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(response({ ...validResponse(), usage })),
+      );
+      await expect(
+        new TypeSafeProvider({ type: 'typesafe', apiKey: 'test-key' }).decide(
+          request,
+        ),
+      ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    }
   });
 });

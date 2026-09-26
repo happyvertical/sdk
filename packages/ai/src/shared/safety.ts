@@ -299,13 +299,18 @@ export function classifyRequestFailure(
   if (code === 'AI_LIMIT_EXCEEDED' || code === 'AI_LIMIT_INVALID') {
     return { status: 'rejected', errorCode: code };
   }
-  if (didTimeout || code === 'AI_TIMEOUT' || code === 'TIMEOUT') {
+  if (
+    didTimeout ||
+    code === 'AI_TIMEOUT' ||
+    code === 'TIMEOUT' ||
+    code === 'REQUEST_TIMEOUT'
+  ) {
     return { status: 'timed_out', errorCode: code || 'AI_TIMEOUT' };
   }
   if (error instanceof Error && error.name === 'AbortError') {
     return { status: 'aborted', errorCode: 'ABORTED' };
   }
-  if (code === 'AI_ABORTED') {
+  if (code === 'AI_ABORTED' || code === 'REQUEST_ABORTED') {
     return { status: 'aborted', errorCode: code };
   }
   return {

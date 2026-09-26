@@ -67,7 +67,7 @@ type WireQuestion =
 interface WireResponse {
   model?: unknown;
   answers?: unknown;
-  usage?: { input_tokens?: unknown; output_tokens?: unknown };
+  usage?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -107,6 +107,27 @@ function tokenCount(value: unknown, field: string): number {
     );
   }
   return result;
+}
+
+function sameDecisionValue(left: DecisionValue, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left)) {
+    return (
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => sameDecisionValue(value, right[index]))
+    );
+  }
+  if (isRecord(left)) {
+    return (
+      isRecord(right) &&
+      Object.keys(left).length === Object.keys(right).length &&
+      Object.entries(left).every(
+        ([key, value]) => key in right && sameDecisionValue(value, right[key]),
+      )
+    );
+  }
+  return false;
 }
 
 function validateValue(
@@ -284,7 +305,9 @@ function answer(
   const legend = raw.legend;
   if (
     !isRecord(legend) ||
-    levelKeys.some((key, index) => legend[key] !== levels[index])
+    levelKeys.some(
+      (key, index) => !sameDecisionValue(levels[index], legend[key]),
+    )
   )
     throw new AIError(
       `TypeSafe response answers.${id}.legend does not match the requested rubric`,
@@ -391,18 +414,36 @@ export class TypeSafeProvider implements AIInterface {
           answer(request.questions[id], responseAnswers[id], id),
         ]),
       );
-      const input = body.usage?.input_tokens;
-      const output = body.usage?.output_tokens;
-      const usage =
-        input === undefined && output === undefined
-          ? undefined
-          : {
-              promptTokens: tokenCount(input, 'usage.input_tokens'),
-              completionTokens: tokenCount(output, 'usage.output_tokens'),
-              totalTokens:
-                tokenCount(input, 'usage.input_tokens') +
-                tokenCount(output, 'usage.output_tokens'),
-            };
+      let usage:
+        | {
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
+          }
+        | undefined;
+      if (body.usage !== undefined) {
+        if (
+          !isRecord(body.usage) ||
+          !('input_tokens' in body.usage) ||
+          !('output_tokens' in body.usage)
+        ) {
+          throw new AIError(
+            'TypeSafe response usage must include input_tokens and output_tokens',
+            'INVALID_RESPONSE',
+            PROVIDER,
+          );
+        }
+        const input = tokenCount(body.usage.input_tokens, 'usage.input_tokens');
+        const output = tokenCount(
+          body.usage.output_tokens,
+          'usage.output_tokens',
+        );
+        usage = {
+          promptTokens: input,
+          completionTokens: output,
+          totalTokens: input + output,
+        };
+      }
       emitUsage(
         this.options,
         PROVIDER,
