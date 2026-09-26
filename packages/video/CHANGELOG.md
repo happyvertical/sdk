@@ -1,5 +1,14 @@
 # @happyvertical/video
 
+## 0.94.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.94.1
+  - @happyvertical/logger@0.94.1
+  - @happyvertical/images@0.94.1
+
 ## 0.94.0
 
 ### Patch Changes

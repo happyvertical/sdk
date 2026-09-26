@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.94.1
+
+### Patch Changes
+
+- ### Features
+
+  - add TypeSafe typed decisions (#1286) (ai)
+
 ## 0.94.0
 
 ## 0.93.0
