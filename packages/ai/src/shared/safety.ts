@@ -299,13 +299,18 @@ export function classifyRequestFailure(
   if (code === 'AI_LIMIT_EXCEEDED' || code === 'AI_LIMIT_INVALID') {
     return { status: 'rejected', errorCode: code };
   }
-  if (didTimeout || code === 'AI_TIMEOUT' || code === 'TIMEOUT') {
+  if (
+    didTimeout ||
+    code === 'AI_TIMEOUT' ||
+    code === 'TIMEOUT' ||
+    code === 'REQUEST_TIMEOUT'
+  ) {
     return { status: 'timed_out', errorCode: code || 'AI_TIMEOUT' };
   }
   if (error instanceof Error && error.name === 'AbortError') {
     return { status: 'aborted', errorCode: 'ABORTED' };
   }
-  if (code === 'AI_ABORTED') {
+  if (code === 'AI_ABORTED' || code === 'REQUEST_ABORTED') {
     return { status: 'aborted', errorCode: code };
   }
   return {
@@ -330,8 +335,12 @@ export function requestEventBase(options: {
     model: options.model,
     operation: options.operation,
     attempts: normalized.maxRetries + 1,
-    requestedMaxOutputTokens: options.callOptions?.maxTokens,
+    requestedMaxOutputTokens:
+      options.operation === 'decide'
+        ? undefined
+        : options.callOptions?.maxTokens,
     effectiveMaxOutputTokens:
+      options.operation === 'decide' ||
       options.operation === 'generateImage' ||
       VIDEO_GENERATION_OPERATIONS.has(options.operation)
         ? undefined
@@ -342,6 +351,7 @@ export function requestEventBase(options: {
 }
 
 const OBSERVED_OPERATIONS = new Set<AIRequestOperation>([
+  'decide',
   'chat',
   'complete',
   'message',
@@ -384,12 +394,14 @@ function callOptionsFor(
     })
   | undefined {
   const index =
-    operation === 'describeImage'
-      ? 2
-      : operation === 'submitVideoGenerationJob' ||
-          VIDEO_HANDLE_OPERATIONS.has(operation)
-        ? 0
-        : 1;
+    operation === 'decide'
+      ? 1
+      : operation === 'describeImage'
+        ? 2
+        : operation === 'submitVideoGenerationJob' ||
+            VIDEO_HANDLE_OPERATIONS.has(operation)
+          ? 0
+          : 1;
   const value = args[index];
   return value && typeof value === 'object'
     ? (value as AIRequestControls & {
@@ -417,6 +429,7 @@ function effectiveOutputTokens(
     | undefined,
 ): number | undefined {
   if (
+    operation === 'decide' ||
     operation === 'generateImage' ||
     VIDEO_GENERATION_OPERATIONS.has(operation)
   ) {

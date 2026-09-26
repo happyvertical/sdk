@@ -5,9 +5,9 @@
     "index": 2,
     "count": 32
   },
-  "description": "Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS",
+  "description": "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev typed decisions",
   "provides": [
-    "Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS"
+    "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev typed decisions"
   ],
   "implements": [],
   "requires": {
