@@ -384,7 +384,20 @@ export class TypeSafeProvider implements AIInterface {
           response.status >= 500,
         );
       }
-      const body = (await response.json()) as WireResponse;
+      let body: WireResponse;
+      try {
+        body = (await response.json()) as WireResponse;
+      } catch (error) {
+        if (error instanceof SyntaxError) {
+          throw new AIError(
+            'TypeSafe response contained invalid JSON',
+            'INVALID_RESPONSE',
+            PROVIDER,
+            model,
+          );
+        }
+        throw error;
+      }
       if (!body || typeof body.model !== 'string' || !body.model)
         throw new AIError(
           'TypeSafe response model is required',

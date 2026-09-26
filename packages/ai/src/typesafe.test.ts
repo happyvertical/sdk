@@ -471,4 +471,24 @@ describe('TypeSafeProvider', () => {
       provider: 'typesafe',
     });
   });
+
+  it('rejects an HTTP-success malformed JSON response without retry semantics', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('{not valid json', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    await expect(
+      new TypeSafeProvider({ type: 'typesafe', apiKey: 'test-key' }).decide(
+        request,
+      ),
+    ).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+      retryable: false,
+    });
+  });
 });
