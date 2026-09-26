@@ -3,6 +3,7 @@ import type { AIInterface, AIRateLimitOptions, GetAIOptions } from './types';
 import { AIError, RateLimitError } from './types';
 
 const RATE_LIMITED_METHODS = new Set<keyof AIInterface>([
+  'decide',
   'chat',
   'complete',
   'message',

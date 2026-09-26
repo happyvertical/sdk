@@ -21,6 +21,7 @@ import type {
   OpenAICompatVideoOptions,
   OpenAIOptions,
   SeevioOptions,
+  TypeSafeOptions,
 } from '../shared/types';
 import { AI_PROVIDER_TYPES } from '../shared/types';
 
@@ -130,6 +131,14 @@ export async function getAIAuto(
         apiKey: config.apiKey || process.env.SEEVIO_API_KEY,
         baseUrl: config.baseUrl || process.env.SEEVIO_BASE_URL,
       } as SeevioOptions);
+    }
+
+    if (config.type === 'typesafe') {
+      return getAIUniversal({
+        ...config,
+        apiKey: config.apiKey || process.env.TYPESAFE_API_KEY,
+        baseUrl: config.baseUrl || process.env.TYPESAFE_BASE_URL,
+      } as TypeSafeOptions);
     }
 
     if (config.type === 'bifrost') {

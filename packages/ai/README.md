@@ -119,7 +119,42 @@ const video = await getAI({
   baseUrl: process.env.OPENAI_COMPAT_VIDEO_BASE_URL || 'https://llm.happyvertical.com/v1',
   apiKey: process.env.OPENAI_COMPAT_VIDEO_API_KEY!,
 });
+
+// TypeSafe / Jev (typed decisions only)
+const typesafe = await getAI({
+  type: 'typesafe',
+  apiKey: process.env.TYPESAFE_API_KEY!,
+  defaultModel: 'jev-latest',
+});
 ```
+
+## Typed Decisions
+
+TypeSafe's optional decision provider evaluates a shared state against a batch
+of typed predicates, choices, and ordered scores. It does not provide chat or
+text generation. Check both optional contracts before routing a request:
+
+```typescript
+const ai = await getAI({ type: 'typesafe', apiKey: process.env.TYPESAFE_API_KEY! });
+const capabilities = await ai.getCapabilities();
+if (capabilities.decisions === true && ai.decide) {
+  const result = await ai.decide({
+    state: { message: 'Please refund my duplicate charge.' },
+    questions: {
+      refund: { type: 'predicate', instructions: 'Does `message` request a refund?' },
+      route: { type: 'choice', instructions: 'Which team?', criteria: { billing: 'Payments', support: 'General help' } },
+      urgency: { type: 'score', instructions: 'How urgent?', criteria: ['Low', 'Medium', 'High'] },
+    },
+  });
+  console.log(result.answers.refund); // { type: 'predicate', probability: ... }
+}
+```
+
+`defaultModel` and request `model` select a Jev model. Results preserve the
+actual provider model, token usage, complete distributions, and provenance.
+Probabilities are provider output and are not calibrated for comparison with
+another provider. The optional capability and method preserve compatibility
+with existing provider implementations.
 
 ## Video Generation
 
@@ -454,6 +489,7 @@ All providers implement `AIInterface`:
 | Method | Description |
 |--------|-------------|
 | `chat(messages, options?)` | Chat completion returning `AIResponse` |
+| `decide?(request, options?)` | Optional typed predicate, choice, and score batch evaluation |
 | `message(text, options?)` | Simple single-turn convenience method |
 | `complete(prompt, options?)` | Text completion |
 | `stream(messages, options?)` | Streaming chat (async iterable) |
