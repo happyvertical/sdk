@@ -27,7 +27,7 @@ jobs:
       validate: ${{ steps.version.outputs.validate }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
@@ -67,7 +67,7 @@ jobs:
           tar -cf publish-workspace.tar -T publish-workspace-files
       - name: Upload versioned workspace
         if: steps.version.outputs.validate == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: publish-dry-run-workspace
           path: publish-workspace.tar
@@ -86,11 +86,11 @@ jobs:
         shard: [1, 2]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.CHECKOUT_REF }}
       - name: Download versioned workspace
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: publish-dry-run-workspace
           path: release-workspace
@@ -106,7 +106,7 @@ jobs:
           PUBLISH_PACK_SHARD_INDEX: ${{ matrix.shard }}
           PUBLISH_PACK_OUTPUT_DIR: publish-pack-output
       - name: Upload verified tarballs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: publish-dry-run-pack-${{ matrix.shard }}
           path: publish-pack-output/
@@ -122,12 +122,12 @@ jobs:
     steps:
       - name: Checkout repository
         if: needs.prepare.outputs.validate == 'true'
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.CHECKOUT_REF }}
       - name: Download verified tarballs
         if: needs.prepare.outputs.validate == 'true'
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: publish-dry-run-pack-*
           path: publish-pack-output

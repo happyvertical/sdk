@@ -92,7 +92,7 @@ jobs:
           private_key: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
 
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           # Use the release app token for tags, releases, and main-branch sync
@@ -105,7 +105,7 @@ jobs:
           install-deps: 'true'
 
       - name: Configure npm publish registry
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ inputs.node-version }}
           registry-url: ${{ inputs.registry-url }}
