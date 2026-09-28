@@ -515,6 +515,7 @@ class StripeInvoiceOperations implements InvoiceOperations {
       unitAmount: moneyToStripeMinorUnits(lineItem.unitPrice, currency),
       discount: lineDiscountToStripe(lineItem, currency),
       period: lineServicePeriod(lineItem),
+      taxCode: optionalTaxCode(lineItem.taxCode),
     }));
 
     const existingInvoice = invoice.idempotencyKey
@@ -539,7 +540,7 @@ class StripeInvoiceOperations implements InvoiceOperations {
       if (existingLineItemIndexes.has(index)) {
         continue;
       }
-      const { lineItem, unitAmount, discount, period } = line;
+      const { lineItem, unitAmount, discount, period, taxCode } = line;
       const coupon = discount
         ? await this.provider.amountOffCoupon(currency, discount)
         : undefined;
@@ -555,6 +556,7 @@ class StripeInvoiceOperations implements InvoiceOperations {
           period,
           discounts: coupon ? [{ coupon }] : undefined,
           tax_behavior: invoice.automaticTax ? 'exclusive' : undefined,
+          tax_code: taxCode,
           metadata: normalizeMetadata({
             local_invoice_id: invoice.id,
             local_line_index: index,
@@ -1398,9 +1400,15 @@ function mapCheckoutLineItem(
   }
 
   const { priceData } = lineItem;
+  const taxCode = optionalTaxCode(priceData.taxCode);
+  if (taxCode && priceData.product) {
+    throw new Error(
+      'Stripe checkout priceData.taxCode applies to ad-hoc products only; set the tax code on the existing product instead',
+    );
+  }
   const productData = priceData.product
     ? undefined
-    : { name: priceData.productName || 'Subscription' };
+    : { name: priceData.productName || 'Subscription', tax_code: taxCode };
   const hasStripeAmount = priceData.unitAmount !== undefined;
   const hasMinorAmount = priceData.unitAmountMinor !== undefined;
   if (hasStripeAmount === hasMinorAmount) {
@@ -1836,6 +1844,18 @@ function stripeMinorUnitsToMoney(
 }
 
 const CHARGE_KEY_METADATA = 'hv_charge_key';
+
+/** A caller-supplied product tax code, trimmed; blank is refused. */
+function optionalTaxCode(taxCode: string | undefined): string | undefined {
+  if (taxCode === undefined) {
+    return undefined;
+  }
+  const code = typeof taxCode === 'string' ? taxCode.trim() : '';
+  if (!code) {
+    throw new Error('taxCode must be a non-empty string when set');
+  }
+  return code;
+}
 
 function assertIdempotencyKey(key: string): void {
   if (typeof key !== 'string' || key.trim() === '') {
