@@ -264,3 +264,42 @@ describe('Stripe invoice line discounts and uncollectible status (#1271)', () =>
     });
   });
 });
+
+describe('Stripe invoice line product tax codes (#1288)', () => {
+  it('sends a line taxCode as the invoice item tax_code', async () => {
+    const { provider, calls } = invoiceFake();
+    await provider.invoices.push({
+      ...invoice,
+      automaticTax: true,
+      lineItems: [
+        {
+          description: 'Prepaid credit',
+          quantity: 1,
+          unitPrice: 50,
+          taxCode: 'txcd_10000000',
+        },
+        { description: 'Plan', quantity: 1, unitPrice: 10 },
+      ],
+    });
+    const [credit, plan] = itemCalls(calls);
+    expect(credit?.params).toMatchObject({
+      tax_behavior: 'exclusive',
+      tax_code: 'txcd_10000000',
+    });
+    expect(plan?.params.tax_code).toBeUndefined();
+  });
+
+  it('rejects a blank taxCode before any provider request', async () => {
+    const { provider, calls } = invoiceFake();
+    await expect(
+      provider.invoices.push({
+        ...invoice,
+        lineItems: [
+          { description: 'Plan', quantity: 1, unitPrice: 10 },
+          { description: 'Credit', quantity: 1, unitPrice: 5, taxCode: '' },
+        ],
+      }),
+    ).rejects.toThrow('taxCode must be a non-empty string');
+    expect(calls).toHaveLength(0);
+  });
+});

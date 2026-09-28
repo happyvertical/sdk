@@ -203,6 +203,13 @@ export interface InvoiceLineItemInput {
   discount?: number;
   /** Tax rate (decimal, e.g., 0.0825 for 8.25%) */
   taxRate?: number;
+  /**
+   * Provider product tax code that classifies this line for automatic tax
+   * (Stripe Tax: a `txcd_...` code, sent as the invoice item's `tax_code`).
+   * Omit to use the provider account's default product tax code. Providers
+   * without product tax codes ignore it.
+   */
+  taxCode?: string;
   /** Calculated line total */
   amount?: number;
   /**
@@ -646,6 +653,13 @@ export interface StripeCheckoutPriceData {
    * session sets `automaticTax`.
    */
   taxBehavior?: 'exclusive' | 'inclusive' | 'unspecified';
+  /**
+   * Stripe product tax code (`txcd_...`) for the ad-hoc product
+   * (`product_data[tax_code]`), so Stripe Tax classifies this line instead
+   * of using the account's default product tax code. Not valid with
+   * `product`: an existing product carries its own tax code.
+   */
+  taxCode?: string;
   product?: string;
   productName?: string;
   recurring?: StripeRecurringPriceData;

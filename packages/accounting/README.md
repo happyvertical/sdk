@@ -47,6 +47,9 @@ Invoice lines carry more than an amount:
   as an amount-off coupon on the invoice item (one reusable coupon per
   currency and amount, id `hv_amount_off_<currency>_<stripe amount>`), so the
   discount shows on the invoice and Stripe Tax taxes the discounted amount.
+- `taxCode` is the Stripe product tax code (`txcd_...`) for the line, sent
+  as the invoice item's `tax_code`, so Stripe Tax classifies it instead of
+  using the account's default product tax code.
 
 `collectionMethod: 'charge_automatically'` bills the customer's default
 payment method instead of emailing a payable invoice (the default,
@@ -100,7 +103,10 @@ through unconverted in Stripe's unit. Set `automaticTax: true` to charge tax
 with Stripe Tax; Stripe needs the buyer's location, so collect it with
 `billingAddressCollection` or, for an existing customer, save it with
 `customerUpdate: { address: 'auto' }`. Ad-hoc prices default to
-`taxBehavior: 'exclusive'` when tax is on.
+`taxBehavior: 'exclusive'` when tax is on. Set `priceData.taxCode` (a Stripe
+product tax code such as `txcd_10000000`) to classify an ad-hoc line instead
+of using the account's default product tax code; an existing `product`
+carries its own tax code, so `taxCode` is refused with it.
 
 ```ts
 const session = await stripe.billing.createCheckoutSession({

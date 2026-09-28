@@ -153,3 +153,58 @@ describe('Stripe Checkout tax and minor-unit pricing (#1269)', () => {
     ).rejects.toThrow('customerUpdate requires customerExternalId');
   });
 });
+
+describe('Stripe Checkout product tax codes (#1288)', () => {
+  it('sends taxCode as the ad-hoc product tax code', async () => {
+    const { provider, calls } = checkoutFake();
+    await provider.billing.createCheckoutSession({
+      ...base,
+      automaticTax: true,
+      lineItems: [
+        {
+          priceData: {
+            currency: 'usd',
+            unitAmountMinor: 5000,
+            productName: 'Prepaid credit',
+            taxCode: ' txcd_10000000 ',
+          },
+        },
+      ],
+    });
+    expect(calls[0]?.params).toMatchObject({
+      'line_items[0][price_data][product_data][name]': 'Prepaid credit',
+      'line_items[0][price_data][product_data][tax_code]': 'txcd_10000000',
+    });
+  });
+
+  it('omits the tax code when none is given', async () => {
+    const { provider, calls } = checkoutFake();
+    await provider.billing.createCheckoutSession({
+      ...base,
+      lineItems: [{ priceData: { currency: 'usd', unitAmountMinor: 100 } }],
+    });
+    expect(
+      calls[0]?.params['line_items[0][price_data][product_data][tax_code]'],
+    ).toBeUndefined();
+  });
+
+  it.each([
+    [
+      'with an existing product',
+      { product: 'prod_1', taxCode: 'txcd_10000000' },
+      'ad-hoc products only',
+    ],
+    ['when blank', { taxCode: '  ' }, 'taxCode must be a non-empty string'],
+  ])('rejects taxCode %s before calling Stripe', async (_label, extra, message) => {
+    const { provider, calls } = checkoutFake();
+    await expect(
+      provider.billing.createCheckoutSession({
+        ...base,
+        lineItems: [
+          { priceData: { currency: 'usd', unitAmountMinor: 100, ...extra } },
+        ],
+      }),
+    ).rejects.toThrow(message);
+    expect(calls).toHaveLength(0);
+  });
+});
