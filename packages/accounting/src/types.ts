@@ -567,8 +567,32 @@ export interface SavedPaymentMethodChargeInput {
   idempotencyKey: string;
   /** Statement/description text shown to the customer where supported. */
   description?: string;
-  /** Opaque values stored on the provider charge and returned by webhooks. */
+  /**
+   * Opaque values stored on the provider charge and returned by webhooks.
+   * The adapter's own bookkeeping keys win over caller values, and its tax
+   * keys (Stripe: `hv_tax_calculation`, `hv_subtotal_amount`,
+   * `hv_tax_amount`) are refused.
+   */
   metadata?: Record<string, string | number | boolean | null | undefined>;
+  /**
+   * Add provider-calculated tax on top of `amountMinor`, from the customer's
+   * saved tax location and tax status (Stripe Tax). `amountMinor` is then
+   * the pre-tax subtotal and the customer is charged subtotal plus tax; the
+   * result and payment webhooks report `subtotalMinor` and `taxMinor`
+   * separately. The provider records the tax for reporting when the payment
+   * succeeds (and reverses it on refunds). A customer whose tax location
+   * cannot be determined yields a `failed` result with
+   * `failureCode: 'customer_tax_location_invalid'` and no charge. A provider
+   * that implements `chargeSavedPaymentMethod` but cannot calculate tax
+   * throws instead of charging untaxed.
+   */
+  automaticTax?: boolean;
+  /**
+   * Product tax code for the charge (Stripe: `txcd_...`); requires
+   * `automaticTax`. Omit to use the provider account's default product tax
+   * code.
+   */
+  taxCode?: string;
 }
 
 export interface SavedPaymentMethodChargeResult {
@@ -578,10 +602,29 @@ export interface SavedPaymentMethodChargeResult {
   paymentExternalId?: string;
   customerExternalId: string;
   paymentMethodExternalId?: string;
-  /** Integer minor units of `currency`. */
+  /**
+   * Integer minor units of `currency` charged: the provider charge's amount,
+   * which includes tax for an `automaticTax` charge. Before a provider
+   * charge exists (a `failed` result without `paymentExternalId`), the
+   * requested `amountMinor`.
+   */
   amountMinor: number;
   /** Upper-case ISO 4217 code. */
   currency: string;
+  /**
+   * `automaticTax` charges only: the pre-tax amount (the requested
+   * `amountMinor`), in integer minor units.
+   */
+  subtotalMinor?: number;
+  /**
+   * `automaticTax` charges only: the provider-calculated tax added to
+   * `subtotalMinor`, in integer minor units (`0` for an exempt customer or
+   * a location without a tax registration). Absent when no tax was
+   * calculated, for example after a tax location failure.
+   */
+  taxMinor?: number;
+  /** Provider tax calculation id (Stripe `taxcalc_...`), when one was made. */
+  taxCalculationExternalId?: string;
   /** The caller's `idempotencyKey`. */
   chargeKey: string;
   /** Provider failure code (for example `card_declined`, `authentication_required`). */
@@ -601,10 +644,19 @@ export interface WebhookPaymentSummary {
   status: PaymentChargeStatus;
   paymentExternalId: string;
   customerExternalId?: string;
-  /** Integer minor units, when the provider amount converts exactly. */
+  /**
+   * Integer minor units charged (including tax for an `automaticTax`
+   * charge), when the provider amount converts exactly.
+   */
   amountMinor?: number;
   /** Upper-case ISO 4217 code. */
   currency?: string;
+  /** Pre-tax amount of an `automaticTax` charge, in integer minor units. */
+  subtotalMinor?: number;
+  /** Tax of an `automaticTax` charge, in integer minor units. */
+  taxMinor?: number;
+  /** Provider tax calculation id of an `automaticTax` charge. */
+  taxCalculationExternalId?: string;
   /** `idempotencyKey` of the `chargeSavedPaymentMethod` call that created it. */
   chargeKey?: string;
   failureCode?: string;

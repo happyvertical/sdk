@@ -199,6 +199,54 @@ charged. Pass `paymentMethodExternalId` to keep retries identical when the
 customer's default card may change in between. Payment webhooks (`payment_intent.*`) carry a normalized `WebhookEvent.payment`
 summary with the status, minor-unit amount, and `chargeKey`.
 
+### Tax on off-session charges
+
+Set `automaticTax: true` to tax the charge with Stripe Tax, the way a Checkout
+purchase of the same thing is taxed. `amountMinor` is then the pre-tax
+subtotal: the adapter calculates tax (Stripe Tax Calculations API) from the
+customer's saved address and tax-exempt status, charges subtotal plus tax,
+and links the calculation to the PaymentIntent
+(`hooks[inputs][tax][calculation]`), so Stripe records the tax transaction
+when the payment succeeds, including a `processing` payment that settles
+later, and reverses it on refunds. `taxCode` (a Stripe product tax code)
+classifies the charge instead of the account default.
+
+```ts
+const charge = await stripe.payments.chargeSavedPaymentMethod?.({
+  customerExternalId: 'cus_123',
+  amountMinor: 2500, // the credit, before tax
+  currency: 'USD',
+  idempotencyKey: `topup:${policyId}:${sequence}`,
+  automaticTax: true,
+  taxCode: 'txcd_10000000',
+});
+// charge.amountMinor = 2500 + tax (what was charged)
+// charge.subtotalMinor = 2500 (grant this as credit)
+// charge.taxMinor = tax (book as tax payable)
+```
+
+With `automaticTax`, `amountMinor` in the result and in the payment webhook
+summary is the amount charged, tax included; `subtotalMinor` and `taxMinor`
+report the two parts separately (webhooks read them from the PaymentIntent's
+`hv_subtotal_amount` / `hv_tax_amount` metadata, in Stripe units, so settle
+credit from `subtotalMinor`). A customer whose tax location Stripe cannot
+determine yields `status: 'failed'` with
+`failureCode: 'customer_tax_location_invalid'` and no charge; other Stripe Tax
+errors (for example Stripe Tax not activated) throw. The payment method is
+resolved before tax is calculated, so a customer without a card costs no
+calculation. Every attempt calculates afresh, so a retry with the same key
+succeeds once the customer's address is fixed (a calculation alone records
+no tax). Exactly-once charging is unchanged: the PaymentIntent keeps its
+`<key>:payment_intent` Stripe idempotency key, and the adapter first returns
+any charge already made under the key by `hv_charge_key`. A retry that races
+Stripe's search index (seconds after a lost response) can fail with Stripe's
+`idempotency_error` instead of charging twice; retry it later. A key first used
+with `automaticTax` is refused for an untaxed retry, and the reverse, as is a
+different subtotal. Caller metadata may not use the adapter's tax keys
+(`hv_tax_calculation`, `hv_subtotal_amount`, `hv_tax_amount`). A provider that implements
+`chargeSavedPaymentMethod` without tax support throws on `automaticTax`
+rather than charging untaxed.
+
 Minor-unit amounts (`amountMinor`, `unitAmountMinor`, and the `*Minor` read
 fields) use ISO 4217 exponents from an explicit table, not the runtime's
 `Intl` display digits, which differ for some currencies (for example RSD,

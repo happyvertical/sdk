@@ -148,6 +148,13 @@ interface StripePaymentIntent {
   } | null;
 }
 
+interface StripeTaxCalculation {
+  id: string;
+  amount_total: number;
+  tax_amount_exclusive: number;
+  tax_amount_inclusive?: number | null;
+}
+
 interface StripeSetupIntent {
   id: string;
   payment_method?: string | { id: string } | null;
@@ -815,6 +822,19 @@ class StripePaymentOperations implements PaymentOperations {
         'Charge amount must be a positive integer of minor units',
       );
     }
+    const automaticTax = input.automaticTax === true;
+    const taxCode = optionalTaxCode(input.taxCode);
+    if (taxCode && !automaticTax) {
+      throw new Error('taxCode requires automaticTax');
+    }
+    const reserved = Object.keys(input.metadata ?? {}).filter((key) =>
+      RESERVED_CHARGE_METADATA.has(key),
+    );
+    if (reserved.length > 0) {
+      throw new Error(
+        `Charge metadata keys ${reserved.join(', ')} are reserved by the adapter`,
+      );
+    }
     const chargeKey = input.idempotencyKey;
     const base = {
       provider: 'stripe' as const,
@@ -822,20 +842,21 @@ class StripePaymentOperations implements PaymentOperations {
       amountMinor: input.amountMinor,
       currency,
       chargeKey,
+      ...(automaticTax ? { subtotalMinor: input.amountMinor } : {}),
     };
 
     // After Stripe's idempotency window a replayed key would charge again, so
     // first look for the PaymentIntent an earlier attempt created.
     const existing = await this.findByChargeKey(chargeKey);
     if (existing) {
-      assertSameCharge(
-        existing,
-        input.customerExternalId,
+      assertSameCharge(existing, {
+        customerExternalId: input.customerExternalId,
         stripeAmount,
         currency,
-        input.paymentMethodExternalId,
-      );
-      return { ...base, ...mapChargeOutcome(existing) };
+        automaticTax,
+        paymentMethodExternalId: input.paymentMethodExternalId,
+      });
+      return { ...base, ...mapChargeOutcome(existing, currency) };
     }
 
     let paymentMethod = input.paymentMethodExternalId;
@@ -855,26 +876,71 @@ class StripePaymentOperations implements PaymentOperations {
       }
     }
 
+    let amount = stripeAmount;
+    let taxMetadata: Record<string, string> = {};
+    let taxCalculation: string | undefined;
+    if (automaticTax) {
+      let calculation: StripeTaxCalculation;
+      try {
+        calculation = await this.calculateTax(
+          input.customerExternalId,
+          stripeAmount,
+          currency,
+          chargeKey,
+          taxCode,
+        );
+      } catch (error) {
+        // A customer without a usable tax location is a charge outcome the
+        // host can act on (ask for an address), not a transport failure.
+        if (
+          error instanceof StripeApiError &&
+          error.code === 'customer_tax_location_invalid'
+        ) {
+          return {
+            ...base,
+            paymentMethodExternalId: paymentMethod,
+            status: 'failed',
+            failureCode: error.code,
+            failureMessage: error.stripeMessage,
+          };
+        }
+        throw error;
+      }
+      amount = calculation.amount_total;
+      taxCalculation = calculation.id;
+      taxMetadata = {
+        [TAX_CALCULATION_METADATA]: calculation.id,
+        [SUBTOTAL_AMOUNT_METADATA]: String(stripeAmount),
+        [TAX_AMOUNT_METADATA]: String(calculation.tax_amount_exclusive),
+      };
+    }
+
     try {
       const paymentIntent = await this.provider.request<StripePaymentIntent>(
         'POST',
         '/v1/payment_intents',
         {
-          amount: stripeAmount,
+          amount,
           currency: currency.toLowerCase(),
           customer: input.customerExternalId,
           payment_method: paymentMethod,
           off_session: true,
           confirm: true,
           description: input.description,
+          // Stripe records the tax transaction from the linked calculation
+          // when the payment succeeds, and reverses it on refunds.
+          hooks: taxCalculation
+            ? { inputs: { tax: { calculation: taxCalculation } } }
+            : undefined,
           metadata: normalizeMetadata({
             ...input.metadata,
+            ...taxMetadata,
             [CHARGE_KEY_METADATA]: chargeKey,
           }),
         },
         { idempotencyKey: `${chargeKey}:payment_intent` },
       );
-      return { ...base, ...mapChargeOutcome(paymentIntent) };
+      return { ...base, ...mapChargeOutcome(paymentIntent, currency) };
     } catch (error) {
       // A decline or an authentication requirement is a charge outcome, not
       // a transport failure: Stripe returns 402 with the failed PaymentIntent.
@@ -888,7 +954,10 @@ class StripePaymentOperations implements PaymentOperations {
           : undefined;
         return {
           ...base,
-          ...(paymentIntent ? mapChargeOutcome(paymentIntent) : {}),
+          ...(taxCalculation
+            ? chargeTaxFields({ amount, metadata: taxMetadata }, currency)
+            : {}),
+          ...(paymentIntent ? mapChargeOutcome(paymentIntent, currency) : {}),
           paymentMethodExternalId:
             idOf(paymentIntent?.payment_method) ?? paymentMethod,
           status:
@@ -903,6 +972,57 @@ class StripePaymentOperations implements PaymentOperations {
       }
       throw error;
     }
+  }
+
+  /**
+   * Stripe Tax calculation for one tax-exclusive line of `stripeAmount`,
+   * from the customer's saved address and tax status. Each attempt makes
+   * a fresh calculation: Stripe replays a saved error for a reused
+   * idempotency key, so a key per charge would keep failing with
+   * `customer_tax_location_invalid` after the customer's address is fixed.
+   * A calculation creates no tax transaction until a PaymentIntent linked
+   * to it succeeds, so an unused one is harmless; if an earlier attempt's
+   * PaymentIntent exists but is not yet searchable, the changed
+   * PaymentIntent request is refused by Stripe's idempotency check (the
+   * `<key>:payment_intent` key) instead of charging again.
+   */
+  private async calculateTax(
+    customerExternalId: string,
+    stripeAmount: number,
+    currency: string,
+    chargeKey: string,
+    taxCode: string | undefined,
+  ): Promise<StripeTaxCalculation> {
+    const calculation = await this.provider.request<StripeTaxCalculation>(
+      'POST',
+      '/v1/tax/calculations',
+      {
+        currency: currency.toLowerCase(),
+        customer: customerExternalId,
+        line_items: [
+          {
+            amount: stripeAmount,
+            quantity: 1,
+            reference: 'off_session_charge',
+            tax_behavior: 'exclusive',
+            tax_code: taxCode,
+          },
+        ],
+      },
+      { idempotencyKey: `${chargeKey}:tax_calculation:${randomUUID()}` },
+    );
+    const tax = calculation.tax_amount_exclusive;
+    if (
+      !calculation.id ||
+      !Number.isSafeInteger(tax) ||
+      tax < 0 ||
+      calculation.amount_total !== stripeAmount + tax
+    ) {
+      throw new Error(
+        `Stripe tax calculation ${calculation.id ?? '(no id)'} does not add up to the charge amount plus exclusive tax`,
+      );
+    }
+    return calculation;
   }
 
   private async findByChargeKey(
@@ -1844,6 +1964,17 @@ function stripeMinorUnitsToMoney(
 }
 
 const CHARGE_KEY_METADATA = 'hv_charge_key';
+/** Stripe Tax calculation linked to an `automaticTax` charge. */
+const TAX_CALCULATION_METADATA = 'hv_tax_calculation';
+/** Pre-tax amount of an `automaticTax` charge, in Stripe units. */
+const SUBTOTAL_AMOUNT_METADATA = 'hv_subtotal_amount';
+/** Exclusive tax of an `automaticTax` charge, in Stripe units. */
+const TAX_AMOUNT_METADATA = 'hv_tax_amount';
+const RESERVED_CHARGE_METADATA = new Set([
+  TAX_CALCULATION_METADATA,
+  SUBTOTAL_AMOUNT_METADATA,
+  TAX_AMOUNT_METADATA,
+]);
 
 /** A caller-supplied product tax code, trimmed; blank is refused. */
 function optionalTaxCode(taxCode: string | undefined): string | undefined {
@@ -1855,6 +1986,36 @@ function optionalTaxCode(taxCode: string | undefined): string | undefined {
     throw new Error('taxCode must be a non-empty string when set');
   }
   return code;
+}
+
+/**
+ * Amount, subtotal, and tax of an `automaticTax` charge from its
+ * PaymentIntent metadata, in ISO minor units. Empty for untaxed charges.
+ */
+function chargeTaxFields(
+  paymentIntent: Pick<StripePaymentIntent, 'amount' | 'metadata'>,
+  currency: string | undefined,
+): Pick<
+  SavedPaymentMethodChargeResult,
+  'subtotalMinor' | 'taxMinor' | 'taxCalculationExternalId'
+> & { amountMinor?: number } {
+  const metadata = paymentIntent.metadata ?? {};
+  const calculation = metadata[TAX_CALCULATION_METADATA];
+  if (!calculation || !currency) {
+    return {};
+  }
+  const minor = (value?: string | number | null) => {
+    const amount = typeof value === 'string' ? Number(value) : value;
+    return typeof amount === 'number' && Number.isSafeInteger(amount)
+      ? stripeAmountToMinorUnitsOrUndefined(amount, currency)
+      : undefined;
+  };
+  return {
+    amountMinor: minor(paymentIntent.amount),
+    subtotalMinor: minor(metadata[SUBTOTAL_AMOUNT_METADATA]),
+    taxMinor: minor(metadata[TAX_AMOUNT_METADATA]),
+    taxCalculationExternalId: calculation,
+  };
 }
 
 function assertIdempotencyKey(key: string): void {
@@ -1929,22 +2090,36 @@ function lineServicePeriod(
 
 function mapChargeOutcome(
   paymentIntent: StripePaymentIntent,
-): Pick<
-  SavedPaymentMethodChargeResult,
-  | 'status'
-  | 'paymentExternalId'
-  | 'paymentMethodExternalId'
-  | 'failureCode'
-  | 'declineCode'
-  | 'failureMessage'
-  | 'raw'
-> {
+  currency: string,
+): Partial<Pick<SavedPaymentMethodChargeResult, 'amountMinor'>> &
+  Pick<
+    SavedPaymentMethodChargeResult,
+    | 'subtotalMinor'
+    | 'taxMinor'
+    | 'taxCalculationExternalId'
+    | 'status'
+    | 'paymentExternalId'
+    | 'paymentMethodExternalId'
+    | 'failureCode'
+    | 'declineCode'
+    | 'failureMessage'
+    | 'raw'
+  > {
   const error = paymentIntent.last_payment_error;
   const status = mapPaymentIntentChargeStatus(
     paymentIntent.status,
     error?.code,
   );
+  const tax = chargeTaxFields(paymentIntent, currency);
+  const amountMinor =
+    tax.amountMinor ??
+    (typeof paymentIntent.amount === 'number'
+      ? stripeAmountToMinorUnitsOrUndefined(paymentIntent.amount, currency)
+      : undefined);
   return {
+    ...omitAmount(tax),
+    // Keep the caller's amount when the PaymentIntent amount is unreadable.
+    ...(amountMinor === undefined ? {} : { amountMinor }),
     status,
     paymentExternalId: paymentIntent.id,
     paymentMethodExternalId: idOf(paymentIntent.payment_method),
@@ -1964,20 +2139,31 @@ function mapChargeOutcome(
  */
 function assertSameCharge(
   paymentIntent: StripePaymentIntent,
-  customerExternalId: string,
-  stripeAmount: number,
-  currency: string,
-  paymentMethodExternalId?: string,
+  expected: {
+    customerExternalId: string;
+    stripeAmount: number;
+    currency: string;
+    automaticTax: boolean;
+    paymentMethodExternalId?: string;
+  },
 ): void {
   const customer = idOf(paymentIntent.customer);
   const paymentMethod = idOf(paymentIntent.payment_method);
+  const metadata = paymentIntent.metadata ?? {};
+  const taxed = Boolean(metadata[TAX_CALCULATION_METADATA]);
+  // A taxed charge's PaymentIntent amount includes tax; the requested
+  // amount is its recorded subtotal.
+  const requestedAmount = taxed
+    ? Number(metadata[SUBTOTAL_AMOUNT_METADATA])
+    : paymentIntent.amount;
   if (
-    paymentIntent.amount !== stripeAmount ||
-    (paymentIntent.currency || '').toUpperCase() !== currency ||
-    (customer !== undefined && customer !== customerExternalId) ||
-    (paymentMethodExternalId !== undefined &&
+    taxed !== expected.automaticTax ||
+    requestedAmount !== expected.stripeAmount ||
+    (paymentIntent.currency || '').toUpperCase() !== expected.currency ||
+    (customer !== undefined && customer !== expected.customerExternalId) ||
+    (expected.paymentMethodExternalId !== undefined &&
       paymentMethod !== undefined &&
-      paymentMethod !== paymentMethodExternalId)
+      paymentMethod !== expected.paymentMethodExternalId)
   ) {
     throw new Error(
       `idempotencyKey was already used for a different charge (${paymentIntent.id}); use a new key for a new charge`,
@@ -2059,6 +2245,7 @@ function mapWebhookPayment(
         ? stripeAmountToMinorUnitsOrUndefined(paymentIntent.amount, currency)
         : undefined,
     currency,
+    ...omitAmount(chargeTaxFields(paymentIntent, currency)),
     chargeKey: metadata[CHARGE_KEY_METADATA],
     failureCode: status === 'succeeded' ? undefined : error?.code || undefined,
     declineCode:
@@ -2067,6 +2254,13 @@ function mapWebhookPayment(
       status === 'succeeded' ? undefined : error?.message || undefined,
     metadata,
   };
+}
+
+function omitAmount<T extends { amountMinor?: number }>(
+  fields: T,
+): Omit<T, 'amountMinor'> {
+  const { amountMinor: _amount, ...rest } = fields;
+  return rest;
 }
 
 function idOf(
