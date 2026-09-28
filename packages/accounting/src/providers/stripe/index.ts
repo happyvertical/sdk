@@ -1009,7 +1009,9 @@ class StripePaymentOperations implements PaymentOperations {
           },
         ],
       },
-      { idempotencyKey: `${chargeKey}:tax_calculation:${randomUUID()}` },
+      // Not derived from the charge key: a fixed-length key stays within
+      // Stripe's 255-character limit for any caller key.
+      { idempotencyKey: `hv_tax_calculation:${randomUUID()}` },
     );
     const tax = calculation.tax_amount_exclusive;
     if (

@@ -100,7 +100,7 @@ describe('Stripe off-session charges with automatic tax (#1283)', () => {
       'POST /v1/payment_intents',
     ]);
     expect(calls[1]?.idempotencyKey).toMatch(
-      /^topup:policy-7:3:tax_calculation:[0-9a-f-]{36}$/,
+      /^hv_tax_calculation:[0-9a-f-]{36}$/,
     );
     expect(calls[1]).toMatchObject({
       params: {
@@ -251,6 +251,22 @@ describe('Stripe off-session charges with automatic tax (#1283)', () => {
       .map((call) => call.idempotencyKey);
     expect(keys).toHaveLength(2);
     expect(keys[0]).not.toBe(keys[1]);
+  });
+
+  it('keeps derived Stripe idempotency keys within 255 characters for a long caller key', async () => {
+    const { provider, calls } = taxedFake();
+    const idempotencyKey = 'k'.repeat(240);
+    await expect(
+      provider.payments.chargeSavedPaymentMethod?.({
+        ...charge,
+        idempotencyKey,
+      }),
+    ).resolves.toMatchObject({ status: 'succeeded' });
+    const keys = calls
+      .filter((call) => call.method === 'POST')
+      .map((call) => call.idempotencyKey ?? '');
+    expect(keys).toHaveLength(2);
+    for (const key of keys) expect(key.length).toBeLessThanOrEqual(255);
   });
 
   it('throws other tax calculation errors without charging', async () => {
