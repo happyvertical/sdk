@@ -5,6 +5,7 @@
 import { Client } from '@googlemaps/google-maps-services-js';
 import type { CacheAdapter } from '@happyvertical/cache';
 import { getCache } from '@happyvertical/cache';
+import { timezoneForCoordinates } from '../shared/timezone';
 import type {
   GeoProvider,
   GoogleMapsOptions,
@@ -32,12 +33,14 @@ export class GoogleMapsProvider implements GeoProvider {
   private timeout: number;
   private maxResults: number;
   private cache: CacheAdapter | null = null;
+  private timezoneLookup: 'offline' | 'api' | 'none';
 
   constructor(options: GoogleMapsOptions) {
     this.client = new Client({});
     this.apiKey = options.apiKey;
     this.timeout = options.timeout || 10000;
     this.maxResults = options.maxResults || 10;
+    this.timezoneLookup = options.timezoneLookup ?? 'offline';
 
     // Initialize memory cache asynchronously
     this.initCache();
@@ -63,10 +66,67 @@ export class GoogleMapsProvider implements GeoProvider {
   }
 
   /**
-   * Generates a cache key for geocoding requests
+   * Generates a cache key for geocoding requests. The time zone mode is part
+   * of the key so adapters with different modes never share results.
    */
   private getCacheKey(type: string, ...parts: string[]): string {
-    return `${type}:${parts.join(':')}`;
+    return `${type}:${this.timezoneLookup}:${parts.join(':')}`;
+  }
+
+  /**
+   * Fills `Location.timezone` according to the configured mode. In `'api'`
+   * mode the Google Time Zone API is called once per distinct coordinate;
+   * a failed or non-OK call falls back to the offline table for that point.
+   */
+  private async applyTimezones(locations: Location[]): Promise<Location[]> {
+    if (this.timezoneLookup === 'none') return locations;
+
+    const byCoordinate = new Map<string, Promise<string | undefined>>();
+    for (const location of locations) {
+      if (location.timezone) continue;
+      const key = `${location.latitude},${location.longitude}`;
+      let pending = byCoordinate.get(key);
+      if (!pending) {
+        pending =
+          this.timezoneLookup === 'api'
+            ? this.fetchTimezone(location.latitude, location.longitude)
+            : Promise.resolve(
+                timezoneForCoordinates(location.latitude, location.longitude),
+              );
+        byCoordinate.set(key, pending);
+      }
+      const timezone = await pending;
+      if (timezone) location.timezone = timezone;
+    }
+    return locations;
+  }
+
+  /**
+   * Resolves a coordinate's IANA zone through the Google Time Zone API,
+   * falling back to the offline table when the API is unavailable, denied,
+   * or returns no zone.
+   */
+  private async fetchTimezone(
+    latitude: number,
+    longitude: number,
+  ): Promise<string | undefined> {
+    try {
+      const response = await this.client.timezone({
+        params: {
+          location: { lat: latitude, lng: longitude },
+          timestamp: Math.floor(Date.now() / 1000),
+          key: this.apiKey,
+        },
+        timeout: this.timeout,
+      });
+      if (response.data.status === 'OK' && response.data.timeZoneId) {
+        return response.data.timeZoneId;
+      }
+    } catch {
+      // Fall through to the offline table: a missing Time Zone API
+      // entitlement must not fail an otherwise successful geocode.
+    }
+    return timezoneForCoordinates(latitude, longitude);
   }
 
   /**
@@ -116,8 +176,8 @@ export class GoogleMapsProvider implements GeoProvider {
       }
 
       const results = response.data.results.slice(0, this.maxResults);
-      const locations = results.map((result) =>
-        this.mapGoogleResultToLocation(result),
+      const locations = await this.applyTimezones(
+        results.map((result) => this.mapGoogleResultToLocation(result)),
       );
 
       // Cache the result
@@ -198,8 +258,8 @@ export class GoogleMapsProvider implements GeoProvider {
       }
 
       const results = response.data.results.slice(0, this.maxResults);
-      const locations = results.map((result) =>
-        this.mapGoogleResultToLocation(result),
+      const locations = await this.applyTimezones(
+        results.map((result) => this.mapGoogleResultToLocation(result)),
       );
 
       // Cache the result
@@ -349,7 +409,7 @@ export class GoogleMapsProvider implements GeoProvider {
         if (merged.size >= limit) break;
       }
 
-      const locations = [...merged.values()];
+      const locations = await this.applyTimezones([...merged.values()]);
       if (this.cache) await this.cache.set(cacheKey, locations);
       return locations;
     } catch (error) {

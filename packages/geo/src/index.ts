@@ -12,6 +12,7 @@ import type {
 } from './shared/types';
 
 // Export all types
+export * from './shared/timezone';
 export * from './shared/types';
 export * from './shared/utils';
 
@@ -94,6 +95,7 @@ export async function getGeoAdapter(
       maxResults: 'number',
       rateLimitDelay: 'number',
       userAgent: 'string',
+      timezoneLookup: 'string',
     },
   }) as Partial<GeoAdapterOptions>;
 

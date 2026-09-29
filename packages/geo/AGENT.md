@@ -27,7 +27,7 @@ pnpm --filter @happyvertical/geo clean
 ## Ecosystem Relationships
 - Provides: Standardized geographical information interface supporting Google Maps and OpenStreetMap
 - Implements: none
-- Requires: @happyvertical/cache, @happyvertical/utils, @googlemaps/google-maps-services-js
+- Requires: @happyvertical/cache, @happyvertical/utils, @googlemaps/google-maps-services-js, @photostructure/tz-lookup
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
 
