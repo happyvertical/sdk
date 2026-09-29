@@ -313,7 +313,11 @@ export class OpenAIProvider implements AIInterface {
             parameters: tool.function.parameters,
           },
         })),
-        tool_choice: this.mapToolChoice(options.toolChoice),
+        // OpenAI rejects tool_choice without tools (a tool loop's final,
+        // tool-less round still says toolChoice: 'none').
+        tool_choice: options.tools?.length
+          ? this.mapToolChoice(options.toolChoice)
+          : undefined,
         response_format: options.responseFormat,
         seed: options.seed,
         stream: false,

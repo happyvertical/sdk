@@ -165,6 +165,25 @@ describe.each([
     expect(create.mock.calls[0][0].messages).toEqual(expectedOpenAIHistory);
   });
 
+  it('sends no tool_choice on a round without tools', async () => {
+    const create = vi.fn().mockResolvedValue(openAITextResponse());
+    const provider = createProvider();
+    (provider as any).client = { chat: { completions: { create } } };
+
+    await provider.chat(question, {
+      model: 'gpt-4.1-mini',
+      toolChoice: 'none',
+    });
+    await provider.chat(question, {
+      model: 'gpt-4.1-mini',
+      tools,
+      toolChoice: 'none',
+    });
+
+    expect(create.mock.calls[0][0].tool_choice).toBeUndefined();
+    expect(create.mock.calls[1][0].tool_choice).toBe('none');
+  });
+
   it('does not send provider-only tool call fields', async () => {
     const create = vi.fn().mockResolvedValue(openAITextResponse());
     const provider = createProvider();

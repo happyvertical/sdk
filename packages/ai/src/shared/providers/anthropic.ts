@@ -195,7 +195,9 @@ export class AnthropicProvider implements AIInterface {
             : undefined,
         system: system || undefined,
         tools: this.mapTools(options),
-        tool_choice: this.mapToolChoice(options.toolChoice),
+        tool_choice: options.tools?.length
+          ? this.mapToolChoice(options.toolChoice)
+          : undefined,
         stream: false,
       };
       if ((options.reasoning?.maxTokens || 0) > 0) {
