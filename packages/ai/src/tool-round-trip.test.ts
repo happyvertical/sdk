@@ -393,6 +393,92 @@ describe('Anthropic tool round trip', () => {
       { role: 'assistant', content: 'Checking.' },
       { role: 'user', content: '21' },
     ]);
+    expect(create.mock.calls[0][0].tools).toBeUndefined();
+    expect(create.mock.calls[0][0].tool_choice).toBeUndefined();
+  });
+
+  const toolCallResponse: AIResponse = {
+    content: '',
+    toolCalls: [
+      {
+        id: 'toolu_1',
+        type: 'function',
+        function: { name: 'get_weather', arguments: '{"city":"Tokyo"}' },
+      },
+    ],
+  };
+
+  it('declares history tools with tool_choice none on a final round without tools', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'It is 21C.' }],
+      model: 'claude-sonnet-4-5',
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const provider = createProvider(create);
+
+    const response = await provider.chat(
+      continueWithToolResult(toolCallResponse),
+      { toolChoice: 'none' },
+    );
+
+    expect(response.content).toBe('It is 21C.');
+    const request = create.mock.calls[0][0];
+    expect(request.tools).toEqual([
+      {
+        name: 'get_weather',
+        description:
+          'Used earlier in this conversation; not available for this turn.',
+        input_schema: { type: 'object' },
+      },
+    ]);
+    expect(request.tool_choice).toEqual({ type: 'none' });
+    expect(request.messages[1].content[0].type).toBe('tool_use');
+    expect(request.messages[2].content[0].type).toBe('tool_result');
+  });
+
+  it('declares history tools when streaming a final round without tools', async () => {
+    const create = vi.fn().mockResolvedValue(
+      (async function* () {
+        yield {
+          type: 'content_block_delta',
+          delta: { type: 'text_delta', text: 'ok' },
+        };
+      })(),
+    );
+    const provider = createProvider(create);
+
+    for await (const _chunk of provider.stream(
+      continueWithToolResult(toolCallResponse),
+    )) {
+      // drain
+    }
+
+    const request = create.mock.calls[0][0];
+    expect(request.tools.map((tool: { name: string }) => tool.name)).toEqual([
+      'get_weather',
+    ]);
+    expect(request.tool_choice).toEqual({ type: 'none' });
+  });
+
+  it('maps toolChoice none to tool_choice none when tools are declared', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'ok' }],
+      model: 'claude-sonnet-4-5',
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const provider = createProvider(create);
+
+    await provider.chat(question, { tools, toolChoice: 'none' });
+    await provider.chat(question, { tools });
+    await provider.chat(question, { toolChoice: 'none' });
+
+    expect(create.mock.calls[0][0].tools).toHaveLength(1);
+    expect(create.mock.calls[0][0].tool_choice).toEqual({ type: 'none' });
+    expect(create.mock.calls[1][0].tool_choice).toEqual({ type: 'auto' });
+    expect(create.mock.calls[2][0].tools).toBeUndefined();
+    expect(create.mock.calls[2][0].tool_choice).toBeUndefined();
   });
 });
 

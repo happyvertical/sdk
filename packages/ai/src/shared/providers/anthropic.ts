@@ -194,10 +194,7 @@ export class AnthropicProvider implements AIInterface {
             ? [options.stop]
             : undefined,
         system: system || undefined,
-        tools: this.mapTools(options),
-        tool_choice: options.tools?.length
-          ? this.mapToolChoice(options.toolChoice)
-          : undefined,
+        ...this.mapToolParams(options, anthropicMessages),
         stream: false,
       };
       if ((options.reasoning?.maxTokens || 0) > 0) {
@@ -430,12 +427,7 @@ export class AnthropicProvider implements AIInterface {
             ? [options.stop]
             : undefined,
         system: system || undefined,
-        // Anthropic rejects histories containing tool_use/tool_result blocks
-        // unless the tools are declared, so streaming declares them too.
-        tools: this.mapTools(options),
-        tool_choice: options.tools?.length
-          ? this.mapToolChoice(options.toolChoice)
-          : undefined,
+        ...this.mapToolParams(options, anthropicMessages),
         stream: true,
       };
       if ((options.reasoning?.maxTokens || 0) > 0) {
@@ -761,6 +753,51 @@ export class AnthropicProvider implements AIInterface {
     return { system, anthropicMessages };
   }
 
+  /**
+   * Builds the `tools` / `tool_choice` request fields.
+   *
+   * Anthropic rejects a request whose history contains `tool_use` or
+   * `tool_result` blocks unless `tools` is declared. A tool loop's final,
+   * tool-less round (no `tools`, typically `toolChoice: 'none'`) still
+   * replays that history, so when the caller declares no tools but the
+   * history uses some, this declares a minimal definition for each tool the
+   * history references and sets `tool_choice: { type: 'none' }` so the model
+   * answers in text instead of calling them.
+   */
+  private mapToolParams(
+    options: ChatOptions,
+    anthropicMessages: AnthropicMessage[],
+  ): { tools?: Record<string, any>[]; tool_choice?: Record<string, any> } {
+    const tools = this.mapTools(options);
+    if (tools) {
+      return { tools, tool_choice: this.mapToolChoice(options.toolChoice) };
+    }
+
+    // Every replayed tool_result pairs with a replayed tool_use (unanswered
+    // calls are dropped by mapMessagesToAnthropic), so tool_use names cover
+    // every tool the history references.
+    const historyToolNames = new Set<string>();
+    for (const message of anthropicMessages) {
+      if (!Array.isArray(message.content)) continue;
+      for (const block of message.content) {
+        if (block.type === 'tool_use') historyToolNames.add(block.name);
+      }
+    }
+    if (historyToolNames.size === 0) {
+      return {};
+    }
+
+    return {
+      tools: [...historyToolNames].map((name) => ({
+        name,
+        description:
+          'Used earlier in this conversation; not available for this turn.',
+        input_schema: { type: 'object' },
+      })),
+      tool_choice: { type: 'none' },
+    };
+  }
+
   private mapTools(options: ChatOptions): Record<string, any>[] | undefined {
     return options.tools && options.tools.length > 0
       ? options.tools.map((tool) => ({
@@ -782,7 +819,7 @@ export class AnthropicProvider implements AIInterface {
     }
 
     if (toolChoice === 'none') {
-      return undefined; // Anthropic doesn't have explicit 'none', just omit tools
+      return { type: 'none' };
     }
 
     if (typeof toolChoice === 'object' && toolChoice.type === 'function') {
