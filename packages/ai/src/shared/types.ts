@@ -202,21 +202,58 @@ export interface AIMessage {
   content: string | ContentPart[];
 
   /**
-   * Optional name for the message sender
+   * Optional name for the message sender.
+   *
+   * On `role: 'tool'` messages this is the name of the function that
+   * produced the result. It is optional: providers that need it (Gemini,
+   * Ollama) resolve it from the matching assistant `tool_calls` entry via
+   * `tool_call_id` when it is omitted.
    */
   name?: string;
 
   /**
-   * Optional tool calls
+   * Tool calls requested by the model (assistant messages only).
+   *
+   * Pass `AIResponse.toolCalls` back here unchanged when continuing a tool
+   * loop so every provider can replay the call with its original id.
    */
-  tool_calls?: Array<{
-    id: string;
-    type: 'function';
-    function: {
-      name: string;
-      arguments: string;
-    };
-  }>;
+  tool_calls?: AIToolCall[];
+
+  /**
+   * Id of the tool call this message answers (`role: 'tool'` messages only).
+   *
+   * Required by OpenAI-compatible APIs (`tool_call_id`), Anthropic
+   * (`tool_use_id`) and Bedrock (`toolUseId`) to pair a tool result with
+   * the assistant tool call that requested it.
+   */
+  tool_call_id?: string;
+}
+
+/**
+ * A function call requested by the model.
+ *
+ * Returned in `AIResponse.toolCalls` and replayed in `AIMessage.tool_calls`.
+ */
+export interface AIToolCall {
+  /**
+   * Call id, echoed back as `AIMessage.tool_call_id` on the tool result
+   */
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    /**
+     * JSON-encoded call arguments
+     */
+    arguments: string;
+  };
+  /**
+   * Opaque provider signature that must be replayed with the call.
+   *
+   * Set by Gemini (thought signatures, required by Gemini 3 function
+   * calling). Other providers ignore it.
+   */
+  thoughtSignature?: string;
 }
 
 /**
@@ -1303,14 +1340,7 @@ export interface AIResponse {
   /**
    * Tool calls made by the model
    */
-  toolCalls?: Array<{
-    id: string;
-    type: 'function';
-    function: {
-      name: string;
-      arguments: string;
-    };
-  }>;
+  toolCalls?: AIToolCall[];
 }
 
 /**

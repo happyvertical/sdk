@@ -1118,7 +1118,23 @@ export class OpenAIProvider implements AIInterface {
       }
 
       if (message.tool_calls && message.role === 'assistant') {
-        (baseMessage as any).tool_calls = message.tool_calls;
+        // Replay only the wire fields; provider-specific extras such as
+        // Gemini thought signatures are not part of the OpenAI schema.
+        (baseMessage as any).tool_calls = message.tool_calls.map(
+          (toolCall) => ({
+            id: toolCall.id,
+            type: toolCall.type,
+            function: {
+              name: toolCall.function.name,
+              arguments: toolCall.function.arguments,
+            },
+          }),
+        );
+      }
+
+      if (message.role === 'tool' && message.tool_call_id) {
+        // OpenAI rejects tool results without the id of the call they answer.
+        (baseMessage as any).tool_call_id = message.tool_call_id;
       }
 
       return baseMessage as OpenAI.Chat.ChatCompletionMessageParam;

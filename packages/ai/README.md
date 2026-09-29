@@ -574,6 +574,23 @@ if (response.toolCalls) {
 }
 ```
 
+To continue the loop, replay the assistant turn with `tool_calls` unchanged
+and answer each call with a `role: 'tool'` message carrying its
+`tool_call_id`. Every chat provider maps this to its native pairing
+(`tool_call_id` for OpenAI-compatible APIs including Bifrost and LiteLLM,
+`tool_use_id` for Anthropic, `toolUseId` for Bedrock, `functionResponse` for
+Gemini, `tool_name` for Ollama). `name` on the tool message is optional; it is
+resolved from the matching call when a provider needs it.
+
+```typescript
+const call = response.toolCalls[0];
+const followUp = await ai.chat([
+  { role: 'user', content: 'What is the weather in Tokyo?' },
+  { role: 'assistant', content: response.content, tool_calls: response.toolCalls },
+  { role: 'tool', tool_call_id: call.id, content: JSON.stringify({ tempC: 21 }) },
+], { tools });
+```
+
 ## Usage Tracking
 
 Track token usage, costs, and performance across all providers with the `onUsage` callback:

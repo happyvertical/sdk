@@ -13,6 +13,7 @@ import {
   type PreparedRequestControls,
   prepareRequestControls,
 } from '../safety';
+import { parseToolArguments } from '../tool-messages';
 import type {
   AICapabilities,
   AIInterface,
@@ -50,6 +51,21 @@ import {
   RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
+
+type AnthropicContentBlock =
+  | { type: 'text'; text: string }
+  | {
+      type: 'tool_use';
+      id: string;
+      name: string;
+      input: Record<string, unknown>;
+    }
+  | { type: 'tool_result'; tool_use_id: string; content: string };
+
+interface AnthropicMessage {
+  role: 'user' | 'assistant';
+  content: string | AnthropicContentBlock[];
+}
 
 // Note: This implementation will require @anthropic-ai/sdk package
 // For now, this is a placeholder that defines the interface
@@ -178,14 +194,7 @@ export class AnthropicProvider implements AIInterface {
             ? [options.stop]
             : undefined,
         system: system || undefined,
-        tools:
-          options.tools && options.tools.length > 0
-            ? options.tools.map((tool) => ({
-                name: tool.function.name,
-                description: tool.function.description || '',
-                input_schema: tool.function.parameters || { type: 'object' },
-              }))
-            : undefined,
+        tools: this.mapTools(options),
         tool_choice: this.mapToolChoice(options.toolChoice),
         stream: false,
       };
@@ -419,6 +428,12 @@ export class AnthropicProvider implements AIInterface {
             ? [options.stop]
             : undefined,
         system: system || undefined,
+        // Anthropic rejects histories containing tool_use/tool_result blocks
+        // unless the tools are declared, so streaming declares them too.
+        tools: this.mapTools(options),
+        tool_choice: options.tools?.length
+          ? this.mapToolChoice(options.toolChoice)
+          : undefined,
         stream: true,
       };
       if ((options.reasoning?.maxTokens || 0) > 0) {
@@ -662,31 +677,96 @@ export class AnthropicProvider implements AIInterface {
     );
   }
 
+  /**
+   * Maps internal messages to Anthropic Messages API turns.
+   *
+   * Assistant `tool_calls` become `tool_use` blocks and `role: 'tool'`
+   * results become `tool_result` blocks paired by `tool_call_id`
+   * (`tool_use_id`). Consecutive tool results are grouped into one user turn,
+   * as Anthropic requires every result for a turn to follow it directly.
+   * A tool result without `tool_call_id` cannot be paired, so it (and any
+   * call it would answer) falls back to plain text as before.
+   */
   private mapMessagesToAnthropic(messages: AIMessage[]): {
     system?: string;
-    anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    anthropicMessages: AnthropicMessage[];
   } {
     // Anthropic handles system messages separately
     let system: string | undefined;
-    const anthropicMessages: Array<{
-      role: 'user' | 'assistant';
-      content: string;
-    }> = [];
+    const anthropicMessages: AnthropicMessage[] = [];
+    const answeredToolCallIds = new Set(
+      messages
+        .filter((message) => message.role === 'tool' && message.tool_call_id)
+        .map((message) => message.tool_call_id as string),
+    );
 
     for (const message of messages) {
       const textContent = extractTextContent(message.content);
       if (message.role === 'system') {
         // Combine multiple system messages
         system = system ? `${system}\n\n${textContent}` : textContent;
-      } else {
-        anthropicMessages.push({
-          role: message.role === 'assistant' ? 'assistant' : 'user',
-          content: textContent,
-        });
+        continue;
       }
+
+      if (message.role === 'tool' && message.tool_call_id) {
+        const block: AnthropicContentBlock = {
+          type: 'tool_result',
+          tool_use_id: message.tool_call_id,
+          content: textContent,
+        };
+        const previous = anthropicMessages[anthropicMessages.length - 1];
+        if (
+          previous?.role === 'user' &&
+          Array.isArray(previous.content) &&
+          previous.content.every((part) => part.type === 'tool_result')
+        ) {
+          previous.content.push(block);
+        } else {
+          anthropicMessages.push({ role: 'user', content: [block] });
+        }
+        continue;
+      }
+
+      const toolCalls =
+        message.role === 'assistant'
+          ? (message.tool_calls || []).filter((toolCall) =>
+              answeredToolCallIds.has(toolCall.id),
+            )
+          : [];
+      if (toolCalls.length > 0) {
+        const content: AnthropicContentBlock[] = [];
+        if (textContent) {
+          content.push({ type: 'text', text: textContent });
+        }
+        for (const toolCall of toolCalls) {
+          content.push({
+            type: 'tool_use',
+            id: toolCall.id,
+            name: toolCall.function.name,
+            input: parseToolArguments(toolCall.function.arguments),
+          });
+        }
+        anthropicMessages.push({ role: 'assistant', content });
+        continue;
+      }
+
+      anthropicMessages.push({
+        role: message.role === 'assistant' ? 'assistant' : 'user',
+        content: textContent,
+      });
     }
 
     return { system, anthropicMessages };
+  }
+
+  private mapTools(options: ChatOptions): Record<string, any>[] | undefined {
+    return options.tools && options.tools.length > 0
+      ? options.tools.map((tool) => ({
+          name: tool.function.name,
+          description: tool.function.description || '',
+          input_schema: tool.function.parameters || { type: 'object' },
+        }))
+      : undefined;
   }
 
   private mapToolChoice(

@@ -859,9 +859,31 @@ export class BedrockProvider implements AIInterface {
         continue;
       }
 
+      if (message.role === 'tool' && message.tool_call_id) {
+        // Converse pairs results with calls by toolUseId, and all results
+        // for one assistant turn must share the following user turn.
+        const block = {
+          toolResult: {
+            toolUseId: message.tool_call_id,
+            content: [{ text: textContent }],
+          },
+        };
+        const previous = bedrockMessages[bedrockMessages.length - 1];
+        if (
+          previous?.role === 'user' &&
+          previous.content.every((part) => part.toolResult)
+        ) {
+          previous.content.push(block);
+        } else {
+          bedrockMessages.push({ role: 'user', content: [block] });
+        }
+        continue;
+      }
+
       const content: any[] = [];
       if (typeof message.content === 'string') {
-        content.push({ text: message.content });
+        // Converse rejects empty text blocks (e.g. tool-call-only turns).
+        if (message.content) content.push({ text: message.content });
       } else {
         for (const part of message.content) {
           if (part.type === 'text') {

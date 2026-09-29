@@ -15,6 +15,7 @@ import {
   type PreparedRequestControls,
   prepareRequestControls,
 } from '../safety';
+import { indexToolCallNames, resolveToolResultName } from '../tool-messages';
 import type {
   AICapabilities,
   AIInterface,
@@ -680,6 +681,7 @@ export class OllamaProvider implements AIInterface {
     messages: AIMessage[],
     signal?: AbortSignal,
   ): Promise<OllamaMessage[]> {
+    const toolCallNames = indexToolCallNames(messages);
     const mappedMessages = await Promise.all(
       messages.map(async (message) => {
         const content = extractTextContent(message.content);
@@ -719,8 +721,12 @@ export class OllamaProvider implements AIInterface {
           }));
         }
 
-        if (mapped.role === 'tool' && message.name) {
-          mapped.tool_name = message.name;
+        if (mapped.role === 'tool') {
+          // Ollama pairs results with calls by function name.
+          const toolName = resolveToolResultName(message, toolCallNames);
+          if (toolName) {
+            mapped.tool_name = toolName;
+          }
         }
 
         return mapped;

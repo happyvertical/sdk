@@ -14,6 +14,13 @@ import {
   type PreparedRequestControls,
   prepareRequestControls,
 } from '../safety';
+import {
+  hasToolTraffic,
+  indexToolCallNames,
+  parseToolArguments,
+  resolveToolResultName,
+  toolResultObject,
+} from '../tool-messages';
 import type {
   AICapabilities,
   AIInterface,
@@ -53,6 +60,18 @@ import { emitUsage } from './usage';
 
 // Note: This implementation uses the new @google/genai package
 // @google/generative-ai is deprecated - migrated to @google/genai
+
+interface GeminiPart {
+  text?: string;
+  functionCall?: { name: string; args: Record<string, unknown> };
+  functionResponse?: { name: string; response: Record<string, unknown> };
+  thoughtSignature?: string;
+}
+
+interface GeminiContent {
+  role: 'user' | 'model';
+  parts: GeminiPart[];
+}
 
 /**
  * Default Veo model for video generation. Veo 2 / Veo 3.0 are deprecated in
@@ -166,8 +185,7 @@ export class GeminiProvider implements AIInterface {
       controls = prepareRequestControls(this.options, options);
       const requestConfig: Record<string, any> = {
         model,
-        contents: this.messagesToGeminiFormat(messages),
-        config: this.buildGenerateContentConfig(options, controls),
+        ...this.buildContentsRequest(messages, options, controls),
       };
 
       // Call new SDK API: ai.models.generateContent()
@@ -182,12 +200,16 @@ export class GeminiProvider implements AIInterface {
         );
         if (functionCalls.length > 0) {
           toolCalls = functionCalls.map((part: any) => ({
-            id: `call_${crypto.randomUUID()}`,
+            id: part.functionCall.id || `call_${crypto.randomUUID()}`,
             type: 'function' as const,
             function: {
               name: part.functionCall.name,
               arguments: JSON.stringify(part.functionCall.args || {}),
             },
+            // Gemini 3 requires the signature back when the call is replayed.
+            ...(part.thoughtSignature
+              ? { thoughtSignature: part.thoughtSignature }
+              : {}),
           }));
         }
       }
@@ -1086,8 +1108,7 @@ export class GeminiProvider implements AIInterface {
       controls = prepareRequestControls(this.options, options);
       const stream = await this.client.models.generateContentStream({
         model,
-        contents: this.messagesToGeminiFormat(messages),
-        config: this.buildGenerateContentConfig(options, controls),
+        ...this.buildContentsRequest(messages, options, controls),
       });
 
       let usage: TokenUsage | undefined;
@@ -1379,6 +1400,105 @@ export class GeminiProvider implements AIInterface {
 
     // Gemini doesn't provide detailed finish reasons, default to 'stop'
     return 'stop';
+  }
+
+  /**
+   * Builds the `contents` + `config` pair for generateContent.
+   *
+   * Plain conversations keep the flattened text prompt. Conversations with
+   * tool traffic need structured turns so Gemini can pair each
+   * `functionResponse` with the `functionCall` that requested it.
+   */
+  private buildContentsRequest(
+    messages: AIMessage[],
+    options: ChatOptions,
+    controls: PreparedRequestControls,
+  ): { contents: string | GeminiContent[]; config: Record<string, any> } {
+    const config = this.buildGenerateContentConfig(options, controls);
+    if (!hasToolTraffic(messages)) {
+      return { contents: this.messagesToGeminiFormat(messages), config };
+    }
+
+    const { systemInstruction, contents } =
+      this.messagesToGeminiContents(messages);
+    if (systemInstruction) {
+      config.systemInstruction = systemInstruction;
+    }
+    return { contents, config };
+  }
+
+  /**
+   * Maps a tool-calling conversation to structured Gemini turns.
+   *
+   * Assistant `tool_calls` become `functionCall` parts (replaying any
+   * recorded thought signature); `role: 'tool'` results become
+   * `functionResponse` parts named after the call their `tool_call_id`
+   * answers. Consecutive results share one user turn.
+   */
+  private messagesToGeminiContents(messages: AIMessage[]): {
+    systemInstruction?: string;
+    contents: GeminiContent[];
+  } {
+    const toolCallNames = indexToolCallNames(messages);
+    const contents: GeminiContent[] = [];
+    let systemInstruction: string | undefined;
+
+    for (const message of messages) {
+      const textContent = extractTextContent(message.content);
+
+      if (message.role === 'system') {
+        systemInstruction = systemInstruction
+          ? `${systemInstruction}\n\n${textContent}`
+          : textContent;
+        continue;
+      }
+
+      if (message.role === 'tool' || message.role === 'function') {
+        const name = resolveToolResultName(message, toolCallNames);
+        const part: GeminiPart = name
+          ? {
+              functionResponse: {
+                name,
+                response: toolResultObject(textContent),
+              },
+            }
+          : { text: textContent };
+        const previous = contents[contents.length - 1];
+        if (
+          name &&
+          previous?.role === 'user' &&
+          previous.parts.every((existing) => existing.functionResponse)
+        ) {
+          previous.parts.push(part);
+        } else {
+          contents.push({ role: 'user', parts: [part] });
+        }
+        continue;
+      }
+
+      const parts: GeminiPart[] = textContent ? [{ text: textContent }] : [];
+      if (message.role === 'assistant') {
+        for (const toolCall of message.tool_calls || []) {
+          parts.push({
+            functionCall: {
+              name: toolCall.function.name,
+              args: parseToolArguments(toolCall.function.arguments),
+            },
+            ...(toolCall.thoughtSignature
+              ? { thoughtSignature: toolCall.thoughtSignature }
+              : {}),
+          });
+        }
+      }
+      if (parts.length === 0) continue;
+
+      contents.push({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts,
+      });
+    }
+
+    return { systemInstruction, contents };
   }
 
   private messagesToGeminiFormat(messages: AIMessage[]): string {
