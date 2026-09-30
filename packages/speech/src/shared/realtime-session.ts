@@ -159,6 +159,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
   private outstandingCommits = 0;
   private readonly itemOrder: string[] = [];
   private readonly pendingItems = new Set<string>();
+  private readonly vadStoppedItems = new Set<string>();
   private readonly partials = new Map<string, string>();
   private readonly finals: FinalRecord[] = [];
   private readonly listeners = new Map<
@@ -420,7 +421,12 @@ export class RealtimeTranscriptionSession implements StreamingSession {
           this.pendingItems.add(event.itemId);
           this.itemOrder.push(event.itemId);
         }
-        if (this.init.protocol.commitAck === 'committed') {
+        // A turn whose speech_stopped we saw was committed by server VAD, so
+        // it does not acknowledge one of our commits.
+        if (
+          this.init.protocol.commitAck === 'committed' &&
+          !(event.itemId && this.vadStoppedItems.has(event.itemId))
+        ) {
           this.ackCommit();
         }
         return;
@@ -461,14 +467,21 @@ export class RealtimeTranscriptionSession implements StreamingSession {
         });
         return;
       case 'speech_started':
+        this.emit(event.type, { itemId: event.itemId, audioMs: event.audioMs });
+        return;
       case 'speech_stopped':
+        if (event.itemId) {
+          this.vadStoppedItems.add(event.itemId);
+        }
         this.emit(event.type, { itemId: event.itemId, audioMs: event.audioMs });
         return;
       case 'error':
         this.fail(
           new SpeechProviderError(
             this.provider,
-            `${this.provider} error${event.code ? ` (${event.code})` : ''}: ${this.redact(event.message)}`,
+            this.redact(
+              `${this.provider} error${event.code ? ` (${event.code})` : ''}: ${event.message}`,
+            ) ?? `${this.provider} error`,
             {
               responseBody:
                 event.raw === undefined
@@ -540,12 +553,27 @@ export class RealtimeTranscriptionSession implements StreamingSession {
     }
   }
 
+  /**
+   * Waits until the socket's send buffer is at or below `highWaterMark`. A
+   * socket that stays congested for `timeoutMs` fails the session, so a
+   * stalled connection can never leave `write()` pending forever.
+   */
   private async waitForDrain(): Promise<void> {
+    const deadline = Date.now() + this.init.timeoutMs;
     while (
       !this.isTerminal() &&
       this.socket &&
       this.socket.bufferedAmount > this.init.highWaterMark
     ) {
+      if (Date.now() >= deadline) {
+        this.fail(
+          new SpeechProviderError(
+            this.provider,
+            `${this.provider} socket did not drain below highWaterMark within ${this.init.timeoutMs} ms`,
+          ),
+        );
+        return;
+      }
       await new Promise((resolve) => setTimeout(resolve, DRAIN_POLL_MS));
     }
   }

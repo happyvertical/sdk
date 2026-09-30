@@ -115,7 +115,8 @@ export function unwrapRawAudio(
   }
   if (RAW_PCM_TYPES.has(essence)) {
     return {
-      bytes,
+      // RFC 2586: audio/L16 samples are big-endian; pcm16 is little-endian.
+      bytes: essence === 'audio/l16' ? swapBytePairs(bytes) : bytes,
       format: compact({ encoding: 'pcm16', sampleRate: rate, channels }),
     };
   }
@@ -136,6 +137,16 @@ export function unwrapRawAudio(
     `${adapter} streams raw audio and cannot decode ${essence}; send PCM WAV or raw PCM, or use an HTTP transcriber for compressed recordings`,
     adapter,
   );
+}
+
+/** Returns a copy with each 16-bit sample's bytes swapped. */
+function swapBytePairs(bytes: Uint8Array): Uint8Array {
+  const swapped = new Uint8Array(bytes.byteLength);
+  for (let index = 0; index + 1 < bytes.byteLength; index += 2) {
+    swapped[index] = bytes[index + 1] ?? 0;
+    swapped[index + 1] = bytes[index] ?? 0;
+  }
+  return swapped;
 }
 
 function isRiffWave(bytes: Uint8Array): boolean {

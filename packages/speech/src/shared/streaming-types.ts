@@ -229,7 +229,10 @@ export interface StreamingTranscriberOptions extends StreamingSessionSettings {
    * browsers. Browsers use `clientSecret`.
    */
   apiKey?: string;
-  /** Maximum wait for final transcripts after `end()`. Default `30000`. */
+  /**
+   * Maximum wait for final transcripts after `end()`, and for a congested
+   * socket to drain during `write()`. Default `30000`.
+   */
   timeoutMs?: number;
   /** Maximum wait for the socket to open. Default `10000`. */
   connectTimeoutMs?: number;

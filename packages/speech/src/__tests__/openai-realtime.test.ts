@@ -442,6 +442,41 @@ describe('openai-realtime streaming', () => {
     expect(result.usage?.audioSeconds).toBe(0.1);
   });
 
+  it('does not treat a server VAD commit as the end commit acknowledgement', async () => {
+    const session = transcriber().start();
+    await session.ready;
+    const socket = lastSocket();
+    await session.write(pcm(4800));
+    const ending = session.end();
+    await vi.waitFor(() =>
+      expect(socket.types()).toContain('input_audio_buffer.commit'),
+    );
+
+    // Server VAD commits turn "a" after our end commit was sent...
+    socket.serverSend({
+      type: 'input_audio_buffer.speech_stopped',
+      item_id: 'a',
+    });
+    socket.serverSend({ type: 'input_audio_buffer.committed', item_id: 'a' });
+    socket.serverSend({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'a',
+      transcript: 'first',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(session.state).toBe('ending');
+
+    // ...and only then is our end commit acknowledged with the last turn.
+    socket.serverSend({ type: 'input_audio_buffer.committed', item_id: 'b' });
+    expect(session.state).toBe('ending');
+    socket.serverSend({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'b',
+      transcript: 'last',
+    });
+    await expect(ending).resolves.toMatchObject({ text: 'first last' });
+  });
+
   it('skips the end commit when server VAD already committed everything', async () => {
     const session = transcriber().start();
     await session.ready;
@@ -510,13 +545,16 @@ describe('openai-realtime errors and lifecycle', () => {
       type: 'error',
       error: {
         type: 'invalid_request_error',
-        code: 'invalid_value',
         message: 'bad rate for sk-test-secret',
+        code: 'invalid_value sk-test-secret',
       },
     });
 
     await expect(session.end()).rejects.toThrow(SpeechProviderError);
-    await expect(session.end()).rejects.toThrow(/invalid_value.*\[REDACTED\]/);
+    await expect(session.end()).rejects.toThrow(
+      /invalid_value \[REDACTED\].*\[REDACTED\]/,
+    );
+    await expect(session.end()).rejects.not.toThrow(/sk-test-secret/);
     await expect(session.write(pcm(4))).rejects.toThrow(SpeechProviderError);
     expect(errors).toHaveLength(1);
     expect(session.state).toBe('failed');
@@ -651,6 +689,16 @@ describe('openai-realtime backpressure', () => {
     });
     await accepted;
     session.abort();
+  });
+
+  it('fails a write when the socket never drains', async () => {
+    const session = transcriber({ highWaterMark: 100, timeoutMs: 40 }).start();
+    await session.ready;
+    lastSocket().bufferedAmount = 500;
+    await expect(session.write(pcm(10))).rejects.toThrow(
+      /did not drain below highWaterMark within 40 ms/,
+    );
+    expect(session.state).toBe('failed');
   });
 
   it('rejects unsupported chunk types', async () => {
@@ -875,6 +923,16 @@ describe('record-then-send wrapper', () => {
 });
 
 describe('unwrapRawAudio', () => {
+  it('converts big-endian audio/L16 to little-endian and keeps audio/pcm as-is', () => {
+    const samples = new Uint8Array([0x12, 0x34, 0xab, 0xcd]);
+    expect([
+      ...unwrapRawAudio(samples, 'audio/L16;rate=24000', 'test').bytes,
+    ]).toEqual([0x34, 0x12, 0xcd, 0xab]);
+    expect([...unwrapRawAudio(samples, 'audio/pcm', 'test').bytes]).toEqual([
+      0x12, 0x34, 0xab, 0xcd,
+    ]);
+  });
+
   it('reads WAV headers, L16 parameters, and G.711 types', () => {
     expect(
       unwrapRawAudio(
