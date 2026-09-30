@@ -50,6 +50,9 @@ import { emitUsage } from './usage';
 const PROVIDER = 'typesafe';
 const DEFAULT_BASE_URL = 'https://api.typesafe.ai/v1';
 const DEFAULT_MODEL = 'jev-latest';
+const STRICT_DISTRIBUTION_EPSILON = 1e-6;
+const HUNDREDTH_GRID_EPSILON = 1e-8;
+const ROUNDED_DISTRIBUTION_MAX_ERROR = 0.01;
 
 type WireQuestion =
   | {
@@ -235,13 +238,32 @@ function distribution(
     expected.map((key) => [key, probability(value[key], `${field}.${key}`)]),
   );
   const sum = Object.values(result).reduce((total, item) => total + item, 0);
-  if (Math.abs(sum - 1) > 1e-6)
+  if (Math.abs(sum - 1) <= STRICT_DISTRIBUTION_EPSILON) return result;
+
+  // TypeSafe documents normalized distributions, but observed high-cardinality
+  // wire responses use hundredth rounding. Accept only that measured form and
+  // cap its total rounding error at one percentage point before normalizing.
+  const maximumRoundingError = Math.min(
+    expected.length * 0.005,
+    ROUNDED_DISTRIBUTION_MAX_ERROR,
+  );
+  const isHundredthRounded = Object.values(result).every(
+    (item) =>
+      Math.abs(item * 100 - Math.round(item * 100)) <= HUNDREDTH_GRID_EPSILON,
+  );
+  if (
+    sum <= 0 ||
+    !isHundredthRounded ||
+    Math.abs(sum - 1) > maximumRoundingError + HUNDREDTH_GRID_EPSILON
+  )
     throw new AIError(
       `TypeSafe response ${field} must sum to 1`,
       'INVALID_RESPONSE',
       PROVIDER,
     );
-  return result;
+  return Object.fromEntries(
+    Object.entries(result).map(([key, item]) => [key, item / sum]),
+  );
 }
 
 function answer(

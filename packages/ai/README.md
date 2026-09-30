@@ -156,6 +156,12 @@ Probabilities are provider output and are not calibrated for comparison with
 another provider. The optional capability and method preserve compatibility
 with existing provider implementations.
 
+TypeSafe documents normalized choice and score distributions. For measured
+wire responses that are demonstrably rounded to hundredths, the adapter also
+accepts a positive distribution within one percentage point of unit mass and
+normalizes it by its actual sum. It continues to reject non-finite,
+out-of-range, missing, extra, all-zero, and non-hundredth distributions.
+
 ## Video Generation
 
 Video generation is asynchronous: `submitVideoGenerationJob` returns a JSON-serializable

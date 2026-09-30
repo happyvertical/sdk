@@ -170,6 +170,161 @@ describe('TypeSafeProvider', () => {
     }
   });
 
+  it('normalizes bounded hundredth-rounded choice distributions', async () => {
+    const choices = Object.fromEntries(
+      Array.from({ length: 82 }, (_, index) => [`option-${index}`, null]),
+    );
+    const roundedRequest: DecisionRequest = {
+      state: { message: 'choose one' },
+      questions: {
+        choice: {
+          type: 'choice',
+          instructions: 'Choose an option',
+          criteria: choices,
+        },
+      },
+    };
+    const probabilities = Object.fromEntries(
+      Object.keys(choices).map((key) => [key, 0]),
+    ) as Record<string, number>;
+    probabilities['option-80'] = 0.49;
+    probabilities['option-81'] = 0.5;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          model: 'jev-1.13.0',
+          answers: {
+            choice: {
+              type: 'choice',
+              choice: 'option-81',
+              probabilities,
+              confidence: 0.75,
+            },
+          },
+          usage: { input_tokens: 12, output_tokens: 3 },
+        }),
+      ),
+    );
+
+    const result = await new TypeSafeProvider({
+      type: 'typesafe',
+      apiKey: 'test-key',
+    }).decide(roundedRequest);
+
+    expect(result).toMatchObject({
+      model: 'jev-1.13.0',
+      usage: { promptTokens: 12, completionTokens: 3, totalTokens: 15 },
+      provenance: { provider: 'typesafe', model: 'jev-1.13.0' },
+      answers: {
+        choice: {
+          type: 'choice',
+          choice: 'option-81',
+          confidence: 0.75,
+        },
+      },
+    });
+    const answer = result.answers.choice;
+    if (answer.type !== 'choice') throw new Error('expected choice answer');
+    expect(answer.probabilities['option-80']).toBeCloseTo(0.49 / 0.99);
+    expect(answer.probabilities['option-81']).toBeCloseTo(0.5 / 0.99);
+    expect(
+      Object.values(answer.probabilities).reduce(
+        (sum, value) => sum + value,
+        0,
+      ),
+    ).toBeCloseTo(1);
+  });
+
+  it('normalizes a one-percent hundredth-rounded overage', async () => {
+    const roundedRequest: DecisionRequest = {
+      state: { message: 'choose one' },
+      questions: {
+        choice: {
+          type: 'choice',
+          instructions: 'Choose an option',
+          criteria: { first: null, second: null },
+        },
+      },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          model: 'jev-1.13.0',
+          answers: {
+            choice: {
+              type: 'choice',
+              choice: 'second',
+              probabilities: { first: 0.5, second: 0.51 },
+              confidence: 0.75,
+            },
+          },
+        }),
+      ),
+    );
+
+    const result = await new TypeSafeProvider({
+      type: 'typesafe',
+      apiKey: 'test-key',
+    }).decide(roundedRequest);
+    const answer = result.answers.choice;
+    if (answer.type !== 'choice') throw new Error('expected choice answer');
+    expect(answer.choice).toBe('second');
+    expect(answer.confidence).toBe(0.75);
+    expect(answer.probabilities).toEqual({
+      first: 0.5 / 1.01,
+      second: 0.51 / 1.01,
+    });
+  });
+
+  it('rejects distributions outside bounded hundredth rounding compatibility', async () => {
+    const choices = { first: null, second: null };
+    const roundedRequest: DecisionRequest = {
+      state: { message: 'choose one' },
+      questions: {
+        choice: {
+          type: 'choice',
+          instructions: 'Choose an option',
+          criteria: choices,
+        },
+      },
+    };
+    const invalidProbabilities = [
+      { first: 0.49, second: 0.49 },
+      { first: 0.51, second: 0.51 },
+      { first: 0.333, second: 0.666 },
+      { first: 0, second: 0 },
+      { first: 1 },
+      { first: 0.5, second: 0.5, extra: 0 },
+      { first: Number.NaN, second: 1 },
+      { first: 1.01, second: 0 },
+    ];
+    for (const probabilities of invalidProbabilities) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          response({
+            model: 'jev-1.13.0',
+            answers: {
+              choice: {
+                type: 'choice',
+                choice: 'first',
+                probabilities,
+                confidence: 0.75,
+              },
+            },
+          }),
+        ),
+      );
+      await expect(
+        new TypeSafeProvider({ type: 'typesafe', apiKey: 'test-key' }).decide(
+          roundedRequest,
+        ),
+      ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    }
+  });
+
   it('rejects invalid request shapes before network access', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
