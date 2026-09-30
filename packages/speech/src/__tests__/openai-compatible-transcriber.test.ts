@@ -478,6 +478,72 @@ describe('openai-compatible transcriber', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects an oversized stream chunk without copying it', async () => {
+    const { fetch } = mockFetch(json({ text: 'ok' }));
+    const transcriber = await getTranscriber({
+      type: 'openai-compatible',
+      baseUrl: 'http://speech.example/v1',
+      maxBytes: 4096,
+      fetch,
+    });
+    const huge = new Uint8Array(64 * 1024);
+    const cancel = vi.fn();
+    const set = vi.spyOn(Uint8Array.prototype, 'set');
+
+    try {
+      await expect(
+        transcriber.transcribe({
+          audio: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(huge);
+            },
+            cancel,
+          }),
+        }),
+      ).rejects.toThrow('Audio stream exceeds maxBytes');
+      expect(set.mock.calls.some(([source]) => source === huge)).toBe(false);
+    } finally {
+      set.mockRestore();
+    }
+    expect(cancel).toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('aborts a stalled stream read and rejects pre-aborted stream input', async () => {
+    const { fetch } = mockFetch(json({ text: 'ok' }));
+    const transcriber = await getTranscriber({
+      type: 'openai-compatible',
+      baseUrl: 'http://speech.example/v1',
+      fetch,
+    });
+    const stalled = () => {
+      const cancel = vi.fn();
+      // Never enqueues or closes: a read on it stays pending until cancelled.
+      return { cancel, stream: new ReadableStream<Uint8Array>({ cancel }) };
+    };
+
+    const controller = new AbortController();
+    const first = stalled();
+    setTimeout(() => controller.abort(new Error('stop recording')), 5);
+    await expect(
+      transcriber.transcribe({
+        audio: first.stream,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('stop recording');
+    expect(first.cancel).toHaveBeenCalled();
+
+    const second = stalled();
+    await expect(
+      transcriber.transcribe({
+        audio: second.stream,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('stop recording');
+    expect(second.stream.locked).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('accepts Buffer input with an explicit filename', async () => {
     const { fetch, requests } = mockFetch(json({ text: 'ok' }));
     const transcriber = await getTranscriber({

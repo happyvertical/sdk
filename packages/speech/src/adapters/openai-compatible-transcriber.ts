@@ -90,6 +90,7 @@ export class OpenAICompatibleTranscriber
       mimeType: request.mimeType,
       maxBytes: request.maxBytes ?? this.maxBytes,
       adapter: this.type,
+      signal: request.signal,
     });
     const wire = this.resolveWireOptions(request);
 

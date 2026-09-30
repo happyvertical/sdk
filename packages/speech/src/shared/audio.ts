@@ -64,6 +64,8 @@ export interface NormalizeAudioOptions {
   maxBytes?: number;
   /** Adapter name recorded on configuration errors. */
   adapter?: string;
+  /** Aborts buffering (including a pending stream read) with the signal's reason. */
+  signal?: AbortSignal;
   /** Base filename (without extension) used when the input has none. */
   defaultBasename?: string;
   /** Append a MIME-derived extension to the default filename. Default `true`. */
@@ -90,7 +92,8 @@ export async function normalizeAudioInput(
   options: NormalizeAudioOptions = {},
 ): Promise<NormalizedAudio> {
   const wrapped: AudioInput = isAudioInput(input) ? input : { data: input };
-  const { adapter } = options;
+  const { adapter, signal } = options;
+  signal?.throwIfAborted();
   const maxBytes = resolveMaxBytes(options.maxBytes, adapter);
   const data = wrapped.data;
 
@@ -114,7 +117,7 @@ export async function normalizeAudioInput(
     assertWithinLimit(data.byteLength, maxBytes, adapter);
     blob = new Blob([data], { type: mimeType });
   } else if (isReadableStream(data)) {
-    const chunks = await readStreamWithLimit(data, maxBytes, adapter);
+    const chunks = await readStreamWithLimit(data, maxBytes, adapter, signal);
     blob = new Blob(chunks, { type: mimeType });
   } else {
     throw new SpeechConfigurationError(
@@ -199,20 +202,27 @@ async function readStreamWithLimit(
   stream: ReadableStream<unknown>,
   maxBytes: number,
   adapter: string | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<Uint8Array<ArrayBuffer>[]> {
   const reader = stream.getReader();
   const chunks: Uint8Array<ArrayBuffer>[] = [];
   let total = 0;
+  // Cancelling the reader settles any pending read, so an abort cannot hang.
+  const onAbort = () => {
+    reader.cancel(signal?.reason).catch(() => undefined);
+  };
+  signal?.addEventListener('abort', onAbort, { once: true });
 
   try {
     for (;;) {
       const { done, value } = await reader.read();
+      signal?.throwIfAborted();
       if (done) {
         break;
       }
 
-      const chunk = toBytes(value, adapter);
-      total += chunk.byteLength;
+      // Check the size before copying so one oversized chunk is never duplicated.
+      total += chunkByteLength(value, adapter);
       if (total > maxBytes) {
         await reader.cancel().catch(() => undefined);
         throw new SpeechConfigurationError(
@@ -220,31 +230,31 @@ async function readStreamWithLimit(
           adapter,
         );
       }
-      chunks.push(chunk);
+      chunks.push(toBytes(value));
     }
   } finally {
+    signal?.removeEventListener('abort', onAbort);
     reader.releaseLock();
   }
 
   return chunks;
 }
 
-function toBytes(
-  value: unknown,
-  adapter: string | undefined,
-): Uint8Array<ArrayBuffer> {
-  if (value instanceof Uint8Array) {
-    return copyBytes(value);
-  }
-
-  if (value instanceof ArrayBuffer) {
-    return new Uint8Array(value.slice(0));
+function chunkByteLength(value: unknown, adapter: string | undefined): number {
+  if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+    return value.byteLength;
   }
 
   throw new SpeechConfigurationError(
     'Audio stream chunks must be Uint8Array or ArrayBuffer',
     adapter,
   );
+}
+
+function toBytes(value: unknown): Uint8Array<ArrayBuffer> {
+  return value instanceof Uint8Array
+    ? copyBytes(value)
+    : new Uint8Array((value as ArrayBuffer).slice(0));
 }
 
 function copyBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {

@@ -34,6 +34,7 @@ export class StudioServerTranscriber
       mimeType: request.mimeType,
       maxBytes: request.maxBytes,
       adapter: this.type,
+      signal: request.signal,
       deriveExtension: false,
     });
     const form = new FormData();
