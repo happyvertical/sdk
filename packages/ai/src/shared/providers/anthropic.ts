@@ -20,6 +20,8 @@ import type {
   AIMessage,
   AIModel,
   AIResponse,
+  AIThinkingBlock,
+  AIToolCall,
   AnthropicOptions,
   ChatOptions,
   CompletionOptions,
@@ -53,6 +55,7 @@ import {
 import { emitUsage } from './usage';
 
 type AnthropicContentBlock =
+  | AIThinkingBlock
   | { type: 'text'; text: string }
   | {
       type: 'tool_use';
@@ -197,11 +200,9 @@ export class AnthropicProvider implements AIInterface {
         ...this.mapToolParams(options, anthropicMessages),
         stream: false,
       };
-      if ((options.reasoning?.maxTokens || 0) > 0) {
-        requestParams.thinking = {
-          type: 'enabled',
-          budget_tokens: options.reasoning?.maxTokens,
-        };
+      const thinking = this.mapThinking(options, anthropicMessages);
+      if (thinking) {
+        requestParams.thinking = thinking;
       }
 
       // Add response format if specified
@@ -224,7 +225,7 @@ export class AnthropicProvider implements AIInterface {
         .map((block: any) => block.text)
         .join('');
 
-      const toolCalls = response.content
+      const toolCalls: AIToolCall[] = response.content
         .filter((block: any) => block.type === 'tool_use')
         .map((block: any) => ({
           id: block.id,
@@ -234,6 +235,13 @@ export class AnthropicProvider implements AIInterface {
             arguments: JSON.stringify(block.input),
           },
         }));
+
+      // Extended thinking: the replayed tool_use turn must start with these
+      // blocks (signatures intact), so they ride on the first tool call.
+      const thinkingBlocks = extractThinkingBlocks(response.content);
+      if (toolCalls.length > 0 && thinkingBlocks.length > 0) {
+        toolCalls[0].thinkingBlocks = thinkingBlocks;
+      }
 
       const usage: TokenUsage = {
         promptTokens: response.usage.input_tokens,
@@ -430,11 +438,9 @@ export class AnthropicProvider implements AIInterface {
         ...this.mapToolParams(options, anthropicMessages),
         stream: true,
       };
-      if ((options.reasoning?.maxTokens || 0) > 0) {
-        requestParams.thinking = {
-          type: 'enabled',
-          budget_tokens: options.reasoning?.maxTokens,
-        };
+      const thinking = this.mapThinking(options, anthropicMessages);
+      if (thinking) {
+        requestParams.thinking = thinking;
       }
       const stream = await this.client.messages.create(requestParams, {
         signal: controls.signal,
@@ -729,6 +735,11 @@ export class AnthropicProvider implements AIInterface {
           : [];
       if (toolCalls.length > 0) {
         const content: AnthropicContentBlock[] = [];
+        for (const toolCall of toolCalls) {
+          for (const block of toolCall.thinkingBlocks || []) {
+            content.push({ ...block });
+          }
+        }
         if (textContent) {
           content.push({ type: 'text', text: textContent });
         }
@@ -796,6 +807,41 @@ export class AnthropicProvider implements AIInterface {
       })),
       tool_choice: { type: 'none' },
     };
+  }
+
+  /**
+   * Builds the `thinking` request field for `options.reasoning.maxTokens`.
+   *
+   * While thinking is enabled, Anthropic requires the assistant turn of an
+   * in-progress tool loop (the last assistant turn, when it holds `tool_use`)
+   * to start with its thinking blocks. They are replayed from
+   * `AIToolCall.thinkingBlocks`; when that turn has none (the history came
+   * from another provider, a store that dropped the field, or a call made
+   * without thinking), thinking is left off for this request rather than
+   * sending a request Anthropic would reject.
+   */
+  private mapThinking(
+    options: ChatOptions,
+    anthropicMessages: AnthropicMessage[],
+  ): { type: 'enabled'; budget_tokens: number } | undefined {
+    const budget = options.reasoning?.maxTokens || 0;
+    if (budget <= 0) return undefined;
+
+    const lastAssistant = [...anthropicMessages]
+      .reverse()
+      .find((message) => message.role === 'assistant');
+    if (
+      lastAssistant &&
+      Array.isArray(lastAssistant.content) &&
+      lastAssistant.content.some((block) => block.type === 'tool_use')
+    ) {
+      const firstType = lastAssistant.content[0]?.type;
+      if (firstType !== 'thinking' && firstType !== 'redacted_thinking') {
+        return undefined;
+      }
+    }
+
+    return { type: 'enabled', budget_tokens: budget };
   }
 
   private mapTools(options: ChatOptions): Record<string, any>[] | undefined {
@@ -879,4 +925,24 @@ export class AnthropicProvider implements AIInterface {
         : 'Unknown Anthropic error occurred';
     return new AIError(errorMessage, 'UNKNOWN_ERROR', 'anthropic');
   }
+}
+
+/**
+ * Thinking and redacted-thinking blocks from an Anthropic response, copied
+ * with only the fields the API accepts back.
+ */
+function extractThinkingBlocks(content: any[]): AIThinkingBlock[] {
+  const blocks: AIThinkingBlock[] = [];
+  for (const block of content || []) {
+    if (block?.type === 'thinking') {
+      blocks.push({
+        type: 'thinking',
+        thinking: block.thinking,
+        signature: block.signature,
+      });
+    } else if (block?.type === 'redacted_thinking') {
+      blocks.push({ type: 'redacted_thinking', data: block.data });
+    }
+  }
+  return blocks;
 }

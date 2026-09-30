@@ -591,6 +591,14 @@ const followUp = await ai.chat([
 ], { tools });
 ```
 
+Replay `response.toolCalls` as returned, and keep every field if you persist
+the conversation: provider-specific replay data rides on the tool calls.
+Gemini 3 needs `thoughtSignature`, and Anthropic with extended thinking
+(`reasoning.maxTokens`) needs `thinkingBlocks` (the signed thinking that opened
+the tool-calling turn). If an Anthropic tool loop's latest `tool_use` turn has
+no `thinkingBlocks`, that request is sent without extended thinking instead of
+failing.
+
 ## Usage Tracking
 
 Track token usage, costs, and performance across all providers with the `onUsage` callback:

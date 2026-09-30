@@ -254,7 +254,25 @@ export interface AIToolCall {
    * calling). Other providers ignore it.
    */
   thoughtSignature?: string;
+  /**
+   * Anthropic extended-thinking blocks that opened the assistant turn which
+   * requested this call, with their signatures, in their original order.
+   *
+   * Set on the first tool call of a response when extended thinking is
+   * enabled. Anthropic requires a replayed assistant `tool_use` turn to start
+   * with its thinking blocks while thinking is enabled, so replay
+   * `response.toolCalls` unchanged (and persist this field if you store
+   * the conversation). Other providers ignore it.
+   */
+  thinkingBlocks?: AIThinkingBlock[];
 }
+
+/**
+ * An Anthropic extended-thinking content block, kept opaque for replay.
+ */
+export type AIThinkingBlock =
+  | { type: 'thinking'; thinking: string; signature: string }
+  | { type: 'redacted_thinking'; data: string };
 
 /**
  * Options for chat completion requests

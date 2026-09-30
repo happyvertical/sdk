@@ -730,3 +730,142 @@ describe('Ollama tool round trip', () => {
     ]);
   });
 });
+
+describe('Anthropic extended thinking tool loop', () => {
+  function createProvider(create: ReturnType<typeof vi.fn>) {
+    const provider = new AnthropicProvider({
+      type: 'anthropic',
+      apiKey: 'test-key',
+    });
+    (provider as any).client = { messages: { create } };
+    return provider;
+  }
+
+  it('replays thinking blocks with signatures before tool_use', async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce({
+        content: [
+          { type: 'thinking', thinking: 'Need weather.', signature: 'sig-a' },
+          { type: 'redacted_thinking', data: 'opaque' },
+          { type: 'text', text: 'Checking.' },
+          {
+            type: 'tool_use',
+            id: 'toolu_1',
+            name: 'get_weather',
+            input: { city: 'Tokyo' },
+          },
+        ],
+        model: 'claude-sonnet-4-5',
+        stop_reason: 'tool_use',
+        usage: { input_tokens: 10, output_tokens: 5 },
+      })
+      .mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'It is 21C.' }],
+        model: 'claude-sonnet-4-5',
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 20, output_tokens: 5 },
+      });
+    const provider = createProvider(create);
+    const reasoning = { maxTokens: 1024 };
+
+    const first = await provider.chat(question, { tools, reasoning });
+    expect(first.content).toBe('Checking.');
+
+    await provider.chat(continueWithToolResult(first), { tools, reasoning });
+
+    const request = create.mock.calls[1][0];
+    expect(request.thinking).toEqual({ type: 'enabled', budget_tokens: 1024 });
+    expect(request.messages[1]).toEqual({
+      role: 'assistant',
+      content: [
+        { type: 'thinking', thinking: 'Need weather.', signature: 'sig-a' },
+        { type: 'redacted_thinking', data: 'opaque' },
+        { type: 'text', text: 'Checking.' },
+        {
+          type: 'tool_use',
+          id: 'toolu_1',
+          name: 'get_weather',
+          input: { city: 'Tokyo' },
+        },
+      ],
+    });
+  });
+
+  it('does not send thinking blocks to OpenAI-compatible providers', async () => {
+    const create = vi.fn().mockResolvedValue(openAITextResponse());
+    const provider = new OpenAIProvider({ apiKey: 'test-key' });
+    (provider as any).client = { chat: { completions: { create } } };
+
+    await provider.chat(
+      continueWithToolResult({
+        content: '',
+        toolCalls: [
+          {
+            id: 'toolu_1',
+            type: 'function',
+            function: { name: 'get_weather', arguments: '{}' },
+            thinkingBlocks: [
+              { type: 'thinking', thinking: 'hm', signature: 'sig' },
+            ],
+          },
+        ],
+      }),
+      { model: 'gpt-4.1-mini' },
+    );
+
+    const assistant = create.mock.calls[0][0].messages[2];
+    expect(assistant.tool_calls[0]).not.toHaveProperty('thinkingBlocks');
+  });
+
+  it('disables thinking when the replayed tool_use turn has no thinking block', async () => {
+    const text = {
+      content: [{ type: 'text', text: 'It is 21C.' }],
+      model: 'claude-sonnet-4-5',
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    };
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(text)
+      .mockResolvedValueOnce(
+        (async function* () {
+          yield {
+            type: 'content_block_delta',
+            delta: { type: 'text_delta', text: 'ok' },
+          };
+        })(),
+      )
+      .mockResolvedValueOnce(text);
+    const provider = createProvider(create);
+    const withoutThinking = continueWithToolResult({
+      content: '',
+      toolCalls: [
+        {
+          id: 'toolu_1',
+          type: 'function',
+          function: { name: 'get_weather', arguments: '{"city":"Tokyo"}' },
+        },
+      ],
+    });
+
+    await provider.chat(withoutThinking, {
+      tools,
+      reasoning: { maxTokens: 1024 },
+    });
+    for await (const _chunk of provider.stream(withoutThinking, {
+      tools,
+      reasoning: { maxTokens: 1024 },
+    })) {
+      // drain
+    }
+    await provider.chat(question, { tools, reasoning: { maxTokens: 1024 } });
+
+    expect(create.mock.calls[0][0].thinking).toBeUndefined();
+    expect(create.mock.calls[1][0].thinking).toBeUndefined();
+    expect(create.mock.calls[2][0].thinking).toEqual({
+      type: 'enabled',
+      budget_tokens: 1024,
+    });
+  });
+});
