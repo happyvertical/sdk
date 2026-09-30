@@ -990,6 +990,149 @@ describe('Bifrost Provider', () => {
   });
 });
 
+describe.each([
+  {
+    name: 'Bifrost',
+    create: (defaultModel?: string) =>
+      new BifrostProvider({
+        type: 'bifrost',
+        apiKey: 'runtime-key',
+        baseUrl: 'http://localhost:8080/openai',
+        defaultModel,
+      }),
+  },
+  {
+    name: 'LiteLLM',
+    create: (defaultModel?: string) =>
+      new LiteLLMProvider({
+        type: 'litellm',
+        apiKey: 'test-key',
+        baseUrl: 'https://llm.example.com/v1',
+        defaultModel,
+      }),
+  },
+])('$name gateway audio model listing', ({ create }) => {
+  // Audio models are listed first so a naive "first model" pick would select
+  // them; resolution must skip them for every non-audio capability.
+  const gatewayModelIds = [
+    'openai/gpt-4o-transcribe',
+    'openai/gpt-4o-mini-tts',
+    'openai/whisper-1',
+    'openai/tts-1-hd',
+    'elevenlabs/speech-to-text-v1',
+    'openai/text-moderation-latest',
+    'cohere/rerank-v3.5',
+    'openai/gpt-4o-mini',
+    'openai/text-embedding-3-small',
+    'openai/gpt-image-1',
+  ];
+
+  function withModels(
+    provider: BifrostProvider | LiteLLMProvider,
+    ids: string[],
+  ): ReturnType<typeof vi.fn> {
+    const list = vi.fn().mockResolvedValue({ data: ids.map((id) => ({ id })) });
+    (provider as any).client = { models: { list } };
+    return list;
+  }
+
+  it('lists transcription and speech models with distinct capabilities and still filters moderation and rerank', async () => {
+    const provider = create();
+    withModels(provider, gatewayModelIds);
+
+    const models = await provider.getModels();
+    const byId = new Map(models.map((model) => [model.id, model]));
+
+    expect(models.map((model) => model.id)).toEqual([
+      'openai/gpt-4o-transcribe',
+      'openai/gpt-4o-mini-tts',
+      'openai/whisper-1',
+      'openai/tts-1-hd',
+      'elevenlabs/speech-to-text-v1',
+      'openai/gpt-4o-mini',
+      'openai/text-embedding-3-small',
+      'openai/gpt-image-1',
+    ]);
+
+    for (const id of [
+      'openai/gpt-4o-transcribe',
+      'openai/whisper-1',
+      'elevenlabs/speech-to-text-v1',
+    ]) {
+      expect(byId.get(id)).toMatchObject({
+        capabilities: ['transcription'],
+        supportsFunctions: false,
+        supportsVision: false,
+      });
+    }
+
+    for (const id of ['openai/gpt-4o-mini-tts', 'openai/tts-1-hd']) {
+      expect(byId.get(id)).toMatchObject({
+        capabilities: ['speech'],
+        supportsFunctions: false,
+        supportsVision: false,
+      });
+    }
+
+    expect(byId.get('openai/gpt-4o-mini')?.capabilities).toEqual([
+      'text',
+      'chat',
+      'functions',
+      'vision',
+    ]);
+  });
+
+  it.each([
+    ['chat', 'openai/gpt-4o-mini'],
+    ['vision', 'openai/gpt-4o-mini'],
+    ['embeddings', 'openai/text-embedding-3-small'],
+    ['image_generation', 'openai/gpt-image-1'],
+  ])('never resolves %s to a transcription or speech model', async (capability, expected) => {
+    const provider = create();
+    withModels(provider, gatewayModelIds);
+
+    await expect((provider as any).resolveModel(capability)).resolves.toBe(
+      expected,
+    );
+  });
+
+  it.each([
+    'chat',
+    'vision',
+    'embeddings',
+    'image_generation',
+  ])('fails %s resolution when the gateway only lists audio models', async (capability) => {
+    const provider = create();
+    withModels(provider, [
+      'openai/gpt-4o-transcribe',
+      'openai/gpt-4o-mini-tts',
+      'openai/whisper-1',
+      'openai/tts-1',
+    ]);
+
+    await expect((provider as any).resolveModel(capability)).rejects.toThrow(
+      ValidationError,
+    );
+  });
+
+  it('routes default chat to a chat model when audio models are listed first', async () => {
+    const provider = create();
+    const createCompletion = vi
+      .fn()
+      .mockResolvedValue(
+        chatCompletionResponse({ model: 'openai/gpt-4o-mini' }),
+      );
+    withModels(provider, gatewayModelIds);
+    (provider as any).client.chat = {
+      completions: { create: createCompletion },
+    };
+
+    await provider.chat([{ role: 'user', content: 'Hello' }]);
+
+    expect(createCompletion.mock.calls[0][0].model).toBe('openai/gpt-4o-mini');
+  });
+});
+
 describe('Ollama Provider', () => {
   it('should initialize with sensible defaults', () => {
     const provider = new OllamaProvider({

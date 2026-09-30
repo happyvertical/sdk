@@ -64,6 +64,15 @@ const bifrost = await getAI({
   defaultModel: process.env.BIFROST_MODEL,
 });
 
+// LiteLLM and Bifrost getModels() list gateway audio models with their own
+// capabilities: transcription models (whisper, *transcribe*) report
+// ['transcription'] and TTS models (tts, speech) report ['speech']. They are
+// never auto-selected for chat, vision, embeddings, or image generation.
+// Moderation and rerank models stay filtered out of the listing.
+const transcribers = (await bifrost.getModels()).filter((model) =>
+  model.capabilities.includes('transcription'),
+);
+
 // Ollama (local by default)
 const ollama = await getAI({
   type: 'ollama',

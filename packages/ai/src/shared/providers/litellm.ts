@@ -64,8 +64,30 @@ function isImageGenerationModel(modelId: string): boolean {
   );
 }
 
+/**
+ * Speech-to-text models (e.g. `whisper-1`, `gpt-4o-transcribe`). Listed with
+ * the `transcription` capability so gateway consumers can route audio to them;
+ * never eligible for chat, vision, embeddings, or image generation.
+ */
+function isTranscriptionModel(modelId: string): boolean {
+  return /transcrib|whisper|speech[-_ ]?to[-_ ]?text/i.test(modelId);
+}
+
+/**
+ * Text-to-speech models (e.g. `tts-1`, `gpt-4o-mini-tts`). Listed with the
+ * `speech` capability; never eligible for chat, vision, embeddings, or image
+ * generation.
+ */
+function isSpeechModel(modelId: string): boolean {
+  return !isTranscriptionModel(modelId) && /tts|speech/i.test(modelId);
+}
+
+function isAudioModel(modelId: string): boolean {
+  return isTranscriptionModel(modelId) || isSpeechModel(modelId);
+}
+
 function isFilteredLiteLLMModel(modelId: string): boolean {
-  return /moderation|transcrib|whisper|speech|tts|rerank/i.test(modelId);
+  return /moderation|rerank/i.test(modelId);
 }
 
 function inferLiteLLMContextLength(modelId: string): number {
@@ -81,19 +103,28 @@ function inferLiteLLMContextLength(modelId: string): number {
 }
 
 function inferLiteLLMFunctions(modelId: string): boolean {
-  if (isEmbeddingModel(modelId)) return false;
+  if (isEmbeddingModel(modelId) || isAudioModel(modelId)) return false;
   return /gpt|claude|gemini|command|llama|mistral|qwen|deepseek|o1|o3|o4/i.test(
     modelId,
   );
 }
 
 function inferLiteLLMVision(modelId: string): boolean {
+  if (isAudioModel(modelId)) return false;
   return /gpt-4o|gpt-4\.1|vision|claude-3|gemini|pixtral|llava|qwen.*vl|vl-/i.test(
     modelId,
   );
 }
 
 function inferLiteLLMCapabilities(modelId: string): string[] {
+  if (isTranscriptionModel(modelId)) {
+    return ['transcription'];
+  }
+
+  if (isSpeechModel(modelId)) {
+    return ['speech'];
+  }
+
   if (isImageGenerationModel(modelId)) {
     return ['image_generation'];
   }
