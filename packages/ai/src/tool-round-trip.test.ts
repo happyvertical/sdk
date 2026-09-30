@@ -941,3 +941,34 @@ describe('Bedrock final tool-less round', () => {
     expect(request.system).toEqual([{ text: 'You are a weather bot.' }]);
   });
 });
+
+describe('Anthropic orphan tool results', () => {
+  it('sends a tool result whose call was not replayed as plain text', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'done' }],
+      model: 'claude-sonnet-4-5',
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const provider = new AnthropicProvider({
+      type: 'anthropic',
+      apiKey: 'test-key',
+    });
+    (provider as any).client = { messages: { create } };
+
+    await provider.chat(
+      [
+        { role: 'user', content: 'Weather?' },
+        { role: 'assistant', content: 'Checking.' },
+        { role: 'tool', tool_call_id: 'toolu_missing', content: '21' },
+      ],
+      { tools },
+    );
+
+    expect(create.mock.calls[0][0].messages).toEqual([
+      { role: 'user', content: 'Weather?' },
+      { role: 'assistant', content: 'Checking.' },
+      { role: 'user', content: '21' },
+    ]);
+  });
+});

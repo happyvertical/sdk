@@ -684,8 +684,10 @@ export class AnthropicProvider implements AIInterface {
    * results become `tool_result` blocks paired by `tool_call_id`
    * (`tool_use_id`). Consecutive tool results are grouped into one user turn,
    * as Anthropic requires every result for a turn to follow it directly.
-   * A tool result without `tool_call_id` cannot be paired, so it (and any
-   * call it would answer) falls back to plain text as before.
+   * Only answered calls are replayed as `tool_use`, and only results whose
+   * `tool_call_id` matches a replayed call become `tool_result`. A result
+   * without `tool_call_id`, or one answering no replayed call, falls back to
+   * plain text (and a call left unanswered keeps only its text).
    */
   private mapMessagesToAnthropic(messages: AIMessage[]): {
     system?: string;
@@ -699,6 +701,18 @@ export class AnthropicProvider implements AIInterface {
         .filter((message) => message.role === 'tool' && message.tool_call_id)
         .map((message) => message.tool_call_id as string),
     );
+    // Calls replayed as tool_use: those with an answer. Only results for
+    // these ids become tool_result blocks; any other result is an orphan
+    // Anthropic would reject, so it falls back to plain text.
+    const replayedToolUseIds = new Set<string>();
+    for (const message of messages) {
+      if (message.role !== 'assistant') continue;
+      for (const toolCall of message.tool_calls || []) {
+        if (answeredToolCallIds.has(toolCall.id)) {
+          replayedToolUseIds.add(toolCall.id);
+        }
+      }
+    }
 
     for (const message of messages) {
       const textContent = extractTextContent(message.content);
@@ -708,7 +722,11 @@ export class AnthropicProvider implements AIInterface {
         continue;
       }
 
-      if (message.role === 'tool' && message.tool_call_id) {
+      if (
+        message.role === 'tool' &&
+        message.tool_call_id &&
+        replayedToolUseIds.has(message.tool_call_id)
+      ) {
         const block: AnthropicContentBlock = {
           type: 'tool_result',
           tool_use_id: message.tool_call_id,
@@ -784,9 +802,9 @@ export class AnthropicProvider implements AIInterface {
       return { tools, tool_choice: this.mapToolChoice(options.toolChoice) };
     }
 
-    // Every replayed tool_result pairs with a replayed tool_use (unanswered
-    // calls are dropped by mapMessagesToAnthropic), so tool_use names cover
-    // every tool the history references.
+    // mapMessagesToAnthropic emits tool_result only for ids it replayed as
+    // tool_use (orphan results become text), so tool_use names cover every
+    // tool the history references.
     const historyToolNames = new Set<string>();
     for (const message of anthropicMessages) {
       if (!Array.isArray(message.content)) continue;
