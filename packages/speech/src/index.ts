@@ -23,6 +23,13 @@
  */
 
 export {
+  OPENAI_REALTIME_DEFAULT_MODEL,
+  OPENAI_REALTIME_DEFAULT_URL,
+  openAIRealtimeProtocol,
+  parseOpenAIRealtimeEvent,
+  resolveRealtimeUrl,
+} from './adapters/openai-realtime.js';
+export {
   DEFAULT_MAX_AUDIO_BYTES,
   mimeTypeToAudioExtension,
 } from './shared/audio.js';
@@ -38,6 +45,51 @@ export {
   getTranscriber,
   type SpeechFactoryContext,
 } from './shared/factory.js';
+export {
+  audioSecondsForBytes,
+  bytesPerSecond,
+  unwrapRawAudio,
+} from './shared/pcm.js';
+export {
+  type RealtimeConnection,
+  type RealtimeProtocol,
+  type RealtimeProtocolEvent,
+  type RealtimeSessionConfig,
+  type RealtimeSessionInit,
+  RealtimeTranscriptionSession,
+} from './shared/realtime-session.js';
+export {
+  getStreamingTranscriber,
+  isStreamingTranscriberType,
+  STREAMING_TRANSCRIBER_ENV_KEYS,
+  STREAMING_TRANSCRIBER_TYPES,
+  type StreamingFactoryContext,
+  type StreamingTranscriberWrapperOptions,
+  wrapStreamingTranscriber,
+} from './shared/streaming-factory.js';
+export type {
+  GetStreamingTranscriberOptions,
+  OpenAIRealtimeTranscriberOptions,
+  StreamingAudioChunk,
+  StreamingAudioEncoding,
+  StreamingAudioFormat,
+  StreamingClientSecret,
+  StreamingCloseEvent,
+  StreamingFinalEvent,
+  StreamingPartialEvent,
+  StreamingSession,
+  StreamingSessionEventName,
+  StreamingSessionEvents,
+  StreamingSessionListener,
+  StreamingSessionOptions,
+  StreamingSessionSettings,
+  StreamingSessionState,
+  StreamingSpeechEvent,
+  StreamingTranscriber,
+  StreamingTranscriberOptions,
+  StreamingTranscriberType,
+  StreamingTurnDetection,
+} from './shared/streaming-types.js';
 export type {
   AudioBytes,
   AudioInput,
@@ -73,3 +125,10 @@ export type {
   TranscriptSegment,
   WordTiming,
 } from './shared/types.js';
+export {
+  isBrowserRuntime,
+  type SpeechWebSocket,
+  type SpeechWebSocketConstructor,
+  type SpeechWebSocketFactory,
+  type SpeechWebSocketInit,
+} from './shared/websocket.js';

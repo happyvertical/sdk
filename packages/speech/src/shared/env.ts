@@ -198,7 +198,7 @@ export function defaultEnv(): SpeechEnv {
  * Parses a JSON object of header names to string values. The raw value is
  * never echoed in errors because it may carry credentials.
  */
-function parseHeadersEnv(
+export function parseHeadersEnv(
   env: SpeechEnv,
   keys: readonly string[],
 ): Record<string, string> | undefined {

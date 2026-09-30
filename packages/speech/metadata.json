@@ -12,6 +12,7 @@
   "implements": [
     "Studio Server STT",
     "OpenAI-compatible STT",
+    "OpenAI Realtime streaming STT",
     "Studio Server TTS",
     "Qwen3 TTS",
     "OpenAI-compatible TTS"

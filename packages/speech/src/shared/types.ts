@@ -1,4 +1,8 @@
 import type { SpeechRetryOptions } from './retry.js';
+import type {
+  GetStreamingTranscriberOptions,
+  StreamingTranscriberType,
+} from './streaming-types.js';
 import type { SpeechUsage, SpeechUsageCallback } from './usage.js';
 
 export type { SpeechRetryOptions } from './retry.js';
@@ -11,9 +15,14 @@ export type {
 export type SpeechAdapterType =
   | 'studio-server'
   | 'qwen3-tts'
-  | 'openai-compatible';
+  | 'openai-compatible'
+  | StreamingTranscriberType;
 
-export type TranscriberType = 'studio-server' | 'openai-compatible';
+/** Request/response transcribers, including wrapped streaming adapters. */
+export type TranscriberType =
+  | 'studio-server'
+  | 'openai-compatible'
+  | StreamingTranscriberType;
 
 export type SpeechSynthesizerType =
   | 'studio-server'
@@ -22,6 +31,8 @@ export type SpeechSynthesizerType =
 
 export interface SpeechAdapterAvailability {
   transcribers: TranscriberType[];
+  /** Adapters available through `getStreamingTranscriber()`. */
+  streamingTranscribers: StreamingTranscriberType[];
   synthesizers: SpeechSynthesizerType[];
 }
 
@@ -230,8 +241,14 @@ export interface GetTranscriberOptions extends Partial<HttpSpeechOptions> {
   maxBytes?: number;
   /** OpenAI-compatible only. */
   retry?: SpeechRetryOptions | false;
-  /** OpenAI-compatible only. */
+  /** OpenAI-compatible and streaming types. */
   onUsage?: SpeechUsageCallback;
+  /**
+   * Streaming types only (e.g. `openai-realtime`): extra adapter settings such
+   * as `turnDetection`, `WebSocket`, or `connectTimeoutMs`. Top-level fields
+   * win over these.
+   */
+  streaming?: Omit<GetStreamingTranscriberOptions, 'type'>;
 }
 
 export interface GetSpeechSynthesizerOptions

@@ -1300,6 +1300,7 @@
       "implements": [
         "Studio Server STT",
         "OpenAI-compatible STT",
+        "OpenAI Realtime streaming STT",
         "Studio Server TTS",
         "Qwen3 TTS",
         "OpenAI-compatible TTS"
@@ -1899,6 +1900,11 @@
       "type": "implements",
       "from": "@happyvertical/speech",
       "to": "OpenAI-compatible STT"
+    },
+    {
+      "type": "implements",
+      "from": "@happyvertical/speech",
+      "to": "OpenAI Realtime streaming STT"
     },
     {
       "type": "implements",
