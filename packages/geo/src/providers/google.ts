@@ -34,6 +34,7 @@ export class GoogleMapsProvider implements GeoProvider {
   private maxResults: number;
   private cache: CacheAdapter | null = null;
   private timezoneLookup: 'offline' | 'api' | 'none';
+  private warnedTimezoneFallback = false;
 
   constructor(options: GoogleMapsOptions) {
     this.client = new Client({});
@@ -75,29 +76,35 @@ export class GoogleMapsProvider implements GeoProvider {
 
   /**
    * Fills `Location.timezone` according to the configured mode. In `'api'`
-   * mode the Google Time Zone API is called once per distinct coordinate;
-   * a failed or non-OK call falls back to the offline table for that point.
+   * mode the Google Time Zone API is called once per distinct coordinate,
+   * concurrently; a failed or non-OK call falls back to the offline table
+   * for that point.
    */
   private async applyTimezones(locations: Location[]): Promise<Location[]> {
     if (this.timezoneLookup === 'none') return locations;
 
     const byCoordinate = new Map<string, Promise<string | undefined>>();
-    for (const location of locations) {
-      if (location.timezone) continue;
+    const pending = locations.map((location) => {
+      if (location.timezone) return Promise.resolve(location.timezone);
       const key = `${location.latitude},${location.longitude}`;
-      let pending = byCoordinate.get(key);
-      if (!pending) {
-        pending =
+      let lookup = byCoordinate.get(key);
+      if (!lookup) {
+        lookup =
           this.timezoneLookup === 'api'
             ? this.fetchTimezone(location.latitude, location.longitude)
             : Promise.resolve(
                 timezoneForCoordinates(location.latitude, location.longitude),
               );
-        byCoordinate.set(key, pending);
+        byCoordinate.set(key, lookup);
       }
-      const timezone = await pending;
+      return lookup;
+    });
+
+    const timezones = await Promise.all(pending);
+    locations.forEach((location, index) => {
+      const timezone = timezones[index];
       if (timezone) location.timezone = timezone;
-    }
+    });
     return locations;
   }
 
@@ -122,11 +129,27 @@ export class GoogleMapsProvider implements GeoProvider {
       if (response.data.status === 'OK' && response.data.timeZoneId) {
         return response.data.timeZoneId;
       }
+      this.warnTimezoneFallback(`status ${response.data.status}`);
     } catch {
       // Fall through to the offline table: a missing Time Zone API
-      // entitlement must not fail an otherwise successful geocode.
+      // entitlement must not fail an otherwise successful geocode. The error
+      // is not logged: client errors can carry the request URL and key.
+      this.warnTimezoneFallback('request failed');
     }
     return timezoneForCoordinates(latitude, longitude);
+  }
+
+  /**
+   * Warns once per adapter that Time Zone API lookups are falling back to
+   * the offline table. Logs only a short reason, never the error, request,
+   * or key.
+   */
+  private warnTimezoneFallback(reason: string): void {
+    if (this.warnedTimezoneFallback) return;
+    this.warnedTimezoneFallback = true;
+    console.warn(
+      `@happyvertical/geo: Google Time Zone API lookup failed (${reason}); using the offline time zone table. Enable the Time Zone API for this key or use timezoneLookup: 'offline'.`,
+    );
   }
 
   /**

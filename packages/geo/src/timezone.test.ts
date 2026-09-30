@@ -230,6 +230,79 @@ describe('Google provider timezone', () => {
     expect(location.timezone).toBe('America/Edmonton');
   });
 
+  const geocodeTwoCities = {
+    data: {
+      status: 'OK',
+      results: [
+        geocodeEdmonton.data.results[0],
+        {
+          place_id: 'g-par',
+          formatted_address: 'Paris, France',
+          types: ['locality'],
+          geometry: { location: { lat: 48.8584, lng: 2.2945 } },
+          address_components: [
+            { long_name: 'France', short_name: 'FR', types: ['country'] },
+          ],
+        },
+      ],
+    },
+  };
+
+  it('runs Time Zone API lookups concurrently', async () => {
+    googleClient.geocode.mockResolvedValue(geocodeTwoCities);
+    const resolvers: Array<(value: unknown) => void> = [];
+    googleClient.timezone.mockImplementation(
+      () => new Promise((resolve) => resolvers.push(resolve)),
+    );
+    const adapter = await getGeoAdapter({
+      provider: 'google',
+      apiKey: 'k',
+      timezoneLookup: 'api',
+    });
+
+    const pending = adapter.lookup('Two cities tz-g-5');
+    await vi.waitFor(() => {
+      expect(googleClient.timezone).toHaveBeenCalledTimes(2);
+    });
+    resolvers[0]({ data: { status: 'OK', timeZoneId: 'America/Edmonton' } });
+    resolvers[1]({ data: { status: 'OK', timeZoneId: 'Europe/Paris' } });
+
+    const locations = await pending;
+    expect(locations.map((location) => location.timezone)).toEqual([
+      'America/Edmonton',
+      'Europe/Paris',
+    ]);
+  });
+
+  it('warns once, without secrets, when falling back to the offline table', async () => {
+    googleClient.geocode.mockResolvedValue(geocodeTwoCities);
+    googleClient.timezone.mockRejectedValue(
+      new Error('GET https://maps.googleapis.com/...?key=secret-key failed'),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const adapter = await getGeoAdapter({
+        provider: 'google',
+        apiKey: 'secret-key',
+        timezoneLookup: 'api',
+      });
+      const locations = await adapter.lookup('Two cities tz-g-6');
+      await adapter.lookup('Two cities tz-g-7');
+
+      expect(locations.map((location) => location.timezone)).toEqual([
+        'America/Edmonton',
+        'Europe/Paris',
+      ]);
+      const fallbackWarnings = warn.mock.calls.filter((args) =>
+        String(args[0]).includes('Time Zone API'),
+      );
+      expect(fallbackWarnings).toHaveLength(1);
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('secret-key');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("leaves timezone unset with timezoneLookup: 'none'", async () => {
     const adapter = await getGeoAdapter({
       provider: 'google',

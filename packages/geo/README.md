@@ -146,8 +146,9 @@ table (CC0-1.0, ~90 KB, no network requests); it can pick a neighbouring zone
 within a few kilometres of a zone border. With the Google provider,
 `timezoneLookup: 'api'` asks the Google Time Zone API instead (enable it for
 the key; billed per request; one call per distinct coordinate; returns CLDR
-canonical IDs such as `Asia/Calcutta`) and falls back to the offline table if
-the call fails. `'none'` leaves `timezone` unset. The offline lookup is also
+canonical IDs such as `Asia/Calcutta`; distinct coordinates are looked up
+concurrently) and falls back to the offline table if the call fails, logging
+one warning per adapter. `'none'` leaves `timezone` unset. The offline lookup is also
 exported as `timezoneForCoordinates(latitude, longitude)`.
 
 ### `GeoAdapter` Interface
