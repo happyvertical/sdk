@@ -610,6 +610,10 @@ definition for each tool the history references. Anthropic sends
 keeps the tools, omits `toolChoice`, and adds a system instruction not to call
 tools (an instruction, not a guarantee; check `finishReason`).
 
+`stream()` yields text only and never returns tool calls, so run tool-calling
+rounds with `chat()`. Anthropic streams ignore `tools`/`toolChoice` and declare
+tools only when the replayed history needs them, with `tool_choice` none.
+
 ## Usage Tracking
 
 Track token usage, costs, and performance across all providers with the `onUsage` callback:

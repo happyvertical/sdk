@@ -1081,3 +1081,63 @@ describe('Gemini tool history replay', () => {
     expect(parts[0]).not.toHaveProperty('thoughtSignature');
   });
 });
+
+describe('Anthropic stream tool declarations', () => {
+  function streamCreate() {
+    return vi.fn().mockImplementation(async () =>
+      (async function* () {
+        yield {
+          type: 'content_block_delta',
+          delta: { type: 'text_delta', text: 'ok' },
+        };
+      })(),
+    );
+  }
+
+  async function drain(iterable: AsyncIterable<string>) {
+    for await (const _chunk of iterable) {
+      // drain
+    }
+  }
+
+  it('declares no tools on a stream whose history has no tool calls', async () => {
+    const create = streamCreate();
+    const provider = new AnthropicProvider({
+      type: 'anthropic',
+      apiKey: 'test-key',
+    });
+    (provider as any).client = { messages: { create } };
+
+    await drain(provider.stream(question, { tools }));
+
+    expect(create.mock.calls[0][0].tools).toBeUndefined();
+    expect(create.mock.calls[0][0].tool_choice).toBeUndefined();
+  });
+
+  it('declares history tools with tool_choice none even when tools are passed', async () => {
+    const create = streamCreate();
+    const provider = new AnthropicProvider({
+      type: 'anthropic',
+      apiKey: 'test-key',
+    });
+    (provider as any).client = { messages: { create } };
+
+    await drain(
+      provider.stream(
+        continueWithToolResult({
+          content: '',
+          toolCalls: [
+            {
+              id: 'toolu_1',
+              type: 'function',
+              function: { name: 'get_weather', arguments: '{}' },
+            },
+          ],
+        }),
+        { tools },
+      ),
+    );
+
+    expect(create.mock.calls[0][0].tool_choice).toEqual({ type: 'none' });
+  });
+});

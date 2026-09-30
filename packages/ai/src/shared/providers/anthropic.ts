@@ -407,6 +407,15 @@ export class AnthropicProvider implements AIInterface {
     );
   }
 
+  /**
+   * Streams a chat completion as text chunks.
+   *
+   * Streams yield text only and never surface tool calls, so `options.tools`
+   * and `options.toolChoice` are ignored: tools are declared only when the
+   * replayed history contains `tool_use` blocks (Anthropic requires it), with
+   * `tool_choice: { type: 'none' }`. Use `chat()` for rounds that may call
+   * tools.
+   */
   async *stream(
     messages: AIMessage[],
     options: ChatOptions = {},
@@ -435,7 +444,10 @@ export class AnthropicProvider implements AIInterface {
             ? [options.stop]
             : undefined,
         system: system || undefined,
-        ...this.mapToolParams(options, anthropicMessages),
+        // stream() yields text only, so a tool call would be lost: declare
+        // tools only when the replayed history requires it, with
+        // tool_choice none.
+        ...this.mapHistoryToolParams(anthropicMessages),
         stream: true,
       };
       const thinking = this.mapThinking(options, anthropicMessages);
@@ -801,7 +813,19 @@ export class AnthropicProvider implements AIInterface {
     if (tools) {
       return { tools, tool_choice: this.mapToolChoice(options.toolChoice) };
     }
+    return this.mapHistoryToolParams(anthropicMessages);
+  }
 
+  /**
+   * Declares a minimal definition for each tool the replayed history
+   * references, with `tool_choice: { type: 'none' }`, or nothing when the
+   * history has no `tool_use` blocks. Used for tool-less rounds and for
+   * every stream (streams never yield tool calls).
+   */
+  private mapHistoryToolParams(anthropicMessages: AnthropicMessage[]): {
+    tools?: Record<string, any>[];
+    tool_choice?: Record<string, any>;
+  } {
     // mapMessagesToAnthropic emits tool_result only for ids it replayed as
     // tool_use (orphan results become text), so tool_use names cover every
     // tool the history references.
