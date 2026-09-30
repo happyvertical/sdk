@@ -83,6 +83,25 @@ interface GeminiContent {
 const DEFAULT_VEO_MODEL = 'veo-3.1-generate-preview';
 
 /**
+ * Placeholder thought signatures Google documents for Gemini 3
+ * `functionCall` parts that have no real signature (history transferred from
+ * another model, or injected calls). They bypass strict signature validation
+ * and degrade reasoning quality, so real signatures are always preferred.
+ *
+ * - Gemini API: https://ai.google.dev/gemini-api/docs/generate-content/gemini-3
+ *   ("Migrating from other models")
+ * - Vertex AI: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/thought-signatures
+ */
+const GEMINI_API_PLACEHOLDER_THOUGHT_SIGNATURE =
+  'context_engineering_is_the_way_to_go';
+const VERTEX_PLACEHOLDER_THOUGHT_SIGNATURE = 'skip_thought_signature_validator';
+
+/** Gemini 3 model ids (for example `gemini-3-flash-preview`). */
+function isGemini3Model(model: string): boolean {
+  return /(^|\/)gemini-3([.-]|$)/.test(model);
+}
+
+/**
  * Type-only reference to the real `GenerateVideosOperation` class. The
  * `@google/genai` SDK's `operations.getVideosOperation` calls
  * `operation._fromAPIResponse(...)`, an instance method — passing a plain
@@ -185,7 +204,7 @@ export class GeminiProvider implements AIInterface {
       controls = prepareRequestControls(this.options, options);
       const requestConfig: Record<string, any> = {
         model,
-        ...this.buildContentsRequest(messages, options, controls),
+        ...this.buildContentsRequest(messages, options, controls, model),
       };
 
       // Call new SDK API: ai.models.generateContent()
@@ -1108,7 +1127,7 @@ export class GeminiProvider implements AIInterface {
       controls = prepareRequestControls(this.options, options);
       const stream = await this.client.models.generateContentStream({
         model,
-        ...this.buildContentsRequest(messages, options, controls),
+        ...this.buildContentsRequest(messages, options, controls, model),
       });
 
       let usage: TokenUsage | undefined;
@@ -1413,14 +1432,17 @@ export class GeminiProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions,
     controls: PreparedRequestControls,
+    model?: string,
   ): { contents: string | GeminiContent[]; config: Record<string, any> } {
     const config = this.buildGenerateContentConfig(options, controls);
     if (!hasToolTraffic(messages)) {
       return { contents: this.messagesToGeminiFormat(messages), config };
     }
 
-    const { systemInstruction, contents } =
-      this.messagesToGeminiContents(messages);
+    const { systemInstruction, contents } = this.messagesToGeminiContents(
+      messages,
+      model,
+    );
     if (systemInstruction) {
       config.systemInstruction = systemInstruction;
     }
@@ -1434,12 +1456,39 @@ export class GeminiProvider implements AIInterface {
    * recorded thought signature); `role: 'tool'` results become
    * `functionResponse` parts named after the call their `tool_call_id`
    * answers. Consecutive results share one user turn.
+   *
+   * Only answered calls are replayed: a `functionCall` without a matching
+   * `functionResponse` is rejected. A call counts as answered when a result
+   * carries its id, or (legacy results without `tool_call_id`) its name.
+   *
+   * Gemini 3 strictly validates the thought signature on the first
+   * `functionCall` of each model step and returns 400 when it is missing.
+   * Consumers should persist `AIToolCall.thoughtSignature` with their
+   * history; when a Gemini 3 step has none (history from another model or
+   * a store that dropped it), the first call gets Google's documented
+   * placeholder signature, which skips validation at some quality cost.
    */
-  private messagesToGeminiContents(messages: AIMessage[]): {
+  private messagesToGeminiContents(
+    messages: AIMessage[],
+    model?: string,
+  ): {
     systemInstruction?: string;
     contents: GeminiContent[];
   } {
     const toolCallNames = indexToolCallNames(messages);
+    const answeredIds = new Set<string>();
+    const answeredLegacyNames = new Set<string>();
+    for (const message of messages) {
+      if (message.role !== 'tool' && message.role !== 'function') continue;
+      if (message.tool_call_id) answeredIds.add(message.tool_call_id);
+      else if (message.name) answeredLegacyNames.add(message.name);
+    }
+    const placeholderSignature =
+      model && isGemini3Model(model)
+        ? this.options.projectId && this.options.location
+          ? VERTEX_PLACEHOLDER_THOUGHT_SIGNATURE
+          : GEMINI_API_PLACEHOLDER_THOUGHT_SIGNATURE
+        : undefined;
     const contents: GeminiContent[] = [];
     let systemInstruction: string | undefined;
 
@@ -1478,17 +1527,24 @@ export class GeminiProvider implements AIInterface {
 
       const parts: GeminiPart[] = textContent ? [{ text: textContent }] : [];
       if (message.role === 'assistant') {
-        for (const toolCall of message.tool_calls || []) {
+        const answered = (message.tool_calls || []).filter(
+          (toolCall) =>
+            answeredIds.has(toolCall.id) ||
+            answeredLegacyNames.has(toolCall.function.name),
+        );
+        const signed = answered.some((toolCall) => toolCall.thoughtSignature);
+        answered.forEach((toolCall, index) => {
+          const thoughtSignature =
+            toolCall.thoughtSignature ||
+            (index === 0 && !signed ? placeholderSignature : undefined);
           parts.push({
             functionCall: {
               name: toolCall.function.name,
               args: parseToolArguments(toolCall.function.arguments),
             },
-            ...(toolCall.thoughtSignature
-              ? { thoughtSignature: toolCall.thoughtSignature }
-              : {}),
+            ...(thoughtSignature ? { thoughtSignature } : {}),
           });
-        }
+        });
       }
       if (parts.length === 0) continue;
 

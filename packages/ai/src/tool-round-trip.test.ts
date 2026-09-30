@@ -972,3 +972,112 @@ describe('Anthropic orphan tool results', () => {
     ]);
   });
 });
+
+describe('Gemini tool history replay', () => {
+  function createProvider(options: Record<string, unknown> = {}) {
+    const generateContent = vi.fn().mockResolvedValue({
+      text: 'ok',
+      candidates: [{ content: { parts: [{ text: 'ok' }] } }],
+    });
+    const provider = new GeminiProvider({
+      type: 'gemini',
+      apiKey: 'test-key',
+      ...options,
+    } as any);
+    (provider as any).client = { models: { generateContent } };
+    return { provider, generateContent };
+  }
+
+  const parallelCalls: AIMessage[] = [
+    { role: 'user', content: 'Tokyo and Paris?' },
+    {
+      role: 'assistant',
+      content: '',
+      tool_calls: [
+        {
+          id: 'call_a',
+          type: 'function',
+          function: { name: 'get_weather', arguments: '{"city":"Tokyo"}' },
+        },
+        {
+          id: 'call_b',
+          type: 'function',
+          function: { name: 'get_weather', arguments: '{"city":"Paris"}' },
+        },
+      ],
+    },
+    { role: 'tool', tool_call_id: 'call_a', content: '{"tempC":21}' },
+    { role: 'tool', tool_call_id: 'call_b', content: '{"tempC":18}' },
+  ];
+
+  it('drops function calls that have no result', async () => {
+    const { provider, generateContent } = createProvider();
+
+    await provider.chat([
+      { role: 'user', content: 'Tokyo and Paris?' },
+      {
+        role: 'assistant',
+        content: 'Checking.',
+        tool_calls: [
+          {
+            id: 'call_a',
+            type: 'function',
+            function: { name: 'get_weather', arguments: '{"city":"Tokyo"}' },
+            thoughtSignature: 'sig-1',
+          },
+          {
+            id: 'call_unanswered',
+            type: 'function',
+            function: { name: 'get_time', arguments: '{}' },
+          },
+        ],
+      },
+      { role: 'tool', tool_call_id: 'call_a', content: '{"tempC":21}' },
+    ]);
+
+    const modelTurn = generateContent.mock.calls[0][0].contents[1];
+    expect(modelTurn).toEqual({
+      role: 'model',
+      parts: [
+        { text: 'Checking.' },
+        {
+          functionCall: { name: 'get_weather', args: { city: 'Tokyo' } },
+          thoughtSignature: 'sig-1',
+        },
+      ],
+    });
+  });
+
+  it('uses the documented placeholder signature for Gemini 3 calls without one', async () => {
+    const { provider, generateContent } = createProvider();
+
+    await provider.chat(parallelCalls, { model: 'gemini-3-flash-preview' });
+
+    const parts = generateContent.mock.calls[0][0].contents[1].parts;
+    expect(parts[0].thoughtSignature).toBe(
+      'context_engineering_is_the_way_to_go',
+    );
+    expect(parts[1]).not.toHaveProperty('thoughtSignature');
+  });
+
+  it('uses the Vertex AI placeholder signature in Vertex mode', async () => {
+    const { provider, generateContent } = createProvider({
+      projectId: 'demo-project',
+      location: 'us-central1',
+    });
+
+    await provider.chat(parallelCalls, { model: 'gemini-3-pro-preview' });
+
+    const parts = generateContent.mock.calls[0][0].contents[1].parts;
+    expect(parts[0].thoughtSignature).toBe('skip_thought_signature_validator');
+  });
+
+  it('adds no placeholder signature for pre-Gemini 3 models', async () => {
+    const { provider, generateContent } = createProvider();
+
+    await provider.chat(parallelCalls, { model: 'gemini-2.5-flash' });
+
+    const parts = generateContent.mock.calls[0][0].contents[1].parts;
+    expect(parts[0]).not.toHaveProperty('thoughtSignature');
+  });
+});

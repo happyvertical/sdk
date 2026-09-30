@@ -598,6 +598,9 @@ Gemini 3 needs `thoughtSignature`, and Anthropic with extended thinking
 the tool-calling turn). If an Anthropic tool loop's latest `tool_use` turn has
 no `thinkingBlocks`, that request is sent without extended thinking instead of
 failing.
+Gemini replays only calls that have a result, and when a Gemini 3 step has no
+`thoughtSignature` it sends Google's documented placeholder signature, which
+avoids the 400 but lowers reasoning quality, so persist the real one.
 
 A loop's final round usually asks for a plain answer (`toolChoice: 'none'`,
 often with no `tools`) while replaying the tool history. Anthropic and Bedrock
