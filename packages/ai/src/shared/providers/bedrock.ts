@@ -52,6 +52,13 @@ const BEDROCK_TEXT_EMBEDDING_MODEL = 'amazon.titan-embed-text-v2:0';
 const BEDROCK_IMAGE_EMBEDDING_MODEL = 'amazon.titan-embed-image-v1';
 const BEDROCK_IMAGE_GENERATION_MODEL = 'amazon.titan-image-generator-v2:0';
 
+/**
+ * System instruction standing in for a "none" tool choice, which Converse
+ * lacks, when tools must still be declared (see `mapToolConfig`).
+ */
+const NO_TOOL_CALLS_INSTRUCTION =
+  'Do not call any tools in this response. Answer in text using the information already in the conversation.';
+
 export class BedrockProvider implements AIInterface {
   private options: BedrockOptions;
   private client: any; // Will be BedrockRuntimeClient instance from @aws-sdk/client-bedrock-runtime
@@ -793,15 +800,18 @@ export class BedrockProvider implements AIInterface {
       messages,
       signal,
     );
-    const systemPrompt =
+    const toolConfig = this.mapToolConfig(options, bedrockMessages);
+    const systemPrompt = [
+      system,
       options.responseFormat?.type === 'json_object'
-        ? [
-            system,
-            'Respond with valid JSON only. Do not include explanatory text outside the JSON object.',
-          ]
-            .filter(Boolean)
-            .join('\n\n')
-        : system;
+        ? 'Respond with valid JSON only. Do not include explanatory text outside the JSON object.'
+        : undefined,
+      toolConfig && (options.toolChoice === 'none' || !options.tools?.length)
+        ? NO_TOOL_CALLS_INSTRUCTION
+        : undefined,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
     const inferenceConfig = Object.fromEntries(
       Object.entries({
@@ -831,7 +841,6 @@ export class BedrockProvider implements AIInterface {
       };
     }
 
-    const toolConfig = this.mapToolConfig(options);
     if (toolConfig) {
       request.toolConfig = toolConfig;
     }
@@ -976,28 +985,61 @@ export class BedrockProvider implements AIInterface {
     }
   }
 
-  private mapToolConfig(options: ChatOptions): Record<string, any> | undefined {
-    if (!options.tools || options.tools.length === 0) {
-      return undefined;
+  /**
+   * Builds the Converse `toolConfig`.
+   *
+   * Converse rejects a request whose history contains `toolUse` or
+   * `toolResult` blocks unless `toolConfig` is present, and it has no "none"
+   * tool choice. So:
+   * - declared tools are always sent; `toolChoice: 'none'` omits the
+   *   `toolChoice` field and the caller adds {@link NO_TOOL_CALLS_INSTRUCTION}
+   *   to the system prompt (an instruction, not a hard guarantee);
+   * - with no declared tools, a history that uses tools (a tool loop's final,
+   *   tool-less round) gets a minimal spec for each tool it references, so
+   *   the request is valid, again with the no-tool-calls instruction.
+   */
+  private mapToolConfig(
+    options: ChatOptions,
+    bedrockMessages: Array<{ role: 'user' | 'assistant'; content: any[] }>,
+  ): Record<string, any> | undefined {
+    if (options.tools && options.tools.length > 0) {
+      const toolChoice =
+        options.toolChoice && options.toolChoice !== 'none'
+          ? this.mapToolChoice(options.toolChoice)
+          : undefined;
+      return {
+        tools: options.tools.map((tool) => ({
+          toolSpec: {
+            name: tool.function.name,
+            description: tool.function.description || '',
+            inputSchema: {
+              json: tool.function.parameters || { type: 'object' },
+            },
+          },
+        })),
+        ...(toolChoice && { toolChoice }),
+      };
     }
 
-    if (options.toolChoice === 'none') {
+    const historyToolNames = new Set<string>();
+    for (const message of bedrockMessages) {
+      for (const block of message.content) {
+        if (block.toolUse?.name) historyToolNames.add(block.toolUse.name);
+      }
+    }
+    if (historyToolNames.size === 0) {
       return undefined;
     }
 
     return {
-      tools: options.tools.map((tool) => ({
+      tools: [...historyToolNames].map((name) => ({
         toolSpec: {
-          name: tool.function.name,
-          description: tool.function.description || '',
-          inputSchema: {
-            json: tool.function.parameters || { type: 'object' },
-          },
+          name,
+          description:
+            'Used earlier in this conversation; not available for this turn.',
+          inputSchema: { json: { type: 'object' } },
         },
       })),
-      ...(options.toolChoice && {
-        toolChoice: this.mapToolChoice(options.toolChoice),
-      }),
     };
   }
 

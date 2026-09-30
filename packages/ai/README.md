@@ -599,6 +599,14 @@ the tool-calling turn). If an Anthropic tool loop's latest `tool_use` turn has
 no `thinkingBlocks`, that request is sent without extended thinking instead of
 failing.
 
+A loop's final round usually asks for a plain answer (`toolChoice: 'none'`,
+often with no `tools`) while replaying the tool history. Anthropic and Bedrock
+reject tool history without declared tools, so both declare a minimal
+definition for each tool the history references. Anthropic sends
+`tool_choice: { type: 'none' }`; Bedrock Converse has no "none" choice, so it
+keeps the tools, omits `toolChoice`, and adds a system instruction not to call
+tools (an instruction, not a guarantee; check `finishReason`).
+
 ## Usage Tracking
 
 Track token usage, costs, and performance across all providers with the `onUsage` callback:

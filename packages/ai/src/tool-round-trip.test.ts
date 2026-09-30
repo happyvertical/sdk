@@ -869,3 +869,75 @@ describe('Anthropic extended thinking tool loop', () => {
     });
   });
 });
+
+describe('Bedrock final tool-less round', () => {
+  function createProvider(converse: ReturnType<typeof vi.fn>) {
+    const provider = new BedrockProvider({
+      type: 'bedrock',
+      region: 'us-east-1',
+    });
+    (provider as any).client = { converse };
+    return provider;
+  }
+
+  const history = continueWithToolResult({
+    content: '',
+    toolCalls: [
+      {
+        id: 'tooluse_1',
+        type: 'function',
+        function: { name: 'get_weather', arguments: '{"city":"Tokyo"}' },
+      },
+    ],
+  });
+  const textResponse = {
+    output: { message: { content: [{ text: 'It is 21C.' }] } },
+    stopReason: 'end_turn',
+  };
+
+  it('declares history tools when the final round sends no tools', async () => {
+    const converse = vi.fn().mockResolvedValue(textResponse);
+    const provider = createProvider(converse);
+
+    await provider.chat(history, { toolChoice: 'none' });
+
+    const request = converse.mock.calls[0][0];
+    expect(request.toolConfig).toEqual({
+      tools: [
+        {
+          toolSpec: {
+            name: 'get_weather',
+            description:
+              'Used earlier in this conversation; not available for this turn.',
+            inputSchema: { json: { type: 'object' } },
+          },
+        },
+      ],
+    });
+    expect(request.system[0].text).toContain('Do not call any tools');
+  });
+
+  it('keeps declared tools for toolChoice none without a toolChoice field', async () => {
+    const converse = vi.fn().mockResolvedValue(textResponse);
+    const provider = createProvider(converse);
+
+    await provider.chat(history, { tools, toolChoice: 'none' });
+
+    const request = converse.mock.calls[0][0];
+    expect(request.toolConfig.tools).toHaveLength(1);
+    expect(request.toolConfig.tools[0].toolSpec.name).toBe('get_weather');
+    expect(request.toolConfig).not.toHaveProperty('toolChoice');
+    expect(request.system[0].text).toContain('Do not call any tools');
+  });
+
+  it('sends no toolConfig for a plain conversation without tools', async () => {
+    const converse = vi.fn().mockResolvedValue(textResponse);
+    const provider = createProvider(converse);
+
+    await provider.chat(question, { toolChoice: 'none' });
+
+    const request = converse.mock.calls[0][0];
+    expect(request.toolConfig).toBeUndefined();
+    expect(request.system).toEqual([{ text: 'You are a weather bot.' }]);
+  });
+});
