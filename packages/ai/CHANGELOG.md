@@ -1,5 +1,13 @@
 # @happyvertical/ai
 
+## 0.96.1
+
+### Patch Changes
+
+- 016ffc3: Accept bounded hundredth-rounded TypeSafe decision distributions and normalize
+  them to unit mass.
+  - @happyvertical/utils@0.96.1
+
 ## 0.96.0
 
 ### Patch Changes
