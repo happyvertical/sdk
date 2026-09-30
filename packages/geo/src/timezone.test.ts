@@ -313,3 +313,83 @@ describe('Google provider timezone', () => {
     expect(location.timezone).toBeUndefined();
   });
 });
+
+describe('timezoneLookup validation', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify([
+              {
+                place_id: 1,
+                licence: '',
+                osm_type: 'relation',
+                osm_id: 1,
+                lat: '53.5461',
+                lon: '-113.4938',
+                display_name: 'Edmonton, Alberta, Canada',
+                address: { city: 'Edmonton', country_code: 'ca' },
+                type: 'city',
+                addresstype: 'city',
+              },
+            ]),
+          ),
+      ),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('rejects an unknown mode with the accepted values', async () => {
+    await expect(
+      getGeoAdapter({
+        provider: 'openstreetmap',
+        timezoneLookup: 'offlne' as any,
+      }),
+    ).rejects.toThrow(/timezoneLookup.*'offline', 'api', or 'none'/);
+    await expect(
+      getGeoAdapter({
+        provider: 'google',
+        apiKey: 'k',
+        timezoneLookup: 'API please' as any,
+      }),
+    ).rejects.toThrow(/timezoneLookup/);
+  });
+
+  it('rejects an unknown mode from HAVE_GEO_TIMEZONE_LOOKUP', async () => {
+    vi.stubEnv('HAVE_GEO_TIMEZONE_LOOKUP', 'sometimes');
+    await expect(
+      getGeoAdapter({ provider: 'openstreetmap', rateLimitDelay: 1 }),
+    ).rejects.toThrow(/HAVE_GEO_TIMEZONE_LOOKUP|timezoneLookup/);
+  });
+
+  it("warns once and uses the offline table for OpenStreetMap with 'api'", async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const first = await getGeoAdapter({
+        provider: 'openstreetmap',
+        rateLimitDelay: 1,
+        timezoneLookup: 'api' as any,
+      });
+      await getGeoAdapter({
+        provider: 'openstreetmap',
+        rateLimitDelay: 1,
+        timezoneLookup: 'api' as any,
+      });
+      const [location] = await first.lookup('Edmonton tz-osm-api');
+
+      expect(location.timezone).toBe('America/Edmonton');
+      const apiWarnings = warn.mock.calls.filter((args) =>
+        String(args[0]).includes("timezoneLookup: 'api'"),
+      );
+      expect(apiWarnings).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

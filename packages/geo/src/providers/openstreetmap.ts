@@ -5,6 +5,7 @@
 import type { CacheAdapter } from '@happyvertical/cache';
 import { getCache } from '@happyvertical/cache';
 import { withOfflineTimezones } from '../shared/timezone';
+import { resolveTimezoneLookup } from '../shared/timezone-mode';
 import type {
   GeoProvider,
   Location,
@@ -109,7 +110,10 @@ export class OpenStreetMapProvider implements GeoProvider {
     this.rateLimitDelay = options.rateLimitDelay || 1000; // 1 second default
     this.timeout = options.timeout || 10000;
     this.maxResults = options.maxResults || 10;
-    this.timezoneLookup = options.timezoneLookup ?? 'offline';
+    this.timezoneLookup = resolveTimezoneLookup(
+      options.timezoneLookup,
+      'openstreetmap',
+    );
 
     // Initialize memory cache asynchronously
     this.initCache();

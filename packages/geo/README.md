@@ -148,7 +148,10 @@ within a few kilometres of a zone border. With the Google provider,
 the key; billed per request; one call per distinct coordinate; returns CLDR
 canonical IDs such as `Asia/Calcutta`; distinct coordinates are looked up
 concurrently) and falls back to the offline table if the call fails, logging
-one warning per adapter. `'none'` leaves `timezone` unset. The offline lookup is also
+one warning per adapter. `'none'` leaves `timezone` unset. Values are
+case-insensitive; any other value makes `getGeoAdapter` throw a `GeoError`
+(`INVALID_OPTION`). OpenStreetMap has no time zone API, so `'api'` there logs
+one warning and uses `'offline'`. The offline lookup is also
 exported as `timezoneForCoordinates(latitude, longitude)`.
 
 ### `GeoAdapter` Interface

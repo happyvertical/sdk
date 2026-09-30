@@ -6,6 +6,7 @@ import { Client } from '@googlemaps/google-maps-services-js';
 import type { CacheAdapter } from '@happyvertical/cache';
 import { getCache } from '@happyvertical/cache';
 import { timezoneForCoordinates } from '../shared/timezone';
+import { resolveTimezoneLookup } from '../shared/timezone-mode';
 import type {
   GeoProvider,
   GoogleMapsOptions,
@@ -41,7 +42,10 @@ export class GoogleMapsProvider implements GeoProvider {
     this.apiKey = options.apiKey;
     this.timeout = options.timeout || 10000;
     this.maxResults = options.maxResults || 10;
-    this.timezoneLookup = options.timezoneLookup ?? 'offline';
+    this.timezoneLookup = resolveTimezoneLookup(
+      options.timezoneLookup,
+      'google',
+    );
 
     // Initialize memory cache asynchronously
     this.initCache();
