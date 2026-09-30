@@ -65,7 +65,7 @@ async function withFixtureServer<T>(
 describe('@happyvertical/speech HTTP adapters', () => {
   it('reports adapter availability by capability', () => {
     expect(getAvailableSpeechAdapters()).toEqual({
-      transcribers: ['studio-server'],
+      transcribers: ['studio-server', 'openai-compatible'],
       synthesizers: ['studio-server', 'qwen3-tts', 'openai-compatible'],
     });
   });

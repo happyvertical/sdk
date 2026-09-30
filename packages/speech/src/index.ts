@@ -22,6 +22,14 @@
  * @packageDocumentation
  */
 
+export {
+  DEFAULT_MAX_AUDIO_BYTES,
+  mimeTypeToAudioExtension,
+} from './shared/audio.js';
+export {
+  type SpeechEnv,
+  TRANSCRIBER_ENV_KEYS,
+} from './shared/env.js';
 export * from './shared/errors.js';
 export {
   getAvailableSpeechAdapters,
@@ -33,26 +41,34 @@ export {
 export type {
   AudioBytes,
   AudioInput,
+  AudioSource,
   GetSpeechOptions,
   GetSpeechSynthesizerOptions,
   GetTranscriberOptions,
   OpenAICompatibleSpeechSynthesizerOptions,
+  OpenAICompatibleTranscriberOptions,
   Qwen3SpeechSynthesizerOptions,
   Speech,
   SpeechAdapterAvailability,
   SpeechAdapterType,
   SpeechFetch,
+  SpeechOperation,
+  SpeechRetryOptions,
   SpeechSynthesizer,
   SpeechSynthesizerType,
+  SpeechUsage,
+  SpeechUsageCallback,
   SpeechVoice,
   SpeechVoiceInput,
   StudioServerSpeechSynthesizerOptions,
   StudioServerTranscriberOptions,
   SynthesisRequest,
   SynthesizedSpeech,
+  TimestampGranularity,
   Transcriber,
   TranscriberType,
   TranscriptionRequest,
+  TranscriptionResponseFormat,
   TranscriptResult,
   TranscriptSegment,
   WordTiming,

@@ -1,5 +1,5 @@
+import { normalizeAudioInput } from '../shared/audio.js';
 import {
-  appendAudioInput,
   appendOptionalFormValue,
   createHappyVerticalSynthesisForm,
   HttpSpeechAdapter,
@@ -30,8 +30,14 @@ export class StudioServerTranscriber
   }
 
   async transcribe(request: TranscriptionRequest): Promise<TranscriptResult> {
+    const audio = await normalizeAudioInput(request.audio, {
+      mimeType: request.mimeType,
+      maxBytes: request.maxBytes,
+      adapter: this.type,
+      deriveExtension: false,
+    });
     const form = new FormData();
-    appendAudioInput(form, request.audio);
+    form.append('audio', audio.blob, audio.filename);
     appendOptionalFormValue(form, 'language', request.language);
 
     return this.post(
@@ -39,6 +45,7 @@ export class StudioServerTranscriber
       this.transcribePath,
       {
         body: form,
+        headers: request.headers,
         signal: request.signal,
       },
       (response) => readTranscriptResponse(response, this.type),

@@ -1,9 +1,19 @@
 import { OpenAICompatibleSpeechSynthesizer } from '../adapters/openai-compatible.js';
+import { OpenAICompatibleTranscriber } from '../adapters/openai-compatible-transcriber.js';
 import { Qwen3SpeechSynthesizer } from '../adapters/qwen3.js';
 import {
   StudioServerSpeechSynthesizer,
   StudioServerTranscriber,
 } from '../adapters/studio-server.js';
+import {
+  defaultEnv,
+  hasAnyEnv,
+  hasTranscriberEnv,
+  parseOptionalInteger,
+  readEnv,
+  resolveTranscriberConfig,
+  type SpeechEnv,
+} from './env.js';
 import {
   InvalidSpeechAdapterError,
   SpeechConfigurationError,
@@ -13,6 +23,7 @@ import type {
   GetSpeechSynthesizerOptions,
   GetTranscriberOptions,
   OpenAICompatibleSpeechSynthesizerOptions,
+  OpenAICompatibleTranscriberOptions,
   Qwen3SpeechSynthesizerOptions,
   Speech,
   SpeechAdapterAvailability,
@@ -26,10 +37,6 @@ import type {
   TranscriptionRequest,
   TranscriptResult,
 } from './types.js';
-
-interface SpeechEnv {
-  [key: string]: string | undefined;
-}
 
 export interface SpeechFactoryContext {
   env?: SpeechEnv;
@@ -84,6 +91,8 @@ export async function getTranscriber(
   switch (resolved.type) {
     case 'studio-server':
       return new StudioServerTranscriber(resolved);
+    case 'openai-compatible':
+      return new OpenAICompatibleTranscriber(resolved);
     default:
       throw new InvalidSpeechAdapterError(
         (resolved as { type?: string }).type ?? 'unknown',
@@ -115,7 +124,7 @@ export async function getSpeechSynthesizer(
 
 export function getAvailableSpeechAdapters(): SpeechAdapterAvailability {
   return {
-    transcribers: ['studio-server'],
+    transcribers: ['studio-server', 'openai-compatible'],
     synthesizers: ['studio-server', 'qwen3-tts', 'openai-compatible'],
   };
 }
@@ -145,45 +154,42 @@ async function getOptionalSpeechSynthesizer(
 function normalizeTranscriberOptions(
   options: GetTranscriberOptions = {},
   context: SpeechFactoryContext,
-): StudioServerTranscriberOptions {
-  const env = context.env ?? defaultEnv();
-  const type =
-    options.type ??
-    readEnv(
-      env,
-      'HAVE_SPEECH_STT_TYPE',
-      'HAVE_SPEECH_STT_ADAPTER',
-      'STT_ADAPTER',
-    ) ??
-    'studio-server';
-  const baseUrl =
-    options.baseUrl ?? readEnv(env, 'HAVE_SPEECH_STT_BASE_URL', 'STT_BASE_URL');
+): StudioServerTranscriberOptions | OpenAICompatibleTranscriberOptions {
+  const resolved = resolveTranscriberConfig(options, context);
+  const type = resolved.type ?? 'studio-server';
 
-  if (type !== 'studio-server') {
+  if (type !== 'studio-server' && type !== 'openai-compatible') {
     throw new InvalidSpeechAdapterError(type, 'STT');
   }
 
-  if (!baseUrl?.trim()) {
+  if (!resolved.baseUrl) {
     throw new SpeechConfigurationError('STT baseUrl is required', type);
   }
 
+  const shared = {
+    baseUrl: resolved.baseUrl,
+    fetch: resolved.fetch,
+    headers: resolved.headers,
+    apiKey: resolved.apiKey,
+    timeoutMs: resolved.timeoutMs,
+  };
+
+  if (type === 'openai-compatible') {
+    return {
+      ...shared,
+      type,
+      model: resolved.model,
+      responseFormat: options.responseFormat,
+      maxBytes: resolved.maxBytes,
+      retry: options.retry,
+      onUsage: options.onUsage,
+    };
+  }
+
   return {
-    ...options,
+    ...shared,
     type,
-    baseUrl: baseUrl.trim(),
-    fetch: options.fetch ?? context.fetch,
-    headers: options.headers ?? context.headers,
-    apiKey:
-      options.apiKey ??
-      readEnv(env, 'HAVE_SPEECH_STT_API_KEY', 'STT_API_KEY', 'SPEECH_API_KEY'),
-    timeoutMs:
-      options.timeoutMs ??
-      parseOptionalInteger(
-        readEnv(env, 'HAVE_SPEECH_STT_TIMEOUT_MS', 'STT_TIMEOUT_MS'),
-      ),
-    transcribePath:
-      options.transcribePath ??
-      readEnv(env, 'HAVE_SPEECH_STT_PATH', 'STT_PATH'),
+    transcribePath: options.transcribePath ?? resolved.path,
   };
 }
 
@@ -284,17 +290,6 @@ function normalizeSpeechSynthesizerOptions(
   throw new InvalidSpeechAdapterError(type, 'TTS');
 }
 
-function hasTranscriberEnv(env: SpeechEnv): boolean {
-  return hasAnyEnv(
-    env,
-    'HAVE_SPEECH_STT_TYPE',
-    'HAVE_SPEECH_STT_ADAPTER',
-    'HAVE_SPEECH_STT_BASE_URL',
-    'STT_ADAPTER',
-    'STT_BASE_URL',
-  );
-}
-
 function hasSynthesizerEnv(env: SpeechEnv): boolean {
   return hasAnyEnv(
     env,
@@ -304,32 +299,4 @@ function hasSynthesizerEnv(env: SpeechEnv): boolean {
     'TTS_ADAPTER',
     'TTS_BASE_URL',
   );
-}
-
-function readEnv(env: SpeechEnv, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = env[key];
-    if (value?.trim()) {
-      return value.trim();
-    }
-  }
-
-  return undefined;
-}
-
-function hasAnyEnv(env: SpeechEnv, ...keys: string[]): boolean {
-  return keys.some((key) => Boolean(env[key]?.trim()));
-}
-
-function parseOptionalInteger(value: string | undefined): number | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function defaultEnv(): SpeechEnv {
-  return globalThis.process?.env ?? {};
 }

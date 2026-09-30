@@ -1,6 +1,10 @@
 import { SpeechConfigurationError, SpeechProviderError } from './errors.js';
+import {
+  parseRetryAfter,
+  type SpeechRetryOptions,
+  withSpeechRetry,
+} from './retry.js';
 import type {
-  AudioInput,
   HttpSpeechOptions,
   SpeechFetch,
   SynthesisRequest,
@@ -20,6 +24,32 @@ export function normalizeBaseUrl(baseUrl: string): string {
 
 export function resolveSpeechUrl(baseUrl: string, path: string): string {
   return new URL(path.replace(/^\//, ''), normalizeBaseUrl(baseUrl)).toString();
+}
+
+/**
+ * Resolves an OpenAI-compatible endpoint from a base URL. Accepts a server
+ * root (`https://api.openai.com` → `/v1/<resource>`), an API root ending in a
+ * version segment (`http://gateway/stt/v1` → `/<resource>`), or the full
+ * endpoint URL (returned unchanged).
+ */
+export function resolveOpenAICompatibleUrl(
+  baseUrl: string,
+  resource: string,
+): string {
+  const trimmedResource = resource.replace(/^\/+|\/+$/g, '');
+  const base = normalizeBaseUrl(baseUrl.trim()).replace(/\/+$/, '');
+  const url = new URL(base);
+  const pathname = url.pathname.replace(/\/+$/, '');
+
+  if (pathname.endsWith(`/${trimmedResource}`)) {
+    url.pathname = pathname;
+  } else if (/\/v\d+$/.test(pathname)) {
+    url.pathname = `${pathname}/${trimmedResource}`;
+  } else {
+    url.pathname = `${pathname}/v1/${trimmedResource}`;
+  }
+
+  return url.toString();
 }
 
 export function resolveFetch(fetchOverride?: SpeechFetch): SpeechFetch {
@@ -71,7 +101,27 @@ export abstract class HttpSpeechAdapter {
     this.timeoutMs = options.timeoutMs;
   }
 
+  /**
+   * POSTs to `path` (relative to `baseUrl`, or an absolute URL). The optional
+   * `retry` policy retries 429/5xx responses; `timeoutMs` applies per attempt.
+   * The request body must be re-sendable (string, Blob, FormData) when
+   * retries are enabled.
+   */
   protected async post<T>(
+    adapterName: string,
+    path: string,
+    init: Omit<RequestInit, 'method'>,
+    readResponse: (response: Response) => Promise<T>,
+    retry: Required<SpeechRetryOptions> | false = false,
+  ): Promise<T> {
+    return withSpeechRetry(
+      () => this.postOnce(adapterName, path, init, readResponse),
+      retry,
+      init.signal ?? undefined,
+    );
+  }
+
+  private async postOnce<T>(
     adapterName: string,
     path: string,
     init: Omit<RequestInit, 'method'>,
@@ -89,6 +139,8 @@ export abstract class HttpSpeechAdapter {
     );
 
     try {
+      // Fail fast when the caller aborted before the request was sent.
+      requestSignal.signal?.throwIfAborted();
       const response = await this.fetchImpl(
         resolveSpeechUrl(this.baseUrl, path),
         {
@@ -101,7 +153,7 @@ export abstract class HttpSpeechAdapter {
           signal: requestSignal.signal,
         },
       );
-      await assertOk(response, adapterName);
+      await assertOk(response, adapterName, this.apiKey);
       return await readResponse(response);
     } finally {
       if (timeout) {
@@ -164,6 +216,7 @@ function composeAbortSignals(
 async function assertOk(
   response: Response,
   adapterName: string,
+  apiKey?: string,
 ): Promise<void> {
   if (response.ok) {
     return;
@@ -175,34 +228,22 @@ async function assertOk(
     `${adapterName} speech request failed with HTTP ${response.status}`,
     {
       status: response.status,
-      responseBody,
+      responseBody: redactSecret(responseBody, apiKey),
+      retryAfterMs: parseRetryAfter(response.headers.get('retry-after')),
     },
   );
 }
 
-export function appendAudioInput(
-  form: FormData,
-  audio: AudioInput,
-  fieldName = 'audio',
-): void {
-  const filename = audio.filename ?? 'audio';
-  const data = audio.data;
-
-  if (typeof Blob !== 'undefined' && data instanceof Blob) {
-    const contentType =
-      audio.contentType ?? (data.type || 'application/octet-stream');
-    const blob =
-      data.type === contentType
-        ? data
-        : new Blob([data], { type: contentType });
-    form.append(fieldName, blob, filename);
-    return;
+/** Removes an API key from provider-supplied text before it is surfaced. */
+export function redactSecret(
+  text: string | undefined,
+  secret: string | undefined,
+): string | undefined {
+  if (!text || !secret) {
+    return text;
   }
 
-  const contentType = audio.contentType ?? 'application/octet-stream';
-  const blobPart =
-    data instanceof Uint8Array ? arrayBufferFromBytes(data) : data;
-  form.append(fieldName, new Blob([blobPart], { type: contentType }), filename);
+  return text.split(secret).join('[REDACTED]');
 }
 
 export function appendOptionalFormValue(
