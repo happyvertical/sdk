@@ -4,6 +4,7 @@ import {
   createContinuingAI,
 } from './shared/continuation';
 import { AnthropicProvider } from './shared/providers/anthropic';
+import { BedrockProvider } from './shared/providers/bedrock';
 import { GeminiProvider } from './shared/providers/gemini';
 import { OllamaProvider } from './shared/providers/ollama';
 import { OpenAIProvider } from './shared/providers/openai';
@@ -227,6 +228,58 @@ describe('continueOnLength (OpenAI-compatible)', () => {
   });
 });
 
+describe('continueOnLength failures', () => {
+  it('stops before the next part once the caller aborts', async () => {
+    const controller = new AbortController();
+    const create = vi.fn().mockImplementation(async () => {
+      controller.abort();
+      return openAIReply('one ', 'length');
+    });
+    const ai = openAI(create);
+    await expect(
+      ai.chat([{ role: 'user', content: 'go' }], {
+        continueOnLength: true,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ code: 'AI_ABORTED' });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops a continued stream once the caller aborts', async () => {
+    const controller = new AbortController();
+    const create = vi.fn().mockImplementation(async () => {
+      controller.abort();
+      return openAIStream(['one '], 'length');
+    });
+    const ai = openAI(create);
+    const seen: string[] = [];
+    await expect(
+      (async () => {
+        for await (const chunk of ai.stream([{ role: 'user', content: 'go' }], {
+          continueOnLength: true,
+          signal: controller.signal,
+        })) {
+          seen.push(chunk);
+        }
+      })(),
+    ).rejects.toMatchObject({ code: 'AI_ABORTED' });
+    expect(seen).toEqual(['one ']);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws when a later part fails, without returning partial text', async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(openAIReply('one ', 'length'))
+      .mockRejectedValueOnce(new Error('upstream down'));
+    const ai = openAI(create);
+    await expect(
+      ai.chat([{ role: 'user', content: 'go' }], { continueOnLength: true }),
+    ).rejects.toThrow('upstream down');
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('continueOnLength with rate limiting', () => {
   // Same stack getAI() builds: continuation outside the rate limiter.
   function limitedOpenAI(create: ReturnType<typeof vi.fn>) {
@@ -426,5 +479,32 @@ describe('continueOnLength (Ollama)', () => {
       '/chat',
       '/chat',
     ]);
+  });
+});
+
+describe('continueOnLength (Bedrock)', () => {
+  it('continues on stopReason max_tokens', async () => {
+    const reply = (text: string, stopReason: string) => ({
+      output: { message: { role: 'assistant', content: [{ text }] } },
+      stopReason,
+      usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 },
+    });
+    const converse = vi
+      .fn()
+      .mockResolvedValueOnce(reply('uno ', 'max_tokens'))
+      .mockResolvedValueOnce(reply('dos', 'end_turn'));
+    const provider = new BedrockProvider({
+      type: 'bedrock',
+      region: 'us-east-1',
+      defaultModel: 'anthropic.claude-test',
+    });
+    (provider as any).client = { converse };
+    const ai = createContinuingAI(provider as AIInterface, {});
+    const result = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: true,
+    });
+    expect(result).toMatchObject({ content: 'uno dos', parts: 2 });
+    expect(result.usage?.totalTokens).toBe(10);
+    expect(converse).toHaveBeenCalledTimes(2);
   });
 });

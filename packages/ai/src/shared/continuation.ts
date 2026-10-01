@@ -104,6 +104,13 @@ function continuationMessages(
   ];
 }
 
+/** Do not start another (billed) part once the caller has aborted. */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new AIError('AI request aborted by caller', 'AI_ABORTED');
+  }
+}
+
 function addUsage(
   a: TokenUsage | undefined,
   b: TokenUsage | undefined,
@@ -149,6 +156,7 @@ export async function chatWithContinuation(
   let parts = 1;
 
   while (parts <= config.maxContinuations && hitLimit(last)) {
+    throwIfAborted(options.signal);
     const next = await chat(continuationMessages(messages, content), {
       ...partOptions,
       stream: false,
@@ -205,6 +213,7 @@ export async function* streamWithContinuation(
         finish.reason = value;
       },
     };
+    if (part > 0) throwIfAborted(options.signal);
     const source = stream(
       part === 0 ? messages : continuationMessages(messages, accumulated),
       partOptions,
