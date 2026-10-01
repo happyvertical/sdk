@@ -275,6 +275,63 @@ describe('openai-realtime handshake', () => {
     expect((await failed).message).toContain('bad token [REDACTED]');
   });
 
+  it('keeps typed model, language, and prompt over transcriptionOptions', async () => {
+    const session = transcriber({
+      model: 'gpt-4o-mini-transcribe',
+      language: 'en',
+      transcriptionOptions: {
+        model: 'other-model',
+        language: 'fr',
+        prompt: 'extension prompt',
+        delay: 'low',
+      },
+    }).start();
+    await session.ready;
+    const input = ((lastSocket().sent[0].session as Message).audio as Message)
+      .input as Message;
+    // An unset typed field still falls back to the extension value.
+    expect(input.transcription).toEqual({
+      model: 'gpt-4o-mini-transcribe',
+      language: 'en',
+      prompt: 'extension prompt',
+      delay: 'low',
+    });
+    session.abort();
+  });
+
+  it('redacts handshake header credentials from provider errors and close reasons', async () => {
+    const session = transcriber({
+      headers: {
+        authorization: 'Bearer gw-token-123',
+        'x-bf-vk': 'vk-1',
+      },
+    }).start();
+    const failed = new Promise<Error>((resolve) =>
+      session.on('error', resolve),
+    );
+    await session.ready;
+    lastSocket().serverSend({
+      type: 'error',
+      error: {
+        type: 'invalid_request_error',
+        message: 'rejected Bearer gw-token-123, gw-token-123 and vk-1',
+      },
+    });
+    const message = (await failed).message;
+    expect(message).toContain('rejected [REDACTED], [REDACTED] and [REDACTED]');
+    expect(message).not.toMatch(/gw-token-123|vk-1/);
+
+    const dropped = transcriber({ headers: { 'x-bf-vk': 'vk-2' } }).start();
+    const dropError = new Promise<Error>((resolve) =>
+      dropped.on('error', resolve),
+    );
+    await dropped.ready;
+    lastSocket().serverDrop(4401, 'bad key vk-2');
+    expect((await dropError).message).toContain(
+      'closed unexpectedly (code 4401: bad key [REDACTED])',
+    );
+  });
+
   it('passes a plain protocol list to the constructor when there are no headers', async () => {
     const session = getStreamingTranscriber(
       { WebSocket: FakeWebSocket as never, clientSecret: 'ek_1' },
@@ -899,6 +956,19 @@ describe('record-then-send wrapper', () => {
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
+  it('streams untyped bytes in the adapter default format', async () => {
+    FakeWebSocket.onClientMessage = transcribingServer(['mulaw']);
+    const wrapped = wrapStreamingTranscriber(
+      transcriber({ format: { encoding: 'g711_ulaw' } }),
+    );
+    const result = await wrapped.transcribe({ audio: new Uint8Array(800) });
+    const input = ((lastSocket().sent[0].session as Message).audio as Message)
+      .input as Message;
+    expect(input.format).toEqual({ type: 'audio/pcmu' });
+    expect(result.text).toBe('mulaw');
+    expect(result.durationSeconds).toBe(0.1);
+  });
+
   it('aborts the session when a write fails', async () => {
     const abort = vi.fn();
     const session = {
@@ -963,5 +1033,25 @@ describe('unwrapRawAudio', () => {
     expect(() =>
       unwrapRawAudio(wav(2, { bits: 24 }), 'audio/wav', 'test'),
     ).toThrow(/Unsupported WAV encoding/);
+  });
+
+  it('leaves the encoding unset for untyped bytes', () => {
+    expect(
+      unwrapRawAudio(new Uint8Array(4), 'application/octet-stream', 'test')
+        .format,
+    ).toEqual({});
+    expect(
+      unwrapRawAudio(
+        new Uint8Array(4),
+        'application/octet-stream;rate=8000',
+        'test',
+      ).format,
+    ).toEqual({ sampleRate: 8000 });
+  });
+
+  it('rejects odd-length audio/L16 payloads', () => {
+    expect(() =>
+      unwrapRawAudio(new Uint8Array(3), 'audio/L16;rate=24000', 'test'),
+    ).toThrow(/odd byte length \(3\)/);
   });
 });

@@ -69,12 +69,16 @@ export const openAIRealtimeProtocol = (
         config.format.encoding === 'pcm16'
           ? { type: 'audio/pcm', rate: config.format.sampleRate }
           : { type: WIRE_FORMATS[config.format.encoding].type },
-      transcription: compactJson({
-        model: config.model,
-        language: config.language,
-        prompt: config.prompt,
-        ...extras.transcriptionOptions,
-      }),
+      // Extension fields first: the typed settings must win, so the model
+      // sent always matches the model reported in usage.
+      transcription: {
+        ...compactJson(extras.transcriptionOptions ?? {}),
+        ...compactJson({
+          model: config.model,
+          language: config.language,
+          prompt: config.prompt,
+        }),
+      },
       turn_detection: turnDetectionToWire(config.turnDetection),
     };
     if (extras.noiseReduction) {
@@ -248,7 +252,9 @@ export class OpenAIRealtimeTranscriber implements StreamingTranscriber {
       const secret = await resolveClientSecret(clientSecret);
       const protocols = ['realtime'];
       const connectionHeaders = { ...headers };
-      const secrets: string[] = [];
+      // Gateway credentials (e.g. `x-bf-vk`, an explicit Authorization) are
+      // redacted from surfaced provider text just like the API key.
+      const secrets: string[] = headerSecrets(headers);
       if (secret) {
         protocols.push(`openai-insecure-api-key.${secret}`);
         secrets.push(secret);
@@ -384,6 +390,44 @@ function mergeHeaderRecords(
     }
   }
   return merged;
+}
+
+/** Values of other headers shorter than this are not treated as credentials. */
+const MIN_HEADER_SECRET_LENGTH = 8;
+
+/**
+ * Header names that carry credentials (`authorization`, `x-api-key`,
+ * `x-bf-vk`, `*-token`, `*-secret`, …). Their values are redacted at any
+ * length.
+ */
+const CREDENTIAL_HEADER = /auth|key|token|secret|password|credential|-vk$/i;
+
+/**
+ * Values of caller-supplied headers to redact from provider error text.
+ * Credential-named headers are redacted whatever their length; for
+ * `Authorization`, the credential after the scheme is included too. Other
+ * headers may also carry tenant secrets, so their values are redacted when
+ * they are at least 8 characters long, which keeps short values such as
+ * `1` from mangling messages.
+ */
+function headerSecrets(headers: HeadersInit | undefined): string[] {
+  const secrets: string[] = [];
+  for (const [key, value] of Object.entries(mergeHeaderRecords(headers))) {
+    const credential = CREDENTIAL_HEADER.test(key);
+    const candidates = [value];
+    if (key.toLowerCase() === 'authorization') {
+      candidates.push(value.replace(/^\S+\s+/, ''));
+    }
+    for (const candidate of candidates) {
+      const trimmed = candidate.trim();
+      const long = trimmed.length >= MIN_HEADER_SECRET_LENGTH;
+      if (trimmed && (credential || long) && !secrets.includes(trimmed)) {
+        secrets.push(trimmed);
+      }
+    }
+  }
+  // Longest first, so a full `Bearer <token>` is replaced before its token.
+  return secrets.sort((left, right) => right.length - left.length);
 }
 
 function hasHeader(headers: Record<string, string>, name: string): boolean {

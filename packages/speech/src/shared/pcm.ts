@@ -89,8 +89,9 @@ const RAW_PCM_TYPES = new Set([
   'audio/l16',
   'audio/raw',
   'audio/x-raw',
-  'application/octet-stream',
 ]);
+/** Untyped bytes: the streaming transcriber's default format applies. */
+const UNTYPED = 'application/octet-stream';
 const MULAW_TYPES = new Set(['audio/pcmu', 'audio/basic', 'audio/x-mulaw']);
 const ALAW_TYPES = new Set(['audio/pcma', 'audio/x-alaw']);
 
@@ -113,7 +114,17 @@ export function unwrapRawAudio(
   if (WAV_TYPES.has(essence) || isRiffWave(bytes)) {
     return parseWav(bytes, adapter);
   }
+  if (essence === UNTYPED) {
+    // No encoding: `start()` keeps the adapter's `audioFormat` (e.g. G.711).
+    return { bytes, format: compact({ sampleRate: rate, channels }) };
+  }
   if (RAW_PCM_TYPES.has(essence)) {
+    if (essence === 'audio/l16' && bytes.byteLength % 2 !== 0) {
+      throw new SpeechConfigurationError(
+        `audio/L16 payload has an odd byte length (${bytes.byteLength}); 16-bit samples need an even number of bytes`,
+        adapter,
+      );
+    }
     return {
       // RFC 2586: audio/L16 samples are big-endian; pcm16 is little-endian.
       bytes: essence === 'audio/l16' ? swapBytePairs(bytes) : bytes,

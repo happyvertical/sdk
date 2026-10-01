@@ -266,6 +266,7 @@ export interface OpenAIRealtimeTranscriberOptions
   /**
    * Extra fields merged into `audio.input.transcription`, e.g.
    * `{ delay: 'low', languages: ['en', 'fr'] }` for `gpt-live-transcribe`.
+   * The typed `model`, `language`, and `prompt` settings take precedence.
    */
   transcriptionOptions?: Record<string, unknown>;
 }
