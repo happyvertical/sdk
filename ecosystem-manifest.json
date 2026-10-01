@@ -1301,6 +1301,7 @@
         "Studio Server STT",
         "OpenAI-compatible STT",
         "OpenAI Realtime streaming STT",
+        "On-device STT",
         "Studio Server TTS",
         "Qwen3 TTS",
         "OpenAI-compatible TTS"
@@ -1308,7 +1309,9 @@
       "requires": {
         "workspace": [],
         "externalHappyVertical": [],
-        "external": []
+        "external": [
+          "@huggingface/transformers"
+        ]
       },
       "dependents": [],
       "stability": {
@@ -1905,6 +1908,11 @@
       "type": "implements",
       "from": "@happyvertical/speech",
       "to": "OpenAI Realtime streaming STT"
+    },
+    {
+      "type": "implements",
+      "from": "@happyvertical/speech",
+      "to": "On-device STT"
     },
     {
       "type": "implements",

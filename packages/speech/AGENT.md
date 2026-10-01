@@ -27,8 +27,8 @@ pnpm --filter @happyvertical/speech clean
 
 ## Ecosystem Relationships
 - Provides: Speech provider abstraction for STT and TTS backends
-- Implements: Studio Server STT, OpenAI-compatible STT, OpenAI Realtime streaming STT, Studio Server TTS, Qwen3 TTS, OpenAI-compatible TTS
-- Requires: none
+- Implements: Studio Server STT, OpenAI-compatible STT, OpenAI Realtime streaming STT, On-device STT, Studio Server TTS, Qwen3 TTS, OpenAI-compatible TTS
+- Requires: @huggingface/transformers
 - Stability: experimental (Marked as preview or experimental in package guidance.)
 <!-- END AGENT:GENERATED -->
 
@@ -48,6 +48,7 @@ Adapter constructors are internal implementation details. Keep new backends behi
 - Studio Server STT (`type: 'studio-server'`) posts multipart audio to `/v1/transcribe`.
 - OpenAI-compatible STT (`type: 'openai-compatible'`) posts multipart `file`/`model` to `<base>/audio/transcriptions`.
 - OpenAI Realtime streaming STT (`type: 'openai-realtime'`) streams raw PCM16/G.711 over a WebSocket to `<base>/realtime?intent=transcription` via `getStreamingTranscriber()`; `getTranscriber()` wraps it for record-then-send callers.
+- On-device STT (`type: 'local'`) runs Whisper/Moonshine ONNX models with transformers.js behind the `@happyvertical/speech/local` subpath; importing that subpath registers the type with the factory.
 - Studio Server TTS (`type: 'studio-server'`) posts multipart form data to `/v1/tts/synthesize`.
 - Qwen3 TTS (`type: 'qwen3-tts'`) posts multipart form data to `/v1/audio/speech`.
 - OpenAI-compatible TTS (`type: 'openai-compatible'`) posts OpenAI-shaped JSON to `/v1/audio/speech`.
@@ -62,6 +63,8 @@ New adapters (including streaming/realtime transcribers) should reuse these modu
 - `retry.ts`: `withSpeechRetry()` retries 429/5xx `SpeechProviderError`s with exponential backoff, honours `Retry-After` (`retryAfterMs`), and stops on abort.
 - `http.ts`: `HttpSpeechAdapter.post(..., retry)` sends auth/extra headers (`headers` option plus per-request `headers`), applies `timeoutMs` per attempt, and redacts the API key from provider error bodies; `resolveOpenAICompatibleUrl()` normalises OpenAI-style base URLs.
 
+- `registry.ts`: `registerOptionalTranscriber()` lets subpath entries add opt-in transcriber types without the core entry importing them. `getTranscriber()` throws `SpeechConfigurationError` naming the subpath when such a type is requested before registration.
+
 The OpenAI-compatible transcriber holds an API key and is server-side only.
 
 ## Streaming (Realtime) Transcribers
@@ -73,3 +76,10 @@ The OpenAI-compatible transcriber holds an API key and is server-side only.
 - Env: `HAVE_SPEECH_STREAMING_*` (`STREAMING_TRANSCRIBER_ENV_KEYS`), explicit options first.
 - Auth: `apiKey` → `Authorization` header (Node only, refused in browsers); `clientSecret` (string or per-session mint function) → subprotocol. Never put long-lived keys in browser code paths.
 - Tests use an in-memory fake WebSocket injected through `WebSocket`/`createWebSocket`; no network.
+
+## Optional Peer Isolation (`local`)
+
+- `@huggingface/transformers` is an optional peer dependency (dev dependency for tests). Only `src/adapters/local/runtime.ts` names it, through a dynamic `import()` reached solely from `src/local.ts`. Never import `adapters/local/*` from `src/index.ts` or `src/shared/*`, except as `import type`.
+- `pnpm --filter @happyvertical/speech build` runs `scripts/check-core-isolation.mjs`. The check fails if `dist/index.js`, or any module reachable from it through static or dynamic imports, references the peer. `src/__tests__/local-isolation.test.ts` asserts the same at runtime.
+- The package tsconfig maps the peer to `src/adapters/local/transformers-shim.d.ts`, because the peer's own declarations (4.3.0) fail this repo's `skipLibCheck: false`. The adapter uses structural types in `runtime.ts` instead.
+- Unit tests inject a fake transformers module (`transformers` option); never download models in CI. The real-model smoke test is opt-in via `HV_SPEECH_MODEL_TESTS=1`.
