@@ -174,6 +174,9 @@ export async function* streamWithContinuation(
 
   const { onProgress, onFinishReason, ...rest } = options;
   let accumulated = '';
+  // Reported once, for the last part: an earlier part's 'length' is not the
+  // reply's finish reason.
+  let reason: AIFinishReason = 'stop';
   for (let part = 0; part <= config.maxContinuations; part++) {
     const finish: { reason?: AIFinishReason } = {};
     const partOptions: ChatOptions = {
@@ -212,11 +215,12 @@ export async function* streamWithContinuation(
       const out = emit(continuationAddition(accumulated, pending));
       if (out) yield out;
     }
-    onFinishReason?.(finish.reason ?? 'stop');
-    if (finish.reason !== 'length') return;
-    // Nothing to continue from yet (see chatWithContinuation).
-    if (!accumulated.trim()) return;
+    reason = finish.reason ?? 'stop';
+    // Stop unless the part hit the limit and there is text to continue from
+    // (see chatWithContinuation).
+    if (reason !== 'length' || !accumulated.trim()) break;
   }
+  onFinishReason?.(reason);
 }
 
 /**

@@ -428,7 +428,8 @@ result.truncated; // true if the reply still ended on the limit
 - A reply that hits the limit before producing any text (reasoning used the
   whole budget) is not continued; it is returned with `truncated: true`.
 - `truncated: true` is also set when continuation is off and the reply hit the limit.
-- Streaming adapters report the finish reason through `ChatOptions.onFinishReason`.
+- Streaming adapters report the finish reason through `ChatOptions.onFinishReason`;
+  a continued stream reports it once, with the last part's reason.
 
 ## Opt-In Rate-Limit Pacing
 

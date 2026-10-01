@@ -176,6 +176,35 @@ describe('continueOnLength (OpenAI-compatible)', () => {
     expect(seen.join('')).toBe(text);
     expect(create).toHaveBeenCalledTimes(2);
   });
+
+  it('reports the stream finish reason once, for the last part', async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(openAIStream(['one '], 'length'))
+      .mockResolvedValueOnce(openAIStream(['two '], 'length'))
+      .mockResolvedValueOnce(openAIStream(['three'], 'stop'));
+    const reasons: string[] = [];
+    await collect(
+      openAI(create).stream([{ role: 'user', content: 'go' }], {
+        continueOnLength: true,
+        onFinishReason: (reason) => reasons.push(reason),
+      }),
+    );
+    expect(reasons).toEqual(['stop']);
+
+    const capped = vi
+      .fn()
+      .mockImplementation(async () => openAIStream(['more '], 'length'));
+    reasons.length = 0;
+    await collect(
+      openAI(capped).stream([{ role: 'user', content: 'go' }], {
+        continueOnLength: { maxContinuations: 1 },
+        onFinishReason: (reason) => reasons.push(reason),
+      }),
+    );
+    expect(capped).toHaveBeenCalledTimes(2);
+    expect(reasons).toEqual(['length']);
+  });
 });
 
 describe('continueOnLength with rate limiting', () => {
