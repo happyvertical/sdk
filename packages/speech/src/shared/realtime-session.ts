@@ -10,7 +10,12 @@
 
 import { SpeechError, SpeechProviderError } from './errors.js';
 import { redactSecret } from './http.js';
-import { audioSecondsForBytes, chunkToBytes, encodeBase64 } from './pcm.js';
+import {
+  audioSecondsForBytes,
+  bytesPerSecond,
+  chunkToBytes,
+  encodeBase64,
+} from './pcm.js';
 import type {
   StreamingAudioChunk,
   StreamingAudioFormat,
@@ -21,7 +26,12 @@ import type {
   StreamingSessionState,
   StreamingTurnDetection,
 } from './streaming-types.js';
-import { type TurnLimit, TurnSplitter } from './turn-limit.js';
+import {
+  blockAlign,
+  silence,
+  type TurnLimit,
+  TurnSplitter,
+} from './turn-limit.js';
 import type { TranscriptResult, TranscriptSegment } from './types.js';
 import {
   audioSecondsFromProviderUsage,
@@ -100,6 +110,13 @@ export interface RealtimeProtocol {
    * new turn before the cap, or rejects writes past it. Unset: no default.
    */
   readonly maxTurnSeconds?: number;
+  /**
+   * Shortest audio, in seconds, the provider accepts in one commit (OpenAI:
+   * 100 ms; shorter commits are rejected as empty). A session with a turn
+   * limit pads a shorter, non-empty turn with silence before committing it,
+   * so the tail left after a rollover is transcribed instead of dropped.
+   */
+  readonly minCommitSeconds?: number;
   /** Messages sent once the socket opens (session configuration). */
   sessionMessages(config: RealtimeSessionConfig): unknown[];
   /** One audio chunk, already base64-encoded. */
@@ -656,7 +673,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
     const needed =
       this.uncommittedBytes > 0 ||
       (final && this.init.protocol.endCommit === 'always');
-    if (!needed) {
+    if (!needed || !this.padShortTurn()) {
       return;
     }
     if (this.send(this.init.protocol.commitMessage({ final }))) {
@@ -665,6 +682,39 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       this.outstandingCommits += 1;
       this.turnOpen = false;
     }
+  }
+
+  /**
+   * In a session with a turn limit, tops up a non-empty turn shorter than the
+   * protocol's `minCommitSeconds` with silence (not counted as streamed
+   * audio). Rollover can leave such a tail, which the provider would
+   * otherwise reject as empty and drop. Returns false when the send failed.
+   */
+  private padShortTurn(): boolean {
+    const minSeconds = this.init.protocol.minCommitSeconds;
+    if (!this.init.turnLimit || !minSeconds || this.uncommittedBytes === 0) {
+      return true;
+    }
+    const format = this.init.config.format;
+    const align = blockAlign(format);
+    // Round up to whole sample frames so the turn reaches the minimum.
+    const minBytes =
+      Math.ceil((minSeconds * bytesPerSecond(format)) / align - 1e-9) * align;
+    const missing = minBytes - this.uncommittedBytes;
+    if (missing <= 0) {
+      return true;
+    }
+    if (
+      !this.send(
+        this.init.protocol.appendMessage(
+          encodeBase64(silence(missing, format)),
+        ),
+      )
+    ) {
+      return false;
+    }
+    this.uncommittedBytes += missing;
+    return true;
   }
 
   /**

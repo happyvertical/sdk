@@ -74,6 +74,8 @@ export const openAIRealtimeProtocol = (
   endCommit: 'if-audio',
   // No per-turn cap by default: server VAD ends turns. Manual sessions may opt
   // in with `maxTurnSeconds`.
+  // OpenAI rejects a commit with under 100 ms of audio as empty.
+  minCommitSeconds: 0.1,
   sessionMessages(config: RealtimeSessionConfig) {
     return [
       {

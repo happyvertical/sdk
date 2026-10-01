@@ -81,18 +81,28 @@ export function resolveTurnLimit(
     return undefined;
   }
 
+  // On/off comes from the first layer that sets `rollover`; each tuning
+  // field from the first layer whose `rollover` object sets that field, so a
+  // `rollover: true` session keeps the adapter's tuning.
   const rollover = settings.find(
     (entry) => entry?.rollover !== undefined,
   )?.rollover;
-  const tuning: StreamingRolloverOptions =
-    rollover && typeof rollover === 'object' ? rollover : {};
+  const tuning = <K extends keyof StreamingRolloverOptions>(key: K) =>
+    settings
+      .map((entry) => entry?.rollover)
+      .find(
+        (value): value is StreamingRolloverOptions =>
+          typeof value === 'object' &&
+          value !== null &&
+          value[key] !== undefined,
+      )?.[key];
   const limit: TurnLimit = {
     maxTurnSeconds,
     rollover: rollover !== false,
-    windowSeconds: tuning.windowSeconds ?? DEFAULT_ROLLOVER_WINDOW_SECONDS,
+    windowSeconds: tuning('windowSeconds') ?? DEFAULT_ROLLOVER_WINDOW_SECONDS,
     silenceThreshold:
-      tuning.silenceThreshold ?? DEFAULT_ROLLOVER_SILENCE_THRESHOLD,
-    minSilenceMs: tuning.minSilenceMs ?? DEFAULT_ROLLOVER_MIN_SILENCE_MS,
+      tuning('silenceThreshold') ?? DEFAULT_ROLLOVER_SILENCE_THRESHOLD,
+    minSilenceMs: tuning('minSilenceMs') ?? DEFAULT_ROLLOVER_MIN_SILENCE_MS,
   };
   assertNonNegative(adapter, 'rollover.windowSeconds', limit.windowSeconds);
   assertNonNegative(adapter, 'rollover.minSilenceMs', limit.minSilenceMs);
@@ -132,6 +142,20 @@ export function bytesForSeconds(
   const align = blockAlign(format);
   // The epsilon keeps decimal seconds such as 0.3 from losing a frame.
   return Math.floor((seconds * bytesPerSecond(format)) / align + 1e-9) * align;
+}
+
+/** Digital silence in `format`: zero samples, encoded. */
+export function silence(
+  bytes: number,
+  format: StreamingAudioFormat,
+): Uint8Array {
+  const fill =
+    format.encoding === 'g711_ulaw'
+      ? 0xff
+      : format.encoding === 'g711_alaw'
+        ? 0xd5
+        : 0;
+  return new Uint8Array(bytes).fill(fill);
 }
 
 /** Bytes of audio one turn may hold: whole sample frames, at least one. */

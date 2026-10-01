@@ -214,6 +214,36 @@ describe('resolveTurnLimit', () => {
     ).toBeUndefined();
   });
 
+  it('merges rollover tuning field by field across layers', () => {
+    // A boolean `true` keeps the lower layer's tuning.
+    expect(
+      resolveTurnLimit(
+        'x',
+        270,
+        { rollover: true },
+        { rollover: { windowSeconds: 30, minSilenceMs: 500 } },
+      ),
+    ).toMatchObject({ rollover: true, windowSeconds: 30, minSilenceMs: 500 });
+    // Objects merge per field, the higher layer winning.
+    expect(
+      resolveTurnLimit(
+        'x',
+        270,
+        { rollover: { minSilenceMs: 100 } },
+        { rollover: { windowSeconds: 30, minSilenceMs: 500 } },
+      ),
+    ).toMatchObject({ windowSeconds: 30, minSilenceMs: 100 });
+    // `false` still disables rollover.
+    expect(
+      resolveTurnLimit(
+        'x',
+        270,
+        { rollover: false },
+        { rollover: { windowSeconds: 30 } },
+      ),
+    ).toMatchObject({ rollover: false });
+  });
+
   it('rejects invalid settings', () => {
     expect(() => resolveTurnLimit('x', 270, { maxTurnSeconds: 0 })).toThrow(
       SpeechConfigurationError,
@@ -646,5 +676,84 @@ describe('openai-realtime turn limits', () => {
         0,
       );
     expect(sentBytes).toBe(audio.byteLength);
+  });
+
+  /**
+   * Scripts OpenAI's 100 ms minimum: a commit of a shorter buffer is rejected
+   * as `input_audio_buffer_commit_empty`; otherwise the turn is transcribed
+   * with its byte count as the transcript.
+   */
+  function openAIServerWithMinimum() {
+    let buffered = 0;
+    return (socket: FakeWebSocket, message: Message) => {
+      if (message.type === 'input_audio_buffer.append') {
+        buffered += Buffer.from(String(message.audio), 'base64').length;
+        return;
+      }
+      if (message.type !== 'input_audio_buffer.commit') {
+        return;
+      }
+      const bytes = buffered;
+      buffered = 0;
+      const id = `item_${socket.sent.length}`;
+      queueMicrotask(() => {
+        if (bytes < 4_800) {
+          socket.serverSend({
+            type: 'error',
+            error: {
+              code: 'input_audio_buffer_commit_empty',
+              message: 'buffer too small',
+            },
+          });
+          return;
+        }
+        socket.serverSend({
+          type: 'input_audio_buffer.committed',
+          item_id: id,
+        });
+        socket.serverSend({
+          type: 'conversation.item.input_audio_transcription.completed',
+          item_id: id,
+          transcript: `${bytes}`,
+        });
+      });
+    };
+  }
+
+  it('pads a rollover tail shorter than the 100 ms commit minimum instead of dropping it', async () => {
+    FakeWebSocket.onClientMessage = openAIServerWithMinimum();
+    const session = openai({
+      turnDetection: { type: 'manual' },
+      maxTurnSeconds: 0.5,
+      rollover: { windowSeconds: 0 },
+    }).start();
+    // 550 ms: a 500 ms turn, then a 50 ms tail.
+    const audio = new Uint8Array(26_400).fill(0x40);
+    await writeAll(session, audio, 2_400);
+    const result = await session.end();
+
+    // The tail (2400 bytes) is topped up with 2400 bytes of silence.
+    expect(result.segments).toEqual([{ text: '24000' }, { text: '4800' }]);
+    const appends = lastSocket().sent.filter(
+      (message) => message.type === 'input_audio_buffer.append',
+    );
+    const padding = Buffer.from(String(appends.at(-1)?.audio), 'base64');
+    expect(padding).toEqual(Buffer.alloc(2_400));
+    // Padding is not caller audio.
+    expect(result.usage?.bytes).toBe(26_400);
+    expect(result.durationSeconds).toBe(0.55);
+  });
+
+  it('leaves short commits alone in sessions without a turn limit', async () => {
+    FakeWebSocket.onClientMessage = openAIServerWithMinimum();
+    const session = openai({ turnDetection: { type: 'manual' } }).start();
+    await session.write(new Uint8Array(2_400).fill(0x40));
+    const result = await session.end();
+    expect(result.text).toBe('');
+    expect(
+      lastSocket()
+        .types()
+        .filter((type) => type === 'input_audio_buffer.append'),
+    ).toHaveLength(1);
   });
 });
