@@ -19,6 +19,11 @@ import type {
   LiteLLMOptions,
 } from '../types';
 import { LiteLLMAdmin, resolveGatewayAdminBaseUrl } from './gateway-admin';
+import {
+  isAudioModel,
+  isSpeechModel,
+  isTranscriptionModel,
+} from './gateway-audio-models';
 import { type OpenAICompatibleProfile, OpenAIProvider } from './openai';
 
 const LITELLM_CAPABILITIES: AICapabilities = {
@@ -65,7 +70,7 @@ function isImageGenerationModel(modelId: string): boolean {
 }
 
 function isFilteredLiteLLMModel(modelId: string): boolean {
-  return /moderation|transcrib|whisper|speech|tts|rerank/i.test(modelId);
+  return /moderation|rerank/i.test(modelId);
 }
 
 function inferLiteLLMContextLength(modelId: string): number {
@@ -81,19 +86,28 @@ function inferLiteLLMContextLength(modelId: string): number {
 }
 
 function inferLiteLLMFunctions(modelId: string): boolean {
-  if (isEmbeddingModel(modelId)) return false;
+  if (isEmbeddingModel(modelId) || isAudioModel(modelId)) return false;
   return /gpt|claude|gemini|command|llama|mistral|qwen|deepseek|o1|o3|o4/i.test(
     modelId,
   );
 }
 
 function inferLiteLLMVision(modelId: string): boolean {
+  if (isAudioModel(modelId)) return false;
   return /gpt-4o|gpt-4\.1|vision|claude-3|gemini|pixtral|llava|qwen.*vl|vl-/i.test(
     modelId,
   );
 }
 
 function inferLiteLLMCapabilities(modelId: string): string[] {
+  if (isTranscriptionModel(modelId)) {
+    return ['transcription'];
+  }
+
+  if (isSpeechModel(modelId)) {
+    return ['speech'];
+  }
+
   if (isImageGenerationModel(modelId)) {
     return ['image_generation'];
   }

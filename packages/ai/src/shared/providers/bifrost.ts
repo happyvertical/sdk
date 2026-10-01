@@ -23,6 +23,11 @@ import {
   normalizeGatewayBaseUrl,
   resolveGatewayAdminBaseUrl,
 } from './gateway-admin';
+import {
+  isAudioModel,
+  isSpeechModel,
+  isTranscriptionModel,
+} from './gateway-audio-models';
 import { type OpenAICompatibleProfile, OpenAIProvider } from './openai';
 
 const BIFROST_CAPABILITIES: AICapabilities = {
@@ -69,7 +74,7 @@ function isImageGenerationModel(modelId: string): boolean {
 }
 
 function isFilteredBifrostModel(modelId: string): boolean {
-  return /moderation|transcrib|whisper|speech|tts|rerank/i.test(modelId);
+  return /moderation|rerank/i.test(modelId);
 }
 
 function inferBifrostContextLength(modelId: string): number {
@@ -85,19 +90,28 @@ function inferBifrostContextLength(modelId: string): number {
 }
 
 function inferBifrostFunctions(modelId: string): boolean {
-  if (isEmbeddingModel(modelId)) return false;
+  if (isEmbeddingModel(modelId) || isAudioModel(modelId)) return false;
   return /gpt|claude|gemini|command|llama|mistral|qwen|deepseek|o1|o3|o4/i.test(
     modelId,
   );
 }
 
 function inferBifrostVision(modelId: string): boolean {
+  if (isAudioModel(modelId)) return false;
   return /gpt-4o|gpt-4\.1|vision|claude-3|gemini|pixtral|llava|qwen.*vl|vl-/i.test(
     modelId,
   );
 }
 
 function inferBifrostCapabilities(modelId: string): string[] {
+  if (isTranscriptionModel(modelId)) {
+    return ['transcription'];
+  }
+
+  if (isSpeechModel(modelId)) {
+    return ['speech'];
+  }
+
   if (isImageGenerationModel(modelId)) {
     return ['image_generation'];
   }
