@@ -21,6 +21,7 @@ describe('core entry isolation', () => {
     expect(speech.getAvailableSpeechAdapters().transcribers).toEqual([
       'studio-server',
       'openai-compatible',
+      'openai-realtime',
     ]);
     await speech.getTranscriber(
       { type: 'openai-compatible', baseUrl: 'https://stt.example.com' },

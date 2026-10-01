@@ -187,7 +187,10 @@ afterEach(() => {
 
 describe('local transcriber: factory and environment', () => {
   it('registers type local with getTranscriber() and lists it as available', async () => {
-    expect(getAvailableSpeechAdapters().transcribers).toContain('local');
+    const available = getAvailableSpeechAdapters();
+    expect(available.transcribers).toContain('local');
+    expect(available.transcribers).toContain('openai-realtime');
+    expect(available.streamingTranscribers).not.toContain('local');
 
     const fake = fakeTransformers();
     const transcriber = await getTranscriber(
