@@ -51,6 +51,7 @@ export type {
 export {
   LocalTranscriberWorkerClient,
   type LocalTranscriberWorkerClientOptions,
+  type LocalWorkerAudio,
   type LocalWorkerEndpoint,
   type LocalWorkerRequest,
   type LocalWorkerResponse,

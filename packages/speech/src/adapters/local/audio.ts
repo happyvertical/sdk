@@ -54,8 +54,57 @@ export async function decodeToPcm16k(
     decodeAudioBytes(bytes, options),
     options.signal,
   );
-  const mono = downmix(decoded.samples);
-  return resample(mono, decoded.sampleRate, LOCAL_SAMPLE_RATE);
+  return toPcm16k(decoded);
+}
+
+/** Downmixes decoded audio to mono and resamples it to 16 kHz. */
+export function toPcm16k(decoded: DecodedAudio): Float32Array {
+  return resample(
+    downmix(decoded.samples),
+    decoded.sampleRate,
+    LOCAL_SAMPLE_RATE,
+  );
+}
+
+/**
+ * True for WAV and raw PCM, which this module decodes itself in every
+ * runtime, including Web Workers.
+ */
+export function isInProcessDecodable(
+  bytes: Uint8Array,
+  mimeType: string,
+): boolean {
+  const essence = normalizeMimeType(mimeType);
+  return Boolean(
+    (essence && (WAV_MIME_TYPES.has(essence) || PCM_MIME_TYPES.has(essence))) ||
+      isRiffWave(bytes),
+  );
+}
+
+/**
+ * Decodes a format without an in-process decoder through the caller's
+ * `decodeAudio` hook or, in browsers, `OfflineAudioContext`. Resolves
+ * `undefined` when neither is available.
+ */
+export async function decodeExternally(
+  bytes: Uint8Array,
+  options: Omit<DecodeToPcmOptions, 'sampleRate' | 'channels'>,
+): Promise<DecodedAudio | undefined> {
+  if (options.decodeAudio) {
+    const decoded = await options.decodeAudio({
+      bytes,
+      mimeType: options.mimeType,
+      signal: options.signal,
+    });
+    assertDecodedAudio(decoded);
+    return decoded;
+  }
+
+  if (hasOfflineAudioContext()) {
+    return decodeWithAudioContext(bytes);
+  }
+
+  return undefined;
 }
 
 async function decodeAudioBytes(
@@ -72,18 +121,9 @@ async function decodeAudioBytes(
     return decodeRawPcm(bytes, options);
   }
 
-  if (options.decodeAudio) {
-    const decoded = await options.decodeAudio({
-      bytes,
-      mimeType: options.mimeType,
-      signal: options.signal,
-    });
-    assertDecodedAudio(decoded);
+  const decoded = await decodeExternally(bytes, options);
+  if (decoded) {
     return decoded;
-  }
-
-  if (hasOfflineAudioContext()) {
-    return decodeWithAudioContext(bytes);
   }
 
   throw new SpeechConfigurationError(
@@ -205,8 +245,13 @@ function decodeRawPcm(
   options: DecodeToPcmOptions,
 ): DecodedAudio {
   const params = mimeParameters(options.mimeType);
-  const sampleRate = positiveInteger(params.rate) ?? options.sampleRate;
-  const channels = positiveInteger(params.channels) ?? options.channels ?? 1;
+  const sampleRate =
+    positiveInteger(params.rate) ??
+    explicitPositiveInteger(options.sampleRate, 'sampleRate');
+  const channels =
+    positiveInteger(params.channels) ??
+    explicitPositiveInteger(options.channels, 'channels') ??
+    1;
   const encoding = (params.encoding ?? 's16le').toLowerCase();
 
   if (!sampleRate) {
@@ -430,6 +475,23 @@ function mimeParameters(mimeType: string): Record<string, string> {
 function positiveInteger(value: string | undefined): number | undefined {
   const parsed = value ? Number.parseInt(value, 10) : Number.NaN;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+/** Validates a caller-supplied `AudioInput.sampleRate`/`channels`. */
+function explicitPositiveInteger(
+  value: number | undefined,
+  name: 'sampleRate' | 'channels',
+): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Number.isInteger(value) || value < 1) {
+    throw new SpeechConfigurationError(
+      `AudioInput.${name} must be a positive integer, got ${String(value)}`,
+      ADAPTER,
+    );
+  }
+  return value;
 }
 
 function ascii(bytes: Uint8Array, offset: number, length: number): string {

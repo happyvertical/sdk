@@ -244,7 +244,7 @@ You can also call `createLocalTranscriber(options)` from the subpath directly. I
 
 ### Web Worker
 
-Inference can take seconds on long recordings, so in a browser run it in a worker to keep the UI responsive. `AudioContext` is not available in workers, so the main-thread client decodes and resamples the audio and then transfers the 16 kHz samples to the worker without copying:
+Inference can take seconds on long recordings, so in a browser run it in a worker to keep the UI responsive. The main-thread client transfers WAV and raw PCM bytes to the worker, which parses, downmixes, and resamples them there. `AudioContext` is not available in workers, so other formats (MediaRecorder WebM/Opus, Safari `audio/mp4`, MP3) are decoded on the main thread with `decodeAudioData` or the client's `decodeAudio` hook, and the decoded channels are transferred to the worker for downmixing and resampling. Without either, the bytes go to the worker's own `decodeAudio`:
 
 ```typescript
 // transcriber.worker.ts
@@ -264,7 +264,7 @@ await transcriber.preload(); // optional: download the model before recording
 const { text } = await transcriber.transcribe({ audio: recordingBlob, signal });
 ```
 
-Aborting a worker call rejects right away and interrupts generation inside the worker. Progress events are forwarded to `onProgress`. Usage reports the original encoded byte count.
+Aborting a worker call rejects right away and interrupts generation inside the worker. `close()` rejects in-flight calls (including ones still decoding) and every later call, and aborts posted work in the worker; it does not terminate the worker. Progress events are forwarded to `onProgress`. Usage reports the original encoded byte count.
 
 ### Local Environment Configuration
 

@@ -704,6 +704,44 @@ describe('local transcriber: audio input', () => {
     expect(fake.calls[0]?.samples).toHaveLength(16_000);
   });
 
+  it('rejects invalid explicit raw PCM sample rates and channel counts', async () => {
+    const bytes = new Uint8Array(new Int16Array(64).buffer);
+    for (const sampleRate of [
+      -1,
+      0,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ]) {
+      await expect(
+        decodeToPcm16k(bytes, { mimeType: 'audio/pcm', sampleRate }),
+      ).rejects.toThrow(
+        expect.objectContaining({
+          name: 'SpeechConfigurationError',
+          message: expect.stringMatching(
+            /sampleRate must be a positive integer/,
+          ),
+        }),
+      );
+    }
+    for (const channels of [0, -2, 1.5, Number.NaN]) {
+      await expect(
+        decodeToPcm16k(bytes, { mimeType: 'audio/pcm;rate=16000', channels }),
+      ).rejects.toThrow(/channels must be a positive integer/);
+    }
+
+    await expect(
+      localTranscriber(fakeTransformers()).transcribe({
+        audio: {
+          data: bytes,
+          mimeType: 'audio/pcm',
+          sampleRate: 16_000,
+          channels: 0,
+        },
+      }),
+    ).rejects.toBeInstanceOf(SpeechConfigurationError);
+  });
+
   it('requires a sample rate for raw PCM', async () => {
     await expect(
       decodeToPcm16k(new Uint8Array(4), { mimeType: 'audio/pcm' }),
@@ -919,6 +957,7 @@ describe('local transcriber: web worker', () => {
     );
     return {
       client,
+      port: channel.port1,
       async close() {
         client.close();
         await stop();
@@ -953,6 +992,177 @@ describe('local transcriber: web worker', () => {
       language: 'en',
       return_timestamps: true,
     });
+    await close();
+  });
+
+  it('transfers WAV bytes undecoded and resamples them in the worker', async () => {
+    const fake = fakeTransformers();
+    const { client, port, close } = connect(fake);
+    const post = vi.spyOn(port, 'postMessage');
+    const audio = wav([tone(1, 48_000, 0.5), tone(1, 48_000, 0)], 48_000);
+
+    await client.transcribe({ audio });
+
+    const [message, transfer] = post.mock.calls[0] as [
+      { audio: { kind: string; bytes: Uint8Array; mimeType: string } },
+      ArrayBuffer[],
+    ];
+    // Sent as the raw WAV bytes (sniffed from the RIFF header), not as samples.
+    expect(message.audio.kind).toBe('encoded');
+    expect(message.audio.mimeType).toBe('application/octet-stream');
+    expect(transfer).toHaveLength(1);
+    // The buffer was transferred, not copied.
+    expect(message.audio.bytes.byteLength).toBe(0);
+    expect(fake.calls[0]?.samples).toHaveLength(16_000);
+    expect(fake.calls[0]?.samples[0]).toBeCloseTo(0.25, 3);
+    await close();
+  });
+
+  it('forwards raw PCM sample rate and channels to the worker', async () => {
+    const fake = fakeTransformers();
+    const { client, port, close } = connect(fake);
+    const post = vi.spyOn(port, 'postMessage');
+    const pcm = new Int16Array(32_000 * 2).fill(8_192);
+
+    await client.transcribe({
+      audio: {
+        data: new Uint8Array(pcm.buffer),
+        mimeType: 'audio/pcm',
+        sampleRate: 32_000,
+        channels: 2,
+      },
+    });
+
+    expect(post.mock.calls[0]?.[0]).toMatchObject({
+      audio: { kind: 'encoded', sampleRate: 32_000, channels: 2 },
+    });
+    expect(fake.calls[0]?.samples).toHaveLength(16_000);
+
+    await expect(
+      client.transcribe({
+        audio: {
+          data: new Uint8Array(4),
+          mimeType: 'audio/pcm',
+          sampleRate: -1,
+        },
+      }),
+    ).rejects.toBeInstanceOf(SpeechConfigurationError);
+    await close();
+  });
+
+  it('decodes hook formats on the client but downmixes and resamples in the worker', async () => {
+    const fake = fakeTransformers();
+    const left = new Float32Array(48_000).fill(0.5);
+    const right = new Float32Array(48_000).fill(0);
+    const decodeAudio = vi.fn(async () => ({
+      samples: [left, right],
+      sampleRate: 48_000,
+    }));
+    const { client, port, close } = connect(fake, { decodeAudio });
+    const post = vi.spyOn(port, 'postMessage');
+
+    await client.transcribe({
+      audio: new Uint8Array([1, 2, 3]),
+      mimeType: 'audio/webm',
+    });
+
+    const [message, transfer] = post.mock.calls[0] as [
+      { audio: { kind: string; samples: Float32Array[]; sampleRate: number } },
+      ArrayBuffer[],
+    ];
+    expect(message.audio).toMatchObject({
+      kind: 'decoded',
+      sampleRate: 48_000,
+    });
+    expect(message.audio.samples).toHaveLength(2);
+    expect(transfer).toHaveLength(2);
+    expect(fake.calls[0]?.samples).toHaveLength(16_000);
+    expect(fake.calls[0]?.samples[0]).toBeCloseTo(0.25, 5);
+    await close();
+  });
+
+  it('copies decoded samples backed by a SharedArrayBuffer or a shared view instead of transferring them', async () => {
+    const fake = fakeTransformers();
+    const shared = new Float32Array(new SharedArrayBuffer(16_000 * 4)).fill(
+      0.5,
+    );
+    const pooled = new Float32Array(32_000).fill(0.25);
+    const decodeAudio = vi
+      .fn()
+      .mockResolvedValueOnce({ samples: shared, sampleRate: 16_000 })
+      .mockResolvedValueOnce({
+        samples: [pooled.subarray(0, 16_000), pooled.subarray(16_000)],
+        sampleRate: 16_000,
+      })
+      .mockResolvedValueOnce({ samples: [shared, shared], sampleRate: 16_000 });
+    const { client, port, close } = connect(fake, { decodeAudio });
+    const post = vi.spyOn(port, 'postMessage');
+
+    for (let call = 0; call < 3; call++) {
+      await expect(
+        client.transcribe({
+          audio: new Uint8Array([1]),
+          mimeType: 'audio/ogg',
+        }),
+      ).resolves.toMatchObject({ text: 'Hello world.' });
+    }
+
+    for (const [, transfer] of post.mock.calls as [unknown, ArrayBuffer[]][]) {
+      for (const buffer of transfer) {
+        expect(Object.prototype.toString.call(buffer)).toBe(
+          '[object ArrayBuffer]',
+        );
+      }
+    }
+    // The caller's buffers are left intact.
+    expect(shared.length).toBe(16_000);
+    expect(pooled.length).toBe(32_000);
+    expect(fake.calls.map((call) => call.samples[0])).toEqual([0.5, 0.25, 0.5]);
+    await close();
+  });
+
+  it('rejects calls made after close() and calls still decoding when it runs', async () => {
+    const fake = fakeTransformers();
+    const decodeAudio = vi.fn(() => new Promise<never>(() => {}));
+    const { client, port, close } = connect(fake, { decodeAudio });
+
+    const decoding = client.transcribe({
+      audio: new Uint8Array([1]),
+      mimeType: 'audio/webm',
+    });
+    await vi.waitFor(() => expect(decodeAudio).toHaveBeenCalled());
+    const post = vi.spyOn(port, 'postMessage');
+    client.close();
+
+    await expect(decoding).rejects.toThrow('Worker client closed');
+    await expect(client.preload()).rejects.toThrow('Worker client closed');
+    await expect(
+      client.transcribe({ audio: wav([tone(1, 16_000)], 16_000) }),
+    ).rejects.toBeInstanceOf(SpeechConfigurationError);
+    expect(post).not.toHaveBeenCalled();
+    expect(fake.pipeline).not.toHaveBeenCalled();
+    await close();
+  });
+
+  it('rejects posted calls on close() and aborts them in the worker', async () => {
+    let release = () => {};
+    const fake = fakeTransformers({
+      inferenceGate: new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    });
+    const { client, close } = connect(fake);
+
+    const pending = client.transcribe({
+      audio: wav([tone(1, 16_000)], 16_000),
+      signal: new AbortController().signal,
+    });
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+    client.close();
+
+    await expect(pending).rejects.toThrow('Worker client closed');
+    await vi.waitFor(() => expect(fake.interrupts).toHaveLength(1));
+    release();
     await close();
   });
 
