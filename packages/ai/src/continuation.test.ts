@@ -59,6 +59,26 @@ describe('continuationAddition', () => {
     // A short coincidental repeat is not trimmed.
     expect(continuationAddition('a b', 'b c')).toBe('b c');
   });
+
+  it('restores the space between sentences at the seam', () => {
+    expect(
+      continuationAddition('The quick brown fox jumps over.', 'Next one.'),
+    ).toBe(' Next one.');
+    expect(continuationAddition('He said "stop."', '"Why?" she')).toBe(
+      ' "Why?" she',
+    );
+    // After a trimmed overlap too.
+    expect(continuationAddition(`a ${SEAM}.`, `${SEAM}.Then more`)).toBe(
+      ' Then more',
+    );
+    // Words and numbers split across parts stay joined.
+    expect(continuationAddition('An exam', 'ple of it')).toBe('ple of it');
+    expect(continuationAddition('Version 1.', '5 shipped')).toBe('5 shipped');
+    expect(continuationAddition('See example.', 'com today')).toBe('com today');
+    // Existing whitespace is not doubled.
+    expect(continuationAddition('Done. ', 'Next')).toBe('Next');
+    expect(continuationAddition('Done.', ' Next')).toBe(' Next');
+  });
 });
 
 describe('continueOnLength (OpenAI-compatible)', () => {

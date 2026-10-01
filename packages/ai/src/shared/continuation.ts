@@ -56,8 +56,26 @@ export function resolveContinuation(
 }
 
 /**
+ * Continuation replies usually start without a leading space. When the text
+ * so far ends a sentence and the addition starts a new one, add the space the
+ * model dropped at the seam ("over." + "Next" -> "over. Next"). Only a capital
+ * letter or an opening quote/bracket counts as a new sentence, so a word or
+ * number split across parts ("exam" + "ple", "1." + "5") is left joined.
+ */
+function spaceSeam(accumulated: string, addition: string): string {
+  if (!addition || /\s$/.test(accumulated) || /^\s/.test(addition)) {
+    return addition;
+  }
+  return /[.!?:;]["')\]\u201d\u2019]?$/.test(accumulated) &&
+    /^[\p{Lu}"'([\u201c\u2018]/u.test(addition)
+    ? ` ${addition}`
+    : addition;
+}
+
+/**
  * The text to append after `accumulated`: `next` minus any leading run that
- * repeats the end of `accumulated`. Whitespace already emitted is kept.
+ * repeats the end of `accumulated`. Whitespace already emitted is kept, and a
+ * dropped space between sentences is restored.
  */
 export function continuationAddition(
   accumulated: string,
@@ -67,9 +85,11 @@ export function continuationAddition(
   const head = next.trimStart();
   const max = Math.min(tail.length, head.length, MAX_OVERLAP);
   for (let length = max; length >= MIN_OVERLAP; length--) {
-    if (tail.endsWith(head.slice(0, length))) return head.slice(length);
+    if (tail.endsWith(head.slice(0, length))) {
+      return spaceSeam(accumulated, head.slice(length));
+    }
   }
-  return next;
+  return spaceSeam(accumulated, next);
 }
 
 function continuationMessages(

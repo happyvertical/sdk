@@ -414,7 +414,9 @@ result.truncated; // true if the reply still ended on the limit
 
 - Each continuation re-sends the conversation with the partial reply as an
   assistant turn plus a "continue exactly where you stopped" user turn, and any
-  text the model repeats at the seam (12+ characters) is trimmed.
+  text the model repeats at the seam (12+ characters) is trimmed. When a part
+  ends a sentence and the next starts a new one without a space, the space is
+  restored.
 - `chat`, `complete`, `message`, and `stream` all support it (Ollama's
   `complete` switches from `/generate` to a one-message chat when it is on); a stream stays one
   continuous stream (the first characters of each continuation are held briefly
