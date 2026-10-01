@@ -1,5 +1,11 @@
 import type { AIClientOptions } from './client';
-import type { AIInterface, AIRateLimitOptions, GetAIOptions } from './types';
+import { DEFAULT_AI_TIMEOUT_MS } from './safety';
+import type {
+  AIInterface,
+  AIRateLimitOptions,
+  AIRequestControls,
+  GetAIOptions,
+} from './types';
 import {
   AIError,
   DEFAULT_RATE_LIMIT_MAX_RETRY_DELAY_MS,
@@ -24,6 +30,21 @@ const RATE_LIMITED_METHODS = new Set<keyof AIInterface>([
   'submitVideoGenerationJob',
 ]);
 
+/**
+ * Where each paced method takes its request controls (`timeout`, `signal`).
+ * For these, the timeout covers the whole call: time queued behind other calls
+ * on the same key, pacing and retry waits, and the request itself.
+ */
+const REQUEST_CONTROLS_INDEX: Partial<Record<keyof AIInterface, number>> = {
+  decide: 1,
+  chat: 1,
+  complete: 1,
+  message: 1,
+  describeImage: 2,
+  generateImage: 1,
+  submitVideoGenerationJob: 0,
+};
+
 const MAX_BUDGET_COORDINATORS = 128;
 const BUDGET_COORDINATOR_TTL_MS = 15 * 60 * 1000;
 
@@ -35,47 +56,154 @@ interface NormalizedRateLimitConfig {
   maxRetryDelayMs: number;
 }
 
+/** One call's limits while it waits for its turn on a budget key. */
+interface CallBudget {
+  provider: string;
+  /** Epoch ms by which the whole call must finish; undefined = no limit. */
+  deadline?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+function queueTimeoutError(budget: CallBudget): AIError {
+  return new AIError(
+    `AI request timed out after ${budget.timeoutMs}ms, including time waiting for its rate-limit turn`,
+    'AI_TIMEOUT',
+    budget.provider,
+  );
+}
+
+function abortedError(budget: CallBudget): AIError {
+  return new AIError(
+    'AI request aborted by caller',
+    'AI_ABORTED',
+    budget.provider,
+  );
+}
+
 class BudgetCoordinator {
   private nextAvailableAt = 0;
   private pendingSchedules = 0;
   private tail: Promise<void> = Promise.resolve();
   private lastUsedAt = Date.now();
+  /** The rate-limit error that holds the key closed until `blockedUntil`. */
+  private blockedBy?: RateLimitError;
+  private blockedUntil = 0;
 
   touch(): void {
     this.lastUsedAt = Date.now();
   }
 
-  schedule<T>(work: () => Promise<T>): Promise<T> {
+  /**
+   * Run `work` after every earlier call on this key. While the call is still
+   * queued, its deadline or abort signal releases the caller, and the work is
+   * skipped when its turn comes.
+   */
+  schedule<T>(work: () => Promise<T>, budget: CallBudget): Promise<T> {
     this.pendingSchedules += 1;
     this.touch();
 
-    const run = this.tail.then(work, work);
+    let gaveUp: AIError | undefined;
+    let started: (() => void) | undefined;
+    const guarded = () => {
+      if (gaveUp) return Promise.reject(gaveUp);
+      started?.();
+      return work();
+    };
+    const run = this.tail.then(guarded, guarded);
     this.tail = run.then(
       () => undefined,
       () => undefined,
     );
 
-    return run.finally(() => {
+    const result = run.finally(() => {
       this.pendingSchedules = Math.max(0, this.pendingSchedules - 1);
       this.touch();
     });
+    if (budget.deadline === undefined && !budget.signal) return result;
+
+    return new Promise<T>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const stopWaiting = () => {
+        if (timer) clearTimeout(timer);
+        budget.signal?.removeEventListener('abort', onAbort);
+      };
+      const giveUp = (error: AIError) => {
+        gaveUp = error;
+        stopWaiting();
+        reject(error);
+      };
+      const onAbort = () => giveUp(abortedError(budget));
+      // Once the work starts, its own timeout and signal take over.
+      started = stopWaiting;
+      if (budget.deadline !== undefined) {
+        timer = setTimeout(
+          () => giveUp(queueTimeoutError(budget)),
+          Math.max(0, budget.deadline - Date.now()),
+        );
+      }
+      if (budget.signal?.aborted) {
+        onAbort();
+      } else {
+        budget.signal?.addEventListener('abort', onAbort, { once: true });
+      }
+      result.then(
+        (value) => {
+          stopWaiting();
+          resolve(value);
+        },
+        (error) => {
+          stopWaiting();
+          reject(error);
+        },
+      );
+    });
   }
 
-  async waitUntilReady(): Promise<void> {
+  /**
+   * Wait out pacing before a request. When the wait would run past the call's
+   * deadline, fail now: with a RateLimitError (reason and time until the key
+   * reopens) when a rate limit closed the key, else with a timeout.
+   */
+  async waitUntilReady(
+    budget: CallBudget,
+    config: NormalizedRateLimitConfig,
+  ): Promise<void> {
     this.touch();
-    const delayMs = this.nextAvailableAt - Date.now();
+    const now = Date.now();
+    const delayMs = this.nextAvailableAt - now;
     if (delayMs > 0) {
-      await sleep(delayMs);
+      if (budget.deadline !== undefined && now + delayMs >= budget.deadline) {
+        const blockedBy = this.blockedUntil > now ? this.blockedBy : undefined;
+        if (blockedBy) {
+          throw new RateLimitError(blockedBy.provider, undefined, {
+            reason: blockedBy.reason,
+            retryAfterMs: Math.max(0, this.blockedUntil - now),
+            limitWindowMs: blockedBy.limitWindowMs,
+            model: blockedBy.model,
+            cause: blockedBy,
+            maxRetryDelayMs: config.maxRetryDelayMs,
+          });
+        }
+        throw queueTimeoutError(budget);
+      }
+      await sleep(delayMs, budget.signal);
+      if (budget.signal?.aborted) throw abortedError(budget);
     }
   }
 
-  delayFor(delayMs: number): void {
+  delayFor(delayMs: number, cause?: RateLimitError): void {
     this.touch();
     if (delayMs <= 0) {
       return;
     }
 
-    this.nextAvailableAt = Math.max(this.nextAvailableAt, Date.now() + delayMs);
+    const until = Date.now() + delayMs;
+    this.nextAvailableAt = Math.max(this.nextAvailableAt, until);
+    if (cause && until >= this.blockedUntil) {
+      this.blockedBy = cause;
+      this.blockedUntil = until;
+    }
   }
 
   isEvictable(now: number): boolean {
@@ -96,9 +224,16 @@ class BudgetCoordinator {
 
 const budgetCoordinators = new Map<string, BudgetCoordinator>();
 
-function sleep(delayMs: number): Promise<void> {
+/** Sleep; an abort ends the sleep early (the caller checks the signal). */
+function sleep(delayMs: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, delayMs);
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', done);
+      resolve();
+    };
+    const timer = setTimeout(done, delayMs);
+    signal?.addEventListener('abort', done, { once: true });
   });
 }
 
@@ -246,23 +381,31 @@ function getRetryDelayMs(
 }
 
 async function invokeWithPacing<T>(
-  execute: () => Promise<T>,
+  execute: (remainingMs: number | undefined) => Promise<T>,
   coordinator: BudgetCoordinator,
   config: NormalizedRateLimitConfig,
+  budget: CallBudget,
   allowRetry = true,
 ): Promise<T> {
   let attempt = 1;
 
   while (true) {
-    await coordinator.waitUntilReady();
+    await coordinator.waitUntilReady(budget, config);
+
+    const remainingMs =
+      budget.deadline === undefined ? undefined : budget.deadline - Date.now();
+    if (remainingMs !== undefined && remainingMs <= 0) {
+      throw queueTimeoutError(budget);
+    }
 
     try {
-      const result = await execute();
+      const result = await execute(remainingMs);
       coordinator.delayFor(config.cooldownMs);
       return result;
     } catch (error) {
       if (error instanceof RateLimitError) {
-        coordinator.delayFor(getRetryDelayMs(error, config));
+        const retryDelayMs = getRetryDelayMs(error, config);
+        coordinator.delayFor(retryDelayMs, error);
         // This client's threshold decides whether the reset is near enough
         // to retry; a far reset is surfaced as not retryable soon.
         error.retryable = isRateLimitRetryableSoon(
@@ -270,7 +413,15 @@ async function invokeWithPacing<T>(
           config.maxRetryDelayMs,
         );
 
-        if (allowRetry && error.retryable && attempt < config.maxAttempts) {
+        const fitsDeadline =
+          budget.deadline === undefined ||
+          Date.now() + retryDelayMs < budget.deadline;
+        if (
+          allowRetry &&
+          error.retryable &&
+          fitsDeadline &&
+          attempt < config.maxAttempts
+        ) {
           attempt += 1;
           continue;
         }
@@ -528,6 +679,11 @@ export function createRateLimitedAI<T extends AIInterface>(
   }
 
   const wrappedMethods = new Map<PropertyKey, unknown>();
+  const provider =
+    typeof options.type === 'string' && options.type ? options.type : 'openai';
+  const clientTimeoutMs = positiveTimeout(
+    'timeout' in options ? options.timeout : undefined,
+  );
   // Seevio does not document idempotency for billed video-task submission.
   // Existing providers retain their established pacing-retry behavior.
   const allowSeevioSubmitRetry = options.type !== 'seevio';
@@ -549,15 +705,57 @@ export function createRateLimitedAI<T extends AIInterface>(
       }
 
       if (!wrappedMethods.has(property)) {
+        const controlsIndex =
+          REQUEST_CONTROLS_INDEX[property as keyof AIInterface];
         wrappedMethods.set(property, (...args: unknown[]) => {
           const coordinator = getBudgetCoordinator(config.key);
-          return coordinator.schedule(() =>
-            invokeWithPacing(
-              () => Reflect.apply(value, target, args) as Promise<unknown>,
-              coordinator,
-              config,
-              property !== 'submitVideoGenerationJob' || allowSeevioSubmitRetry,
-            ),
+          const controls =
+            controlsIndex === undefined
+              ? undefined
+              : (args[controlsIndex] as AIRequestControls | undefined);
+          // The timeout bounds the whole call from the caller's side. Methods
+          // without request controls only use a client-level timeout.
+          const timeoutMs =
+            controlsIndex === undefined
+              ? clientTimeoutMs
+              : controls?.timeout !== undefined
+                ? positiveTimeout(controls.timeout)
+                : (clientTimeoutMs ?? DEFAULT_AI_TIMEOUT_MS);
+          const budget: CallBudget = {
+            provider,
+            timeoutMs,
+            deadline:
+              timeoutMs === undefined ? undefined : Date.now() + timeoutMs,
+            signal: controls?.signal,
+          };
+          return coordinator.schedule(
+            () =>
+              invokeWithPacing(
+                (remainingMs) => {
+                  const callArgs = [...args];
+                  if (
+                    controlsIndex !== undefined &&
+                    remainingMs !== undefined
+                  ) {
+                    // The request gets only what is left of the call's timeout.
+                    callArgs[controlsIndex] = {
+                      ...controls,
+                      timeout: Math.max(1, Math.floor(remainingMs)),
+                    };
+                  }
+                  return Reflect.apply(
+                    value,
+                    target,
+                    callArgs,
+                  ) as Promise<unknown>;
+                },
+                coordinator,
+                config,
+                budget,
+                property !== 'submitVideoGenerationJob' ||
+                  allowSeevioSubmitRetry,
+              ),
+            budget,
           );
         });
       }
@@ -565,6 +763,13 @@ export function createRateLimitedAI<T extends AIInterface>(
       return wrappedMethods.get(property);
     },
   }) as T;
+}
+
+/** A usable timeout, or undefined so the provider reports a bad value itself. */
+function positiveTimeout(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.trunc(value)
+    : undefined;
 }
 
 export function __resetAIRateLimitStateForTests(): void {

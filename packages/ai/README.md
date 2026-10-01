@@ -484,6 +484,17 @@ in-process retry wrapper is applied. Provider retries still default to zero.
 - If `key` is omitted, `@happyvertical/ai` derives a provider-scoped key from the configured credentials
 - Setting any of `key`, `cooldownMs`, `initialDelayMs`, or `maxAttempts` also opts in when `enabled` is omitted
 - Only normalized rate-limit failures are retried
+- The request `timeout` covers the whole call from the caller's side: time
+  queued behind other calls on the same key, cooldown and retry waits, and the
+  request itself, which gets only what is left. A call still queued at its
+  deadline fails with `AIError` code `AI_TIMEOUT` and never reaches the provider.
+  When a rate limit has closed the key past the deadline, the call fails at once
+  with a `RateLimitError` carrying the original `reason` and the remaining
+  `retryAfterMs`. A retry that cannot finish before the deadline is not started.
+  Aborting `signal` releases a queued call (`AI_ABORTED`). Methods without
+  request controls (`embed`, `getModels`, speech) use the client `timeout` for
+  their queue wait when one is set. With `continueOnLength`, each part is its
+  own request with its own timeout.
 - `stream()` is left unchanged; pacing is applied to the promise-returning request methods
 
 Example quota-sensitive batch workload:

@@ -68,7 +68,11 @@ export interface AIRequestControls {
   /** Caller cancellation signal. Provider timeouts are composed with this signal. */
   signal?: AbortSignal;
 
-  /** Request timeout in milliseconds. Overrides the provider default. */
+  /**
+   * Request timeout in milliseconds. Overrides the provider default. With
+   * `rateLimit` pacing it covers the whole call, including time queued for the
+   * rate-limit key and retry waits.
+   */
   timeout?: number;
 
   /** Provider-neutral reasoning controls. */
