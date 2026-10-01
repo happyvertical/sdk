@@ -304,42 +304,53 @@ describe('voxtral-realtime streaming', () => {
     expect(result.usage?.providerUsage).toMatchObject({ total_tokens: 206 });
   });
 
-  it('opens a new turn when vLLM ends one by itself (model context full)', async () => {
-    FakeWebSocket.onClientMessage = vllmServer(['After.']).handler;
+  it('fails closed when vLLM ends a turn by itself (model context full)', async () => {
     const session = transcriber().start();
+    const finals: string[] = [];
+    session.on('final', (event) => finals.push(event.text));
     await session.write(pcm(320));
     await flush();
 
     // vLLM sends `done` without a final commit once max_model_len is reached.
-    lastSocket().serverSend({ type: 'transcription.done', text: ' Before.' });
-    await session.write(pcm(320));
-    const result = await session.end();
+    lastSocket().serverSend({
+      type: 'transcription.done',
+      text: ' Before.',
+      usage: { prompt_tokens: 39, completion_tokens: 4000 },
+    });
 
-    expect(
-      lastSocket().sent.map((message) => [message.type, message.final]),
-    ).toEqual([
-      ['session.update', undefined],
-      ['input_audio_buffer.commit', undefined],
-      ['input_audio_buffer.append', undefined],
-      ['input_audio_buffer.commit', undefined],
-      ['input_audio_buffer.append', undefined],
-      ['input_audio_buffer.commit', true],
-    ]);
-    expect(result.segments).toEqual([{ text: 'Before.' }, { text: 'After.' }]);
+    // The text up to the cut-off is still delivered as a final.
+    expect(finals).toEqual(['Before.']);
+    await expect(session.end()).rejects.toThrow(
+      /ended a turn before it was committed, probably because the model context \(max_model_len\) filled/,
+    );
+    expect(session.state).toBe('failed');
+    await expect(session.write(pcm(320))).rejects.toThrow(SpeechProviderError);
   });
 
-  it('end() after a server-ended turn sends no extra commit', async () => {
+  it('fails closed when a turn with audio consumes none (stale end marker)', async () => {
     const session = transcriber().start();
     await session.write(pcm(320));
+    session.commit();
     await flush();
-    lastSocket().serverSend({ type: 'transcription.done', text: ' All.' });
-    const result = await session.end();
-    expect(lastSocket().types()).toEqual([
-      'session.update',
-      'input_audio_buffer.commit',
-      'input_audio_buffer.append',
-    ]);
-    expect(result.text).toBe('All.');
+    // Turn 1: our final commit crossed a server-ended `done`, which acks it.
+    lastSocket().serverSend({
+      type: 'transcription.done',
+      text: ' First.',
+      usage: { prompt_tokens: 39 },
+    });
+
+    await session.write(pcm(320));
+    const ending = session.end();
+    await flush();
+    // Turn 2: the stale end marker ends it at once; no audio was consumed.
+    lastSocket().serverSend({
+      type: 'transcription.done',
+      text: '',
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    });
+    await expect(ending).rejects.toThrow(
+      /finished a turn without transcribing its audio/,
+    );
   });
 
   it('end() without audio sends no commit and resolves empty', async () => {
@@ -372,6 +383,55 @@ describe('voxtral-realtime streaming', () => {
     await expect(quiet.end()).rejects.toThrow(
       /timed out after 30 ms waiting for the final transcript/,
     );
+  });
+
+  it('bounds a held turn by provider inactivity, not a fixed deadline', async () => {
+    const server = vllmServer(['First.', 'Second.'], { holdDone: true });
+    FakeWebSocket.onClientMessage = server.handler;
+    const session = transcriber({ timeoutMs: 60 }).start();
+    await session.write(pcm(320));
+    session.commit();
+    const held = session.write(pcm(320));
+
+    // The first turn keeps streaming for 150 ms (> timeoutMs) before `done`.
+    for (let index = 0; index < 5; index += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      lastSocket().serverSend({ type: 'transcription.delta', delta: '' });
+    }
+    server.releaseDone();
+    await held;
+    const ending = session.end();
+    await flush();
+    server.releaseDone();
+    await expect(ending).resolves.toMatchObject({ text: 'First. Second.' });
+
+    const quiet = transcriber({ timeoutMs: 30 }).start();
+    FakeWebSocket.onClientMessage = undefined;
+    await quiet.write(pcm(320));
+    quiet.commit();
+    await expect(quiet.write(pcm(320))).rejects.toThrow(
+      /without a server message while waiting for the previous turn/,
+    );
+  });
+
+  it('redacts gateway header credentials from surfaced provider text', async () => {
+    const session = transcriber({
+      headers: { 'x-bf-vk': 'vk-gateway-secret' },
+    }).start();
+    await session.ready;
+    const failed = new Promise<Error>((resolve) =>
+      session.on('error', resolve),
+    );
+    lastSocket().serverSend({
+      type: 'error',
+      error: 'rejected vk-gateway-secret and vllm-test-key',
+      code: 'unauthorized',
+    });
+    const error = (await failed) as SpeechProviderError;
+    expect(error.message).toBe(
+      'voxtral-realtime error (unauthorized): rejected [REDACTED] and [REDACTED]',
+    );
+    expect(error.responseBody).not.toContain('vk-gateway-secret');
   });
 
   it('fails the session on a vLLM error event', async () => {
@@ -417,8 +477,23 @@ describe('voxtral-realtime parsing', () => {
         text: 'Hi.',
         providerUsage: undefined,
         raw: { type: 'transcription.done', text: ' Hi. ' },
+        audioConsumed: undefined,
       },
     ]);
+    expect(
+      parseVoxtralRealtimeEvent({
+        type: 'transcription.done',
+        text: '',
+        usage: { prompt_tokens: 1 },
+      })[0],
+    ).toMatchObject({ audioConsumed: false });
+    expect(
+      parseVoxtralRealtimeEvent({
+        type: 'transcription.done',
+        text: 'x',
+        usage: { prompt_tokens: 39 },
+      })[0],
+    ).toMatchObject({ audioConsumed: true });
     expect(
       parseVoxtralRealtimeEvent({
         type: 'error',

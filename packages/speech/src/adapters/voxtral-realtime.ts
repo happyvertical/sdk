@@ -22,6 +22,11 @@
  *    socket.
  * 7. Errors arrive as `{ type: 'error', error: string, code }` and leave the
  *    socket open; this adapter treats every error as fatal.
+ * 8. When a turn fills the model context (`max_model_len`), vLLM ends it with
+ *    a normal `transcription.done` and drops later audio. A final commit that
+ *    crosses that `done` leaves a stale end marker, so the next turn ends at
+ *    once with `prompt_tokens: 1` and its audio is dropped. The session fails
+ *    closed in both cases rather than losing audio silently.
  */
 
 import { SpeechConfigurationError } from '../shared/errors.js';
@@ -111,16 +116,24 @@ export function parseVoxtralRealtimeEvent(
       return delta ? [{ type: 'partial', delta }] : [];
     }
     case 'transcription.done': {
-      const usage = event.usage;
+      const usage =
+        event.usage &&
+        typeof event.usage === 'object' &&
+        !Array.isArray(event.usage)
+          ? (event.usage as Record<string, unknown>)
+          : undefined;
+      // Any audio, even one sample, costs the turn's full audio prompt
+      // (39 tokens on Voxtral Mini Realtime); a turn that consumed no audio
+      // reports `prompt_tokens: 1`.
+      const promptTokens = usage?.prompt_tokens;
       return [
         {
           type: 'final',
           text: typeof event.text === 'string' ? event.text.trim() : '',
-          providerUsage:
-            usage && typeof usage === 'object' && !Array.isArray(usage)
-              ? (usage as Record<string, unknown>)
-              : undefined,
+          providerUsage: usage,
           raw: event,
+          audioConsumed:
+            typeof promptTokens === 'number' ? promptTokens > 1 : undefined,
         },
       ];
     }

@@ -36,7 +36,12 @@ import {
   SpeechConfigurationError,
   SpeechProviderError,
 } from './errors.js';
-import { HttpSpeechAdapter, resolveOpenAICompatibleUrl } from './http.js';
+import {
+  HttpSpeechAdapter,
+  redactSecret,
+  resolveOpenAICompatibleUrl,
+} from './http.js';
+import { headerSecrets } from './realtime-auth.js';
 import {
   isStreamingTranscriberType,
   parseTurnDetection,
@@ -196,28 +201,33 @@ export async function createStreamingClientSecret(
       readEnv(env, ...keys.baseUrl)?.trim() ||
       OPENAI_REALTIME_DEFAULT_URL,
   );
+  const headers = mergeHeaderInits(
+    parseHeadersEnv(env, keys.headers),
+    options.headers,
+  );
   const client = new ClientSecretClient({
     baseUrl: endpoint,
     apiKey,
     fetch: options.fetch,
-    headers: mergeHeaderInits(
-      parseHeadersEnv(env, keys.headers),
-      options.headers,
-    ),
+    headers,
     timeoutMs:
       options.timeoutMs ??
       parseOptionalInteger(readEnv(env, ...keys.timeoutMs)) ??
       10_000,
   });
 
-  const body = await client.mint(
-    endpoint,
-    {
-      expires_after: { anchor: 'created_at', seconds: ttlSeconds },
-      session,
-    },
-    options.signal,
-  );
+  const body = await client
+    .mint(
+      endpoint,
+      {
+        expires_after: { anchor: 'created_at', seconds: ttlSeconds },
+        session,
+      },
+      options.signal,
+    )
+    .catch((error: unknown) => {
+      throw redactProviderError(error, headerSecrets(headers));
+    });
 
   const value = body.value;
   if (typeof value !== 'string' || !value) {
@@ -267,6 +277,30 @@ export function resolveClientSecretUrl(baseUrl: string): string {
     url.toString(),
     OPENAI_CLIENT_SECRET_ENDPOINT,
   );
+}
+
+/**
+ * The HTTP layer redacts the API key from provider error bodies; this also
+ * removes gateway credentials sent in `headers` (e.g. `x-bf-vk`).
+ */
+function redactProviderError(error: unknown, secrets: string[]): unknown {
+  if (!(error instanceof SpeechProviderError) || secrets.length === 0) {
+    return error;
+  }
+  let responseBody = error.responseBody;
+  let message = error.message;
+  for (const secret of secrets) {
+    responseBody = redactSecret(responseBody, secret);
+    message = redactSecret(message, secret) ?? message;
+  }
+  if (responseBody === error.responseBody && message === error.message) {
+    return error;
+  }
+  return new SpeechProviderError(error.adapter ?? 'openai-realtime', message, {
+    status: error.status,
+    responseBody,
+    retryAfterMs: error.retryAfterMs,
+  });
 }
 
 class ClientSecretClient extends HttpSpeechAdapter {

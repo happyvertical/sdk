@@ -55,6 +55,13 @@ export type RealtimeProtocolEvent =
       text: string;
       providerUsage?: Record<string, unknown>;
       raw?: unknown;
+      /**
+       * `false` when the provider reports that the turn consumed no audio
+       * (vLLM: `usage.prompt_tokens <= 1`). A turn that was sent audio but
+       * consumed none means the provider's turn state is out of sync, and the
+       * session fails instead of silently dropping that audio.
+       */
+      audioConsumed?: boolean;
     }
   | { type: 'speech_started'; itemId?: string; audioMs?: number }
   | { type: 'speech_stopped'; itemId?: string; audioMs?: number }
@@ -166,7 +173,11 @@ export class RealtimeTranscriptionSession implements StreamingSession {
   private totalBytes = 0;
   private uncommittedBytes = 0;
   private outstandingCommits = 0;
+  /** Per outstanding commit, in order: whether it carried audio. */
+  private readonly commitHadAudio: boolean[] = [];
   private turnOpen = false;
+  /** `Date.now()` of the last server message; bounds inactivity waits. */
+  private lastServerMessageAt = 0;
   private readonly itemOrder: string[] = [];
   private readonly pendingItems = new Set<string>();
   private readonly vadStoppedItems = new Set<string>();
@@ -402,6 +413,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       return;
     }
 
+    this.lastServerMessageAt = Date.now();
     if (this.endWaiter) {
       this.armEndTimer();
     }
@@ -468,7 +480,26 @@ export class RealtimeTranscriptionSession implements StreamingSession {
         });
         return;
       }
-      case 'final':
+      case 'final': {
+        let serverEnded = false;
+        if (this.init.protocol.commitAck === 'final') {
+          if (this.outstandingCommits === 0) {
+            // A final we did not ask for: the server ended the open turn by
+            // itself (vLLM does when the model context fills).
+            serverEnded = true;
+          } else if (this.ackCommit() && event.audioConsumed === false) {
+            // Our turn carried audio but the server consumed none. vLLM does
+            // this when a stale end-of-turn marker (left by a commit that
+            // crossed a server-ended turn) ends the turn at once.
+            this.fail(
+              new SpeechProviderError(
+                this.provider,
+                `${this.provider} finished a turn without transcribing its audio (the server's turn state is out of sync, typically after a turn filled the model context); start a new session`,
+              ),
+            );
+            return;
+          }
+        }
         if (event.itemId) {
           this.pendingItems.delete(event.itemId);
         }
@@ -480,24 +511,24 @@ export class RealtimeTranscriptionSession implements StreamingSession {
           raw: event.raw,
           arrival: this.finals.length,
         });
-        if (this.init.protocol.commitAck === 'final') {
-          if (this.outstandingCommits > 0) {
-            this.ackCommit();
-          } else if (this.init.protocol.turnStartMessage) {
-            // The server ended the open turn by itself (vLLM does when the
-            // model context fills): the next audio needs a new turn, and the
-            // audio already sent belongs to the turn that just finished.
-            this.turnOpen = false;
-            this.uncommittedBytes = 0;
-          }
-        }
         this.emit('final', {
           text: event.text,
           itemId: event.itemId,
           providerUsage: event.providerUsage,
           raw: event.raw,
         });
+        if (serverEnded) {
+          // Fail closed: audio sent after the cut-off was never transcribed,
+          // and the server may now be out of step with our turns.
+          this.fail(
+            new SpeechProviderError(
+              this.provider,
+              `${this.provider} ended a turn before it was committed, probably because the model context (max_model_len) filled; audio sent after that point was not transcribed. Call commit() more often and start a new session`,
+            ),
+          );
+        }
         return;
+      }
       case 'speech_started':
         this.emit(event.type, { itemId: event.itemId, audioMs: event.audioMs });
         return;
@@ -526,8 +557,10 @@ export class RealtimeTranscriptionSession implements StreamingSession {
     }
   }
 
-  private ackCommit(): void {
+  /** Acknowledges the oldest outstanding commit; returns whether it carried audio. */
+  private ackCommit(): boolean {
     this.outstandingCommits = Math.max(0, this.outstandingCommits - 1);
+    return this.commitHadAudio.shift() ?? false;
   }
 
   private async pump(): Promise<void> {
@@ -583,6 +616,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       return;
     }
     if (this.send(this.init.protocol.commitMessage({ final }))) {
+      this.commitHadAudio.push(this.uncommittedBytes > 0);
       this.uncommittedBytes = 0;
       this.outstandingCommits += 1;
       this.turnOpen = false;
@@ -591,8 +625,10 @@ export class RealtimeTranscriptionSession implements StreamingSession {
 
   /**
    * For protocols with an explicit turn start: before the next audio, waits
-   * for every outstanding turn to be acknowledged (bounded by `timeoutMs`),
-   * then opens a new turn. Returns false when the session has failed.
+   * for every outstanding turn to be acknowledged, then opens a new turn. Like
+   * the end timeout, the wait is bounded by provider inactivity: it fails only
+   * after `timeoutMs` without any server message. Returns false when the
+   * session has failed.
    */
   private async openTurnIfNeeded(): Promise<boolean> {
     const start = this.init.protocol.turnStartMessage;
@@ -600,13 +636,14 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       return true;
     }
 
-    const deadline = Date.now() + this.init.timeoutMs;
+    const waitStartedAt = Date.now();
     while (!this.isTerminal() && this.outstandingCommits > 0) {
-      if (Date.now() >= deadline) {
+      const lastActivity = Math.max(waitStartedAt, this.lastServerMessageAt);
+      if (Date.now() - lastActivity >= this.init.timeoutMs) {
         this.fail(
           new SpeechProviderError(
             this.provider,
-            `${this.provider} timed out after ${this.init.timeoutMs} ms waiting for the previous turn to finish`,
+            `${this.provider} timed out after ${this.init.timeoutMs} ms without a server message while waiting for the previous turn to finish`,
           ),
         );
         break;

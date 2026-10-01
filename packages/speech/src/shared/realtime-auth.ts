@@ -91,7 +91,9 @@ export function realtimeConnector(
       options.clientSecret,
     );
     const headers = { ...options.headers };
-    const secrets: string[] = [];
+    // Gateway credentials (e.g. `x-bf-vk`, an explicit Authorization) are
+    // redacted from surfaced provider text just like the API key.
+    const secrets: string[] = headerSecrets(headers);
     if (secret) {
       secrets.push(secret);
     }
@@ -108,6 +110,35 @@ export function realtimeConnector(
       secrets,
     };
   };
+}
+
+/** Header values shorter than this are not treated as credentials. */
+const MIN_HEADER_SECRET_LENGTH = 8;
+
+/**
+ * Values of caller-supplied headers to redact from provider error text. Every
+ * header is treated as potentially secret (gateway virtual keys, tenant
+ * tokens); for `Authorization`, the credential after the scheme is included
+ * too. Very short values are skipped so redaction cannot mangle messages.
+ */
+export function headerSecrets(headers: HeadersInit | undefined): string[] {
+  const secrets: string[] = [];
+  for (const [key, value] of Object.entries(mergeHeaderRecords(headers))) {
+    const candidates = [value];
+    if (key.toLowerCase() === 'authorization') {
+      candidates.push(value.replace(/^\S+\s+/, ''));
+    }
+    for (const candidate of candidates) {
+      const trimmed = candidate.trim();
+      if (
+        trimmed.length >= MIN_HEADER_SECRET_LENGTH &&
+        !secrets.includes(trimmed)
+      ) {
+        secrets.push(trimmed);
+      }
+    }
+  }
+  return secrets;
 }
 
 export function mergeHeaderRecords(
