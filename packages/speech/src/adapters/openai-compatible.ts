@@ -2,6 +2,7 @@ import {
   compactJson,
   HttpSpeechAdapter,
   readSynthesizedSpeechResponse,
+  resolveOpenAICompatibleUrl,
   voiceToString,
 } from '../shared/http.js';
 import type {
@@ -17,13 +18,14 @@ export class OpenAICompatibleSpeechSynthesizer
 {
   readonly type = 'openai-compatible' as const;
 
-  private readonly speechPath: string;
+  /** Explicit override, resolved relative to `baseUrl` (or absolute). */
+  private readonly speechPath?: string;
   private readonly defaultModel: string;
   private readonly defaultVoice: string;
 
   constructor(options: OpenAICompatibleSpeechSynthesizerOptions) {
     super(options);
-    this.speechPath = options.speechPath ?? '/v1/audio/speech';
+    this.speechPath = options.speechPath;
     this.defaultModel = options.defaultModel ?? 'tts-1';
     this.defaultVoice = options.defaultVoice ?? 'alloy';
   }
@@ -39,9 +41,17 @@ export class OpenAICompatibleSpeechSynthesizer
       speed: request.speed,
     });
 
+    // Without an override, resolve the endpoint the way the transcriber does:
+    // a server root gets `/v1/audio/speech`, a `/vN` API root gets
+    // `/audio/speech`, and a full endpoint URL is used as-is. Resolved per
+    // call so an invalid baseUrl still fails at synthesize time.
+    const endpoint =
+      this.speechPath ??
+      resolveOpenAICompatibleUrl(this.baseUrl, 'audio/speech');
+
     const speech = await this.post(
       this.type,
-      this.speechPath,
+      endpoint,
       {
         headers: {
           'content-type': 'application/json',

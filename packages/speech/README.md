@@ -52,7 +52,9 @@ const spoken = await speech.synthesize({
 | Voxtral Realtime STT via vLLM (streaming) | `voxtral-realtime` | WebSocket | `<base>/realtime` | JSON events, base64 PCM16 16 kHz |
 | Studio Server TTS | `studio-server` | `POST` | `/v1/tts/synthesize` | Multipart |
 | Qwen3 TTS | `qwen3-tts` | `POST` | `/v1/audio/speech` | Multipart |
-| OpenAI-compatible TTS | `openai-compatible` | `POST` | `/v1/audio/speech` | JSON |
+| OpenAI-compatible TTS | `openai-compatible` | `POST` | `<base>/audio/speech` | JSON |
+
+The OpenAI-compatible TTS base URL resolves like the transcriber's: a server root (`http://gateway:8080`) gets `/v1/audio/speech`, a base ending in a version segment (`http://gateway/tts/v1`) gets `/audio/speech`, and a URL already ending in `/audio/speech` is used as-is. The query string is preserved and a fragment is dropped. An explicit `speechPath` skips this: it resolves relative to the base URL, or is used as-is when absolute.
 
 Studio Server and Qwen3 accept pre-extracted provider voice prompts through `SpeechVoice.prompt`; the adapters forward these as the multipart `voice_prompt` field.
 
