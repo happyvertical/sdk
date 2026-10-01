@@ -339,7 +339,8 @@ LiteLLM uses the same SDK surface, mapping projects to LiteLLM teams and virtual
 Every generative provider constructor applies the same safe defaults, including
 instances created directly instead of through `getAI()`:
 
-- 4,096 output tokens per request
+- 4,096 output tokens when the caller passes no `maxTokens` (`defaultOutputTokens`)
+- a 131,072-token output ceiling (`maxOutputTokens`), so an explicit `maxTokens` is bounded by the model, not this package
 - 1,024 reasoning tokens per request
 - one generated image per request
 - a 120-second provider timeout

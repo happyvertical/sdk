@@ -14,8 +14,18 @@ export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
  * Provider instances merge partial overrides with the exported safe defaults.
  */
 export interface AIGenerationLimits {
-  /** Maximum text tokens a single request may generate. */
+  /**
+   * Hard ceiling on text tokens a single request may generate. Defaults to a
+   * high value (131072) so explicit caller `maxTokens` is bounded by the model
+   * rather than by this package; set it to enforce a deployment-wide cap.
+   */
   maxOutputTokens: number;
+
+  /**
+   * Output tokens used when the caller passes no `maxTokens` (default 4096,
+   * never above `maxOutputTokens`).
+   */
+  defaultOutputTokens?: number;
 
   /** Maximum reasoning/thinking tokens a single request may generate. */
   maxReasoningTokens: number;
