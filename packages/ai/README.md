@@ -65,8 +65,9 @@ const bifrost = await getAI({
 });
 
 // LiteLLM and Bifrost getModels() list gateway audio models with their own
-// capabilities: transcription models (whisper, *transcribe*) report
-// ['transcription'] and TTS models (tts, speech) report ['speech']. They are
+// capabilities: transcription models (whisper, transcribe, speech-to-text
+// tokens) report ['transcription'] and TTS models (tts, speech tokens) report
+// ['speech']. Markers match whole model-ID tokens, not substrings. They are
 // never auto-selected for chat, vision, embeddings, or image generation.
 // Moderation and rerank models stay filtered out of the listing.
 const transcribers = (await bifrost.getModels()).filter((model) =>
