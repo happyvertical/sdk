@@ -108,6 +108,29 @@ describe('continueOnLength (OpenAI-compatible)', () => {
     expect(result).toMatchObject({ parts: 2, truncated: true });
   });
 
+  it('does not continue from an empty first part', async () => {
+    const create = vi.fn().mockResolvedValue(openAIReply('', 'length'));
+    const ai = openAI(create);
+    const result = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: true,
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ content: '', truncated: true });
+
+    create.mockClear();
+    create.mockResolvedValue(openAIStream([], 'length'));
+    const reasons: string[] = [];
+    const text = await collect(
+      ai.stream([{ role: 'user', content: 'go' }], {
+        continueOnLength: true,
+        onFinishReason: (reason) => reasons.push(reason),
+      }),
+    );
+    expect(text).toBe('');
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(reasons).toEqual(['length']);
+  });
+
   it('applies the client default and reaches message()', async () => {
     const create = vi
       .fn()

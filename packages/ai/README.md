@@ -424,6 +424,8 @@ result.truncated; // true if the reply still ended on the limit
   (stitching them is unsafe); the reply is returned as-is with `truncated: true`.
 - With `rateLimit` pacing, every part is its own paced request: a rate-limit
   retry repeats only the part that was rejected, never the parts already paid for.
+- A reply that hits the limit before producing any text (reasoning used the
+  whole budget) is not continued; it is returned with `truncated: true`.
 - `truncated: true` is also set when continuation is off and the reply hit the limit.
 - Streaming adapters report the finish reason through `ChatOptions.onFinishReason`.
 

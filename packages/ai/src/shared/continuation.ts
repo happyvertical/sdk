@@ -112,7 +112,9 @@ export async function chatWithContinuation(
   const hitLimit = (response: AIResponse) =>
     response.finishReason === 'length' && !response.toolCalls?.length;
 
-  if (!config || !hitLimit(first)) {
+  // A first part with no text (reasoning used the whole budget) has nothing to
+  // continue from, and providers reject an empty assistant turn.
+  if (!config || !hitLimit(first) || !first.content.trim()) {
     return first.finishReason === 'length'
       ? { ...first, truncated: true }
       : first;
@@ -212,6 +214,8 @@ export async function* streamWithContinuation(
     }
     onFinishReason?.(finish.reason ?? 'stop');
     if (finish.reason !== 'length') return;
+    // Nothing to continue from yet (see chatWithContinuation).
+    if (!accumulated.trim()) return;
   }
 }
 
