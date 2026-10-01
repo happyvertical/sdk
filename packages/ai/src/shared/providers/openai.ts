@@ -8,7 +8,7 @@
  */
 
 import OpenAI from 'openai';
-import { extractRetryAfterSeconds } from '../rate-limit';
+import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -51,7 +51,6 @@ import {
   ContentFilterError,
   ContextLengthError,
   ModelNotFoundError,
-  RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
 
@@ -1230,10 +1229,7 @@ export class OpenAIProvider implements AIInterface {
         case 401:
           return new AuthenticationError(this.profile.providerName);
         case 429: {
-          return new RateLimitError(
-            this.profile.providerName,
-            extractRetryAfterSeconds(error),
-          );
+          return rateLimitErrorFrom(this.profile.providerName, error);
         }
         case 404:
           return new ModelNotFoundError(

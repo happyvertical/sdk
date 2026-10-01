@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { extractRetryAfterSeconds } from '../rate-limit';
+import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -54,7 +54,6 @@ import {
   AuthenticationError,
   extractTextContent,
   ModelNotFoundError,
-  RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
 
@@ -1609,7 +1608,7 @@ export class GeminiProvider implements AIInterface {
     }
 
     if (message.includes('QUOTA_EXCEEDED') || message.includes('429')) {
-      return new RateLimitError('gemini', extractRetryAfterSeconds(error));
+      return rateLimitErrorFrom('gemini', error);
     }
 
     if (message.includes('MODEL_NOT_FOUND') || message.includes('404')) {

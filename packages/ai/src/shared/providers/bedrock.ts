@@ -2,6 +2,7 @@
  * AWS Bedrock provider implementation
  */
 
+import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -43,7 +44,6 @@ import {
   ContextLengthError,
   extractTextContent,
   ModelNotFoundError,
-  RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
 
@@ -1274,7 +1274,7 @@ export class BedrockProvider implements AIInterface {
       }
 
       if (awsError.name === 'ThrottlingException') {
-        return new RateLimitError('bedrock');
+        return rateLimitErrorFrom('bedrock', error);
       }
 
       if (awsError.name === 'ResourceNotFoundException') {

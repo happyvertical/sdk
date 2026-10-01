@@ -1,8 +1,12 @@
+import OpenAI from 'openai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OpenAIProvider } from './shared/providers/openai';
 import {
   __getAIRateLimitStateForTests,
   __resetAIRateLimitStateForTests,
   createRateLimitedAI,
+  parseDurationMs,
+  rateLimitErrorFrom,
 } from './shared/rate-limit';
 import {
   type AIInterface,
@@ -302,5 +306,102 @@ describe('shared AI rate limiting', () => {
     }
 
     expect(__getAIRateLimitStateForTests().count).toBe(maxBudgetCoordinators);
+  });
+});
+
+describe('rate-limit error details', () => {
+  const BIFROST_REASON =
+    'token limit exceeded (277867/250000, resets every 1h)';
+
+  it('parses durations', () => {
+    expect(parseDurationMs('20s')).toBe(20_000);
+    expect(parseDurationMs('6m0s')).toBe(360_000);
+    expect(parseDurationMs('1h')).toBe(3_600_000);
+    expect(parseDurationMs('250ms')).toBe(250);
+    expect(parseDurationMs('2 minutes')).toBe(120_000);
+    expect(parseDurationMs('1.5s')).toBe(1500);
+    expect(parseDurationMs('soon')).toBeUndefined();
+    expect(parseDurationMs('3 messages')).toBeUndefined();
+  });
+
+  it('keeps the provider reason and the window it names', async () => {
+    const create = vi
+      .fn()
+      .mockRejectedValue(
+        OpenAI.APIError.generate(
+          429,
+          { error: { message: BIFROST_REASON, type: 'rate_limit' } },
+          undefined,
+          new Headers(),
+        ),
+      );
+    const provider = new OpenAIProvider({ apiKey: 'test' });
+    (provider as any).client = { chat: { completions: { create } } };
+    const error = await provider
+      .chat([{ role: 'user', content: 'hi' }])
+      .catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect(error.reason).toBe(BIFROST_REASON);
+    expect(error.message).toBe(`Rate limit exceeded: ${BIFROST_REASON}`);
+    expect(error.limitWindowMs).toBe(3_600_000);
+    expect(error.retryAfterMs).toBeUndefined();
+    expect(error.retryAfter).toBeUndefined();
+    expect(error.cause).toBeInstanceOf(OpenAI.APIError);
+  });
+
+  it('reads Retry-After, reset headers, and "try again in" text', () => {
+    const retryAfter = rateLimitErrorFrom('openai', {
+      message: '429 slow down',
+      headers: new Headers({ 'retry-after': '20' }),
+    });
+    expect(retryAfter).toMatchObject({
+      reason: 'slow down',
+      retryAfter: 20,
+      retryAfterMs: 20_000,
+    });
+    expect(retryAfter.message).toBe(
+      'Rate limit exceeded: slow down, retry after 20s',
+    );
+
+    const resetHeader = rateLimitErrorFrom('openai', {
+      headers: { 'x-ratelimit-reset-tokens': '6m0s' },
+    });
+    expect(resetHeader).toMatchObject({
+      retryAfterMs: 360_000,
+      retryAfter: 360,
+    });
+
+    const text = rateLimitErrorFrom('openai', {
+      error: {
+        message: 'Rate limit reached for gpt-4o. Please try again in 1.5s.',
+      },
+    });
+    expect(text.retryAfterMs).toBe(1500);
+    expect(text.retryAfter).toBe(2);
+  });
+
+  it('reads Anthropic and raw JSON bodies', () => {
+    expect(
+      rateLimitErrorFrom('anthropic', {
+        status: 429,
+        error: {
+          type: 'error',
+          error: { type: 'rate_limit_error', message: 'Too many tokens' },
+        },
+      }).reason,
+    ).toBe('Too many tokens');
+    expect(
+      rateLimitErrorFrom('ollama', {
+        message: '{"error":"quota used up, resets in 30s"}',
+      }),
+    ).toMatchObject({
+      reason: 'quota used up, resets in 30s',
+      retryAfterMs: 30_000,
+    });
+    expect(
+      rateLimitErrorFrom('openai', { message: '429 status code (no body)' })
+        .reason,
+    ).toBeUndefined();
   });
 });

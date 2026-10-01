@@ -22,7 +22,7 @@
  */
 
 import { ValidationError } from '@happyvertical/utils';
-import { extractRetryAfterSeconds } from '../rate-limit';
+import { rateLimitErrorFrom } from '../rate-limit';
 import { normalizeBaseAIOptions } from '../safety';
 import type {
   AICapabilities,
@@ -51,7 +51,7 @@ import type {
   VoiceDesignOptions,
   VoiceListOptions,
 } from '../types';
-import { AIError, AuthenticationError, RateLimitError } from '../types';
+import { AIError, AuthenticationError } from '../types';
 import { emitUsage } from './usage';
 
 /** Raw video-job object shape, following the OpenAI `videos` API. */
@@ -287,10 +287,10 @@ export class OpenAICompatVideoProvider implements AIInterface {
           throw new AuthenticationError('openai-compat-video');
         }
         if (response.status === 429) {
-          throw new RateLimitError(
-            'openai-compat-video',
-            extractRetryAfterSeconds({ headers: response.headers }),
-          );
+          throw rateLimitErrorFrom('openai-compat-video', {
+            headers: response.headers,
+            message: errorText,
+          });
         }
 
         throw new AIError(

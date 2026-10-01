@@ -2345,26 +2345,84 @@ export class AuthenticationError extends AIError {
   }
 }
 
+/** What a provider said about a rate limit, as kept on {@link RateLimitError}. */
+export interface RateLimitErrorDetails {
+  /**
+   * The provider's own reason text, for example
+   * `token limit exceeded (277867/250000, resets every 1h)`.
+   */
+  reason?: string;
+  /**
+   * Milliseconds until the limit resets, when the provider said so: a
+   * `Retry-After` header, a reset header, or text such as "try again in 20s".
+   */
+  retryAfterMs?: number;
+  /**
+   * Length of the limit window the provider named without saying when it
+   * resets ("resets every 1h"); the limit lifts within this time.
+   */
+  limitWindowMs?: number;
+  /** Model the request was for, when known. */
+  model?: string;
+  /** The provider error this was mapped from. */
+  cause?: unknown;
+}
+
+const MAX_RATE_LIMIT_REASON_LENGTH = 500;
+
 /**
  * Thrown when the provider's rate limit has been exceeded.
  *
  * @param provider - Provider that enforced the rate limit
  * @param retryAfter - Seconds to wait before retrying, if provided by the API
+ * @param details - The provider's reason text and reset hints
  */
 export class RateLimitError extends AIError {
+  /** Seconds until the limit resets, when the provider said so. */
   public retryAfter?: number;
+  /** Milliseconds until the limit resets, when the provider said so. */
+  public retryAfterMs?: number;
+  /** Length of a limit window named without a reset time (see details). */
+  public limitWindowMs?: number;
+  /** The provider's own reason text, when it sent one. */
+  public reason?: string;
 
-  constructor(provider?: string, retryAfter?: number) {
+  constructor(
+    provider?: string,
+    retryAfter?: number,
+    details: RateLimitErrorDetails = {},
+  ) {
+    const retryAfterMs = finiteNonNegative(
+      details.retryAfterMs ??
+        (retryAfter !== undefined ? retryAfter * 1000 : undefined),
+    );
+    const seconds =
+      finiteNonNegative(retryAfter) ??
+      (retryAfterMs !== undefined ? Math.ceil(retryAfterMs / 1000) : undefined);
+    const reason = details.reason
+      ?.replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, MAX_RATE_LIMIT_REASON_LENGTH);
     super(
-      `Rate limit exceeded${retryAfter ? `, retry after ${retryAfter}s` : ''}`,
+      `Rate limit exceeded${reason ? `: ${reason}` : ''}${seconds ? `, retry after ${seconds}s` : ''}`,
       'RATE_LIMIT',
       provider,
-      undefined,
+      details.model,
       true,
     );
     this.name = 'RateLimitError';
-    this.retryAfter = retryAfter;
+    this.retryAfter = seconds;
+    this.retryAfterMs = retryAfterMs;
+    this.limitWindowMs = finiteNonNegative(details.limitWindowMs);
+    this.reason = reason || undefined;
+    if (details.cause !== undefined) this.cause = details.cause;
   }
+}
+
+function finiteNonNegative(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : undefined;
 }
 
 /**

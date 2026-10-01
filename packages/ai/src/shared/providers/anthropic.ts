@@ -6,7 +6,7 @@
  * Note: Claude models do not support embeddings - use OpenAI or another provider for that.
  */
 
-import { extractRetryAfterSeconds } from '../rate-limit';
+import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -50,7 +50,6 @@ import {
   ContextLengthError,
   extractTextContent,
   ModelNotFoundError,
-  RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
 
@@ -956,10 +955,7 @@ export class AnthropicProvider implements AIInterface {
         case 401:
           return new AuthenticationError('anthropic');
         case 429:
-          return new RateLimitError(
-            'anthropic',
-            extractRetryAfterSeconds(error),
-          );
+          return rateLimitErrorFrom('anthropic', error);
         case 404:
           return new ModelNotFoundError(
             apiError.message || 'Model not found',

@@ -2,6 +2,7 @@
  * Hugging Face provider implementation
  */
 
+import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -42,7 +43,6 @@ import {
   ContextLengthError,
   extractTextContent,
   ModelNotFoundError,
-  RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
 
@@ -589,7 +589,7 @@ export class HuggingFaceProvider implements AIInterface {
     }
 
     if (message.includes('429') || message.includes('rate limit')) {
-      return new RateLimitError('huggingface');
+      return rateLimitErrorFrom('huggingface', error);
     }
 
     if (message.includes('404') || message.includes('not found')) {

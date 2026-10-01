@@ -8,6 +8,7 @@
 
 import { ValidationError } from '@happyvertical/utils';
 import { resolveContinuation } from '../continuation';
+import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -51,7 +52,6 @@ import {
   ContextLengthError,
   extractTextContent,
   ModelNotFoundError,
-  RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
 
@@ -420,7 +420,10 @@ export class OllamaProvider implements AIInterface {
       case 413:
         return new ContextLengthError('ollama');
       case 429:
-        return new RateLimitError('ollama');
+        return rateLimitErrorFrom('ollama', {
+          headers: response.headers,
+          message: text,
+        });
       default:
         if (/content[_ -]?filter/i.test(message)) {
           return new ContentFilterError('ollama');

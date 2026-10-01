@@ -22,7 +22,7 @@
  * @see https://docs.byteplus.com/en/docs/ModelArk/Video_Generation_API
  */
 
-import { extractRetryAfterSeconds } from '../rate-limit';
+import { rateLimitErrorFrom } from '../rate-limit';
 import { normalizeBaseAIOptions } from '../safety';
 import type {
   AICapabilities,
@@ -52,7 +52,7 @@ import type {
   VoiceDesignOptions,
   VoiceListOptions,
 } from '../types';
-import { AIError, AuthenticationError, RateLimitError } from '../types';
+import { AIError, AuthenticationError } from '../types';
 import { emitUsage } from './usage';
 
 const DEFAULT_MODELARK_BASE_URL =
@@ -427,10 +427,10 @@ export class ByteplusModelArkProvider implements AIInterface {
           throw new AuthenticationError('byteplus-modelark');
         }
         if (response.status === 429) {
-          throw new RateLimitError(
-            'byteplus-modelark',
-            extractRetryAfterSeconds({ headers: response.headers }),
-          );
+          throw rateLimitErrorFrom('byteplus-modelark', {
+            headers: response.headers,
+            message: errorText,
+          });
         }
 
         throw new AIError(

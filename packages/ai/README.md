@@ -577,6 +577,15 @@ All extend `AIError`: `AuthenticationError`, `RateLimitError`, `ModelNotFoundErr
 
 - `AIError.retryable` distinguishes retryable failures from terminal ones
 - `RateLimitError.retryAfter` exposes provider retry hints in seconds when available
+- `RateLimitError.reason` keeps the provider's own text (for example
+  `token limit exceeded (277867/250000, resets every 1h)`), and the message
+  includes it, so callers can say why a call was refused
+- `RateLimitError.retryAfterMs` is the time until the limit resets when the
+  provider said so: `Retry-After`, a reset header (`x-ratelimit-reset-*`,
+  `anthropic-ratelimit-*-reset`), or text such as "try again in 20s"
+- `RateLimitError.limitWindowMs` is set when the provider names a limit window
+  but no reset time ("resets every 1h"); the limit lifts within that time
+- `error.cause` is the provider error it was mapped from
 
 ```typescript
 try {

@@ -342,6 +342,161 @@ export function extractRetryAfterSeconds(error: unknown): number | undefined {
     : undefined;
 }
 
+const DURATION_UNITS_MS: Record<string, number> = {
+  ms: 1,
+  millisecond: 1,
+  milliseconds: 1,
+  s: 1000,
+  sec: 1000,
+  secs: 1000,
+  second: 1000,
+  seconds: 1000,
+  m: 60_000,
+  min: 60_000,
+  mins: 60_000,
+  minute: 60_000,
+  minutes: 60_000,
+  h: 3_600_000,
+  hr: 3_600_000,
+  hrs: 3_600_000,
+  hour: 3_600_000,
+  hours: 3_600_000,
+  d: 86_400_000,
+  day: 86_400_000,
+  days: 86_400_000,
+};
+
+const DURATION_PART =
+  '\\d+(?:\\.\\d+)?\\s*(?:milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d)(?![a-z])';
+const DURATION = `${DURATION_PART}(?:\\s*${DURATION_PART})*`;
+
+/**
+ * Parse a duration such as `20s`, `6m0s`, `1h`, `250ms` or `2 minutes` into
+ * milliseconds. Returns undefined for anything else.
+ */
+export function parseDurationMs(text: string): number | undefined {
+  const trimmed = text.trim();
+  if (!new RegExp(`^${DURATION}$`, 'i').test(trimmed)) return undefined;
+  let total = 0;
+  for (const match of trimmed.matchAll(/(\d+(?:\.\d+)?)\s*([a-z]+)/gi)) {
+    total +=
+      Number.parseFloat(match[1]) * DURATION_UNITS_MS[match[2].toLowerCase()];
+  }
+  return Number.isFinite(total) ? Math.ceil(total) : undefined;
+}
+
+/** Reset headers that name when a limit lifts, as a duration or a timestamp. */
+const RESET_HEADERS = [
+  'x-ratelimit-reset-requests',
+  'x-ratelimit-reset-tokens',
+  'anthropic-ratelimit-requests-reset',
+  'anthropic-ratelimit-tokens-reset',
+  'anthropic-ratelimit-input-tokens-reset',
+  'anthropic-ratelimit-output-tokens-reset',
+];
+
+function resetHeaderMs(headers: unknown): number | undefined {
+  let latest: number | undefined;
+  for (const name of RESET_HEADERS) {
+    const raw = getHeaderValue(headers, name);
+    if (raw === undefined || raw === null || raw === '') continue;
+    const text = String(raw).trim();
+    let ms = parseDurationMs(text);
+    if (ms === undefined && /\d{4}-\d{2}-\d{2}T/.test(text)) {
+      const at = Date.parse(text);
+      if (!Number.isNaN(at)) ms = Math.max(0, at - Date.now());
+    }
+    if (ms !== undefined) latest = Math.max(latest ?? 0, ms);
+  }
+  return latest;
+}
+
+function stringAt(value: unknown, ...path: string[]): string | undefined {
+  let current = value;
+  for (const key of path) {
+    if (!current || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === 'string' && current.trim() ? current : undefined;
+}
+
+/**
+ * The provider's own reason text from an SDK error or response body, for
+ * example `token limit exceeded (277867/250000, resets every 1h)`.
+ */
+export function extractRateLimitReason(error: unknown): string | undefined {
+  const fromBody =
+    stringAt(error, 'error', 'error', 'message') ?? // Anthropic SDK body
+    stringAt(error, 'error', 'message') ?? // OpenAI SDK body.error
+    stringAt(error, 'body', 'error', 'message') ??
+    stringAt(error, 'body', 'message');
+  if (fromBody) return fromBody;
+  const message = stringAt(error, 'message');
+  if (!message) return undefined;
+  // A raw HTTP body handed over as the message: read the JSON error text.
+  if (/^\s*\{/.test(message)) {
+    try {
+      const body: unknown = JSON.parse(message);
+      const text =
+        stringAt(body, 'error', 'message') ??
+        stringAt(body, 'message') ??
+        stringAt(body, 'error');
+      if (text) return text;
+    } catch {
+      // Not JSON: use the text as-is below.
+    }
+  }
+  // SDKs prefix the HTTP status ("429 ..."); a bare status line has no reason.
+  const reason = message.replace(/^\d{3}\s+/, '').trim();
+  return /^(?:status code \(no body\)|too many requests|rate limit(?:ed| exceeded)?)\.?$/i.test(
+    reason,
+  )
+    ? undefined
+    : reason;
+}
+
+/**
+ * Build a RateLimitError that keeps what the provider said: its reason text,
+ * any `Retry-After` or reset hint (headers or text), and a named limit window.
+ */
+export function rateLimitErrorFrom(
+  provider: string,
+  error: unknown,
+  extra: { reason?: string; model?: string } = {},
+): RateLimitError {
+  const reason = extra.reason?.trim() || extractRateLimitReason(error);
+  const retryAfter = extractRetryAfterSeconds(error);
+  const headers =
+    error && typeof error === 'object' && 'headers' in error
+      ? (error as { headers?: unknown }).headers
+      : undefined;
+  let retryAfterMs =
+    retryAfter !== undefined ? retryAfter * 1000 : resetHeaderMs(headers);
+  let limitWindowMs: number | undefined;
+  if (reason) {
+    if (retryAfterMs === undefined) {
+      const inMatch = reason.match(
+        new RegExp(
+          `(?:try again|retry|resets?|available)\\s+in\\s+(${DURATION})`,
+          'i',
+        ),
+      );
+      if (inMatch) retryAfterMs = parseDurationMs(inMatch[1]);
+    }
+    const everyMatch = reason.match(
+      new RegExp(`resets?\\s+(?:every|each)\\s+(${DURATION})`, 'i'),
+    );
+    if (everyMatch) limitWindowMs = parseDurationMs(everyMatch[1]);
+  }
+  return new RateLimitError(provider, retryAfter, {
+    reason,
+    retryAfterMs,
+    limitWindowMs,
+    model: extra.model,
+    cause: error,
+  });
+}
+
 export function createRateLimitedAI<T extends AIInterface>(
   client: T,
   options: GetAIOptions | AIClientOptions,
