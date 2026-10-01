@@ -48,6 +48,7 @@ const spoken = await speech.synthesize({
 | Studio Server STT | `studio-server` | `POST` | `/v1/transcribe` | Multipart (`audio`) |
 | OpenAI-compatible STT | `openai-compatible` | `POST` | `<base>/audio/transcriptions` | Multipart (`file`) |
 | OpenAI Realtime STT (streaming) | `openai-realtime` | WebSocket | `<base>/realtime?intent=transcription` | JSON events, base64 PCM16/G.711 |
+| On-device STT | `local` | In-process | `@happyvertical/speech/local` | 16 kHz mono PCM |
 | Studio Server TTS | `studio-server` | `POST` | `/v1/tts/synthesize` | Multipart |
 | Qwen3 TTS | `qwen3-tts` | `POST` | `/v1/audio/speech` | Multipart |
 | OpenAI-compatible TTS | `openai-compatible` | `POST` | `/v1/audio/speech` | JSON |
@@ -190,6 +191,94 @@ HAVE_SPEECH_STREAMING_HEADERS='{"x-bf-vk":"vk-..."}'
 
 A base URL may be `ws(s)://` or `http(s)://`: a server root gets `/v1/realtime`, a base ending in a version segment gets `/realtime`, and `intent=transcription` is added unless an `intent` is present. `HAVE_SPEECH_TRANSCRIBER_TYPE=openai-realtime` also routes `getTranscriber()` to the wrapped streaming adapter, which then reads `HAVE_SPEECH_STREAMING_*`.
 
+## On-device Transcription
+
+`type: 'local'` runs Whisper or Moonshine ONNX models on the device with [transformers.js](https://huggingface.co/docs/transformers.js). In a browser it uses WebGPU or WASM; in Node it uses onnxruntime-node. Audio never leaves the device, there is no API key or per-call cost, and once the model is cached it works offline.
+
+The runtime is an **optional peer dependency** behind the `@happyvertical/speech/local` subpath. The core `@happyvertical/speech` entry never imports it, so apps that do not use local transcription neither install nor bundle it. The build checks this guarantee: `scripts/check-core-isolation.mjs` fails if the core entry can reach `@huggingface/transformers`.
+
+```bash
+pnpm add @happyvertical/speech @huggingface/transformers   # tested with 4.3.0
+```
+
+```typescript
+import { getTranscriber } from '@happyvertical/speech';
+import '@happyvertical/speech/local'; // registers type: 'local'
+
+const transcriber = await getTranscriber({
+  type: 'local',
+  model: 'onnx-community/whisper-base', // default
+  device: 'auto', // 'webgpu' | 'wasm' | 'cpu' | 'cuda' | 'dml' | 'coreml' | 'auto'
+  dtype: 'q8', // or { encoder_model: 'fp32', decoder_model_merged: 'q4' }
+  onProgress: (progress) => console.log(progress.status, progress.file, progress.progress),
+});
+
+const result = await transcriber.transcribe({
+  audio: recordingBlob, // Blob | Buffer | Uint8Array | ArrayBuffer | ReadableStream
+  mimeType: 'audio/webm;codecs=opus',
+  language: 'en',
+  timestampGranularities: ['segment'],
+  signal: abortController.signal,
+});
+result.usage; // { operation, provider: 'local', model, audioSeconds, bytes }
+```
+
+You can also call `createLocalTranscriber(options)` from the subpath directly. It returns a `LocalTranscriber` with `preload()` and `dispose()`. `getAvailableSpeechAdapters()` lists `local` once the subpath has been imported. `isLocalTranscriberAvailable()` checks whether the peer can be imported.
+
+- **Models.** Any transformers.js `automatic-speech-recognition` model id works. The default is `onnx-community/whisper-base` (multilingual, about 80 MB at `q8`). Smaller and faster choices are `onnx-community/whisper-tiny.en` (English), `onnx-community/moonshine-tiny-ONNX`, and `onnx-community/moonshine-base-ONNX`. For better accuracy, use `onnx-community/whisper-small` or `onnx-community/whisper-large-v3-turbo`. The first use downloads the weights; after that they load from cache. Call `preload()` with `onProgress` to show a download bar before the user records.
+- **Devices.** With `device: 'auto'` (the default), a browser uses WebGPU when `navigator.gpu` returns an adapter and retries on WASM if WebGPU fails to initialise; Node uses `cpu`. WebGPU is available in current Chromium-based browsers, and in Safari and Firefox depending on version and platform. Without it, WASM still works, only more slowly. An explicit device never falls back. In Node, `cuda`/`dml`/`coreml` need the matching onnxruntime-node build.
+- **Timestamps.** `timestampGranularities: ['segment']` maps Whisper chunks onto `segments`. `['word']` maps word timings onto `words`, and needs a model exported with cross attentions, such as `onnx-community/whisper-base_timestamped`. Moonshine returns text only. Audio longer than 30 s is chunked (`chunkLengthSeconds`, default 30, `0` disables chunking).
+- **Audio decoding.** Input is decoded and resampled to 16 kHz mono Float32. WAV (PCM 8/16/24/32-bit, float, extensible) and raw `audio/pcm` (`audio/pcm;rate=24000;channels=1;encoding=s16le|f32le`, or `AudioInput.sampleRate`/`channels`) decode everywhere. Browsers decode other formats with `OfflineAudioContext.decodeAudioData`: MediaRecorder `audio/webm;codecs=opus`, Safari `audio/mp4`, MP3, and so on. Node has no `AudioContext`, so compressed formats need a `decodeAudio` hook, for example with ffmpeg:
+
+  ```typescript
+  decodeAudio: async ({ bytes }) => {
+    const pcm = await runFfmpeg(['-i', 'pipe:0', '-f', 'f32le', '-ac', '1', '-ar', '16000', 'pipe:1'], bytes);
+    return { samples: new Float32Array(pcm.buffer, pcm.byteOffset, pcm.byteLength / 4), sampleRate: 16000 };
+  }
+  ```
+
+- **Model storage.** Browsers cache weights in Cache Storage. In Node, set `cacheDir` (default: transformers.js's cache inside `node_modules`). `modelHost` points downloads at self-hosted weights. It sets the process-wide `env.remoteHost`, which uses the Hugging Face `{model}/resolve/{revision}/` layout. `configureEnv(env)` adjusts any other transformers.js setting, for example `localModelPath`, `allowRemoteModels: false` for fully offline use, or WASM thread counts. `revision` pins a model revision.
+- **Cancellation.** `signal` rejects immediately with the abort reason, including while the model is loading, and interrupts Whisper/Moonshine generation at the next token. Calls on one transcriber run one at a time. `dispose()` waits for in-flight inference, then releases the ONNX sessions.
+- **Errors.** If the peer is missing, the adapter throws `SpeechConfigurationError` with an install hint. Calling `getTranscriber({ type: 'local' })` without importing the subpath also throws `SpeechConfigurationError`. Model load and inference failures throw `SpeechProviderError`.
+- **Limits.** `maxBytes` defaults to 25 MB of encoded input. Uncompressed WAV fills that faster (about 13 minutes at 16 kHz 16-bit mono), so raise it for long WAV recordings. Request fields `prompt`, `temperature`, `responseFormat`, and `headers` do not apply to local models.
+
+### Web Worker
+
+Inference can take seconds on long recordings, so in a browser run it in a worker to keep the UI responsive. The main-thread client transfers WAV and raw PCM bytes to the worker, which parses, downmixes, and resamples them there. `AudioContext` is not available in workers, so other formats (MediaRecorder WebM/Opus, Safari `audio/mp4`, MP3) are decoded on the main thread with `decodeAudioData` or the client's `decodeAudio` hook, and the decoded channels are transferred to the worker for downmixing and resampling. Without either, the bytes go to the worker's own `decodeAudio`:
+
+```typescript
+// transcriber.worker.ts
+import { serveLocalTranscriber } from '@happyvertical/speech/local';
+
+serveLocalTranscriber({ model: 'onnx-community/whisper-base', device: 'auto' });
+```
+
+```typescript
+// main thread
+import { LocalTranscriberWorkerClient } from '@happyvertical/speech/local';
+
+const worker = new Worker(new URL('./transcriber.worker.ts', import.meta.url), { type: 'module' });
+const transcriber = new LocalTranscriberWorkerClient(worker, { onProgress, onUsage });
+
+await transcriber.preload(); // optional: download the model before recording
+const { text } = await transcriber.transcribe({ audio: recordingBlob, signal });
+```
+
+Aborting a worker call rejects right away and interrupts generation inside the worker. `close()` rejects in-flight calls (including ones still decoding) and every later call, and aborts posted work in the worker; it does not terminate the worker. Progress events are forwarded to `onProgress`. Usage reports the original encoded byte count.
+
+### Local Environment Configuration
+
+In Node, `getSpeech()`/`getTranscriber()` can select the local adapter from the environment once the subpath has been imported. Explicit options win:
+
+```bash
+HAVE_SPEECH_TRANSCRIBER_TYPE=local
+HAVE_SPEECH_TRANSCRIBER_MODEL=onnx-community/whisper-base
+HAVE_SPEECH_TRANSCRIBER_DEVICE=cpu
+HAVE_SPEECH_TRANSCRIBER_DTYPE=q8
+HAVE_SPEECH_TRANSCRIBER_CACHE_DIR=/var/cache/hv-models
+HAVE_SPEECH_TRANSCRIBER_MODEL_HOST=https://models.example.com/
+```
+
 ## Environment Configuration
 
 Transcriber settings switch between cloud and self-hosted models without code changes. Explicit options win over the environment:
@@ -230,7 +319,13 @@ Optional overrides include `HAVE_SPEECH_STT_MODEL`, `STT_MODEL`, `STT_PATH`, `TT
 
 ## Testing
 
-Default tests use tiny in-process HTTP fixture services or an injected `fetch` that mirror the Studio Server, Qwen3, and OpenAI-compatible request shapes, and an in-memory fake WebSocket for the realtime protocol. They validate field names, encodings, and response normalization without downloading production-scale models.
+Default tests use tiny in-process HTTP fixture services or an injected `fetch` that mirror the Studio Server, Qwen3, and OpenAI-compatible request shapes, and an in-memory fake WebSocket for the realtime protocol. They validate field names, encodings, and response normalization without downloading production-scale models. Local transcriber tests inject a fake transformers.js module, so CI never downloads weights.
+
+`src/__tests__/local-transcriber.smoke.test.ts` runs a real `onnx-community/whisper-tiny.en` model on onnxruntime-node. It is skipped unless `HV_SPEECH_MODEL_TESTS=1`:
+
+```bash
+HV_SPEECH_MODEL_TESTS=1 pnpm --filter @happyvertical/speech test local-transcriber.smoke
+```
 
 Docker or Testcontainers integration suites should run the fixture services or Studio Server with mock backends. Model-backed tests must remain opt-in, for example behind `HV_SPEECH_MODEL_TESTS=1`, so the normal SDK suite never downloads model weights.
 

@@ -9,18 +9,31 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./local": {
+      "import": "./dist/local.js",
+      "types": "./dist/local.d.ts"
     }
   },
   "scripts": {
     "test": "vitest --config ../../vitest.package.config.ts run",
     "test:watch": "vitest --config ../../vitest.package.config.ts",
-    "build": "vite build",
+    "build": "vite build && node scripts/check-core-isolation.mjs",
     "build:watch": "vite build --watch",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "dev": "vite build --watch"
   },
+  "peerDependencies": {
+    "@huggingface/transformers": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@huggingface/transformers": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@huggingface/transformers": "^4.3.0",
     "@types/node": "25.0.10",
     "typescript": "5.9.3",
     "vite": "8.1.4",
@@ -32,7 +45,10 @@
     "stt",
     "tts",
     "studio-server",
-    "qwen3-tts"
+    "qwen3-tts",
+    "transformers.js",
+    "whisper",
+    "on-device"
   ],
   "files": [
     "dist",

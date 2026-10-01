@@ -30,6 +30,11 @@ import type {
   GetStreamingTranscriberOptions,
   StreamingTranscriberType,
 } from './streaming-types.js';
+import {
+  getOptionalTranscriberFactory,
+  optionalTranscriberEntry,
+  registeredOptionalTranscribers,
+} from './registry.js';
 import type {
   GetSpeechOptions,
   GetSpeechSynthesizerOptions,
@@ -105,6 +110,11 @@ export async function getTranscriber(
     return getWrappedStreamingTranscriber(streamingType, options, context);
   }
 
+  const optional = await getRegisteredTranscriber(options, context);
+  if (optional) {
+    return optional;
+  }
+
   const resolved = normalizeTranscriberOptions(options, context);
 
   switch (resolved.type) {
@@ -146,6 +156,7 @@ export function getAvailableSpeechAdapters(): SpeechAdapterAvailability {
     transcribers: [
       'studio-server',
       'openai-compatible',
+      ...registeredOptionalTranscribers(),
       ...STREAMING_TRANSCRIBER_TYPES,
     ],
     streamingTranscribers: [...STREAMING_TRANSCRIBER_TYPES],
@@ -179,6 +190,30 @@ function getWrappedStreamingTranscriber(
     { env: context.env, headers: context.headers },
   );
   return wrapStreamingTranscriber(streaming, { maxBytes: options.maxBytes });
+}
+
+/**
+ * Builds opt-in adapters (e.g. `local`) registered by their subpath entry.
+ * Returns `undefined` for built-in types.
+ */
+async function getRegisteredTranscriber(
+  options: GetTranscriberOptions,
+  context: SpeechFactoryContext,
+): Promise<Transcriber | undefined> {
+  const type = resolveTranscriberConfig(options, context).type;
+  const entry = type ? optionalTranscriberEntry(type) : undefined;
+  if (!type || !entry) {
+    return undefined;
+  }
+
+  const factory = getOptionalTranscriberFactory(type);
+  if (!factory) {
+    throw new SpeechConfigurationError(
+      `The '${type}' transcriber is opt-in: import '${entry}' before calling getTranscriber()`,
+      type,
+    );
+  }
+  return factory({ ...options, type: type as Transcriber['type'] }, context);
 }
 
 async function getOptionalTranscriber(

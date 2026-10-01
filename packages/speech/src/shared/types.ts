@@ -1,3 +1,4 @@
+import type { LocalTranscriberSettings } from '../adapters/local/types.js';
 import type { SpeechRetryOptions } from './retry.js';
 import type {
   GetStreamingTranscriberOptions,
@@ -16,12 +17,17 @@ export type SpeechAdapterType =
   | 'studio-server'
   | 'qwen3-tts'
   | 'openai-compatible'
+  | 'local'
   | StreamingTranscriberType;
 
-/** Request/response transcribers, including wrapped streaming adapters. */
+/**
+ * Request/response transcribers, including wrapped streaming adapters.
+ * `local` requires importing `@happyvertical/speech/local` first.
+ */
 export type TranscriberType =
   | 'studio-server'
   | 'openai-compatible'
+  | 'local'
   | StreamingTranscriberType;
 
 export type SpeechSynthesizerType =
@@ -229,19 +235,25 @@ export interface OpenAICompatibleSpeechSynthesizerOptions
   defaultVoice?: string;
 }
 
-export interface GetTranscriberOptions extends Partial<HttpSpeechOptions> {
+/**
+ * Transcriber factory options. `local` settings (device, dtype, cacheDir, ...)
+ * apply only to `type: 'local'`.
+ */
+export interface GetTranscriberOptions
+  extends Partial<HttpSpeechOptions>,
+    Omit<LocalTranscriberSettings, 'model' | 'maxBytes' | 'onUsage'> {
   type?: TranscriberType;
   /** Studio Server only. */
   transcribePath?: string;
-  /** OpenAI-compatible only. */
+  /** OpenAI-compatible and local. */
   model?: string;
   /** OpenAI-compatible only. */
   responseFormat?: TranscriptionResponseFormat;
-  /** OpenAI-compatible only. */
+  /** OpenAI-compatible and local. */
   maxBytes?: number;
   /** OpenAI-compatible only. */
   retry?: SpeechRetryOptions | false;
-  /** OpenAI-compatible and streaming types. */
+  /** OpenAI-compatible, local, and streaming types. */
   onUsage?: SpeechUsageCallback;
   /**
    * Streaming types only (e.g. `openai-realtime`): extra adapter settings such
