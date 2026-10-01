@@ -55,7 +55,9 @@ export interface Location {
   countryCode: string;
 
   /**
-   * Timezone identifier (optional, populated when provider returns it)
+   * IANA time zone identifier for the location's coordinates (for example
+   * `'America/Edmonton'`). Filled by every provider unless the adapter was
+   * created with `timezoneLookup: 'none'`; see `timezoneLookup` for sources.
    */
   timezone?: string;
 
@@ -181,17 +183,32 @@ export interface BaseGeoOptions {
    * Maximum number of results to return
    */
   maxResults?: number;
+
+  /**
+   * How to fill `Location.timezone`. `'offline'` (default) resolves it from a
+   * bundled boundary table with no network requests; `'none'` leaves it
+   * unset. The Google provider also accepts `'api'`.
+   */
+  timezoneLookup?: 'offline' | 'none';
 }
 
 /**
  * Google Maps provider options
  */
-export interface GoogleMapsOptions extends BaseGeoOptions {
+export interface GoogleMapsOptions
+  extends Omit<BaseGeoOptions, 'timezoneLookup'> {
   provider: 'google';
   /**
    * Google Maps API key
    */
   apiKey: string;
+  /**
+   * How to fill `Location.timezone`. `'offline'` (default) uses the bundled
+   * boundary table. `'api'` calls the Google Time Zone API (must be enabled
+   * for the key; billed per request) once per distinct coordinate and falls
+   * back to the offline table when that call fails. `'none'` leaves it unset.
+   */
+  timezoneLookup?: 'offline' | 'api' | 'none';
 }
 
 /**

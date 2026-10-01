@@ -57,7 +57,8 @@
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@happyvertical/cache": "workspace:*",
-    "@happyvertical/utils": "workspace:*"
+    "@happyvertical/utils": "workspace:*",
+    "@photostructure/tz-lookup": "^11.7.0"
   },
   "devDependencies": {
     "@types/node": "25.0.10",

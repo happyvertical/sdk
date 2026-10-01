@@ -4,6 +4,8 @@
 
 import type { CacheAdapter } from '@happyvertical/cache';
 import { getCache } from '@happyvertical/cache';
+import { withOfflineTimezones } from '../shared/timezone';
+import { resolveTimezoneLookup } from '../shared/timezone-mode';
 import type {
   GeoProvider,
   Location,
@@ -101,12 +103,17 @@ export class OpenStreetMapProvider implements GeoProvider {
   private timeout: number;
   private maxResults: number;
   private cache: CacheAdapter | null = null;
+  private timezoneLookup: 'offline' | 'none';
 
   constructor(options: OpenStreetMapOptions) {
     this.userAgent = options.userAgent || '@happyvertical/geo (Node.js)';
     this.rateLimitDelay = options.rateLimitDelay || 1000; // 1 second default
     this.timeout = options.timeout || 10000;
     this.maxResults = options.maxResults || 10;
+    this.timezoneLookup = resolveTimezoneLookup(
+      options.timezoneLookup,
+      'openstreetmap',
+    );
 
     // Initialize memory cache asynchronously
     this.initCache();
@@ -132,10 +139,20 @@ export class OpenStreetMapProvider implements GeoProvider {
   }
 
   /**
-   * Generates a cache key for geocoding requests
+   * Generates a cache key for geocoding requests. The time zone mode is part
+   * of the key so adapters with different modes never share results.
    */
   private getCacheKey(type: string, ...parts: string[]): string {
-    return `${type}:${parts.join(':')}`;
+    return `${type}:${this.timezoneLookup}:${parts.join(':')}`;
+  }
+
+  /**
+   * Fills `Location.timezone` according to the configured mode.
+   */
+  private applyTimezones(locations: Location[]): Location[] {
+    return this.timezoneLookup === 'none'
+      ? locations
+      : withOfflineTimezones(locations);
   }
 
   /**
@@ -241,8 +258,8 @@ export class OpenStreetMapProvider implements GeoProvider {
 
     try {
       const results = await this.fetchNominatim('search', { q: query });
-      const locations = results.map((result) =>
-        this.mapNominatimResultToLocation(result),
+      const locations = this.applyTimezones(
+        results.map((result) => this.mapNominatimResultToLocation(result)),
       );
 
       // Cache the result
@@ -300,8 +317,8 @@ export class OpenStreetMapProvider implements GeoProvider {
       });
 
       // Nominatim reverse endpoint returns a single result or empty
-      const locations = results.map((result) =>
-        this.mapNominatimResultToLocation(result),
+      const locations = this.applyTimezones(
+        results.map((result) => this.mapNominatimResultToLocation(result)),
       );
 
       // Cache the result
@@ -423,6 +440,7 @@ export class OpenStreetMapProvider implements GeoProvider {
         if (locations.length >= limit) break;
       }
 
+      this.applyTimezones(locations);
       if (this.cache) await this.cache.set(cacheKey, locations);
       return locations;
     } catch (error) {

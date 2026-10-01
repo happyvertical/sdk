@@ -135,6 +135,24 @@ Factory function returning a geocoding adapter. Options are a discriminated unio
 | `maxResults` | optional | optional | Max results (default: 10) |
 | `userAgent` | — | optional | Custom User-Agent for Nominatim |
 | `rateLimitDelay` | — | optional | Delay between requests ms (default: 1000) |
+| `timezoneLookup` | `'offline'` \| `'api'` \| `'none'` | `'offline'` \| `'none'` | How `Location.timezone` is filled (default `'offline'`; env `HAVE_GEO_TIMEZONE_LOOKUP`) |
+
+#### Time zones
+
+Every result carries an IANA `timezone` (for example `'America/Edmonton'`)
+derived from its coordinates. The default `'offline'` mode uses the bundled
+[`@photostructure/tz-lookup`](https://github.com/photostructure/tz-lookup)
+table (CC0-1.0, ~90 KB, no network requests); it can pick a neighbouring zone
+within a few kilometres of a zone border. With the Google provider,
+`timezoneLookup: 'api'` asks the Google Time Zone API instead (enable it for
+the key; billed per request; one call per distinct coordinate; returns CLDR
+canonical IDs such as `Asia/Calcutta`; distinct coordinates are looked up
+concurrently) and falls back to the offline table if the call fails, logging
+one warning per adapter. `'none'` leaves `timezone` unset. Values are
+case-insensitive; any other value makes `getGeoAdapter` throw a `GeoError`
+(`INVALID_OPTION`). OpenStreetMap has no time zone API, so `'api'` there logs
+one warning and uses `'offline'`. The offline lookup is also
+exported as `timezoneForCoordinates(latitude, longitude)`.
 
 ### `GeoAdapter` Interface
 
@@ -184,6 +202,7 @@ All extend `GeoError`:
 
 ### Utility Functions
 
+- `timezoneForCoordinates(lat, lng)` — Offline IANA time zone for a coordinate (`undefined` if invalid)
 - `validateCoordinates(lat, lng)` — Returns `{ valid, error? }`
 - `isValidLatitude(lat)` / `isValidLongitude(lng)` — Bounds check
 - `normalizeCountryCode(code)` — Normalize to ISO 3166-1 alpha-2

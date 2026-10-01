@@ -118,6 +118,7 @@ export function createPackageConfig(
           'dotenv',
           'typescript',
           '@googlemaps/google-maps-services-js',
+          '@photostructure/tz-lookup',
           '@google-cloud/translate',
           'deepl-node',
           'redis',

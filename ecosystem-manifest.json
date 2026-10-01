@@ -609,7 +609,8 @@
         ],
         "externalHappyVertical": [],
         "external": [
-          "@googlemaps/google-maps-services-js"
+          "@googlemaps/google-maps-services-js",
+          "@photostructure/tz-lookup"
         ]
       },
       "dependents": [],
