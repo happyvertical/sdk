@@ -135,6 +135,58 @@ describe('createStreamingClientSecret (openai-realtime)', () => {
     });
   });
 
+  it('binds the secret to the reported model even when transcriptionOptions sets one', async () => {
+    const { fetch, calls } = mockFetch();
+    const result = await createStreamingClientSecret(
+      {
+        apiKey: 'sk-server-key',
+        model: 'gpt-4o-transcribe',
+        language: 'en',
+        prompt: 'Medical dictation.',
+        transcriptionOptions: {
+          model: 'whisper-1',
+          language: 'fr',
+          prompt: 'Override.',
+          delay: 'low',
+        },
+        fetch,
+      },
+      { env: {} },
+    );
+
+    const session = calls[0].body.session as {
+      audio: { input: { transcription: Record<string, unknown> } };
+    };
+    const transcription = session.audio.input.transcription;
+    // Typed settings win over extension fields, so the secret is bound to
+    // the same model the result reports for usage attribution.
+    expect(transcription.model).toBe(result.model);
+    expect(transcription).toEqual({
+      model: 'gpt-4o-transcribe',
+      language: 'en',
+      prompt: 'Medical dictation.',
+      delay: 'low',
+    });
+  });
+
+  it('binds the secret to the default model when transcriptionOptions sets one', async () => {
+    const { fetch, calls } = mockFetch();
+    const result = await createStreamingClientSecret(
+      {
+        apiKey: 'sk-server-key',
+        transcriptionOptions: { model: 'whisper-1' },
+        fetch,
+      },
+      { env: {} },
+    );
+
+    const session = calls[0].body.session as {
+      audio: { input: { transcription: Record<string, unknown> } };
+    };
+    expect(result.model).toBe('gpt-4o-transcribe');
+    expect(session.audio.input.transcription.model).toBe(result.model);
+  });
+
   it('resolves the endpoint from any accepted realtime base', () => {
     expect(resolveClientSecretUrl('https://api.openai.com')).toBe(
       'https://api.openai.com/v1/realtime/client_secrets',

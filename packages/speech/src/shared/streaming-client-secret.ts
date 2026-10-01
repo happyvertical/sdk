@@ -93,6 +93,10 @@ export interface CreateStreamingClientSecretOptions {
   format?: Partial<StreamingAudioFormat>;
   noiseReduction?: OpenAIRealtimeTranscriberOptions['noiseReduction'];
   include?: string[];
+  /**
+   * Extra `transcription` fields. The typed `model`, `language`, and `prompt`
+   * take precedence, so the secret is bound to the model the result reports.
+   */
   transcriptionOptions?: Record<string, unknown>;
   /**
    * Headers for the mint request, e.g. a per-tenant gateway virtual key
