@@ -405,3 +405,57 @@ describe('rate-limit error details', () => {
     ).toBeUndefined();
   });
 });
+
+describe('far rate-limit resets', () => {
+  afterEach(() => {
+    __resetAIRateLimitStateForTests();
+  });
+
+  it('marks a reset beyond a minute as not retryable soon', () => {
+    expect(new RateLimitError('openai', 30).retryable).toBe(true);
+    expect(new RateLimitError('openai', 60).retryable).toBe(true);
+    expect(new RateLimitError('openai', 3600).retryable).toBe(false);
+    expect(new RateLimitError('openai').retryable).toBe(true);
+    const window = rateLimitErrorFrom('bifrost', {
+      error: {
+        message: 'token limit exceeded (277867/250000, resets every 1h)',
+      },
+    });
+    expect(window).toMatchObject({
+      retryable: false,
+      limitWindowMs: 3_600_000,
+    });
+    expect(
+      new RateLimitError('openai', 120, { maxRetryDelayMs: 300_000 }).retryable,
+    ).toBe(true);
+  });
+
+  it('does not retry a far reset and applies the client threshold', async () => {
+    const chat = vi.fn(async () => {
+      throw new RateLimitError('openai', undefined, {
+        reason: 'token limit exceeded (277867/250000, resets every 1h)',
+        limitWindowMs: 3_600_000,
+      });
+    });
+    const ai = createRateLimitedAI(createTestAI({ chat }), {
+      apiKey: 'test-key',
+      rateLimit: { key: 'far-reset', maxAttempts: 3, initialDelayMs: 1 },
+    });
+    const error = await ai
+      .chat([{ role: 'user', content: 'hello' }])
+      .catch((caught) => caught);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ retryable: false, limitWindowMs: 3_600_000 });
+
+    // A client that accepts long waits keeps it retryable.
+    __resetAIRateLimitStateForTests();
+    const patient = createRateLimitedAI(createTestAI({ chat }), {
+      apiKey: 'test-key',
+      rateLimit: { key: 'far-reset-2', maxRetryDelayMs: 7_200_000 },
+    });
+    const patientError = await patient
+      .chat([{ role: 'user', content: 'hello' }])
+      .catch((caught) => caught);
+    expect(patientError.retryable).toBe(true);
+  });
+});

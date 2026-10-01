@@ -1937,6 +1937,13 @@ export interface AIRateLimitOptions {
   maxAttempts?: number;
 
   /**
+   * Longest provider reset wait (ms) still retried in-process. A rate limit
+   * that resets further away is not retried and its `RateLimitError` has
+   * `retryable: false`. Defaults to 60000.
+   */
+  maxRetryDelayMs?: number;
+
+  /**
    * Qwen3-TTS only: maximum requests per minute for its local token bucket.
    */
   requestsPerMinute?: number;
@@ -2366,6 +2373,30 @@ export interface RateLimitErrorDetails {
   model?: string;
   /** The provider error this was mapped from. */
   cause?: unknown;
+  /**
+   * Longest wait still worth retrying soon. When the reset is further away
+   * (`retryAfterMs`, else `limitWindowMs`), `retryable` is false. Defaults to
+   * {@link DEFAULT_RATE_LIMIT_MAX_RETRY_DELAY_MS}; `rateLimit.maxRetryDelayMs`
+   * overrides it for paced clients.
+   */
+  maxRetryDelayMs?: number;
+}
+
+/**
+ * Default for {@link RateLimitErrorDetails.maxRetryDelayMs}: a rate limit that
+ * resets more than a minute away is not worth retrying in-process.
+ */
+export const DEFAULT_RATE_LIMIT_MAX_RETRY_DELAY_MS = 60_000;
+
+/**
+ * Whether a rate limit that lifts after `waitMs` is worth retrying soon, given
+ * the longest acceptable wait. An unknown wait counts as retryable.
+ */
+export function isRateLimitRetryableSoon(
+  waitMs: number | undefined,
+  maxRetryDelayMs: number = DEFAULT_RATE_LIMIT_MAX_RETRY_DELAY_MS,
+): boolean {
+  return waitMs === undefined || waitMs <= maxRetryDelayMs;
 }
 
 const MAX_RATE_LIMIT_REASON_LENGTH = 500;
@@ -2378,6 +2409,11 @@ const MAX_RATE_LIMIT_REASON_LENGTH = 500;
  * @param details - The provider's reason text and reset hints
  */
 export class RateLimitError extends AIError {
+  /**
+   * False when the limit resets further away than the longest wait worth
+   * retrying soon (see {@link RateLimitErrorDetails.maxRetryDelayMs}).
+   */
+  declare retryable: boolean;
   /** Seconds until the limit resets, when the provider said so. */
   public retryAfter?: number;
   /** Milliseconds until the limit resets, when the provider said so. */
@@ -2414,6 +2450,12 @@ export class RateLimitError extends AIError {
     this.retryAfter = seconds;
     this.retryAfterMs = retryAfterMs;
     this.limitWindowMs = finiteNonNegative(details.limitWindowMs);
+    // A limit that lifts far away is not worth retrying soon: job runners
+    // should reschedule after `retryAfterMs` (or `limitWindowMs`) instead.
+    this.retryable = isRateLimitRetryableSoon(
+      this.retryAfterMs ?? this.limitWindowMs,
+      details.maxRetryDelayMs,
+    );
     this.reason = reason || undefined;
     if (details.cause !== undefined) this.cause = details.cause;
   }

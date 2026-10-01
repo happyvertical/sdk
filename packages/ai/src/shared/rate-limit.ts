@@ -1,6 +1,11 @@
 import type { AIClientOptions } from './client';
 import type { AIInterface, AIRateLimitOptions, GetAIOptions } from './types';
-import { AIError, RateLimitError } from './types';
+import {
+  AIError,
+  DEFAULT_RATE_LIMIT_MAX_RETRY_DELAY_MS,
+  isRateLimitRetryableSoon,
+  RateLimitError,
+} from './types';
 
 const RATE_LIMITED_METHODS = new Set<keyof AIInterface>([
   'decide',
@@ -27,6 +32,7 @@ interface NormalizedRateLimitConfig {
   initialDelayMs: number;
   key: string;
   maxAttempts: number;
+  maxRetryDelayMs: number;
 }
 
 class BudgetCoordinator {
@@ -145,7 +151,8 @@ function hasPacingConfig(rateLimit?: AIRateLimitOptions): boolean {
     rateLimit.key !== undefined ||
     rateLimit.cooldownMs !== undefined ||
     rateLimit.initialDelayMs !== undefined ||
-    rateLimit.maxAttempts !== undefined
+    rateLimit.maxAttempts !== undefined ||
+    rateLimit.maxRetryDelayMs !== undefined
   );
 }
 
@@ -211,6 +218,10 @@ function normalizeRateLimitConfig(
       1,
       normalizeNonNegativeInteger(rateLimit?.maxAttempts, 1),
     ),
+    maxRetryDelayMs: normalizeNonNegativeInteger(
+      rateLimit?.maxRetryDelayMs,
+      DEFAULT_RATE_LIMIT_MAX_RETRY_DELAY_MS,
+    ),
   };
 }
 
@@ -219,9 +230,13 @@ function getRetryDelayMs(
   config: NormalizedRateLimitConfig,
 ): number {
   const hintedDelayMs =
-    typeof error.retryAfter === 'number' && Number.isFinite(error.retryAfter)
-      ? Math.max(0, Math.ceil(error.retryAfter * 1000))
-      : undefined;
+    typeof error.retryAfterMs === 'number' &&
+    Number.isFinite(error.retryAfterMs)
+      ? Math.max(0, Math.ceil(error.retryAfterMs))
+      : typeof error.retryAfter === 'number' &&
+          Number.isFinite(error.retryAfter)
+        ? Math.max(0, Math.ceil(error.retryAfter * 1000))
+        : undefined;
 
   if (hintedDelayMs !== undefined) {
     return Math.max(config.cooldownMs, hintedDelayMs);
@@ -248,6 +263,12 @@ async function invokeWithPacing<T>(
     } catch (error) {
       if (error instanceof RateLimitError) {
         coordinator.delayFor(getRetryDelayMs(error, config));
+        // This client's threshold decides whether the reset is near enough
+        // to retry; a far reset is surfaced as not retryable soon.
+        error.retryable = isRateLimitRetryableSoon(
+          error.retryAfterMs ?? error.limitWindowMs,
+          config.maxRetryDelayMs,
+        );
 
         if (allowRetry && error.retryable && attempt < config.maxAttempts) {
           attempt += 1;

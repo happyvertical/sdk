@@ -477,6 +477,7 @@ in-process retry wrapper is applied. Provider retries still default to zero.
 | `cooldownMs` | `number` | `0` | Minimum delay after a successful call before the next call with the same key |
 | `initialDelayMs` | `number` | `5000` | Fallback retry delay when the provider does not return `Retry-After` |
 | `maxAttempts` | `number` | `1` | Total attempts, including the initial call; increase explicitly only for an approved workload |
+| `maxRetryDelayMs` | `number` | `60000` | Longest reset wait still retried; a limit that resets further away is not retried and its error has `retryable: false` |
 | `requestsPerMinute` | `number` | provider-specific | Used by `qwen3-tts` local token-bucket limiting |
 | `maxConcurrent` | `number` | provider-specific | Used by `qwen3-tts` local concurrency limiting |
 
@@ -586,13 +587,19 @@ All extend `AIError`: `AuthenticationError`, `RateLimitError`, `ModelNotFoundErr
 - `RateLimitError.limitWindowMs` is set when the provider names a limit window
   but no reset time ("resets every 1h"); the limit lifts within that time
 - `error.cause` is the provider error it was mapped from
+- `RateLimitError.retryable` is `false` when the limit resets more than a
+  minute away (`retryAfterMs`, else `limitWindowMs`; `rateLimit.maxRetryDelayMs`
+  changes the threshold). Job runners should not re-run such a job soon; they
+  can reschedule it after `retryAfterMs ?? limitWindowMs`
 
 ```typescript
 try {
   await ai.chat(messages);
 } catch (error) {
-  if (error instanceof RateLimitError && error.retryable) {
-    console.log('retry after seconds:', error.retryAfter);
+  if (error instanceof RateLimitError) {
+    console.log('why:', error.reason);
+    if (error.retryable) console.log('retry after seconds:', error.retryAfter);
+    else console.log('lifts in ms:', error.retryAfterMs ?? error.limitWindowMs);
   }
 }
 ```
