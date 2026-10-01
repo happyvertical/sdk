@@ -544,6 +544,7 @@ export class ClaudeCliProvider implements AIInterface {
       stream: options.stream,
       onProgress: options.onProgress,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
   }
 
@@ -596,6 +597,7 @@ export class ClaudeCliProvider implements AIInterface {
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;

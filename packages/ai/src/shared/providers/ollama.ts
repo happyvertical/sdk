@@ -997,6 +997,7 @@ export class OllamaProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;
@@ -1226,6 +1227,7 @@ export class OllamaProvider implements AIInterface {
 
       let finalUsage: TokenUsage | undefined;
       let finalModel = model;
+      let streamFinish: AIResponse['finishReason'] = 'stop';
 
       for await (const chunk of this.parseNdjson<OllamaChatResponse>(
         response,
@@ -1246,8 +1248,10 @@ export class OllamaProvider implements AIInterface {
 
         if (chunk.done) {
           finalUsage = mapUsage(chunk.prompt_eval_count, chunk.eval_count);
+          streamFinish = mapFinishReason(chunk.done_reason);
         }
       }
+      options.onFinishReason?.(streamFinish ?? 'stop');
 
       emitUsage(
         this.options,

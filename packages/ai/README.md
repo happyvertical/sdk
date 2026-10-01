@@ -393,6 +393,38 @@ effective token ceilings plus sanitized `usageTags`; prompts, responses, and
 credentials are never included. Legacy `thinkingLevel` options remain available
 as deprecated aliases and are normalized through the reasoning ceiling.
 
+## Continuing Truncated Replies
+
+When a reply stops because it hit its output limit (`finishReason: 'length'`:
+OpenAI-compatible `length`, Anthropic/Bedrock `max_tokens`, Gemini
+`MAX_TOKENS`, Ollama `length`), `getAI()` clients can ask the model to carry on
+and return one stitched reply. It is **off by default**: each continuation is a
+full extra request (up to `1 + maxContinuations` times the spend), which should
+be a deliberate choice, and the generation guardrails above apply to every part.
+
+```typescript
+const result = await ai.chat(messages, { continueOnLength: true });
+// or { continueOnLength: { maxContinuations: 2 } }  (default 3)
+// or set it as the client default: getAI({ ..., continueOnLength: true })
+
+result.content;   // stitched text
+result.parts;     // requests used (set when continuation ran)
+result.truncated; // true if the reply still ended on the limit
+```
+
+- Each continuation re-sends the conversation with the partial reply as an
+  assistant turn plus a "continue exactly where you stopped" user turn, and any
+  text the model repeats at the seam (12+ characters) is trimmed.
+- `chat`, `complete`, `message`, and `stream` all support it; a stream stays one
+  continuous stream (the first characters of each continuation are held briefly
+  so a repeated seam can be trimmed). `onProgress` receives only the stitched text.
+- `usage` on the result is the sum across parts. Provider `onUsage` hooks still
+  fire once per upstream request, so their sum equals the total.
+- Tool calls and `responseFormat: { type: 'json_object' }` are never continued
+  (stitching them is unsafe); the reply is returned as-is with `truncated: true`.
+- `truncated: true` is also set when continuation is off and the reply hit the limit.
+- Streaming adapters report the finish reason through `ChatOptions.onFinishReason`.
+
 ## Opt-In Rate-Limit Pacing
 
 Use `rateLimit` when multiple calls share the same provider budget and you want

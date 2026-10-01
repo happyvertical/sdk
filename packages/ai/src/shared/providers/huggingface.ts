@@ -172,6 +172,7 @@ export class HuggingFaceProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
   }
 
@@ -207,6 +208,7 @@ export class HuggingFaceProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;

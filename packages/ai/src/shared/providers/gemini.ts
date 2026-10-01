@@ -301,6 +301,7 @@ export class GeminiProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
   }
 
@@ -350,6 +351,7 @@ export class GeminiProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;
@@ -1131,8 +1133,12 @@ export class GeminiProvider implements AIInterface {
       });
 
       let usage: TokenUsage | undefined;
+      let streamFinish: AIResponse['finishReason'] = 'stop';
 
       for await (const chunk of stream) {
+        if (chunk.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+          streamFinish = 'length';
+        }
         if (chunk.usageMetadata) {
           usage = {
             promptTokens: chunk.usageMetadata.promptTokenCount || 0,
@@ -1151,6 +1157,7 @@ export class GeminiProvider implements AIInterface {
         }
         yield text;
       }
+      options.onFinishReason?.(streamFinish ?? 'stop');
 
       emitUsage(
         this.options,
@@ -1417,7 +1424,10 @@ export class GeminiProvider implements AIInterface {
       }
     }
 
-    // Gemini doesn't provide detailed finish reasons, default to 'stop'
+    if (firstCandidate?.finishReason === 'MAX_TOKENS') {
+      return 'length';
+    }
+
     return 'stop';
   }
 

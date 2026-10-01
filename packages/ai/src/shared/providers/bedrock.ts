@@ -190,6 +190,7 @@ export class BedrockProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
   }
 
@@ -225,6 +226,7 @@ export class BedrockProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;
@@ -490,8 +492,12 @@ export class BedrockProvider implements AIInterface {
       );
 
       let usage: TokenUsage | undefined;
+      let streamStopReason: string | null | undefined;
 
       for await (const event of response.stream || []) {
+        if (event.messageStop?.stopReason) {
+          streamStopReason = event.messageStop.stopReason;
+        }
         const text = event.contentBlockDelta?.delta?.text;
         if (text) {
           if (options.onProgress) {
@@ -508,6 +514,10 @@ export class BedrockProvider implements AIInterface {
           };
         }
       }
+
+      options.onFinishReason?.(
+        this.mapBedrockFinishReason(streamStopReason) ?? 'stop',
+      );
 
       emitUsage(
         this.options,

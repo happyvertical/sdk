@@ -13,6 +13,25 @@ export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
  *
  * Provider instances merge partial overrides with the exported safe defaults.
  */
+/** Why a generation stopped, normalised across providers. */
+export type AIFinishReason =
+  | 'stop'
+  | 'length'
+  | 'tool_calls'
+  | 'content_filter';
+
+/**
+ * Automatic continuation when a reply stops on its output limit. `true`
+ * allows up to 3 extra requests; pass `{ maxContinuations }` to change that.
+ * Never applies to tool calls or JSON output.
+ */
+export type ContinueOnLengthOption =
+  | boolean
+  | {
+      /** Extra requests allowed after the first (default 3). */
+      maxContinuations?: number;
+    };
+
 export interface AIGenerationLimits {
   /**
    * Hard ceiling on text tokens a single request may generate. Defaults to a
@@ -367,6 +386,19 @@ export interface ChatOptions extends AIRequestControls {
   onProgress?: (chunk: string) => void;
 
   /**
+   * Called by streaming adapters when the reply ends, with the normalised
+   * finish reason. Used for continuation; also useful to detect truncation.
+   */
+  onFinishReason?: (reason: AIFinishReason) => void;
+
+  /**
+   * Continue a reply that stopped on its output limit and return the stitched
+   * text. Off by default; ignored for tools and JSON output. Each part is a
+   * separate request bounded by the output ceiling.
+   */
+  continueOnLength?: ContinueOnLengthOption;
+
+  /**
    * Thinking level for providers that expose reasoning controls.
    * Gemini 3 models use named levels:
    * - 'minimal': No thinking for most queries (Gemini 3 Flash only)
@@ -437,6 +469,13 @@ export interface CompletionOptions extends AIRequestControls {
    * Callback for streaming responses
    */
   onProgress?: (chunk: string) => void;
+
+  /**
+   * Continue a reply that stopped on its output limit and return the stitched
+   * text. Off by default; ignored for tools and JSON output. Each part is a
+   * separate request bounded by the output ceiling.
+   */
+  continueOnLength?: ContinueOnLengthOption;
 
   /**
    * Custom tags to attach to the usage event for this call.
@@ -686,6 +725,13 @@ export interface MessageOptions extends AIRequestControls {
    * Callback for streaming responses
    */
   onProgress?: (chunk: string) => void;
+
+  /**
+   * Continue a reply that stopped on its output limit and return the stitched
+   * text. Off by default; ignored for tools and JSON output. Each part is a
+   * separate request bounded by the output ceiling.
+   */
+  continueOnLength?: ContinueOnLengthOption;
 
   /**
    * Custom tags to attach to the usage event for this call.
@@ -1363,12 +1409,23 @@ export interface AIResponse {
   /**
    * Finish reason
    */
-  finishReason?: 'stop' | 'length' | 'tool_calls' | 'content_filter';
+  finishReason?: AIFinishReason;
 
   /**
    * Tool calls made by the model
    */
   toolCalls?: AIToolCall[];
+
+  /**
+   * True when the reply ended on the output limit (after any continuations).
+   */
+  truncated?: boolean;
+
+  /**
+   * Number of provider requests stitched into this reply. Set when
+   * continuation ran.
+   */
+  parts?: number;
 }
 
 /**
@@ -1909,6 +1966,12 @@ export interface BaseAIOptions {
    * package defaults; raising a ceiling must therefore be deliberate.
    */
   generationLimits?: Partial<AIGenerationLimits>;
+
+  /**
+   * Client-wide default for continuing replies that stop on the output limit
+   * (see {@link ContinueOnLengthOption}). A per-call `continueOnLength` wins.
+   */
+  continueOnLength?: ContinueOnLengthOption;
 
   /**
    * Custom headers

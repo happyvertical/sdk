@@ -305,6 +305,7 @@ export class AnthropicProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
   }
 
@@ -354,6 +355,7 @@ export class AnthropicProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;
@@ -459,7 +461,11 @@ export class AnthropicProvider implements AIInterface {
         timeout: controls.timeout,
       });
 
+      let streamStopReason: string | null = null;
       for await (const chunk of stream) {
+        if (chunk.type === 'message_delta' && chunk.delta?.stop_reason) {
+          streamStopReason = chunk.delta.stop_reason;
+        }
         if (
           chunk.type === 'content_block_delta' &&
           chunk.delta.type === 'text_delta'
@@ -470,6 +476,9 @@ export class AnthropicProvider implements AIInterface {
           yield chunk.delta.text;
         }
       }
+      options.onFinishReason?.(
+        this.mapFinishReason(streamStopReason) ?? 'stop',
+      );
 
       emitUsage(
         this.options,

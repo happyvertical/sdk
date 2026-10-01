@@ -1,0 +1,269 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  continuationAddition,
+  createContinuingAI,
+} from './shared/continuation';
+import { AnthropicProvider } from './shared/providers/anthropic';
+import { GeminiProvider } from './shared/providers/gemini';
+import { OpenAIProvider } from './shared/providers/openai';
+import type { AIInterface } from './shared/types';
+
+const SEAM = 'the quick brown fox jumps over';
+
+function openAIReply(content: string, finish: string, tokens = [10, 5]) {
+  return {
+    choices: [{ message: { content }, finish_reason: finish }],
+    model: 'gpt-4o',
+    usage: {
+      prompt_tokens: tokens[0],
+      completion_tokens: tokens[1],
+      total_tokens: tokens[0] + tokens[1],
+    },
+  };
+}
+
+async function* openAIStream(parts: string[], finish: string) {
+  for (const text of parts) {
+    yield { choices: [{ delta: { content: text }, finish_reason: null }] };
+  }
+  yield { choices: [{ delta: {}, finish_reason: finish }] };
+}
+
+function openAI(create: ReturnType<typeof vi.fn>, extra = {}) {
+  const provider = new OpenAIProvider({
+    apiKey: 'test',
+    defaultModel: 'gpt-4o',
+    ...extra,
+  });
+  (provider as any).client = { chat: { completions: { create } } };
+  return createContinuingAI(provider as AIInterface, extra);
+}
+
+async function collect(iterable: AsyncIterable<string>) {
+  let out = '';
+  for await (const chunk of iterable) out += chunk;
+  return out;
+}
+
+describe('continuationAddition', () => {
+  it('trims a repeated seam and keeps unrelated text', () => {
+    expect(continuationAddition(`start ${SEAM}`, `${SEAM} the lazy dog`)).toBe(
+      ' the lazy dog',
+    );
+    expect(continuationAddition('abc', ' def')).toBe(' def');
+    // A short coincidental repeat is not trimmed.
+    expect(continuationAddition('a b', 'b c')).toBe('b c');
+  });
+});
+
+describe('continueOnLength (OpenAI-compatible)', () => {
+  it('does nothing unless enabled, but flags truncation', async () => {
+    const create = vi.fn().mockResolvedValue(openAIReply('cut', 'length'));
+    const ai = openAI(create);
+    const result = await ai.chat([{ role: 'user', content: 'go' }]);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ content: 'cut', truncated: true });
+  });
+
+  it('continues, trims the seam, and sums usage', async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(openAIReply(`one ${SEAM}`, 'length', [10, 5]))
+      .mockResolvedValueOnce(openAIReply(`${SEAM} two`, 'length', [20, 6]))
+      .mockResolvedValueOnce(openAIReply(' three', 'stop', [30, 7]));
+    const ai = openAI(create);
+    const result = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: true,
+    });
+
+    expect(result.content).toBe(`one ${SEAM} two three`);
+    expect(result.parts).toBe(3);
+    expect(result.truncated).toBe(false);
+    expect(result.usage).toEqual({
+      promptTokens: 60,
+      completionTokens: 18,
+      totalTokens: 78,
+    });
+    const second = create.mock.calls[1][0].messages;
+    expect(second.slice(-2)).toEqual([
+      { role: 'assistant', content: `one ${SEAM}` },
+      expect.objectContaining({ role: 'user' }),
+    ]);
+  });
+
+  it('stops at maxContinuations and reports truncated', async () => {
+    const create = vi.fn().mockImplementation(async () => {
+      const n = create.mock.calls.length;
+      return openAIReply(`part-${n} `.repeat(3), 'length');
+    });
+    const ai = openAI(create);
+    const result = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: { maxContinuations: 1 },
+    });
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ parts: 2, truncated: true });
+  });
+
+  it('applies the client default and reaches message()', async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(openAIReply('first ', 'length'))
+      .mockResolvedValueOnce(openAIReply('second', 'stop'));
+    const ai = openAI(create, { continueOnLength: true });
+    expect(await ai.message('go')).toBe('first second');
+  });
+
+  it('never continues JSON output or tool use', async () => {
+    const create = vi.fn().mockResolvedValue(openAIReply('{"a":', 'length'));
+    const ai = openAI(create);
+    const json = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: true,
+      responseFormat: { type: 'json_object' },
+    });
+    expect(json.truncated).toBe(true);
+    const tools = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: true,
+      tools: [
+        { type: 'function', function: { name: 'x', parameters: {} } },
+      ] as any,
+    });
+    expect(tools.truncated).toBe(true);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it('streams one continuous stream across continuations', async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(openAIStream(['one ', SEAM], 'length'))
+      .mockResolvedValueOnce(openAIStream([SEAM, ' two'], 'stop'));
+    const ai = openAI(create);
+    const seen: string[] = [];
+    const text = await collect(
+      ai.stream([{ role: 'user', content: 'go' }], {
+        continueOnLength: true,
+        onProgress: (chunk) => seen.push(chunk),
+      }),
+    );
+    expect(text).toBe(`one ${SEAM} two`);
+    expect(seen.join('')).toBe(text);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('continueOnLength (Anthropic)', () => {
+  it('continues on stop_reason max_tokens', async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce({
+        content: [{ type: 'text', text: `alpha ${SEAM}` }],
+        model: 'claude-test',
+        stop_reason: 'max_tokens',
+        usage: { input_tokens: 4, output_tokens: 2 },
+      })
+      .mockResolvedValueOnce({
+        content: [{ type: 'text', text: `${SEAM} beta` }],
+        model: 'claude-test',
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 6, output_tokens: 3 },
+      });
+    const provider = new AnthropicProvider({
+      type: 'anthropic',
+      apiKey: 'test',
+      defaultModel: 'claude-test',
+    });
+    (provider as any).client = { messages: { create } };
+    const ai = createContinuingAI(provider as AIInterface, {});
+    const result = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: true,
+    });
+    expect(result.content).toBe(`alpha ${SEAM} beta`);
+    expect(result.usage).toEqual({
+      promptTokens: 10,
+      completionTokens: 5,
+      totalTokens: 15,
+    });
+  });
+
+  it('streams across continuations using the message_delta stop reason', async () => {
+    async function* events(text: string, stop: string) {
+      yield {
+        type: 'content_block_delta',
+        delta: { type: 'text_delta', text },
+      };
+      yield { type: 'message_delta', delta: { stop_reason: stop } };
+    }
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(events('alpha ', 'max_tokens'))
+      .mockResolvedValueOnce(events('beta', 'end_turn'));
+    const provider = new AnthropicProvider({
+      type: 'anthropic',
+      apiKey: 'test',
+      defaultModel: 'claude-test',
+    });
+    (provider as any).client = { messages: { create } };
+    const ai = createContinuingAI(provider as AIInterface, {});
+    expect(
+      await collect(
+        ai.stream([{ role: 'user', content: 'go' }], {
+          continueOnLength: true,
+        }),
+      ),
+    ).toBe('alpha beta');
+  });
+});
+
+describe('continueOnLength (Gemini)', () => {
+  it('maps MAX_TOKENS to length and continues', async () => {
+    const reply = (text: string, finishReason: string, total: number) => ({
+      text,
+      candidates: [{ finishReason, content: { parts: [{ text }] } }],
+      usageMetadata: {
+        promptTokenCount: total - 1,
+        candidatesTokenCount: 1,
+        totalTokenCount: total,
+      },
+    });
+    const generateContent = vi
+      .fn()
+      .mockResolvedValueOnce(reply('uno ', 'MAX_TOKENS', 5))
+      .mockResolvedValueOnce(reply('dos', 'STOP', 7));
+    const provider = new GeminiProvider({
+      type: 'gemini',
+      apiKey: 'test',
+      defaultModel: 'gemini-2.5-flash',
+    });
+    (provider as any).client = { models: { generateContent } };
+    const ai = createContinuingAI(provider as AIInterface, {});
+    const result = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: true,
+    });
+    expect(result.content).toBe('uno dos');
+    expect(result.usage?.totalTokens).toBe(12);
+    expect(result.parts).toBe(2);
+  });
+
+  it('streams across continuations using candidate finishReason', async () => {
+    async function* chunks(text: string, finishReason: string) {
+      yield { text, candidates: [{ finishReason }] };
+    }
+    const generateContentStream = vi
+      .fn()
+      .mockResolvedValueOnce(chunks('uno ', 'MAX_TOKENS'))
+      .mockResolvedValueOnce(chunks('dos', 'STOP'));
+    const provider = new GeminiProvider({
+      type: 'gemini',
+      apiKey: 'test',
+      defaultModel: 'gemini-2.5-flash',
+    });
+    (provider as any).client = { models: { generateContentStream } };
+    const ai = createContinuingAI(provider as AIInterface, {});
+    expect(
+      await collect(
+        ai.stream([{ role: 'user', content: 'go' }], {
+          continueOnLength: true,
+        }),
+      ),
+    ).toBe('uno dos');
+  });
+});

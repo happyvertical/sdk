@@ -436,6 +436,7 @@ export class OpenAIProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
   }
 
@@ -491,6 +492,7 @@ export class OpenAIProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;
@@ -911,7 +913,9 @@ export class OpenAIProvider implements AIInterface {
         timeout: controls.timeout,
       });
 
+      let streamFinish: string | null = null;
       for await (const chunk of stream) {
+        streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
         const content = chunk.choices[0]?.delta?.content;
         if (content) {
           if (options.onProgress) {
@@ -920,6 +924,7 @@ export class OpenAIProvider implements AIInterface {
           yield content;
         }
       }
+      options.onFinishReason?.(this.mapFinishReason(streamFinish) ?? 'stop');
 
       emitUsage(
         this.options,
