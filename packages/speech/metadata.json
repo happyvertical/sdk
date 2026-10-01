@@ -13,6 +13,7 @@
     "Studio Server STT",
     "OpenAI-compatible STT",
     "OpenAI Realtime streaming STT",
+    "Voxtral Realtime streaming STT",
     "On-device STT",
     "Studio Server TTS",
     "Qwen3 TTS",

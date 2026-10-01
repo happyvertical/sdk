@@ -26,9 +26,18 @@ export {
   OPENAI_REALTIME_DEFAULT_MODEL,
   OPENAI_REALTIME_DEFAULT_URL,
   openAIRealtimeProtocol,
+  openAIRealtimeTranscriptionSession,
   parseOpenAIRealtimeEvent,
+  resolveOpenAIRealtimeFormat,
   resolveRealtimeUrl,
 } from './adapters/openai-realtime.js';
+export {
+  parseVoxtralRealtimeEvent,
+  resolveVoxtralRealtimeUrl,
+  VOXTRAL_REALTIME_AUDIO_FORMAT,
+  VOXTRAL_REALTIME_DEFAULT_MODEL,
+  voxtralRealtimeProtocol,
+} from './adapters/voxtral-realtime.js';
 export {
   DEFAULT_MAX_AUDIO_BYTES,
   mimeTypeToAudioExtension,
@@ -58,6 +67,15 @@ export {
   type RealtimeSessionInit,
   RealtimeTranscriptionSession,
 } from './shared/realtime-session.js';
+export {
+  CLIENT_SECRET_TTL_RANGE,
+  type CreateStreamingClientSecretOptions,
+  createStreamingClientSecret,
+  DEFAULT_CLIENT_SECRET_TTL_SECONDS,
+  resolveClientSecretUrl,
+  type StreamingClientSecretContext,
+  type StreamingClientSecretResult,
+} from './shared/streaming-client-secret.js';
 export {
   getStreamingTranscriber,
   isStreamingTranscriberType,
@@ -89,6 +107,7 @@ export type {
   StreamingTranscriberOptions,
   StreamingTranscriberType,
   StreamingTurnDetection,
+  VoxtralRealtimeTranscriberOptions,
 } from './shared/streaming-types.js';
 export type {
   AudioBytes,

@@ -27,7 +27,7 @@ pnpm --filter @happyvertical/speech clean
 
 ## Ecosystem Relationships
 - Provides: Speech provider abstraction for STT and TTS backends
-- Implements: Studio Server STT, OpenAI-compatible STT, OpenAI Realtime streaming STT, On-device STT, Studio Server TTS, Qwen3 TTS, OpenAI-compatible TTS
+- Implements: Studio Server STT, OpenAI-compatible STT, OpenAI Realtime streaming STT, Voxtral Realtime streaming STT, On-device STT, Studio Server TTS, Qwen3 TTS, OpenAI-compatible TTS
 - Requires: @huggingface/transformers
 - Stability: experimental (Marked as preview or experimental in package guidance.)
 <!-- END AGENT:GENERATED -->
@@ -48,6 +48,7 @@ Adapter constructors are internal implementation details. Keep new backends behi
 - Studio Server STT (`type: 'studio-server'`) posts multipart audio to `/v1/transcribe`.
 - OpenAI-compatible STT (`type: 'openai-compatible'`) posts multipart `file`/`model` to `<base>/audio/transcriptions`.
 - OpenAI Realtime streaming STT (`type: 'openai-realtime'`) streams raw PCM16/G.711 over a WebSocket to `<base>/realtime?intent=transcription` via `getStreamingTranscriber()`; `getTranscriber()` wraps it for record-then-send callers.
+- Voxtral Realtime streaming STT (`type: 'voxtral-realtime'`, served by vLLM) streams PCM16 16 kHz mono to `<base>/realtime` with vLLM's protocol: a top-level `session.update` model, a non-final commit to start each turn, a `final: true` commit to end it, `transcription.delta`/`done` events, manual turns only, and a required `baseUrl`.
 - On-device STT (`type: 'local'`) runs Whisper/Moonshine ONNX models with transformers.js behind the `@happyvertical/speech/local` subpath; importing that subpath registers the type with the factory.
 - Studio Server TTS (`type: 'studio-server'`) posts multipart form data to `/v1/tts/synthesize`.
 - Qwen3 TTS (`type: 'qwen3-tts'`) posts multipart form data to `/v1/audio/speech`.
@@ -71,11 +72,13 @@ The OpenAI-compatible transcriber holds an API key and is server-side only.
 
 - Contract: `src/shared/streaming-types.ts` (`StreamingTranscriber.start()` → `StreamingSession` with `write()`, `commit()`, `end()`, `abort()`, `on()`). Keep it additive; `Transcriber` stays request/response.
 - `src/shared/realtime-session.ts`: `RealtimeTranscriptionSession` owns the socket, ordered write queue, backpressure (`write()` resolves after the socket drains to `highWaterMark`; `maxBufferedBytes` rejects), connect/final timeouts, turn bookkeeping, events, the joined `TranscriptResult`, and usage. A mid-session socket drop fails the session; there is no reconnect.
-- A new realtime adapter implements `RealtimeProtocol` (`sessionMessages`, `appendMessage`, `commitMessage`, `parse` → `RealtimeProtocolEvent[]`, plus `commitAck` and `endCommit`) and a small `StreamingTranscriber` class that resolves auth/URL/format and constructs the session. See `src/adapters/openai-realtime.ts`.
+- A new realtime adapter implements `RealtimeProtocol` (`sessionMessages`, `appendMessage`, `commitMessage`, `parse` → `RealtimeProtocolEvent[]`, plus `commitAck`, `endCommit`, and optional `turnStartMessage` for servers that need an explicit turn start; the session then holds audio written after a commit until outstanding turns are acknowledged) and a small `StreamingTranscriber` class that resolves auth/URL/format and constructs the session. See `src/adapters/openai-realtime.ts` and `src/adapters/voxtral-realtime.ts`.
+- The end timeout is an inactivity timeout: every server message restarts it.
 - Register new types in `STREAMING_TRANSCRIBER_TYPES` and the `getStreamingTranscriber()` switch (`src/shared/streaming-factory.ts`), and extend `StreamingTranscriberType`; `getTranscriber()` then wraps them automatically.
 - Env: `HAVE_SPEECH_STREAMING_*` (`STREAMING_TRANSCRIBER_ENV_KEYS`), explicit options first.
-- Auth: `apiKey` → `Authorization` header (Node only, refused in browsers); `clientSecret` (string or per-session mint function) → subprotocol. Never put long-lived keys in browser code paths.
-- Tests use an in-memory fake WebSocket injected through `WebSocket`/`createWebSocket`; no network.
+- Auth: `apiKey` → `Authorization` header (Node only, refused in browsers); `clientSecret` (string or per-session mint function) → subprotocol, with `sk-…` keys refused in browsers. Shared helpers live in `src/shared/realtime-auth.ts`. Never put long-lived keys in browser code paths.
+- Browser tokens: `createStreamingClientSecret()` (`src/shared/streaming-client-secret.ts`) mints OpenAI `ek_…` secrets server-side via `POST /v1/realtime/client_secrets` (default TTL 60 s), echoing `tenantId`/`sessionId`/`metadata` for the caller's ledger. It throws `SpeechConfigurationError` for `voxtral-realtime` (vLLM has no ephemeral tokens; consumers need their own gateway) and in browsers.
+- Tests use an in-memory fake WebSocket (`src/__tests__/fake-websocket.ts`) injected through `WebSocket`/`createWebSocket`, and an injected `fetch`; no network. `voxtral-realtime.live.test.ts` is opt-in (`HAVE_SPEECH_STREAMING_LIVE=1`).
 
 ## Optional Peer Isolation (`local`)
 

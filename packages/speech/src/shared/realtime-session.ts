@@ -91,6 +91,15 @@ export interface RealtimeProtocol {
   appendMessage(base64Audio: string): unknown;
   /** Ends the current turn. `final` is true for the commit sent by `end()`. */
   commitMessage(options: { final: boolean }): unknown;
+  /**
+   * Opens a turn before its first audio, for servers that only start
+   * generating after an explicit start signal (vLLM's non-final
+   * `input_audio_buffer.commit`). When set, the session sends it before the
+   * first append of every turn, and holds audio written after a commit until
+   * every outstanding turn has been acknowledged, so a server that resets its
+   * buffer between turns never drops audio.
+   */
+  turnStartMessage?(): unknown;
   /** Maps one parsed JSON server message to zero or more events. */
   parse(message: unknown): RealtimeProtocolEvent[];
 }
@@ -157,6 +166,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
   private totalBytes = 0;
   private uncommittedBytes = 0;
   private outstandingCommits = 0;
+  private turnOpen = false;
   private readonly itemOrder: string[] = [];
   private readonly pendingItems = new Set<string>();
   private readonly vadStoppedItems = new Set<string>();
@@ -226,6 +236,20 @@ export class RealtimeTranscriptionSession implements StreamingSession {
     const settled = new Promise<void>((resolve, reject) => {
       this.endWaiter = { resolve, reject };
     });
+    this.armEndTimer();
+    this.endPromise = settled.then(() => this.finish());
+    void this.pump();
+    this.checkEnded();
+    return this.endPromise;
+  }
+
+  /**
+   * (Re)starts the end timeout. It measures provider inactivity: every server
+   * message restarts it, so a long recording that is still being transcribed
+   * is not cut off, while a silent provider still fails after `timeoutMs`.
+   */
+  private armEndTimer(): void {
+    clearTimeout(this.endTimer);
     this.endTimer = setTimeout(() => {
       this.fail(
         new SpeechProviderError(
@@ -234,10 +258,6 @@ export class RealtimeTranscriptionSession implements StreamingSession {
         ),
       );
     }, this.init.timeoutMs);
-    this.endPromise = settled.then(() => this.finish());
-    void this.pump();
-    this.checkEnded();
-    return this.endPromise;
   }
 
   abort(reason?: unknown): void {
@@ -382,6 +402,10 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       return;
     }
 
+    if (this.endWaiter) {
+      this.armEndTimer();
+    }
+
     const text = messageDataToText(data);
     if (text === undefined) {
       return;
@@ -457,7 +481,15 @@ export class RealtimeTranscriptionSession implements StreamingSession {
           arrival: this.finals.length,
         });
         if (this.init.protocol.commitAck === 'final') {
-          this.ackCommit();
+          if (this.outstandingCommits > 0) {
+            this.ackCommit();
+          } else if (this.init.protocol.turnStartMessage) {
+            // The server ended the open turn by itself (vLLM does when the
+            // model context fills): the next audio needs a new turn, and the
+            // audio already sent belongs to the turn that just finished.
+            this.turnOpen = false;
+            this.uncommittedBytes = 0;
+          }
         }
         this.emit('final', {
           text: event.text,
@@ -507,6 +539,9 @@ export class RealtimeTranscriptionSession implements StreamingSession {
     try {
       while (this.queue.length > 0 && !this.isTerminal()) {
         await this.waitForDrain();
+        if (!(await this.openTurnIfNeeded())) {
+          break;
+        }
         const item = this.queue.shift();
         if (!item || this.isTerminal()) {
           if (item?.kind === 'audio') {
@@ -550,7 +585,39 @@ export class RealtimeTranscriptionSession implements StreamingSession {
     if (this.send(this.init.protocol.commitMessage({ final }))) {
       this.uncommittedBytes = 0;
       this.outstandingCommits += 1;
+      this.turnOpen = false;
     }
+  }
+
+  /**
+   * For protocols with an explicit turn start: before the next audio, waits
+   * for every outstanding turn to be acknowledged (bounded by `timeoutMs`),
+   * then opens a new turn. Returns false when the session has failed.
+   */
+  private async openTurnIfNeeded(): Promise<boolean> {
+    const start = this.init.protocol.turnStartMessage;
+    if (!start || this.turnOpen || this.queue[0]?.kind !== 'audio') {
+      return true;
+    }
+
+    const deadline = Date.now() + this.init.timeoutMs;
+    while (!this.isTerminal() && this.outstandingCommits > 0) {
+      if (Date.now() >= deadline) {
+        this.fail(
+          new SpeechProviderError(
+            this.provider,
+            `${this.provider} timed out after ${this.init.timeoutMs} ms waiting for the previous turn to finish`,
+          ),
+        );
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, DRAIN_POLL_MS));
+    }
+    if (this.isTerminal() || !this.send(start.call(this.init.protocol))) {
+      return false;
+    }
+    this.turnOpen = true;
+    return true;
   }
 
   /**
