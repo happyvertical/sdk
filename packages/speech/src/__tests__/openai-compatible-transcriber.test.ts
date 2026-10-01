@@ -9,8 +9,12 @@ import {
   SpeechProviderError,
   type SpeechUsage,
 } from '../index.js';
-import { resolveOpenAICompatibleUrl } from '../shared/http.js';
-import { parseRetryAfter } from '../shared/retry.js';
+import {
+  normalizeBaseUrl,
+  resolveOpenAICompatibleUrl,
+  resolveSpeechUrl,
+} from '../shared/http.js';
+import { parseRetryAfter, resolveRetryOptions } from '../shared/retry.js';
 
 interface CapturedRequest {
   url: string;
@@ -84,6 +88,65 @@ describe('openai-compatible transcriber', () => {
     ).toBe('http://gateway/openai/v1/audio/transcriptions');
     expect(() => resolveOpenAICompatibleUrl('  ', resource)).toThrow(
       SpeechConfigurationError,
+    );
+    expect(() => resolveOpenAICompatibleUrl('not a url', resource)).toThrow(
+      SpeechConfigurationError,
+    );
+  });
+
+  it('preserves base URL query strings and drops fragments', () => {
+    const resource = 'audio/transcriptions';
+    expect(
+      resolveOpenAICompatibleUrl(
+        'https://gw.example/openai/audio/transcriptions?api-version=1',
+        resource,
+      ),
+    ).toBe('https://gw.example/openai/audio/transcriptions?api-version=1');
+    expect(
+      resolveOpenAICompatibleUrl('https://gw.example/stt/v1?key=a/', resource),
+    ).toBe('https://gw.example/stt/v1/audio/transcriptions?key=a/');
+    expect(
+      resolveOpenAICompatibleUrl('https://gw.example/v1#frag', resource),
+    ).toBe('https://gw.example/v1/audio/transcriptions');
+
+    expect(normalizeBaseUrl('https://gw.example/api?api-version=1#x')).toBe(
+      'https://gw.example/api/?api-version=1',
+    );
+    expect(
+      resolveSpeechUrl('https://gw.example/api?api-version=1', '/speak'),
+    ).toBe('https://gw.example/api/speak?api-version=1');
+    expect(
+      resolveSpeechUrl('https://gw.example/api?api-version=1', 'speak?x=2'),
+    ).toBe('https://gw.example/api/speak?x=2');
+    expect(
+      resolveSpeechUrl(
+        'https://gw.example/api?api-version=1',
+        'https://other.example/full',
+      ),
+    ).toBe('https://other.example/full');
+  });
+
+  it('rejects non-finite retry options instead of retrying unbounded', async () => {
+    for (const retry of [
+      { maxRetries: Number.NaN },
+      { maxRetries: Number.POSITIVE_INFINITY },
+      { initialDelayMs: Number.NaN },
+      { maxDelayMs: Number.POSITIVE_INFINITY },
+    ]) {
+      const { fetch } = mockFetch(json({}, { status: 503 }));
+      await expect(
+        getTranscriber({
+          type: 'openai-compatible',
+          baseUrl: 'http://speech.example/v1',
+          retry,
+          fetch,
+        }),
+      ).rejects.toThrow(SpeechConfigurationError);
+      expect(fetch).not.toHaveBeenCalled();
+    }
+
+    expect(resolveRetryOptions({ maxRetries: -3, initialDelayMs: -1 })).toEqual(
+      { maxRetries: 0, initialDelayMs: 0, maxDelayMs: 30_000 },
     );
   });
 

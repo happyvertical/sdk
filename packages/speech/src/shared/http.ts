@@ -14,31 +14,72 @@ import type {
   WordTiming,
 } from './types.js';
 
-export function normalizeBaseUrl(baseUrl: string): string {
-  if (!baseUrl.trim()) {
+/**
+ * Parses a base URL, dropping any fragment and keeping any query string.
+ * Throws {@link SpeechConfigurationError} for a blank or unparseable value.
+ * The value is not echoed in the error because it may carry credentials.
+ */
+function parseBaseUrl(baseUrl: string): URL {
+  const trimmed = baseUrl.trim();
+  if (!trimmed) {
     throw new SpeechConfigurationError('Speech adapter baseUrl is required');
   }
 
-  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new SpeechConfigurationError(
+      'Speech adapter baseUrl is not a valid absolute URL',
+    );
+  }
+
+  url.hash = '';
+  return url;
 }
 
+/**
+ * Returns `baseUrl` with a trailing `/` on its path so relative paths resolve
+ * beneath it. The query string is preserved and any fragment is dropped.
+ */
+export function normalizeBaseUrl(baseUrl: string): string {
+  const url = parseBaseUrl(baseUrl);
+  if (!url.pathname.endsWith('/')) {
+    url.pathname = `${url.pathname}/`;
+  }
+
+  return url.toString();
+}
+
+/**
+ * Resolves `path` against `baseUrl`. A relative path without its own query
+ * inherits the base URL's query (for example a gateway `api-version`); an
+ * absolute URL is returned unchanged.
+ */
 export function resolveSpeechUrl(baseUrl: string, path: string): string {
-  return new URL(path.replace(/^\//, ''), normalizeBaseUrl(baseUrl)).toString();
+  const base = new URL(normalizeBaseUrl(baseUrl));
+  const isAbsolute = /^[a-z][a-z\d+.-]*:/i.test(path);
+  const resolved = new URL(isAbsolute ? path : path.replace(/^\//, ''), base);
+  if (!isAbsolute && !resolved.search && base.search) {
+    resolved.search = base.search;
+  }
+
+  return resolved.toString();
 }
 
 /**
  * Resolves an OpenAI-compatible endpoint from a base URL. Accepts a server
  * root (`https://api.openai.com` → `/v1/<resource>`), an API root ending in a
  * version segment (`http://gateway/stt/v1` → `/<resource>`), or the full
- * endpoint URL (returned unchanged).
+ * endpoint URL (used as-is). Only the path is rewritten: the query string is
+ * preserved and any fragment is dropped.
  */
 export function resolveOpenAICompatibleUrl(
   baseUrl: string,
   resource: string,
 ): string {
   const trimmedResource = resource.replace(/^\/+|\/+$/g, '');
-  const base = normalizeBaseUrl(baseUrl.trim()).replace(/\/+$/, '');
-  const url = new URL(base);
+  const url = parseBaseUrl(baseUrl);
   const pathname = url.pathname.replace(/\/+$/, '');
 
   if (pathname.endsWith(`/${trimmedResource}`)) {

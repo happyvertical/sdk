@@ -4,7 +4,7 @@
  * stops immediately when the caller aborts.
  */
 
-import { SpeechProviderError } from './errors.js';
+import { SpeechConfigurationError, SpeechProviderError } from './errors.js';
 
 export interface SpeechRetryOptions {
   /** Retries after the first attempt. Default `2`. `0` disables retries. */
@@ -38,10 +38,42 @@ export function resolveRetryOptions(
 
   const base = defaults || DEFAULT_SPEECH_RETRY;
   return {
-    maxRetries: Math.max(0, Math.floor(retry.maxRetries ?? base.maxRetries)),
-    initialDelayMs: Math.max(0, retry.initialDelayMs ?? base.initialDelayMs),
-    maxDelayMs: Math.max(0, retry.maxDelayMs ?? base.maxDelayMs),
+    maxRetries: Math.floor(
+      finiteRetryValue('maxRetries', retry.maxRetries, base.maxRetries),
+    ),
+    initialDelayMs: finiteRetryValue(
+      'initialDelayMs',
+      retry.initialDelayMs,
+      base.initialDelayMs,
+    ),
+    maxDelayMs: finiteRetryValue(
+      'maxDelayMs',
+      retry.maxDelayMs,
+      base.maxDelayMs,
+    ),
   };
+}
+
+/**
+ * Rejects non-finite values (`NaN`, `Infinity`): they would make the retry
+ * budget or delay cap unbounded. Negative values clamp to `0`.
+ */
+function finiteRetryValue(
+  name: keyof SpeechRetryOptions,
+  value: number | undefined,
+  fallback: number,
+): number {
+  if (value === undefined) {
+    return Math.max(0, fallback);
+  }
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new SpeechConfigurationError(
+      `Speech retry option ${name} must be a finite number`,
+    );
+  }
+
+  return Math.max(0, value);
 }
 
 export function isRetryableStatus(status: number | undefined): boolean {
