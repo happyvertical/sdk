@@ -744,6 +744,22 @@ describe('openai-realtime turn limits', () => {
     expect(result.durationSeconds).toBe(0.55);
   });
 
+  it('rejects a cap below the 100 ms commit minimum before connecting', () => {
+    const manual = openai({ turnDetection: { type: 'manual' } });
+    expect(() => manual.turnLimit?.({ maxTurnSeconds: 0.05 })).toThrow(
+      /below openai-realtime's minimum commit of 0.1 s/,
+    );
+    expect(() => manual.start({ maxTurnSeconds: 0.05 })).toThrow(
+      SpeechConfigurationError,
+    );
+    expect(FakeWebSocket.instances).toHaveLength(0);
+    // Exactly the minimum is allowed; VAD sessions ignore the limit.
+    expect(manual.turnLimit?.({ maxTurnSeconds: 0.1 })).toMatchObject({
+      maxTurnSeconds: 0.1,
+    });
+    expect(openai({ maxTurnSeconds: 0.05 }).turnLimit?.()).toBeUndefined();
+  });
+
   it('leaves short commits alone in sessions without a turn limit', async () => {
     FakeWebSocket.onClientMessage = openAIServerWithMinimum();
     const session = openai({ turnDetection: { type: 'manual' } }).start();

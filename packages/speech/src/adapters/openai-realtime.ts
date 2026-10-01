@@ -19,6 +19,7 @@ import {
   realtimeConnector,
 } from '../shared/realtime-auth.js';
 import {
+  assertTurnLimitFitsProtocol,
   DEFAULT_STREAMING_CONNECT_TIMEOUT_MS,
   DEFAULT_STREAMING_HIGH_WATER_MARK,
   DEFAULT_STREAMING_MAX_BUFFERED_BYTES,
@@ -286,7 +287,11 @@ export class OpenAIRealtimeTranscriber implements StreamingTranscriber {
       options,
       this.options,
     );
-    return this.turnDetection(options).type === 'manual' ? limit : undefined;
+    if (this.turnDetection(options).type !== 'manual') {
+      return undefined;
+    }
+    assertTurnLimitFitsProtocol(this.protocol, limit);
+    return limit;
   }
 
   private turnDetection(

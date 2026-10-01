@@ -8,7 +8,11 @@
  * own messages.
  */
 
-import { SpeechError, SpeechProviderError } from './errors.js';
+import {
+  SpeechConfigurationError,
+  SpeechError,
+  SpeechProviderError,
+} from './errors.js';
 import { redactSecret } from './http.js';
 import {
   audioSecondsForBytes,
@@ -229,6 +233,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
   constructor(init: RealtimeSessionInit) {
     this.init = init;
     this.provider = init.protocol.provider;
+    assertTurnLimitFitsProtocol(init.protocol, init.turnLimit);
     if (init.turnLimit) {
       this.splitter = new TurnSplitter(init.turnLimit, init.config.format);
     }
@@ -938,6 +943,23 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       result = redactSecret(result, secret);
     }
     return result;
+  }
+}
+
+/**
+ * Throws when a turn cap is below the provider's minimum commit length:
+ * padding a short turn up to that minimum would then exceed the cap.
+ */
+export function assertTurnLimitFitsProtocol(
+  protocol: Pick<RealtimeProtocol, 'provider' | 'minCommitSeconds'>,
+  limit: Pick<TurnLimit, 'maxTurnSeconds'> | undefined,
+): void {
+  const minimum = protocol.minCommitSeconds;
+  if (limit && minimum && limit.maxTurnSeconds < minimum) {
+    throw new SpeechConfigurationError(
+      `maxTurnSeconds (${limit.maxTurnSeconds}) is below ${protocol.provider}'s minimum commit of ${minimum} s`,
+      protocol.provider,
+    );
   }
 }
 

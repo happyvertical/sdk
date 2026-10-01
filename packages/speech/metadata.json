@@ -28,8 +28,8 @@
   },
   "dependents": [],
   "stability": {
-    "level": "mixed",
-    "reason": "Contains stubbed, partial, or intentionally unsupported surface area."
+    "level": "experimental",
+    "reason": "Marked as preview or experimental in package guidance."
   },
   "keywords": [
     "speech"
