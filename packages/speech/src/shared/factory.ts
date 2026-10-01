@@ -13,11 +13,23 @@ import {
   readEnv,
   resolveTranscriberConfig,
   type SpeechEnv,
+  TRANSCRIBER_ENV_KEYS,
 } from './env.js';
 import {
   InvalidSpeechAdapterError,
   SpeechConfigurationError,
 } from './errors.js';
+import { compactJson } from './http.js';
+import {
+  getStreamingTranscriber,
+  isStreamingTranscriberType,
+  STREAMING_TRANSCRIBER_TYPES,
+  wrapStreamingTranscriber,
+} from './streaming-factory.js';
+import type {
+  GetStreamingTranscriberOptions,
+  StreamingTranscriberType,
+} from './streaming-types.js';
 import type {
   GetSpeechOptions,
   GetSpeechSynthesizerOptions,
@@ -86,6 +98,13 @@ export async function getTranscriber(
   options: GetTranscriberOptions = {},
   context: SpeechFactoryContext = {},
 ): Promise<Transcriber> {
+  const streamingType =
+    options.type ??
+    readEnv(context.env ?? defaultEnv(), ...TRANSCRIBER_ENV_KEYS.type);
+  if (isStreamingTranscriberType(streamingType)) {
+    return getWrappedStreamingTranscriber(streamingType, options, context);
+  }
+
   const resolved = normalizeTranscriberOptions(options, context);
 
   switch (resolved.type) {
@@ -124,9 +143,42 @@ export async function getSpeechSynthesizer(
 
 export function getAvailableSpeechAdapters(): SpeechAdapterAvailability {
   return {
-    transcribers: ['studio-server', 'openai-compatible'],
+    transcribers: [
+      'studio-server',
+      'openai-compatible',
+      ...STREAMING_TRANSCRIBER_TYPES,
+    ],
+    streamingTranscribers: [...STREAMING_TRANSCRIBER_TYPES],
     synthesizers: ['studio-server', 'qwen3-tts', 'openai-compatible'],
   };
+}
+
+/**
+ * Builds a streaming adapter from `getTranscriber()` options and wraps it as
+ * a record-then-send `Transcriber`. Settings come from explicit options, then
+ * `options.streaming`, then `HAVE_SPEECH_STREAMING_*`.
+ */
+function getWrappedStreamingTranscriber(
+  type: StreamingTranscriberType,
+  options: GetTranscriberOptions,
+  context: SpeechFactoryContext,
+): Transcriber {
+  const streaming = getStreamingTranscriber(
+    {
+      ...options.streaming,
+      ...(compactJson({
+        type,
+        baseUrl: options.baseUrl,
+        apiKey: options.apiKey,
+        model: options.model,
+        headers: options.headers,
+        timeoutMs: options.timeoutMs,
+        onUsage: options.onUsage,
+      }) as GetStreamingTranscriberOptions),
+    },
+    { env: context.env, headers: context.headers },
+  );
+  return wrapStreamingTranscriber(streaming, { maxBytes: options.maxBytes });
 }
 
 async function getOptionalTranscriber(
