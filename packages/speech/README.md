@@ -49,6 +49,7 @@ const spoken = await speech.synthesize({
 | OpenAI-compatible STT | `openai-compatible` | `POST` | `<base>/audio/transcriptions` | Multipart (`file`) |
 | OpenAI Realtime STT (streaming) | `openai-realtime` | WebSocket | `<base>/realtime?intent=transcription` | JSON events, base64 PCM16/G.711 |
 | On-device STT | `local` | In-process | `@happyvertical/speech/local` | 16 kHz mono PCM |
+| Voxtral Realtime STT via vLLM (streaming) | `voxtral-realtime` | WebSocket | `<base>/realtime` | JSON events, base64 PCM16 16 kHz |
 | Studio Server TTS | `studio-server` | `POST` | `/v1/tts/synthesize` | Multipart |
 | Qwen3 TTS | `qwen3-tts` | `POST` | `/v1/audio/speech` | Multipart |
 | OpenAI-compatible TTS | `openai-compatible` | `POST` | `/v1/audio/speech` | JSON |
@@ -136,22 +137,80 @@ const result = await session.end(); // all finals joined, plus usage
 - **Turn detection.** `server_vad` (default: the provider ends a turn after silence and emits one `final` per turn), `semantic_vad` (`eagerness`), or `manual` (nothing is transcribed until `session.commit()` or `end()`). Use `manual` for `gpt-live-transcribe`, which does not accept VAD; pass its `delay`/`languages` through `transcriptionOptions` (the typed `model`, `language`, and `prompt` win over the same keys there).
 - **Events.** `open`, `partial` (`delta` plus the turn's text so far), `final`, `speech_started`, `speech_stopped`, `error` (once, fatal), and `close`. `on()` returns an unsubscribe function. A listener that throws fails the session, so the bug surfaces from `end()`.
 - **Backpressure.** `write()` returns a promise that resolves after the chunk is handed to the socket and the socket's `bufferedAmount` is at or below `highWaterMark` (default 1 MiB). Writes are queued in order, including before the socket opens. A write that would queue more than `maxBufferedBytes` (default 16 MiB) of unsent audio rejects with code `SPEECH_BACKPRESSURE`. A socket that stays above `highWaterMark` for `timeoutMs` fails the session instead of leaving `write()` pending.
-- **`end()`.** Flushes queued audio, commits whatever the provider has not committed, waits up to `timeoutMs` (default 30 s) for every pending turn's `final`, closes the socket, and resolves with `{ text, segments, durationSeconds, usage, raw }`. Finals are ordered by commit order. Under server VAD, a commit preceded by `speech_stopped` for the same item is treated as the provider's own, so it never stands in for the acknowledgement of the end commit. Calling it again returns the same promise.
+- **`end()`.** Flushes queued audio, commits whatever the provider has not committed, waits for every pending turn's `final` (failing after `timeoutMs`, default 30 s, without any server message; every message restarts the timer, so a long clip that is still being transcribed is not cut off), closes the socket, and resolves with `{ text, segments, durationSeconds, usage, raw }`. Finals are ordered by commit order. Under server VAD, a commit preceded by `speech_stopped` for the same item is treated as the provider's own, so it never stands in for the acknowledgement of the end commit. Calling it again returns the same promise.
 - **Reconnect policy: none.** The provider holds the audio buffer and turn state, so a dropped socket cannot be resumed without losing or duplicating text. An unexpected close fails the session: queued audio is discarded, pending `write()` calls and `end()` reject with `SpeechProviderError` (including the close code), and `error` then `close` are emitted. Finals already emitted stay valid; start a new session to continue.
 - **Timeouts and cancellation.** `connectTimeoutMs` (default 10 s) bounds token minting plus the handshake. `signal` or `session.abort()` fails the session immediately.
-- **Errors.** Provider `error` events and failed turns are fatal and throw `SpeechProviderError` with the provider code in the message. An empty-buffer rejection of the final commit is tolerated. Credentials, including handshake header values such as `Authorization` or a gateway key, are redacted from surfaced provider text.
+- **Errors.** Provider `error` events and failed turns are fatal and throw `SpeechProviderError` with the provider code in the message. An empty-buffer rejection of the final commit is tolerated. Credentials (the API key, client secret, and supplied handshake header values such as `Authorization` or a gateway `x-bf-vk`) are redacted from surfaced provider text.
 - **Usage.** `result.usage` and `onUsage` (adapter-level, then session-level) report the model, audio seconds (provider `usage.seconds` when present, otherwise computed from the bytes streamed), bytes streamed, and the provider usage blocks of all turns summed.
 
-### Browsers
+### Voxtral Realtime (vLLM)
 
-Long-lived API keys never belong in browser code: the adapter throws if `apiKey` or `headers` are set in a browser runtime. Mint a short-lived client secret on your server and pass it as `clientSecret`; it is sent as the `openai-insecure-api-key.<secret>` WebSocket subprotocol. Pass a function to mint a fresh secret per session:
+`type: 'voxtral-realtime'` streams to Mistral's Voxtral Realtime models (for example `mistralai/Voxtral-Mini-4B-Realtime-2602`) served by vLLM at `/v1/realtime`. vLLM borrows OpenAI's event names, but its protocol differs, so it has its own adapter. The adapter was verified against vLLM's realtime source and a live server:
+
+- Connect, then `session.update` with a top-level `model` (vLLM sends `session.created` but never acknowledges the update).
+- A non-final `input_audio_buffer.commit` starts generation; the adapter sends it before each turn's first audio.
+- `input_audio_buffer.append` carries base64 PCM16 at **16 kHz mono**, the only accepted format. Write whole samples (even byte counts).
+- vLLM streams `transcription.delta` events while audio arrives (the adapter drops the many empty ones) and transcribes at roughly real-time speed.
+- `input_audio_buffer.commit` with `final: true` ends the turn, and vLLM answers with `transcription.done` (`{ text, usage }`, token counts only).
 
 ```typescript
 const streaming = getStreamingTranscriber({
+  type: 'voxtral-realtime',
+  baseUrl: 'http://vllm.internal:8000', // or a gateway's /v1 root
+  model: 'voxtral-mini-4b-realtime', // whatever vLLM serves (--served-model-name)
+  apiKey: process.env.VLLM_API_KEY, // optional; Authorization: Bearer (Node only)
+});
+
+const session = streaming.start(); // pcm16, 16 kHz, mono
+session.on('partial', ({ text }) => showCaption(text));
+for await (const chunk of microphonePcm16At16k) await session.write(chunk);
+const { text, usage } = await session.end();
+```
+
+- **Turns are manual.** vLLM has no voice-activity detection: partials stream continuously and you get one `final` per `session.commit()` or `end()`. `server_vad`/`semantic_vad` throw `SpeechConfigurationError`. After `commit()`, the session holds later audio until vLLM finishes the turn, because vLLM clears its buffer at the end of each turn. It then opens the next turn on the same socket, so no audio is lost. The hold, like `end()`, fails only after `timeoutMs` without any server message. `end()` without any uncommitted audio sends nothing.
+- **Turn length.** A turn's audio and generated tokens share the model context (`max_model_len`). Voxtral Mini Realtime spends about 12.5 tokens per second of audio, plus a 39-token prompt. With `max_model_len` 4096, a 322-second turn completed. A 352-second turn made vLLM report `error` `processing_error` ("EngineCore encountered an issue"), which fails the session, and on the vLLM build tested it also took the engine down until the server restarted. Keep turns well under the limit (about 5 minutes at 4096) by calling `commit()`, and don't send longer record-then-send clips.
+- **Fail-closed turn checks.** If vLLM ever sends `transcription.done` for a turn that was not committed, the session emits that `final` and then fails with `SpeechProviderError`. A final commit crossing such a `done` would leave vLLM a stale end-of-turn marker, which ends the next turn at once and silently drops its audio (verified live by sending a stray final commit). The adapter detects that audio-less turn (`usage.prompt_tokens` of 1; any audio costs 39) and fails the session too. Start a new session to continue.
+- **Not sent:** `language` and `prompt`, because vLLM's realtime session accepts only `model`.
+- **Errors.** vLLM reports problems as `{ type: 'error', error, code }` (for example `model_not_found`, `invalid_audio`) and keeps the socket open. The adapter treats them as fatal.
+- **Usage.** `providerUsage` holds vLLM's token counts summed over turns. `audioSeconds` comes from the bytes streamed.
+- `getTranscriber({ type: 'voxtral-realtime', baseUrl })` works for record-then-send callers with a 16 kHz PCM16 WAV or `audio/pcm;rate=16000`.
+
+### Browsers and per-tenant tokens
+
+Long-lived API keys never belong in browser code. The adapters throw if `apiKey` or `headers` are set in a browser runtime, and they refuse a browser `clientSecret` that looks like a long-lived `sk-…` key. Mint a short-lived credential per tenant session on your server with `createStreamingClientSecret()`, and send the browser only `value` and `expiresAt`:
+
+```typescript
+// Server route, after your own auth check.
+import { createStreamingClientSecret } from '@happyvertical/speech';
+
+const secret = await createStreamingClientSecret({
   type: 'openai-realtime',
-  clientSecret: async () => (await fetch('/api/realtime-token')).text(),
+  apiKey: process.env.OPENAI_API_KEY, // or HAVE_SPEECH_STREAMING_API_KEY
+  tenantId: tenant.id,
+  sessionId: dictation.id,
+  ttlSeconds: 60, // default; 10-7200
+  model: 'gpt-4o-transcribe',
+  language: 'en',
+  headers: { 'x-bf-vk': tenant.virtualKey }, // optional gateway attribution
+});
+await usageLedger.recordMint(secret.tenantId, secret.sessionId, secret.expiresAt);
+return { clientSecret: secret.value, expiresAt: secret.expiresAt };
+```
+
+```typescript
+// Browser: mint a fresh secret per session; it travels as the
+// `openai-insecure-api-key.<secret>` WebSocket subprotocol.
+const streaming = getStreamingTranscriber({
+  type: 'openai-realtime',
+  clientSecret: async () =>
+    (await (await fetch('/api/realtime-token')).json()).clientSecret,
 });
 ```
+
+- **OpenAI.** The helper calls `POST /v1/realtime/client_secrets` with `expires_after: { anchor: 'created_at', seconds: ttlSeconds }` and a `session.type: "transcription"` config built from the same options as the adapter. The result is an `ek_…` secret bound to that config. The browser uses it to open the socket, so keep the TTL short: mint one per session, and a leaked secret expires quickly.
+- **Attribution.** OpenAI's transcription client secrets have no tenant or metadata field. `tenantId`, `sessionId`, and `metadata` are echoed in the result for your own usage ledger and never sent to the provider. For provider-side attribution, mint with a per-tenant project key or a gateway virtual key in `headers`. Pair the mint record with the session's `onUsage` report.
+- **Voxtral / vLLM.** vLLM has no ephemeral-token mechanism, so `createStreamingClientSecret({ type: 'voxtral-realtime' })` throws `SpeechConfigurationError` rather than exposing the server key. Browser Voxtral needs your own proxy or token gateway in front of vLLM: it validates the short-lived tokens it minted and connects upstream with the real key. The adapter sends a browser `clientSecret` as `['realtime', 'openai-insecure-api-key.<secret>']` subprotocols, so the gateway must read the token there and echo `realtime`. Without a `clientSecret`, no subprotocol is offered, as plain vLLM expects.
+- `createStreamingClientSecret()` itself throws in a browser runtime.
 
 ### Runtimes and custom sockets
 
@@ -178,18 +237,18 @@ The input must be raw audio: a 16-bit PCM or G.711 WAV (the header sets the form
 Explicit options win over these variables:
 
 ```bash
-HAVE_SPEECH_STREAMING_TYPE=openai-realtime        # default
+HAVE_SPEECH_STREAMING_TYPE=openai-realtime        # default; or voxtral-realtime
 HAVE_SPEECH_STREAMING_BASE_URL=wss://api.openai.com/v1/realtime  # or http://host:8000/v1
 HAVE_SPEECH_STREAMING_MODEL=gpt-4o-transcribe
 HAVE_SPEECH_STREAMING_API_KEY=sk-...
 HAVE_SPEECH_STREAMING_LANGUAGE=en
 HAVE_SPEECH_STREAMING_TURN_DETECTION=server_vad   # server_vad | semantic_vad | manual
-HAVE_SPEECH_STREAMING_TIMEOUT=30000               # ms to wait for finals after end()
+HAVE_SPEECH_STREAMING_TIMEOUT=30000               # ms of provider silence tolerated after end()
 HAVE_SPEECH_STREAMING_CONNECT_TIMEOUT_MS=10000
 HAVE_SPEECH_STREAMING_HEADERS='{"x-bf-vk":"vk-..."}'
 ```
 
-A base URL may be `ws(s)://` or `http(s)://`: a server root gets `/v1/realtime`, a base ending in a version segment gets `/realtime`, and `intent=transcription` is added unless an `intent` is present. `HAVE_SPEECH_TRANSCRIBER_TYPE=openai-realtime` also routes `getTranscriber()` to the wrapped streaming adapter, which then reads `HAVE_SPEECH_STREAMING_*`.
+A base URL may be `ws(s)://` or `http(s)://`: a server root gets `/v1/realtime`, a base ending in a version segment gets `/realtime`, and for `openai-realtime` `intent=transcription` is added unless an `intent` is present. `voxtral-realtime` requires a base URL. `createStreamingClientSecret()` reads the same `TYPE`, `BASE_URL` (mapped to `…/v1/realtime/client_secrets`), `API_KEY`, `MODEL`, `LANGUAGE`, `TURN_DETECTION`, `TIMEOUT`, and `HEADERS` variables. `HAVE_SPEECH_TRANSCRIBER_TYPE=openai-realtime` also routes `getTranscriber()` to the wrapped streaming adapter, which then reads `HAVE_SPEECH_STREAMING_*`.
 
 ## On-device Transcription
 
@@ -319,13 +378,15 @@ Optional overrides include `HAVE_SPEECH_STT_MODEL`, `STT_MODEL`, `STT_PATH`, `TT
 
 ## Testing
 
-Default tests use tiny in-process HTTP fixture services or an injected `fetch` that mirror the Studio Server, Qwen3, and OpenAI-compatible request shapes, and an in-memory fake WebSocket for the realtime protocol. They validate field names, encodings, and response normalization without downloading production-scale models. Local transcriber tests inject a fake transformers.js module, so CI never downloads weights.
+Default tests use tiny in-process HTTP fixture services or an injected `fetch` that mirror the Studio Server, Qwen3, and OpenAI-compatible request shapes, and an in-memory fake WebSocket for the realtime protocols (scripted to OpenAI's documented event sequence and to the sequence recorded from a live vLLM server). They validate field names, encodings, and response normalization without downloading production-scale models. Local transcriber tests inject a fake transformers.js module, so CI never downloads weights.
 
 `src/__tests__/local-transcriber.smoke.test.ts` runs a real `onnx-community/whisper-tiny.en` model on onnxruntime-node. It is skipped unless `HV_SPEECH_MODEL_TESTS=1`:
 
 ```bash
 HV_SPEECH_MODEL_TESTS=1 pnpm --filter @happyvertical/speech test local-transcriber.smoke
 ```
+
+`src/__tests__/voxtral-realtime.live.test.ts` is an opt-in live check against a real vLLM server, skipped unless `HAVE_SPEECH_STREAMING_LIVE=1` and `HAVE_SPEECH_STREAMING_BASE_URL` are set. It also reads `HAVE_SPEECH_STREAMING_API_KEY`, `HAVE_SPEECH_STREAMING_MODEL`, and `HAVE_SPEECH_STREAMING_LIVE_AUDIO` (a 16 kHz mono PCM16 file containing speech).
 
 Docker or Testcontainers integration suites should run the fixture services or Studio Server with mock backends. Model-backed tests must remain opt-in, for example behind `HV_SPEECH_MODEL_TESTS=1`, so the normal SDK suite never downloads model weights.
 

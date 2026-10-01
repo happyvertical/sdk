@@ -22,6 +22,7 @@ describe('core entry isolation', () => {
       'studio-server',
       'openai-compatible',
       'openai-realtime',
+      'voxtral-realtime',
     ]);
     await speech.getTranscriber(
       { type: 'openai-compatible', baseUrl: 'https://stt.example.com' },

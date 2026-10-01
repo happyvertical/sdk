@@ -13,11 +13,16 @@
 import { SpeechConfigurationError } from '../shared/errors.js';
 import { compactJson, resolveOpenAICompatibleUrl } from '../shared/http.js';
 import {
+  assertNoBrowserApiKey,
+  CLIENT_SECRET_SUBPROTOCOL_PREFIX,
+  mergeHeaderRecords,
+  realtimeConnector,
+} from '../shared/realtime-auth.js';
+import {
   DEFAULT_STREAMING_CONNECT_TIMEOUT_MS,
   DEFAULT_STREAMING_HIGH_WATER_MARK,
   DEFAULT_STREAMING_MAX_BUFFERED_BYTES,
   DEFAULT_STREAMING_TIMEOUT_MS,
-  type RealtimeConnection,
   type RealtimeProtocol,
   type RealtimeProtocolEvent,
   type RealtimeSessionConfig,
@@ -26,14 +31,12 @@ import {
 import type {
   OpenAIRealtimeTranscriberOptions,
   StreamingAudioFormat,
-  StreamingClientSecret,
   StreamingSession,
   StreamingSessionOptions,
   StreamingTranscriber,
   StreamingTurnDetection,
 } from '../shared/streaming-types.js';
 import {
-  isBrowserRuntime,
   resolveWebSocketFactory,
   type SpeechWebSocketFactory,
   toWebSocketUrl,
@@ -64,35 +67,10 @@ export const openAIRealtimeProtocol = (
   commitAck: 'committed',
   endCommit: 'if-audio',
   sessionMessages(config: RealtimeSessionConfig) {
-    const input: Record<string, unknown> = {
-      format:
-        config.format.encoding === 'pcm16'
-          ? { type: 'audio/pcm', rate: config.format.sampleRate }
-          : { type: WIRE_FORMATS[config.format.encoding].type },
-      // Extension fields first: the typed settings must win, so the model
-      // sent always matches the model reported in usage.
-      transcription: {
-        ...compactJson(extras.transcriptionOptions ?? {}),
-        ...compactJson({
-          model: config.model,
-          language: config.language,
-          prompt: config.prompt,
-        }),
-      },
-      turn_detection: turnDetectionToWire(config.turnDetection),
-    };
-    if (extras.noiseReduction) {
-      input.noise_reduction = { type: extras.noiseReduction };
-    }
-
     return [
       {
         type: 'session.update',
-        session: compactJson({
-          type: 'transcription',
-          audio: { input },
-          include: extras.include,
-        }),
+        session: openAIRealtimeTranscriptionSession(config, extras),
       },
     ];
   },
@@ -104,6 +82,46 @@ export const openAIRealtimeProtocol = (
   },
   parse: parseOpenAIRealtimeEvent,
 });
+
+/**
+ * The GA transcription session object (`session.type: "transcription"`),
+ * shared by `session.update` and the client-secret mint request.
+ */
+export function openAIRealtimeTranscriptionSession(
+  config: RealtimeSessionConfig,
+  extras: Pick<
+    OpenAIRealtimeTranscriberOptions,
+    'noiseReduction' | 'include' | 'transcriptionOptions'
+  > = {},
+): Record<string, unknown> {
+  const input: Record<string, unknown> = {
+    format:
+      config.format.encoding === 'pcm16'
+        ? { type: 'audio/pcm', rate: config.format.sampleRate }
+        : { type: WIRE_FORMATS[config.format.encoding].type },
+    // Extension fields first: the typed settings must win, so the model
+    // sent (or bound to a minted client secret) always matches the model
+    // reported in usage.
+    transcription: {
+      ...compactJson(extras.transcriptionOptions ?? {}),
+      ...compactJson({
+        model: config.model,
+        language: config.language,
+        prompt: config.prompt,
+      }),
+    },
+    turn_detection: turnDetectionToWire(config.turnDetection),
+  };
+  if (extras.noiseReduction) {
+    input.noise_reduction = { type: extras.noiseReduction };
+  }
+
+  return compactJson({
+    type: 'transcription',
+    audio: { input },
+    include: extras.include,
+  });
+}
 
 /** Maps one OpenAI Realtime server event to normalised session events. */
 export function parseOpenAIRealtimeEvent(
@@ -212,61 +230,36 @@ export class OpenAIRealtimeTranscriber implements StreamingTranscriber {
   private readonly protocol: RealtimeProtocol;
 
   constructor(options: OpenAIRealtimeTranscriberOptions = {}) {
-    if (options.apiKey && isBrowserRuntime()) {
-      throw new SpeechConfigurationError(
-        'openai-realtime refuses apiKey in a browser; mint a short-lived clientSecret on your server instead',
-        ADAPTER,
-      );
-    }
+    assertNoBrowserApiKey(ADAPTER, options.apiKey);
 
     this.options = options;
     this.url = resolveRealtimeUrl(
       options.baseUrl ?? OPENAI_REALTIME_DEFAULT_URL,
     );
     this.createWebSocket = resolveWebSocketFactory(ADAPTER, options);
-    this.audioFormat = resolveFormat(options.format);
+    this.audioFormat = resolveOpenAIRealtimeFormat(options.format);
     this.protocol = openAIRealtimeProtocol(options);
   }
 
   start(options: StreamingSessionOptions = {}): StreamingSession {
     // A different encoding starts from that encoding's defaults.
-    const format = resolveFormat(
+    const format = resolveOpenAIRealtimeFormat(
       options.format?.encoding &&
         options.format.encoding !== this.audioFormat.encoding
         ? options.format
         : { ...this.audioFormat, ...options.format },
     );
-    const clientSecret = options.clientSecret ?? this.options.clientSecret;
-    const headers = mergeHeaderRecords(this.options.headers, options.headers);
-    const browser = isBrowserRuntime();
-    if (browser && Object.keys(headers).length > 0) {
-      throw new SpeechConfigurationError(
-        'Browsers cannot send WebSocket headers; remove `headers` or connect from a server',
-        ADAPTER,
-      );
-    }
-
-    const apiKey = this.options.apiKey;
-    const url = this.url;
-    const connect = async (): Promise<RealtimeConnection> => {
-      const secret = await resolveClientSecret(clientSecret);
-      const protocols = ['realtime'];
-      const connectionHeaders = { ...headers };
-      // Gateway credentials (e.g. `x-bf-vk`, an explicit Authorization) are
-      // redacted from surfaced provider text just like the API key.
-      const secrets: string[] = headerSecrets(headers);
-      if (secret) {
-        protocols.push(`openai-insecure-api-key.${secret}`);
-        secrets.push(secret);
-      }
-      if (apiKey) {
-        secrets.push(apiKey);
-        if (!hasHeader(connectionHeaders, 'authorization')) {
-          connectionHeaders.authorization = `Bearer ${apiKey}`;
-        }
-      }
-      return { url, protocols, headers: connectionHeaders, secrets };
-    };
+    const connect = realtimeConnector({
+      adapter: ADAPTER,
+      url: this.url,
+      apiKey: this.options.apiKey,
+      headers: mergeHeaderRecords(this.options.headers, options.headers),
+      clientSecret: options.clientSecret ?? this.options.clientSecret,
+      protocols: (secret) =>
+        secret
+          ? ['realtime', `${CLIENT_SECRET_SUBPROTOCOL_PREFIX}${secret}`]
+          : ['realtime'],
+    });
 
     return new RealtimeTranscriptionSession({
       protocol: this.protocol,
@@ -312,7 +305,7 @@ export function resolveRealtimeUrl(baseUrl: string): string {
   return url.toString();
 }
 
-function resolveFormat(
+export function resolveOpenAIRealtimeFormat(
   format: Partial<StreamingAudioFormat> | undefined,
 ): StreamingAudioFormat {
   const encoding = format?.encoding ?? 'pcm16';
@@ -362,76 +355,6 @@ function turnDetectionToWire(
         ADAPTER,
       );
   }
-}
-
-async function resolveClientSecret(
-  secret: StreamingClientSecret | undefined,
-): Promise<string | undefined> {
-  const value = typeof secret === 'function' ? await secret() : secret;
-  const trimmed = value?.trim();
-  if (trimmed !== undefined && !/^[\x21-\x7e]+$/.test(trimmed)) {
-    throw new SpeechConfigurationError(
-      'clientSecret must be a non-empty token without spaces',
-      ADAPTER,
-    );
-  }
-  return trimmed;
-}
-
-function mergeHeaderRecords(
-  ...sets: Array<HeadersInit | undefined>
-): Record<string, string> {
-  const merged: Record<string, string> = {};
-  for (const set of sets) {
-    if (set) {
-      new Headers(set).forEach((value, key) => {
-        merged[key] = value;
-      });
-    }
-  }
-  return merged;
-}
-
-/** Values of other headers shorter than this are not treated as credentials. */
-const MIN_HEADER_SECRET_LENGTH = 8;
-
-/**
- * Header names that carry credentials (`authorization`, `x-api-key`,
- * `x-bf-vk`, `*-token`, `*-secret`, …). Their values are redacted at any
- * length.
- */
-const CREDENTIAL_HEADER = /auth|key|token|secret|password|credential|-vk$/i;
-
-/**
- * Values of caller-supplied headers to redact from provider error text.
- * Credential-named headers are redacted whatever their length; for
- * `Authorization`, the credential after the scheme is included too. Other
- * headers may also carry tenant secrets, so their values are redacted when
- * they are at least 8 characters long, which keeps short values such as
- * `1` from mangling messages.
- */
-function headerSecrets(headers: HeadersInit | undefined): string[] {
-  const secrets: string[] = [];
-  for (const [key, value] of Object.entries(mergeHeaderRecords(headers))) {
-    const credential = CREDENTIAL_HEADER.test(key);
-    const candidates = [value];
-    if (key.toLowerCase() === 'authorization') {
-      candidates.push(value.replace(/^\S+\s+/, ''));
-    }
-    for (const candidate of candidates) {
-      const trimmed = candidate.trim();
-      const long = trimmed.length >= MIN_HEADER_SECRET_LENGTH;
-      if (trimmed && (credential || long) && !secrets.includes(trimmed)) {
-        secrets.push(trimmed);
-      }
-    }
-  }
-  // Longest first, so a full `Bearer <token>` is replaced before its token.
-  return secrets.sort((left, right) => right.length - left.length);
-}
-
-function hasHeader(headers: Record<string, string>, name: string): boolean {
-  return Object.keys(headers).some((key) => key.toLowerCase() === name);
 }
 
 function stringField(

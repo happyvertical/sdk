@@ -1301,6 +1301,7 @@
         "Studio Server STT",
         "OpenAI-compatible STT",
         "OpenAI Realtime streaming STT",
+        "Voxtral Realtime streaming STT",
         "On-device STT",
         "Studio Server TTS",
         "Qwen3 TTS",
@@ -1908,6 +1909,11 @@
       "type": "implements",
       "from": "@happyvertical/speech",
       "to": "OpenAI Realtime streaming STT"
+    },
+    {
+      "type": "implements",
+      "from": "@happyvertical/speech",
+      "to": "Voxtral Realtime streaming STT"
     },
     {
       "type": "implements",

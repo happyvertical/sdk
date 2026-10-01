@@ -14,7 +14,7 @@ import type {
 } from './websocket.js';
 
 /** Streaming adapter identifiers. */
-export type StreamingTranscriberType = 'openai-realtime';
+export type StreamingTranscriberType = 'openai-realtime' | 'voxtral-realtime';
 
 /**
  * Raw audio sample encodings. Streaming adapters never decode containers
@@ -230,8 +230,9 @@ export interface StreamingTranscriberOptions extends StreamingSessionSettings {
    */
   apiKey?: string;
   /**
-   * Maximum wait for final transcripts after `end()`, and for a congested
-   * socket to drain during `write()`. Default `30000`.
+   * Maximum provider inactivity while waiting for final transcripts after
+   * `end()` (every server message restarts it), and maximum wait for a
+   * congested socket to drain during `write()`. Default `30000`.
    */
   timeoutMs?: number;
   /** Maximum wait for the socket to open. Default `10000`. */
@@ -269,6 +270,26 @@ export interface OpenAIRealtimeTranscriberOptions
    * The typed `model`, `language`, and `prompt` settings take precedence.
    */
   transcriptionOptions?: Record<string, unknown>;
+}
+
+/**
+ * Options for the `voxtral-realtime` adapter (vLLM's `/v1/realtime`). Audio is
+ * fixed at PCM16 16 kHz mono and turns are manual; `language` and `prompt`
+ * are not sent because vLLM's realtime session accepts only `model`.
+ */
+export interface VoxtralRealtimeTranscriberOptions
+  extends StreamingTranscriberOptions {
+  type?: 'voxtral-realtime';
+  /**
+   * Required: the vLLM server root (`http://host:8000`), its `/v1` API root,
+   * or the full `ws(s)://…/v1/realtime` URL.
+   */
+  baseUrl?: string;
+  /**
+   * The model name vLLM serves, e.g. a `--served-model-name`. Default
+   * `mistralai/Voxtral-Mini-4B-Realtime-2602`.
+   */
+  model?: string;
 }
 
 /** Options accepted by `getStreamingTranscriber()`. */

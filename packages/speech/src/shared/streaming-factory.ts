@@ -4,6 +4,7 @@
  */
 
 import { OpenAIRealtimeTranscriber } from '../adapters/openai-realtime.js';
+import { VoxtralRealtimeTranscriber } from '../adapters/voxtral-realtime.js';
 import { DEFAULT_MAX_AUDIO_BYTES, normalizeAudioInput } from './audio.js';
 import {
   defaultEnv,
@@ -32,7 +33,7 @@ import type {
 
 /** Streaming adapters `getStreamingTranscriber()` can build. */
 export const STREAMING_TRANSCRIBER_TYPES: readonly StreamingTranscriberType[] =
-  ['openai-realtime'];
+  ['openai-realtime', 'voxtral-realtime'];
 
 /** Environment variable names read for each streaming setting, in priority order. */
 export const STREAMING_TRANSCRIBER_ENV_KEYS = {
@@ -108,13 +109,15 @@ export function getStreamingTranscriber(
 
   switch (type) {
     case 'openai-realtime':
-      return new OpenAIRealtimeTranscriber(resolved);
+      return new OpenAIRealtimeTranscriber({ ...resolved, type });
+    case 'voxtral-realtime':
+      return new VoxtralRealtimeTranscriber({ ...resolved, type });
     default:
       throw new InvalidSpeechAdapterError(type, 'streaming STT');
   }
 }
 
-function parseTurnDetection(
+export function parseTurnDetection(
   value: string | undefined,
 ): StreamingTurnDetection | undefined {
   if (!value) {
