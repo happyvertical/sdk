@@ -11,6 +11,7 @@
   ],
   "implements": [
     "Studio Server STT",
+    "OpenAI-compatible STT",
     "Studio Server TTS",
     "Qwen3 TTS",
     "OpenAI-compatible TTS"

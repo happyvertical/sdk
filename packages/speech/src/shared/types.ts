@@ -1,9 +1,19 @@
+import type { SpeechRetryOptions } from './retry.js';
+import type { SpeechUsage, SpeechUsageCallback } from './usage.js';
+
+export type { SpeechRetryOptions } from './retry.js';
+export type {
+  SpeechOperation,
+  SpeechUsage,
+  SpeechUsageCallback,
+} from './usage.js';
+
 export type SpeechAdapterType =
   | 'studio-server'
   | 'qwen3-tts'
   | 'openai-compatible';
 
-export type TranscriberType = 'studio-server';
+export type TranscriberType = 'studio-server' | 'openai-compatible';
 
 export type SpeechSynthesizerType =
   | 'studio-server'
@@ -17,8 +27,16 @@ export interface SpeechAdapterAvailability {
 
 export type AudioBytes = ArrayBuffer | Uint8Array | Blob;
 
+/**
+ * Raw audio accepted by transcribers. `Buffer` is a `Uint8Array` subclass.
+ * Streams are buffered (bounded by `maxBytes`) before upload.
+ */
+export type AudioSource = AudioBytes | ReadableStream<Uint8Array>;
+
 export interface AudioInput {
-  data: AudioBytes;
+  data: AudioSource;
+  /** MIME type, e.g. `audio/webm;codecs=opus`. Alias of `contentType`. */
+  mimeType?: string;
   contentType?: string;
   filename?: string;
   sampleRate?: number;
@@ -51,16 +69,33 @@ export interface TranscriptResult {
   provider?: string;
   model?: string;
   raw?: unknown;
+  /** Usage for billing/attribution, when the adapter reports it. */
+  usage?: SpeechUsage;
 }
 
+export type TranscriptionResponseFormat = 'json' | 'text' | 'verbose_json';
+
+export type TimestampGranularity = 'word' | 'segment';
+
 export interface TranscriptionRequest {
-  audio: AudioInput;
+  /** Audio wrapper, or a bare Blob/Buffer/Uint8Array/ArrayBuffer/ReadableStream. */
+  audio: AudioInput | AudioSource;
+  /** MIME type for bare audio sources; wins over `AudioInput` and Blob types. */
+  mimeType?: string;
   signal?: AbortSignal;
   language?: string;
   model?: string;
   prompt?: string;
   temperature?: number;
-  responseFormat?: 'json' | 'text' | 'verbose_json';
+  responseFormat?: TranscriptionResponseFormat;
+  /** Requested timestamp detail (OpenAI `timestamp_granularities[]`). */
+  timestampGranularities?: TimestampGranularity[];
+  /** Per-request headers, merged over adapter headers (e.g. a per-tenant `x-bf-vk`). */
+  headers?: HeadersInit;
+  /** Per-request byte limit; overrides the adapter `maxBytes`. */
+  maxBytes?: number;
+  /** Per-request usage callback, invoked after any adapter-level `onUsage`. */
+  onUsage?: SpeechUsageCallback;
   metadata?: Record<string, unknown>;
 }
 
@@ -138,6 +173,29 @@ export interface StudioServerTranscriberOptions extends HttpSpeechOptions {
   transcribePath?: string;
 }
 
+/**
+ * Options for the OpenAI-compatible transcriber (`POST /audio/transcriptions`).
+ * Server-side only: the adapter holds the API key.
+ */
+export interface OpenAICompatibleTranscriberOptions extends HttpSpeechOptions {
+  type: 'openai-compatible';
+  /**
+   * Server root (`https://api.openai.com`), API root (`http://gateway/stt/v1`),
+   * or the full endpoint (`.../audio/transcriptions`).
+   */
+  baseUrl: string;
+  /** Default model. Default `whisper-1`. */
+  model?: string;
+  /** Default response format. Default `verbose_json` (or `json` for json-only models). */
+  responseFormat?: TranscriptionResponseFormat;
+  /** Upload limit in bytes. Default 25 MB; `Infinity` disables it. */
+  maxBytes?: number;
+  /** Retry policy for 429/5xx. Default 2 retries; `false` disables. */
+  retry?: SpeechRetryOptions | false;
+  /** Called with usage after every successful transcription. */
+  onUsage?: SpeechUsageCallback;
+}
+
 export interface StudioServerSpeechSynthesizerOptions
   extends HttpSpeechOptions {
   type: 'studio-server';
@@ -160,9 +218,20 @@ export interface OpenAICompatibleSpeechSynthesizerOptions
   defaultVoice?: string;
 }
 
-export interface GetTranscriberOptions
-  extends Partial<StudioServerTranscriberOptions> {
+export interface GetTranscriberOptions extends Partial<HttpSpeechOptions> {
   type?: TranscriberType;
+  /** Studio Server only. */
+  transcribePath?: string;
+  /** OpenAI-compatible only. */
+  model?: string;
+  /** OpenAI-compatible only. */
+  responseFormat?: TranscriptionResponseFormat;
+  /** OpenAI-compatible only. */
+  maxBytes?: number;
+  /** OpenAI-compatible only. */
+  retry?: SpeechRetryOptions | false;
+  /** OpenAI-compatible only. */
+  onUsage?: SpeechUsageCallback;
 }
 
 export interface GetSpeechSynthesizerOptions
