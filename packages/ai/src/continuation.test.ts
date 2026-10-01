@@ -6,7 +6,11 @@ import {
 import { AnthropicProvider } from './shared/providers/anthropic';
 import { GeminiProvider } from './shared/providers/gemini';
 import { OpenAIProvider } from './shared/providers/openai';
-import type { AIInterface } from './shared/types';
+import {
+  __resetAIRateLimitStateForTests,
+  createRateLimitedAI,
+} from './shared/rate-limit';
+import { type AIInterface, RateLimitError } from './shared/types';
 
 const SEAM = 'the quick brown fox jumps over';
 
@@ -147,6 +151,61 @@ describe('continueOnLength (OpenAI-compatible)', () => {
     expect(text).toBe(`one ${SEAM} two`);
     expect(seen.join('')).toBe(text);
     expect(create).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('continueOnLength with rate limiting', () => {
+  // Same stack getAI() builds: continuation outside the rate limiter.
+  function limitedOpenAI(create: ReturnType<typeof vi.fn>) {
+    const options = {
+      apiKey: 'test',
+      defaultModel: 'gpt-4o',
+      rateLimit: {
+        key: 'continuation-test',
+        maxAttempts: 3,
+        initialDelayMs: 1,
+      },
+    };
+    const provider = new OpenAIProvider(options);
+    (provider as any).client = { chat: { completions: { create } } };
+    return createContinuingAI(
+      createRateLimitedAI(provider as AIInterface, options),
+      options,
+      provider as AIInterface,
+    );
+  }
+
+  it('retries only the part that hit the rate limit', async () => {
+    __resetAIRateLimitStateForTests();
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(openAIReply('one ', 'length'))
+      .mockRejectedValueOnce(new RateLimitError('openai'))
+      .mockResolvedValueOnce(openAIReply('two', 'stop'));
+    const ai = limitedOpenAI(create);
+    const result = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: true,
+    });
+    expect(result).toMatchObject({ content: 'one two', parts: 2 });
+    // part 1 once, part 2 twice: part 1 is never re-requested.
+    expect(create).toHaveBeenCalledTimes(3);
+    expect(create.mock.calls[2][0].messages.at(-2)).toEqual({
+      role: 'assistant',
+      content: 'one',
+    });
+  });
+
+  it('paces each part of a continued complete() on its own', async () => {
+    __resetAIRateLimitStateForTests();
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(openAIReply('one ', 'length'))
+      .mockRejectedValueOnce(new RateLimitError('openai'))
+      .mockResolvedValueOnce(openAIReply('two', 'stop'));
+    const ai = limitedOpenAI(create);
+    const result = await ai.complete('go', { continueOnLength: true });
+    expect(result.content).toBe('one two');
+    expect(create).toHaveBeenCalledTimes(3);
   });
 });
 

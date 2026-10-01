@@ -219,10 +219,18 @@ export async function* streamWithContinuation(
  * Wrap a provider so chat, complete, message and stream continue replies that
  * stop on the output limit. Continuation is off unless the call (or the
  * client's `continueOnLength` option) enables it.
+ *
+ * `client` is what each request goes through, normally the rate-limited
+ * provider, so every continuation part is paced and retried on its own and a
+ * rate-limit retry on part N never re-requests parts 1..N-1. `adapter` is the
+ * unwrapped provider: a continued `complete`/`message` runs the adapter's own
+ * method against this proxy so its internal `this.chat` reaches the continuing
+ * (and per-part paced) chat instead of being paced as one opaque call.
  */
 export function createContinuingAI<T extends AIInterface>(
   client: T,
   providerOptions: BaseAIOptions,
+  adapter: AIInterface = client,
 ): T {
   const wrapped = new Map<PropertyKey, unknown>();
   const proxy: T = new Proxy(client, {
@@ -252,9 +260,21 @@ export function createContinuingAI<T extends AIInterface>(
             break;
           case 'complete':
           case 'message':
-            // Adapters implement these through this.chat, so run them against
-            // the proxy to reach the continuing chat().
-            fn = (...args: unknown[]) => value.apply(proxy, args);
+            fn = (...args: unknown[]) => {
+              const options = (args[1] ?? {}) as Parameters<
+                typeof resolveContinuation
+              >[1];
+              if (!resolveContinuation(providerOptions, options)) {
+                return value.apply(target, args);
+              }
+              // Adapters implement these through this.chat, so run the
+              // adapter's method against the proxy to reach the continuing
+              // chat().
+              const own = Reflect.get(adapter, property, adapter) as (
+                ...a: unknown[]
+              ) => unknown;
+              return own.apply(proxy, args);
+            };
             break;
           default:
             fn = value.bind(target);

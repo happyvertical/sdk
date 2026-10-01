@@ -422,6 +422,8 @@ result.truncated; // true if the reply still ended on the limit
   fire once per upstream request, so their sum equals the total.
 - Tool calls and `responseFormat: { type: 'json_object' }` are never continued
   (stitching them is unsafe); the reply is returned as-is with `truncated: true`.
+- With `rateLimit` pacing, every part is its own paced request: a rate-limit
+  retry repeats only the part that was rejected, never the parts already paid for.
 - `truncated: true` is also set when continuation is off and the reply hit the limit.
 - Streaming adapters report the finish reason through `ChatOptions.onFinishReason`.
 

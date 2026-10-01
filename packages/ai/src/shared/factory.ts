@@ -317,8 +317,10 @@ export async function getAI(
     });
   }
 
+  // Continuation sits outside the rate limiter so each continuation part is
+  // paced and retried on its own (a 429 on part N never re-bills parts 1..N-1).
   return createObservedAI(
-    createRateLimitedAI(createContinuingAI(client, options), options),
+    createContinuingAI(createRateLimitedAI(client, options), options, client),
     options,
   );
 }
