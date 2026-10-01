@@ -185,14 +185,14 @@ describe('createStreamingClientSecret (openai-realtime)', () => {
 
     const { fetch: echoing } = mockFetch(
       () =>
-        new Response('{"error":"bad virtual key vk-tenant-secret"}', {
+        new Response('{"error":"bad virtual key vk-tenant-secret / vk2"}', {
           status: 403,
         }),
     );
     const gatewayError = await createStreamingClientSecret(
       {
         apiKey: 'sk-server-key',
-        headers: { 'x-bf-vk': 'vk-tenant-secret' },
+        headers: { 'x-bf-vk': 'vk-tenant-secret', 'x-tenant-vk': 'vk2' },
         fetch: echoing,
       },
       { env: {} },
@@ -200,7 +200,7 @@ describe('createStreamingClientSecret (openai-realtime)', () => {
     expect(gatewayError).toBeInstanceOf(SpeechProviderError);
     expect((gatewayError as SpeechProviderError).status).toBe(403);
     expect((gatewayError as SpeechProviderError).responseBody).toBe(
-      '{"error":"bad virtual key [REDACTED]"}',
+      '{"error":"bad virtual key [REDACTED] / [REDACTED]"}',
     );
 
     const { fetch: noValue } = mockFetch(() => Response.json({}));

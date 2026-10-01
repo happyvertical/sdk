@@ -22,11 +22,12 @@
  *    socket.
  * 7. Errors arrive as `{ type: 'error', error: string, code }` and leave the
  *    socket open; this adapter treats every error as fatal.
- * 8. When a turn fills the model context (`max_model_len`), vLLM ends it with
- *    a normal `transcription.done` and drops later audio. A final commit that
- *    crosses that `done` leaves a stale end marker, so the next turn ends at
- *    once with `prompt_tokens: 1` and its audio is dropped. The session fails
- *    closed in both cases rather than losing audio silently.
+ * 8. A turn whose audio and tokens exceed `max_model_len` (~12.5 tokens per
+ *    audio second plus a 39-token prompt) ends in `error` `processing_error`.
+ * 9. A stray final commit leaves a stale end marker: the next turn ends at once
+ *    with `prompt_tokens: 1` (any audio costs 39) and its audio is dropped.
+ *    The session fails closed on that, and on any `done` for a turn it did
+ *    not commit, rather than losing audio silently.
  */
 
 import { SpeechConfigurationError } from '../shared/errors.js';

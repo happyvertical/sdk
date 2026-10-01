@@ -304,14 +304,14 @@ describe('voxtral-realtime streaming', () => {
     expect(result.usage?.providerUsage).toMatchObject({ total_tokens: 206 });
   });
 
-  it('fails closed when vLLM ends a turn by itself (model context full)', async () => {
+  it('fails closed when vLLM ends a turn it was not asked to end', async () => {
     const session = transcriber().start();
     const finals: string[] = [];
     session.on('final', (event) => finals.push(event.text));
     await session.write(pcm(320));
     await flush();
 
-    // vLLM sends `done` without a final commit once max_model_len is reached.
+    // A `done` arrives although no final commit was sent.
     lastSocket().serverSend({
       type: 'transcription.done',
       text: ' Before.',
@@ -321,7 +321,7 @@ describe('voxtral-realtime streaming', () => {
     // The text up to the cut-off is still delivered as a final.
     expect(finals).toEqual(['Before.']);
     await expect(session.end()).rejects.toThrow(
-      /ended a turn before it was committed, probably because the model context \(max_model_len\) filled/,
+      /ended a turn before it was committed/,
     );
     expect(session.state).toBe('failed');
     await expect(session.write(pcm(320))).rejects.toThrow(SpeechProviderError);
@@ -416,7 +416,13 @@ describe('voxtral-realtime streaming', () => {
 
   it('redacts gateway header credentials from surfaced provider text', async () => {
     const session = transcriber({
-      headers: { 'x-bf-vk': 'vk-gateway-secret' },
+      apiKey: undefined,
+      headers: {
+        'x-bf-vk': 'vk1',
+        authorization: 'Bearer tk9',
+        'x-tenant-route': 'tenant-route-secret',
+        'x-trace': '1',
+      },
     }).start();
     await session.ready;
     const failed = new Promise<Error>((resolve) =>
@@ -424,14 +430,23 @@ describe('voxtral-realtime streaming', () => {
     );
     lastSocket().serverSend({
       type: 'error',
-      error: 'rejected vk-gateway-secret and vllm-test-key',
+      error: 'rejected vk1, tk9 and tenant-route-secret (trace 1)',
       code: 'unauthorized',
     });
     const error = (await failed) as SpeechProviderError;
     expect(error.message).toBe(
-      'voxtral-realtime error (unauthorized): rejected [REDACTED] and [REDACTED]',
+      'voxtral-realtime error (unauthorized): rejected [REDACTED], [REDACTED] and [REDACTED] (trace 1)',
     );
-    expect(error.responseBody).not.toContain('vk-gateway-secret');
+    expect(error.responseBody).not.toMatch(/vk1|tk9|tenant-route-secret/);
+  });
+
+  it('redacts credentials from close reasons', async () => {
+    const session = transcriber({ headers: { 'x-api-key': 'k7' } }).start();
+    await session.ready;
+    lastSocket().serverDrop(4401, 'bad key k7 / vllm-test-key');
+    await expect(session.end()).rejects.toThrow(
+      'socket closed unexpectedly (code 4401: bad key [REDACTED] / [REDACTED])',
+    );
   });
 
   it('fails the session on a vLLM error event', async () => {

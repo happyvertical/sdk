@@ -485,7 +485,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
         if (this.init.protocol.commitAck === 'final') {
           if (this.outstandingCommits === 0) {
             // A final we did not ask for: the server ended the open turn by
-            // itself (vLLM does when the model context fills).
+            // itself (e.g. a server-side generation limit).
             serverEnded = true;
           } else if (this.ackCommit() && event.audioConsumed === false) {
             // Our turn carried audio but the server consumed none. vLLM does
@@ -494,7 +494,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
             this.fail(
               new SpeechProviderError(
                 this.provider,
-                `${this.provider} finished a turn without transcribing its audio (the server's turn state is out of sync, typically after a turn filled the model context); start a new session`,
+                `${this.provider} finished a turn without transcribing its audio (the server's turn state is out of sync, e.g. after a commit crossed a server-ended turn); start a new session`,
               ),
             );
             return;
@@ -523,7 +523,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
           this.fail(
             new SpeechProviderError(
               this.provider,
-              `${this.provider} ended a turn before it was committed, probably because the model context (max_model_len) filled; audio sent after that point was not transcribed. Call commit() more often and start a new session`,
+              `${this.provider} ended a turn before it was committed (for example at a server generation limit); audio sent after that point was not transcribed. Call commit() more often and start a new session`,
             ),
           );
         }

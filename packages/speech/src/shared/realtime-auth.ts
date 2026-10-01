@@ -112,33 +112,42 @@ export function realtimeConnector(
   };
 }
 
-/** Header values shorter than this are not treated as credentials. */
+/** Values of other headers shorter than this are not treated as credentials. */
 const MIN_HEADER_SECRET_LENGTH = 8;
 
 /**
- * Values of caller-supplied headers to redact from provider error text. Every
- * header is treated as potentially secret (gateway virtual keys, tenant
- * tokens); for `Authorization`, the credential after the scheme is included
- * too. Very short values are skipped so redaction cannot mangle messages.
+ * Header names that carry credentials (`authorization`, `x-api-key`,
+ * `x-bf-vk`, `*-token`, `*-secret`, …). Their values are redacted at any
+ * length.
+ */
+const CREDENTIAL_HEADER = /auth|key|token|secret|password|credential|-vk$/i;
+
+/**
+ * Values of caller-supplied headers to redact from provider error text.
+ * Credential-named headers are redacted whatever their length; for
+ * `Authorization`, the credential after the scheme is included too. Other
+ * headers may also carry tenant secrets, so their values are redacted when
+ * they are at least 8 characters long, which keeps short values such as
+ * `1` from mangling messages.
  */
 export function headerSecrets(headers: HeadersInit | undefined): string[] {
   const secrets: string[] = [];
   for (const [key, value] of Object.entries(mergeHeaderRecords(headers))) {
+    const credential = CREDENTIAL_HEADER.test(key);
     const candidates = [value];
     if (key.toLowerCase() === 'authorization') {
       candidates.push(value.replace(/^\S+\s+/, ''));
     }
     for (const candidate of candidates) {
       const trimmed = candidate.trim();
-      if (
-        trimmed.length >= MIN_HEADER_SECRET_LENGTH &&
-        !secrets.includes(trimmed)
-      ) {
+      const long = trimmed.length >= MIN_HEADER_SECRET_LENGTH;
+      if (trimmed && (credential || long) && !secrets.includes(trimmed)) {
         secrets.push(trimmed);
       }
     }
   }
-  return secrets;
+  // Longest first, so a full `Bearer <token>` is replaced before its token.
+  return secrets.sort((left, right) => right.length - left.length);
 }
 
 export function mergeHeaderRecords(
