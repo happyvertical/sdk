@@ -5,6 +5,7 @@ import {
 } from './shared/continuation';
 import { AnthropicProvider } from './shared/providers/anthropic';
 import { GeminiProvider } from './shared/providers/gemini';
+import { OllamaProvider } from './shared/providers/ollama';
 import { OpenAIProvider } from './shared/providers/openai';
 import {
   __resetAIRateLimitStateForTests,
@@ -347,5 +348,34 @@ describe('continueOnLength (Gemini)', () => {
         }),
       ),
     ).toBe('uno dos');
+  });
+});
+
+describe('continueOnLength (Ollama)', () => {
+  it('continues complete() through chat', async () => {
+    const provider = new OllamaProvider({
+      type: 'ollama',
+      defaultModel: 'llama3',
+    });
+    const requestJson = vi
+      .fn()
+      .mockResolvedValueOnce({
+        model: 'llama3',
+        message: { role: 'assistant', content: 'uno ' },
+        done_reason: 'length',
+      })
+      .mockResolvedValueOnce({
+        model: 'llama3',
+        message: { role: 'assistant', content: 'dos' },
+        done_reason: 'stop',
+      });
+    (provider as any).requestJson = requestJson;
+    const ai = createContinuingAI(provider as AIInterface, {});
+    const result = await ai.complete('go', { continueOnLength: true });
+    expect(result).toMatchObject({ content: 'uno dos', parts: 2 });
+    expect(requestJson.mock.calls.map((call) => call[0])).toEqual([
+      '/chat',
+      '/chat',
+    ]);
   });
 });

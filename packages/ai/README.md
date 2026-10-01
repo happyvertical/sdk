@@ -415,7 +415,8 @@ result.truncated; // true if the reply still ended on the limit
 - Each continuation re-sends the conversation with the partial reply as an
   assistant turn plus a "continue exactly where you stopped" user turn, and any
   text the model repeats at the seam (12+ characters) is trimmed.
-- `chat`, `complete`, `message`, and `stream` all support it; a stream stays one
+- `chat`, `complete`, `message`, and `stream` all support it (Ollama's
+  `complete` switches from `/generate` to a one-message chat when it is on); a stream stays one
   continuous stream (the first characters of each continuation are held briefly
   so a repeated seam can be trimmed). `onProgress` receives only the stitched text.
 - `usage` on the result is the sum across parts. Provider `onUsage` hooks still

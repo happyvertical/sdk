@@ -7,7 +7,7 @@
  */
 
 import { ValidationError } from '@happyvertical/utils';
-
+import { resolveContinuation } from '../continuation';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -909,6 +909,23 @@ export class OllamaProvider implements AIInterface {
     prompt: string,
     options: CompletionOptions = {},
   ): Promise<AIResponse> {
+    if (resolveContinuation(this.options, options)) {
+      // /generate has no assistant turn to continue from, so a completion that
+      // may continue on the output limit runs as a one-message chat.
+      return this.chat([{ role: 'user', content: prompt }], {
+        model: options.model,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+        topP: options.topP,
+        stop: options.stop,
+        onProgress: options.onProgress,
+        signal: options.signal,
+        timeout: options.timeout,
+        reasoning: options.reasoning,
+        usageTags: options.usageTags,
+        continueOnLength: options.continueOnLength,
+      });
+    }
     const startTime = Date.now();
     let controls: PreparedRequestControls | undefined;
     try {
