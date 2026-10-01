@@ -11,6 +11,7 @@
 
 import { normalizeMimeType } from '../../shared/audio.js';
 import { SpeechConfigurationError } from '../../shared/errors.js';
+import { raceAbort } from './abort.js';
 import type { DecodedAudio, LocalAudioDecoder } from './types.js';
 
 /** Sample rate expected by Whisper and Moonshine feature extractors. */
@@ -48,8 +49,11 @@ export async function decodeToPcm16k(
   bytes: Uint8Array,
   options: DecodeToPcmOptions,
 ): Promise<Float32Array> {
-  const decoded = await decodeAudioBytes(bytes, options);
-  options.signal?.throwIfAborted();
+  // Decoders (caller hooks, decodeAudioData) cannot be cancelled: stop waiting on abort.
+  const decoded = await raceAbort(
+    decodeAudioBytes(bytes, options),
+    options.signal,
+  );
   const mono = downmix(decoded.samples);
   return resample(mono, decoded.sampleRate, LOCAL_SAMPLE_RATE);
 }

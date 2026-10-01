@@ -9,7 +9,7 @@
     "baseUrl": ".",
     "paths": {
       "@huggingface/transformers": [
-        "./src/adapters/local/transformers-shim.d.ts"
+        "./src/adapters/local/transformers-shim.ts"
       ]
     }
   },

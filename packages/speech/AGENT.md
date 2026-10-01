@@ -81,5 +81,5 @@ The OpenAI-compatible transcriber holds an API key and is server-side only.
 
 - `@huggingface/transformers` is an optional peer dependency (dev dependency for tests). Only `src/adapters/local/runtime.ts` names it, through a dynamic `import()` reached solely from `src/local.ts`. Never import `adapters/local/*` from `src/index.ts` or `src/shared/*`, except as `import type`.
 - `pnpm --filter @happyvertical/speech build` runs `scripts/check-core-isolation.mjs`. The check fails if `dist/index.js`, or any module reachable from it through static or dynamic imports, references the peer. `src/__tests__/local-isolation.test.ts` asserts the same at runtime.
-- The package tsconfig maps the peer to `src/adapters/local/transformers-shim.d.ts`, because the peer's own declarations (4.3.0) fail this repo's `skipLibCheck: false`. The adapter uses structural types in `runtime.ts` instead.
+- The package tsconfig maps the peer to `src/adapters/local/transformers-shim.ts`, because the peer's own declarations (4.3.0) fail this repo's `skipLibCheck: false`. The adapter uses structural types in `runtime.ts` instead.
 - Unit tests inject a fake transformers module (`transformers` option); never download models in CI. The real-model smoke test is opt-in via `HV_SPEECH_MODEL_TESTS=1`.

@@ -845,6 +845,38 @@ describe('local transcriber: cancellation', () => {
     ).resolves.toMatchObject({ text: 'Hello world.' });
   });
 
+  it('rejects promptly when aborted while a decoder is still running', async () => {
+    const fake = fakeTransformers();
+    const neverSettles = () => new Promise<never>(() => {});
+    const decodeAudio = vi.fn(neverSettles);
+    const controller = new AbortController();
+
+    const direct = localTranscriber(fake, { decodeAudio }).transcribe({
+      audio: new Uint8Array([1, 2, 3]),
+      mimeType: 'audio/webm',
+      signal: controller.signal,
+    });
+    const channel = new MessageChannel();
+    channel.port1.start();
+    const client = new LocalTranscriberWorkerClient(
+      channel.port1 as unknown as LocalWorkerEndpoint,
+      { decodeAudio },
+    );
+    const viaWorker = client.transcribe({
+      audio: new Uint8Array([1, 2, 3]),
+      mimeType: 'audio/webm',
+      signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(decodeAudio).toHaveBeenCalledTimes(2));
+
+    controller.abort(new Error('stop decoding'));
+    await expect(direct).rejects.toThrow('stop decoding');
+    await expect(viaWorker).rejects.toThrow('stop decoding');
+    expect(fake.pipeline).not.toHaveBeenCalled();
+    client.close();
+    channel.port1.close();
+  });
+
   it('rejects promptly when aborted while the model is loading', async () => {
     const fake = fakeTransformers();
     let finishLoad = () => {};

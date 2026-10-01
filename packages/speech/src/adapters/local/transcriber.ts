@@ -20,6 +20,7 @@ import {
   type SpeechUsage,
   type SpeechUsageCallback,
 } from '../../shared/usage.js';
+import { raceAbort } from './abort.js';
 import { decodeToPcm16k, LOCAL_SAMPLE_RATE } from './audio.js';
 import {
   type AsrOutput,
@@ -317,31 +318,6 @@ function pcmFormat(audio: AudioInput | AudioSource): {
     return { sampleRate: audio.sampleRate, channels: audio.channels };
   }
   return {};
-}
-
-/** Rejects with the signal's reason as soon as it aborts. */
-export function raceAbort<T>(
-  promise: Promise<T>,
-  signal: AbortSignal | undefined,
-): Promise<T> {
-  if (!signal) {
-    return promise;
-  }
-  signal.throwIfAborted();
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener('abort', onAbort, { once: true });
-    promise.then(
-      (value) => {
-        signal.removeEventListener('abort', onAbort);
-        resolve(value);
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', onAbort);
-        reject(error);
-      },
-    );
-  });
 }
 
 function errorMessage(error: unknown): string {
