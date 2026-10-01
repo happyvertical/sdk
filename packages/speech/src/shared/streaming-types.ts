@@ -90,6 +90,49 @@ export interface StreamingSessionSettings {
   clientSecret?: StreamingClientSecret;
   /** Called with aggregated usage when `end()` succeeds. */
   onUsage?: SpeechUsageCallback;
+  /**
+   * Most audio one turn may hold, in seconds, for providers whose context is
+   * per turn. `voxtral-realtime` defaults to `270` (headroom under vLLM's
+   * `max_model_len` 4096). `openai-realtime` has no default and applies it
+   * only to `manual` sessions, where it is opt-in; server VAD ends turns
+   * there. `Infinity` removes the limit. Env
+   * `HAVE_SPEECH_STREAMING_MAX_TURN_SECONDS`.
+   */
+  maxTurnSeconds?: number;
+  /**
+   * What happens when a turn reaches `maxTurnSeconds`. Default `true`: the
+   * session commits the turn at a quiet boundary (or at the cap when none is
+   * found), emits its `final`, and continues in a new turn without losing
+   * audio. `false`: a `write()` that would push the turn past the cap rejects
+   * with the non-fatal code `SPEECH_TURN_TOO_LONG`; call `commit()` and keep
+   * writing. An object enables rollover with tuning.
+   */
+  rollover?: boolean | StreamingRolloverOptions;
+}
+
+/** Tuning for automatic turn rollover. */
+export interface StreamingRolloverOptions {
+  /**
+   * How long before `maxTurnSeconds` to start looking for a quiet boundary.
+   * Default `15`.
+   */
+  windowSeconds?: number;
+  /**
+   * RMS level, from 0 to 1 of full scale, below which a 20 ms frame counts as
+   * quiet. Default `0.01` (about -40 dBFS).
+   */
+  silenceThreshold?: number;
+  /** Continuous quiet audio needed to commit early. Default `300`. */
+  minSilenceMs?: number;
+}
+
+/** The per-turn audio limit a session enforces; see `maxTurnSeconds`. */
+export interface StreamingTurnLimit {
+  maxTurnSeconds: number;
+  /** `true` when the session rolls over, `false` when writes past the cap reject. */
+  rollover: boolean;
+  /** The cap in bytes of the session's audio format (whole sample frames). */
+  maxTurnBytes: number;
 }
 
 /** Options for {@link StreamingTranscriber.start}. Values override adapter defaults. */
@@ -184,7 +227,11 @@ export interface StreamingSession {
   readonly ready: Promise<void>;
   /** Queued audio bytes not yet handed to the socket. */
   readonly queuedBytes: number;
-  /** Queues audio in the session's negotiated format. See backpressure above. */
+  /**
+   * Queues audio in the session's negotiated format. See backpressure above.
+   * With a turn limit and `rollover: false`, rejects with the non-fatal
+   * `SPEECH_TURN_TOO_LONG` instead of letting the current turn grow past it.
+   */
   write(chunk: StreamingAudioChunk): Promise<void>;
   /** Ends the current turn now (manual turn detection). Ordered after queued writes. */
   commit(): void;
@@ -214,6 +261,12 @@ export interface StreamingTranscriber {
   readonly audioFormat: StreamingAudioFormat;
   /** Opens a session. Connection happens in the background; see `session.ready`. */
   start(options?: StreamingSessionOptions): StreamingSession;
+  /**
+   * The per-turn limit a session started with `options` would enforce, or
+   * `undefined` when its turns are unbounded. Throws like `start()` on an
+   * invalid limit. Optional for custom implementations.
+   */
+  turnLimit?(options?: StreamingSessionOptions): StreamingTurnLimit | undefined;
 }
 
 /** Adapter options shared by WebSocket streaming transcribers. */

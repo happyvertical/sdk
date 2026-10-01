@@ -23,7 +23,10 @@
  * 7. Errors arrive as `{ type: 'error', error: string, code }` and leave the
  *    socket open; this adapter treats every error as fatal.
  * 8. A turn whose audio and tokens exceed `max_model_len` (~12.5 tokens per
- *    audio second plus a 39-token prompt) ends in `error` `processing_error`.
+ *    audio second plus a 39-token prompt) ends in `error` `processing_error`
+ *    and can take the engine down. The limit is per turn: after a final
+ *    commit vLLM clears the turn's context. The session therefore rolls over
+ *    to a new turn before `maxTurnSeconds` (default 270) of audio.
  * 9. A stray final commit leaves a stale end marker: the next turn ends at once
  *    with `prompt_tokens: 1` (any audio costs 39) and its audio is dropped.
  *    The session fails closed on that, and on any `done` for a turn it did
@@ -53,8 +56,15 @@ import type {
   StreamingSessionOptions,
   StreamingTranscriber,
   StreamingTurnDetection,
+  StreamingTurnLimit,
   VoxtralRealtimeTranscriberOptions,
 } from '../shared/streaming-types.js';
+import {
+  DEFAULT_MAX_TURN_SECONDS,
+  describeTurnLimit,
+  resolveTurnLimit,
+  type TurnLimit,
+} from '../shared/turn-limit.js';
 import {
   resolveWebSocketFactory,
   type SpeechWebSocketFactory,
@@ -79,6 +89,8 @@ export const voxtralRealtimeProtocol = (): RealtimeProtocol => ({
   // The start commit is sent lazily before a turn's first audio, so a session
   // with no uncommitted audio has no open turn and needs no end commit.
   endCommit: 'if-audio',
+  // vLLM's context (`max_model_len`) covers one turn; roll over before it.
+  maxTurnSeconds: DEFAULT_MAX_TURN_SECONDS,
   sessionMessages(config) {
     return [{ type: 'session.update', model: config.model }];
   },
@@ -158,7 +170,8 @@ export function parseVoxtralRealtimeEvent(
  *
  * - Audio: PCM16, 16 kHz, mono only; write whole samples (even byte counts).
  * - Turns: manual only. vLLM has no VAD; it streams partials continuously and
- *   produces one final per `commit()` / `end()`.
+ *   produces one final per `commit()` / `end()`, plus one per automatic
+ *   rollover when a turn reaches `maxTurnSeconds` (default 270).
  * - `language` and `prompt` are not sent: vLLM's realtime session accepts
  *   only `model`.
  * - Auth: `apiKey` → `Authorization: Bearer` (Node only). vLLM has no
@@ -192,11 +205,34 @@ export class VoxtralRealtimeTranscriber implements StreamingTranscriber {
     this.createWebSocket = resolveWebSocketFactory(ADAPTER, options);
     assertFormat(options.format);
     assertTurnDetection(options.turnDetection);
+    this.resolveTurnLimit();
+  }
+
+  turnLimit(
+    options: StreamingSessionOptions = {},
+  ): StreamingTurnLimit | undefined {
+    assertFormat(options.format);
+    return describeTurnLimit(
+      this.resolveTurnLimit(options),
+      VOXTRAL_REALTIME_AUDIO_FORMAT,
+    );
+  }
+
+  private resolveTurnLimit(
+    options: StreamingSessionOptions = {},
+  ): TurnLimit | undefined {
+    return resolveTurnLimit(
+      ADAPTER,
+      this.protocol.maxTurnSeconds,
+      options,
+      this.options,
+    );
   }
 
   start(options: StreamingSessionOptions = {}): StreamingSession {
     assertFormat(options.format);
     assertTurnDetection(options.turnDetection);
+    const turnLimit = this.resolveTurnLimit(options);
     const connect = realtimeConnector({
       adapter: ADAPTER,
       url: this.url,
@@ -233,6 +269,7 @@ export class VoxtralRealtimeTranscriber implements StreamingTranscriber {
         this.options.maxBufferedBytes ?? DEFAULT_STREAMING_MAX_BUFFERED_BYTES,
       signal: options.signal,
       onUsage: [this.options.onUsage, options.onUsage],
+      turnLimit,
     });
   }
 }

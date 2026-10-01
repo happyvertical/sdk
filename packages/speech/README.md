@@ -170,12 +170,31 @@ const { text, usage } = await session.end();
 ```
 
 - **Turns are manual.** vLLM has no voice-activity detection: partials stream continuously and you get one `final` per `session.commit()` or `end()`. `server_vad`/`semantic_vad` throw `SpeechConfigurationError`. After `commit()`, the session holds later audio until vLLM finishes the turn, because vLLM clears its buffer at the end of each turn. It then opens the next turn on the same socket, so no audio is lost. The hold, like `end()`, fails only after `timeoutMs` without any server message. `end()` without any uncommitted audio sends nothing.
-- **Turn length.** A turn's audio and generated tokens share the model context (`max_model_len`). Voxtral Mini Realtime spends about 12.5 tokens per second of audio, plus a 39-token prompt. With `max_model_len` 4096, a 322-second turn completed. A 352-second turn made vLLM report `error` `processing_error` ("EngineCore encountered an issue"), which fails the session, and on the vLLM build tested it also took the engine down until the server restarted. Keep turns well under the limit (about 5 minutes at 4096) by calling `commit()`, and don't send longer record-then-send clips.
+- **Turn length and automatic rollover.** A turn's audio and generated tokens share the model context (`max_model_len`). Voxtral Mini Realtime spends about 12.5 tokens per second of audio, plus a 39-token prompt. With `max_model_len` 4096, a 322-second turn completed. A 352-second turn made vLLM report `error` `processing_error` ("EngineCore encountered an issue"), and on the vLLM build tested it also took the engine down until the server restarted. The limit applies to each turn, not the session: vLLM clears the context after each final commit. So the adapter caps turns at `maxTurnSeconds` (default **270**) and, by default, rolls over to a new turn before the cap. A session that never calls `commit()` (a long dictation, say) can run indefinitely. See [Turn limits and automatic rollover](#turn-limits-and-automatic-rollover).
 - **Fail-closed turn checks.** If vLLM ever sends `transcription.done` for a turn that was not committed, the session emits that `final` and then fails with `SpeechProviderError`. A final commit crossing such a `done` would leave vLLM a stale end-of-turn marker, which ends the next turn at once and silently drops its audio (verified live by sending a stray final commit). The adapter detects that audio-less turn (`usage.prompt_tokens` of 1; any audio costs 39) and fails the session too. Start a new session to continue.
 - **Not sent:** `language` and `prompt`, because vLLM's realtime session accepts only `model`.
 - **Errors.** vLLM reports problems as `{ type: 'error', error, code }` (for example `model_not_found`, `invalid_audio`) and keeps the socket open. The adapter treats them as fatal.
 - **Usage.** `providerUsage` holds vLLM's token counts summed over turns. `audioSeconds` comes from the bytes streamed.
-- `getTranscriber({ type: 'voxtral-realtime', baseUrl })` works for record-then-send callers with a 16 kHz PCM16 WAV or `audio/pcm;rate=16000`.
+- `getTranscriber({ type: 'voxtral-realtime', baseUrl })` works for record-then-send callers with a 16 kHz PCM16 WAV or `audio/pcm;rate=16000`. A clip longer than `maxTurnSeconds` is split into rollover turns, never sent as one turn.
+
+### Turn limits and automatic rollover
+
+Some providers cap the audio of a single turn. A session with a turn limit measures the current turn from the bytes written and the negotiated format (sample rate × channels × bytes per sample), counting audio still queued as well as audio sent.
+
+```typescript
+const streaming = getStreamingTranscriber({
+  type: 'voxtral-realtime',
+  baseUrl: 'http://vllm.internal:8000',
+  maxTurnSeconds: 270, // default for voxtral-realtime
+  rollover: { windowSeconds: 15, silenceThreshold: 0.01, minSilenceMs: 300 }, // defaults
+});
+```
+
+- **Rollover (default).** Starting `windowSeconds` before the cap, the session looks for `minSilenceMs` of quiet audio: consecutive 20 ms frames whose RMS level is below `silenceThreshold` (0 to 1 of full scale; `0.01` is about -40 dBFS). This is a plain energy check, not a voice-activity model, and it works for PCM16 and G.711. The session commits the turn as soon as it finds such a stretch. If none turns up, it cuts at the cap itself, splitting a write if needed. The turn's transcript arrives as a normal `final` event. The next turn opens on the same socket, and audio written meanwhile is held, never dropped, until the provider finishes the turn. `end()` joins every turn, as it does for manual commits. A manual `commit()` also ends the turn, which restarts the count.
+- **Hard cap (`rollover: false`).** No automatic commits. A `write()` that would push the turn past the cap rejects with a `SpeechError` with code `SPEECH_TURN_TOO_LONG`. That error is not fatal: the session stays open, so call `commit()` and keep writing.
+- **Record-then-send.** `getTranscriber()` and `wrapStreamingTranscriber()` stream an oversize clip as several rollover turns, or, with `rollover: false`, reject it with `SPEECH_TURN_TOO_LONG` before connecting.
+- **Which sessions.** `voxtral-realtime` enables the limit by default. `openai-realtime` has no default, because server VAD ends its turns. Its `manual` sessions can opt in by setting `maxTurnSeconds`, and a limit is ignored under `server_vad` or `semantic_vad`. OpenAI rejects a commit with less than 100 ms of audio, so in a session with a turn limit a shorter non-empty turn (such as the tail after a rollover) is padded with silence to 100 ms before it is committed. The padding is not counted in `usage.bytes` or `durationSeconds`. A `maxTurnSeconds` below that minimum throws `SpeechConfigurationError`, because the padding would exceed it. `maxTurnSeconds: Infinity` removes the limit. `streaming.turnLimit(sessionOptions)` reports the limit a session would use: `{ maxTurnSeconds, rollover, maxTurnBytes }`.
+- **Precedence.** `start()` options, then adapter options, then `HAVE_SPEECH_STREAMING_MAX_TURN_SECONDS`, then the adapter default. `rollover` tuning merges field by field across those layers, so `start({ rollover: true })` keeps the adapter's `windowSeconds`. Custom realtime protocols declare their default as `RealtimeProtocol.maxTurnSeconds`.
 
 ### Browsers and per-tenant tokens
 
@@ -232,6 +251,8 @@ const transcriber = await getTranscriber({
 await transcriber.transcribe({ audio: wavBytes, mimeType: 'audio/wav' });
 ```
 
+A clip longer than the adapter's `maxTurnSeconds` is split into rollover turns, or rejected with `SPEECH_TURN_TOO_LONG` before connecting when `rollover: false` (see [Turn limits and automatic rollover](#turn-limits-and-automatic-rollover)).
+
 The input must be raw audio: a 16-bit PCM or G.711 WAV (the header sets the format), `audio/pcm` (little-endian) or `audio/L16` (big-endian per RFC 2586, byte-swapped before sending, so an odd byte length is rejected; both take optional `rate` and `channels` parameters, or `AudioInput.sampleRate`/`channels`), `audio/pcmu`, `audio/pcma`, or untyped bytes in the adapter default format. Compressed recordings such as `audio/webm` are rejected; send those to `openai-compatible` instead.
 
 ### Streaming environment configuration
@@ -248,6 +269,7 @@ HAVE_SPEECH_STREAMING_TURN_DETECTION=server_vad   # server_vad | semantic_vad | 
 HAVE_SPEECH_STREAMING_TIMEOUT=30000               # ms of provider silence tolerated after end()
 HAVE_SPEECH_STREAMING_CONNECT_TIMEOUT_MS=10000
 HAVE_SPEECH_STREAMING_HEADERS='{"x-bf-vk":"vk-..."}'
+HAVE_SPEECH_STREAMING_MAX_TURN_SECONDS=270        # per-turn cap; Infinity removes it (voxtral default 270)
 ```
 
 A base URL may be `ws(s)://` or `http(s)://`: a server root gets `/v1/realtime`, a base ending in a version segment gets `/realtime`, and for `openai-realtime` `intent=transcription` is added unless an `intent` is present. `voxtral-realtime` requires a base URL. `createStreamingClientSecret()` reads the same `TYPE`, `BASE_URL` (mapped to `…/v1/realtime/client_secrets`), `API_KEY`, `MODEL`, `LANGUAGE`, `TURN_DETECTION`, `TIMEOUT`, and `HEADERS` variables. `HAVE_SPEECH_TRANSCRIBER_TYPE=openai-realtime` also routes `getTranscriber()` to the wrapped streaming adapter, which then reads `HAVE_SPEECH_STREAMING_*`.

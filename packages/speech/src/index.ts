@@ -79,6 +79,7 @@ export {
 export {
   getStreamingTranscriber,
   isStreamingTranscriberType,
+  parseMaxTurnSeconds,
   STREAMING_TRANSCRIBER_ENV_KEYS,
   STREAMING_TRANSCRIBER_TYPES,
   type StreamingFactoryContext,
@@ -95,6 +96,7 @@ export type {
   StreamingCloseEvent,
   StreamingFinalEvent,
   StreamingPartialEvent,
+  StreamingRolloverOptions,
   StreamingSession,
   StreamingSessionEventName,
   StreamingSessionEvents,
@@ -107,8 +109,15 @@ export type {
   StreamingTranscriberOptions,
   StreamingTranscriberType,
   StreamingTurnDetection,
+  StreamingTurnLimit,
   VoxtralRealtimeTranscriberOptions,
 } from './shared/streaming-types.js';
+export {
+  DEFAULT_MAX_TURN_SECONDS,
+  DEFAULT_ROLLOVER_MIN_SILENCE_MS,
+  DEFAULT_ROLLOVER_SILENCE_THRESHOLD,
+  DEFAULT_ROLLOVER_WINDOW_SECONDS,
+} from './shared/turn-limit.js';
 export type {
   AudioBytes,
   AudioInput,

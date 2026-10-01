@@ -8,9 +8,18 @@
  * own messages.
  */
 
-import { SpeechError, SpeechProviderError } from './errors.js';
+import {
+  SpeechConfigurationError,
+  SpeechError,
+  SpeechProviderError,
+} from './errors.js';
 import { redactSecret } from './http.js';
-import { audioSecondsForBytes, chunkToBytes, encodeBase64 } from './pcm.js';
+import {
+  audioSecondsForBytes,
+  bytesPerSecond,
+  chunkToBytes,
+  encodeBase64,
+} from './pcm.js';
 import type {
   StreamingAudioChunk,
   StreamingAudioFormat,
@@ -21,6 +30,12 @@ import type {
   StreamingSessionState,
   StreamingTurnDetection,
 } from './streaming-types.js';
+import {
+  blockAlign,
+  silence,
+  type TurnLimit,
+  TurnSplitter,
+} from './turn-limit.js';
 import type { TranscriptResult, TranscriptSegment } from './types.js';
 import {
   audioSecondsFromProviderUsage,
@@ -92,6 +107,20 @@ export interface RealtimeProtocol {
    * need an explicit end-of-stream marker).
    */
   readonly endCommit: 'if-audio' | 'always';
+  /**
+   * Default per-turn audio cap in seconds, for providers whose model context
+   * covers one turn (vLLM resets it after each final commit). Adapters pass
+   * it to `resolveTurnLimit()`; a session with a turn limit rolls over to a
+   * new turn before the cap, or rejects writes past it. Unset: no default.
+   */
+  readonly maxTurnSeconds?: number;
+  /**
+   * Shortest audio, in seconds, the provider accepts in one commit (OpenAI:
+   * 100 ms; shorter commits are rejected as empty). A session with a turn
+   * limit pads a shorter, non-empty turn with silence before committing it,
+   * so the tail left after a rollover is transcribed instead of dropped.
+   */
+  readonly minCommitSeconds?: number;
   /** Messages sent once the socket opens (session configuration). */
   sessionMessages(config: RealtimeSessionConfig): unknown[];
   /** One audio chunk, already base64-encoded. */
@@ -133,6 +162,8 @@ export interface RealtimeSessionInit {
   signal?: AbortSignal;
   /** Called in order with the aggregated usage when `end()` succeeds. */
   onUsage: Array<SpeechUsageCallback | undefined>;
+  /** Per-turn audio limit; unset means turns are unbounded. */
+  turnLimit?: TurnLimit;
 }
 
 type QueueItem =
@@ -193,6 +224,8 @@ export class RealtimeTranscriptionSession implements StreamingSession {
   private connectTimer?: ReturnType<typeof setTimeout>;
   private endTimer?: ReturnType<typeof setTimeout>;
   private closeEmitted = false;
+  /** Measures the current turn in write order when a turn limit applies. */
+  private readonly splitter?: TurnSplitter;
   private readonly onAbort = () => {
     this.fail(toError(this.init.signal?.reason, this.provider));
   };
@@ -200,6 +233,10 @@ export class RealtimeTranscriptionSession implements StreamingSession {
   constructor(init: RealtimeSessionInit) {
     this.init = init;
     this.provider = init.protocol.provider;
+    assertTurnLimitFitsProtocol(init.protocol, init.turnLimit);
+    if (init.turnLimit) {
+      this.splitter = new TurnSplitter(init.turnLimit, init.config.format);
+    }
     this.ready = new Promise<void>((resolve, reject) => {
       this.resolveReady = resolve;
       this.rejectReady = reject;
@@ -229,6 +266,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       return;
     }
     this.queue.push({ kind: 'commit', final: false });
+    this.splitter?.reset();
     void this.pump();
   }
 
@@ -328,17 +366,48 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       );
     }
 
-    // Encode now so callers may reuse their buffer as soon as write() returns.
-    const base64 = encodeBase64(bytes);
+    const splitter = this.splitter;
+    let cuts: number[] = [];
+    if (splitter && !this.init.turnLimit?.rollover) {
+      if (splitter.wouldOverflow(bytes.byteLength)) {
+        return Promise.reject(
+          new SpeechError(
+            `Streaming write would push the current turn past maxTurnSeconds (${this.init.turnLimit?.maxTurnSeconds} s); call commit() before writing more audio`,
+            'SPEECH_TURN_TOO_LONG',
+            this.provider,
+          ),
+        );
+      }
+      splitter.add(bytes.byteLength);
+    } else if (splitter) {
+      cuts = splitter.split(bytes);
+    }
+
     return new Promise<void>((resolve, reject) => {
-      this.queue.push({
-        kind: 'audio',
-        base64,
-        bytes: bytes.byteLength,
-        resolve,
-        reject,
-      });
-      this.queued += bytes.byteLength;
+      // A rollover splits the chunk: each part before a cut ends with an
+      // automatic commit, and the write settles with its last part.
+      const pushPart = (start: number, end: number) => {
+        const part = bytes.subarray(start, end);
+        this.queue.push({
+          kind: 'audio',
+          // Encode now so callers may reuse their buffer once write() returns.
+          base64: encodeBase64(part),
+          bytes: part.byteLength,
+          resolve: end === bytes.byteLength ? resolve : noop,
+          reject,
+        });
+        this.queued += part.byteLength;
+      };
+      // Cuts are ascending offsets in 1..byteLength, so no part is empty.
+      let start = 0;
+      for (const cut of cuts) {
+        pushPart(start, cut);
+        this.queue.push({ kind: 'commit', final: false });
+        start = cut;
+      }
+      if (start < bytes.byteLength) {
+        pushPart(start, bytes.byteLength);
+      }
       void this.pump();
     });
   }
@@ -612,7 +681,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
     const needed =
       this.uncommittedBytes > 0 ||
       (final && this.init.protocol.endCommit === 'always');
-    if (!needed) {
+    if (!needed || !this.padShortTurn()) {
       return;
     }
     if (this.send(this.init.protocol.commitMessage({ final }))) {
@@ -621,6 +690,39 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       this.outstandingCommits += 1;
       this.turnOpen = false;
     }
+  }
+
+  /**
+   * In a session with a turn limit, tops up a non-empty turn shorter than the
+   * protocol's `minCommitSeconds` with silence (not counted as streamed
+   * audio). Rollover can leave such a tail, which the provider would
+   * otherwise reject as empty and drop. Returns false when the send failed.
+   */
+  private padShortTurn(): boolean {
+    const minSeconds = this.init.protocol.minCommitSeconds;
+    if (!this.init.turnLimit || !minSeconds || this.uncommittedBytes === 0) {
+      return true;
+    }
+    const format = this.init.config.format;
+    const align = blockAlign(format);
+    // Round up to whole sample frames so the turn reaches the minimum.
+    const minBytes =
+      Math.ceil((minSeconds * bytesPerSecond(format)) / align - 1e-9) * align;
+    const missing = minBytes - this.uncommittedBytes;
+    if (missing <= 0) {
+      return true;
+    }
+    if (
+      !this.send(
+        this.init.protocol.appendMessage(
+          encodeBase64(silence(missing, format)),
+        ),
+      )
+    ) {
+      return false;
+    }
+    this.uncommittedBytes += missing;
+    return true;
   }
 
   /**
@@ -844,6 +946,23 @@ export class RealtimeTranscriptionSession implements StreamingSession {
       result = redactSecret(result, secret);
     }
     return result;
+  }
+}
+
+/**
+ * Throws when a turn cap is below the provider's minimum commit length:
+ * padding a short turn up to that minimum would then exceed the cap.
+ */
+export function assertTurnLimitFitsProtocol(
+  protocol: Pick<RealtimeProtocol, 'provider' | 'minCommitSeconds'>,
+  limit: Pick<TurnLimit, 'maxTurnSeconds'> | undefined,
+): void {
+  const minimum = protocol.minCommitSeconds;
+  if (limit && minimum && limit.maxTurnSeconds < minimum) {
+    throw new SpeechConfigurationError(
+      `maxTurnSeconds (${limit.maxTurnSeconds}) is below ${protocol.provider}'s minimum commit of ${minimum} s`,
+      protocol.provider,
+    );
   }
 }
 

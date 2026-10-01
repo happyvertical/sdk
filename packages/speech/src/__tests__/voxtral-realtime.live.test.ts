@@ -65,4 +65,33 @@ describe.skipIf(!enabled)('voxtral-realtime live', () => {
       env.HAVE_SPEECH_STREAMING_LIVE_AUDIO ? 2 : 0,
     );
   }, 120_000);
+
+  it('rolls over short turns without a manual commit', async () => {
+    // Short turns only: never probe the server's per-turn context limit.
+    const session = getStreamingTranscriber({
+      type: 'voxtral-realtime',
+      maxTurnSeconds: 3,
+      rollover: { windowSeconds: 1 },
+    }).start();
+    let finals = 0;
+    session.on('final', () => {
+      finals += 1;
+    });
+
+    const file = env.HAVE_SPEECH_STREAMING_LIVE_AUDIO;
+    const bytes = file
+      ? new Uint8Array(await readFile(file))
+      : new Uint8Array(32_000 * 8);
+    // At most 20 s of audio, in 100 ms writes.
+    const audio = (
+      file?.endsWith('.wav') ? bytes.subarray(44) : bytes
+    ).subarray(0, 32_000 * 20);
+    for (let offset = 0; offset < audio.byteLength; offset += 3200) {
+      await session.write(audio.subarray(offset, offset + 3200));
+    }
+    const result = await session.end();
+
+    expect(finals).toBeGreaterThanOrEqual(Math.ceil(audio.byteLength / 96_000));
+    expect(result.durationSeconds).toBeCloseTo(audio.byteLength / 32_000, 2);
+  }, 180_000);
 });
