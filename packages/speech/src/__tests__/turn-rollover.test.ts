@@ -167,6 +167,25 @@ describe('TurnSplitter', () => {
     expect(cutsOf(splitter, audio, 500)).toEqual([7_520, 15_520]);
   });
 
+  it('cuts at a chunk that ends exactly at the cap when there is no window', () => {
+    const splitter = new TurnSplitter(limit({ windowSeconds: 0 }), PCM16_16K);
+    // Two 0.5 s chunks fill a 1 s turn exactly: the cut is the end of the
+    // second chunk, never offset 0 of the third.
+    expect(splitter.split(pcm16([0.5, LOUD]))).toEqual([]);
+    expect(splitter.split(pcm16([0.5, LOUD]))).toEqual([16_000]);
+    expect(splitter.split(pcm16([0.5, LOUD]))).toEqual([]);
+    expect(splitter.turnBytes).toBe(16_000);
+    // Many cuts in one chunk stay ascending and non-empty.
+    const tiny = new TurnSplitter(
+      limit({ maxTurnSeconds: 0.001, windowSeconds: 0 }),
+      PCM16_16K,
+    );
+    const cuts = tiny.split(new Uint8Array(3_200));
+    expect(cuts).toHaveLength(100);
+    expect(cuts[0]).toBe(32);
+    expect(cuts.at(-1)).toBe(3_200);
+  });
+
   it('wouldOverflow / add / reset track the turn without analysis', () => {
     const splitter = new TurnSplitter(limit(), PCM16_16K);
     splitter.add(BPS - 2);
@@ -447,6 +466,27 @@ describe('automatic turn rollover (voxtral-realtime)', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     release?.();
     await expect(ending).resolves.toMatchObject({ text: 'x x' });
+  });
+
+  it('never sends an empty append when a write ends exactly at the cap', async () => {
+    const server = vllmServer();
+    FakeWebSocket.onClientMessage = server.handler;
+    const session = voxtral({
+      maxTurnSeconds: 0.5,
+      rollover: { windowSeconds: 0 },
+    }).start();
+    const audio = pcm16([1.25, LOUD]);
+    await writeAll(session, audio, 8_000); // 250 ms writes
+    const result = await session.end();
+
+    const appends = lastSocket().sent.filter(
+      (message) => message.type === 'input_audio_buffer.append',
+    );
+    expect(appends.every((message) => String(message.audio).length > 0)).toBe(
+      true,
+    );
+    expect(result.text).toBe('turn1:16000 turn2:16000 turn3:8000');
+    expect(Buffer.compare(server.received(), Buffer.from(audio))).toBe(0);
   });
 
   it('counts a manual commit as a turn end', async () => {

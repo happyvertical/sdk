@@ -266,6 +266,11 @@ export class TurnSplitter {
         );
         offset += skip;
         this.turnBytes += skip;
+        // With no window (`windowSeconds: 0`) the window starts at the cap.
+        if (this.turnBytes >= this.capBytes) {
+          cuts.push(offset);
+          this.reset();
+        }
         continue;
       }
 

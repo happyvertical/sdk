@@ -386,10 +386,7 @@ export class RealtimeTranscriptionSession implements StreamingSession {
     return new Promise<void>((resolve, reject) => {
       // A rollover splits the chunk: each part before a cut ends with an
       // automatic commit, and the write settles with its last part.
-      const ends =
-        cuts.at(-1) === bytes.byteLength ? cuts : [...cuts, bytes.byteLength];
-      let start = 0;
-      for (const end of ends) {
+      const pushPart = (start: number, end: number) => {
         const part = bytes.subarray(start, end);
         this.queue.push({
           kind: 'audio',
@@ -400,10 +397,16 @@ export class RealtimeTranscriptionSession implements StreamingSession {
           reject,
         });
         this.queued += part.byteLength;
-        if (cuts.includes(end)) {
-          this.queue.push({ kind: 'commit', final: false });
-        }
-        start = end;
+      };
+      // Cuts are ascending offsets in 1..byteLength, so no part is empty.
+      let start = 0;
+      for (const cut of cuts) {
+        pushPart(start, cut);
+        this.queue.push({ kind: 'commit', final: false });
+        start = cut;
+      }
+      if (start < bytes.byteLength) {
+        pushPart(start, bytes.byteLength);
       }
       void this.pump();
     });
