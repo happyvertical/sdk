@@ -23,6 +23,11 @@ import {
   normalizeGatewayBaseUrl,
   resolveGatewayAdminBaseUrl,
 } from './gateway-admin';
+import {
+  isAudioModel,
+  isSpeechModel,
+  isTranscriptionModel,
+} from './gateway-audio-models';
 import { type OpenAICompatibleProfile, OpenAIProvider } from './openai';
 
 const BIFROST_CAPABILITIES: AICapabilities = {
@@ -66,28 +71,6 @@ function isImageGenerationModel(modelId: string): boolean {
   return /gpt-image|dall-e|imagen|stable[-_ ]diffusion|sdxl|flux|titan-image|image-generator/i.test(
     modelId,
   );
-}
-
-/**
- * Speech-to-text models (e.g. `whisper-1`, `gpt-4o-transcribe`). Listed with
- * the `transcription` capability so gateway consumers can route audio to them;
- * never eligible for chat, vision, embeddings, or image generation.
- */
-function isTranscriptionModel(modelId: string): boolean {
-  return /transcrib|whisper|speech[-_ ]?to[-_ ]?text/i.test(modelId);
-}
-
-/**
- * Text-to-speech models (e.g. `tts-1`, `gpt-4o-mini-tts`). Listed with the
- * `speech` capability; never eligible for chat, vision, embeddings, or image
- * generation.
- */
-function isSpeechModel(modelId: string): boolean {
-  return !isTranscriptionModel(modelId) && /tts|speech/i.test(modelId);
-}
-
-function isAudioModel(modelId: string): boolean {
-  return isTranscriptionModel(modelId) || isSpeechModel(modelId);
 }
 
 function isFilteredBifrostModel(modelId: string): boolean {

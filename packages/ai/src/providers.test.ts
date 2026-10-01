@@ -1115,6 +1115,45 @@ describe.each([
     );
   });
 
+  it('matches audio markers as delimited model-ID tokens, not substrings', async () => {
+    const provider = create();
+    withModels(provider, [
+      'huggingface/mattshumer/Reflection-Llama-3.1-70B',
+      'freespeech-labs/llama-3-8b',
+      'tts-1',
+      'gpt-4o-mini-tts',
+      'whisper-1',
+      'gpt-4o-transcribe',
+      'openai/whisper-large-v3',
+      'voxtral-mini-4b-realtime',
+      'mistral/voxtral-mini-latest',
+    ]);
+
+    const capabilities = Object.fromEntries(
+      (await provider.getModels()).map((model) => [
+        model.id,
+        model.capabilities,
+      ]),
+    );
+
+    expect(capabilities).toMatchObject({
+      'huggingface/mattshumer/Reflection-Llama-3.1-70B': expect.arrayContaining(
+        ['chat'],
+      ),
+      'freespeech-labs/llama-3-8b': expect.arrayContaining(['chat']),
+      'tts-1': ['speech'],
+      'gpt-4o-mini-tts': ['speech'],
+      'whisper-1': ['transcription'],
+      'gpt-4o-transcribe': ['transcription'],
+      'openai/whisper-large-v3': ['transcription'],
+      'voxtral-mini-4b-realtime': ['transcription'],
+      'mistral/voxtral-mini-latest': expect.arrayContaining(['chat']),
+    });
+    await expect((provider as any).resolveModel('chat')).resolves.toBe(
+      'huggingface/mattshumer/Reflection-Llama-3.1-70B',
+    );
+  });
+
   it('routes default chat to a chat model when audio models are listed first', async () => {
     const provider = create();
     const createCompletion = vi
