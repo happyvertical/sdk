@@ -48,7 +48,7 @@ describe('AI generation safety defaults', () => {
 
   it('rejects excessive output and reasoning before transport', () => {
     expect(() =>
-      normalizeChatOptions({}, { maxTokens: 4097 }, 'openai', 'gpt-4o'),
+      normalizeChatOptions({}, { maxTokens: 200_000 }, 'openai', 'gpt-4o'),
     ).toThrowError(expect.objectContaining({ code: 'AI_LIMIT_EXCEEDED' }));
     expect(() =>
       normalizeChatOptions(
@@ -77,6 +77,34 @@ describe('AI generation safety defaults', () => {
   });
 });
 
+describe('default output ceiling', () => {
+  it('lets an explicit large maxTokens through and keeps 4096 as the omitted default', () => {
+    expect(normalizeChatOptions({}, { maxTokens: 16384 }).maxTokens).toBe(
+      16384,
+    );
+    expect(normalizeChatOptions({}, {}).maxTokens).toBe(4096);
+  });
+
+  it('enforces an explicitly configured ceiling and caps the default under it', () => {
+    expect(() =>
+      normalizeChatOptions(
+        { generationLimits: { maxOutputTokens: 8192 } },
+        { maxTokens: 16384 },
+      ),
+    ).toThrowError(expect.objectContaining({ code: 'AI_LIMIT_EXCEEDED' }));
+    expect(
+      normalizeChatOptions({ generationLimits: { maxOutputTokens: 100 } }, {})
+        .maxTokens,
+    ).toBe(100);
+    expect(
+      normalizeChatOptions(
+        { generationLimits: { maxOutputTokens: 8192, onExceeded: 'clamp' } },
+        { maxTokens: 16384 },
+      ).maxTokens,
+    ).toBe(8192);
+  });
+});
+
 describe('provider contracts', () => {
   it('sends OpenAI defaults and rejects an oversized request before transport', async () => {
     const create = vi.fn().mockResolvedValue(successfulChatResponse('gpt-4o'));
@@ -99,7 +127,7 @@ describe('provider contracts', () => {
 
     await expect(
       provider.chat([{ role: 'user', content: 'blocked' }], {
-        maxTokens: 4097,
+        maxTokens: 200_000,
       }),
     ).rejects.toMatchObject({ code: 'AI_LIMIT_EXCEEDED' });
     expect(create).toHaveBeenCalledTimes(1);
@@ -384,7 +412,7 @@ describe('request lifecycle events', () => {
     await expect(ai.chat([], { mode: 'abort' } as any)).rejects.toMatchObject({
       code: 'AI_ABORTED',
     });
-    await expect(ai.chat([], { maxTokens: 4097 })).rejects.toMatchObject({
+    await expect(ai.chat([], { maxTokens: 200_000 })).rejects.toMatchObject({
       code: 'AI_LIMIT_EXCEEDED',
     });
 

@@ -6,6 +6,7 @@
 import { loadEnvConfig, ValidationError } from '@happyvertical/utils';
 
 import type { AIClientOptions } from './client';
+import { createContinuingAI } from './continuation';
 import { createRateLimitedAI } from './rate-limit';
 import { createObservedAI, normalizeBaseAIOptions } from './safety';
 import type {
@@ -316,7 +317,12 @@ export async function getAI(
     });
   }
 
-  return createObservedAI(createRateLimitedAI(client, options), options);
+  // Continuation sits outside the rate limiter so each continuation part is
+  // paced and retried on its own (a 429 on part N never re-bills parts 1..N-1).
+  return createObservedAI(
+    createContinuingAI(createRateLimitedAI(client, options), options, client),
+    options,
+  );
 }
 
 /**

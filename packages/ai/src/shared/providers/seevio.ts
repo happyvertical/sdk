@@ -9,7 +9,7 @@
  */
 
 import { ValidationError } from '@happyvertical/utils';
-import { extractRetryAfterSeconds } from '../rate-limit';
+import { rateLimitErrorFrom } from '../rate-limit';
 import { normalizeBaseAIOptions } from '../safety';
 import type {
   AICapabilities,
@@ -40,7 +40,7 @@ import type {
   VoiceDesignOptions,
   VoiceListOptions,
 } from '../types';
-import { AIError, AuthenticationError, RateLimitError } from '../types';
+import { AIError, AuthenticationError } from '../types';
 import { emitUsage } from './usage';
 
 const DEFAULT_BASE_URL = 'https://api.seevio.ai';
@@ -309,9 +309,10 @@ export class SeevioProvider implements AIInterface {
       if (response.status === 402)
         throw new AIError(message, 'INSUFFICIENT_CREDITS', 'seevio');
       if (response.status === 429)
-        throw new RateLimitError(
+        throw rateLimitErrorFrom(
           'seevio',
-          extractRetryAfterSeconds({ headers: response.headers }),
+          { headers: response.headers },
+          { reason: payload.error?.message },
         );
       throw new AIError(
         message,

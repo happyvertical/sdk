@@ -17,7 +17,12 @@ export const DEFAULT_AI_MAX_RETRIES = 0;
 
 export const DEFAULT_AI_GENERATION_LIMITS: Readonly<AIGenerationLimits> =
   Object.freeze({
-    maxOutputTokens: 4096,
+    // Hard ceiling: a deployment-set value is enforced; the default sits above
+    // every current model's documented output limit so an explicit caller
+    // request is only bounded by the model/provider.
+    maxOutputTokens: 131_072,
+    // Used only when the caller does not pass maxTokens (spend guardrail).
+    defaultOutputTokens: 4096,
     maxReasoningTokens: 1024,
     maxImagesPerRequest: 1,
     onExceeded: 'error',
@@ -60,6 +65,18 @@ export function normalizeBaseAIOptions<T extends BaseAIOptions>(
       configuredLimits.maxOutputTokens,
       DEFAULT_AI_GENERATION_LIMITS.maxOutputTokens,
       'generationLimits.maxOutputTokens',
+    ),
+    defaultOutputTokens: Math.min(
+      positiveInteger(
+        configuredLimits.defaultOutputTokens,
+        DEFAULT_AI_GENERATION_LIMITS.defaultOutputTokens as number,
+        'generationLimits.defaultOutputTokens',
+      ),
+      positiveInteger(
+        configuredLimits.maxOutputTokens,
+        DEFAULT_AI_GENERATION_LIMITS.maxOutputTokens,
+        'generationLimits.maxOutputTokens',
+      ),
     ),
     maxReasoningTokens: positiveInteger(
       configuredLimits.maxReasoningTokens,
@@ -160,7 +177,8 @@ export function normalizeChatOptions<
 ): T & { maxTokens: number; reasoning: AIReasoningOptions } {
   const normalizedProvider = normalizeBaseAIOptions(providerOptions);
   const limits = normalizedProvider.generationLimits;
-  const requestedOutput = options.maxTokens ?? limits.maxOutputTokens;
+  const requestedOutput =
+    options.maxTokens ?? limits.defaultOutputTokens ?? limits.maxOutputTokens;
   const legacyEffort =
     options.thinkingLevel ??
     (
@@ -345,7 +363,12 @@ export function requestEventBase(options: {
       VIDEO_GENERATION_OPERATIONS.has(options.operation)
         ? undefined
         : (options.effectiveMaxOutputTokens ??
-          normalized.generationLimits.maxOutputTokens),
+          Math.min(
+            options.callOptions?.maxTokens ??
+              normalized.generationLimits.defaultOutputTokens ??
+              normalized.generationLimits.maxOutputTokens,
+            normalized.generationLimits.maxOutputTokens,
+          )),
     tags: options.callOptions?.usageTags,
   };
 }

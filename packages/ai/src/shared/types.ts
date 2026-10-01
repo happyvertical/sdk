@@ -13,9 +13,38 @@ export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
  *
  * Provider instances merge partial overrides with the exported safe defaults.
  */
+/** Why a generation stopped, normalised across providers. */
+export type AIFinishReason =
+  | 'stop'
+  | 'length'
+  | 'tool_calls'
+  | 'content_filter';
+
+/**
+ * Automatic continuation when a reply stops on its output limit. `true`
+ * allows up to 3 extra requests; pass `{ maxContinuations }` to change that.
+ * Never applies to tool calls or JSON output.
+ */
+export type ContinueOnLengthOption =
+  | boolean
+  | {
+      /** Extra requests allowed after the first (default 3). */
+      maxContinuations?: number;
+    };
+
 export interface AIGenerationLimits {
-  /** Maximum text tokens a single request may generate. */
+  /**
+   * Hard ceiling on text tokens a single request may generate. Defaults to a
+   * high value (131072) so explicit caller `maxTokens` is bounded by the model
+   * rather than by this package; set it to enforce a deployment-wide cap.
+   */
   maxOutputTokens: number;
+
+  /**
+   * Output tokens used when the caller passes no `maxTokens` (default 4096,
+   * never above `maxOutputTokens`).
+   */
+  defaultOutputTokens?: number;
 
   /** Maximum reasoning/thinking tokens a single request may generate. */
   maxReasoningTokens: number;
@@ -39,7 +68,11 @@ export interface AIRequestControls {
   /** Caller cancellation signal. Provider timeouts are composed with this signal. */
   signal?: AbortSignal;
 
-  /** Request timeout in milliseconds. Overrides the provider default. */
+  /**
+   * Request timeout in milliseconds. Overrides the provider default. With
+   * `rateLimit` pacing it covers the whole call, including time queued for the
+   * rate-limit key and retry waits.
+   */
   timeout?: number;
 
   /** Provider-neutral reasoning controls. */
@@ -202,22 +235,77 @@ export interface AIMessage {
   content: string | ContentPart[];
 
   /**
-   * Optional name for the message sender
+   * Optional name for the message sender.
+   *
+   * On `role: 'tool'` messages this is the name of the function that
+   * produced the result. It is optional: providers that need it (Gemini,
+   * Ollama) resolve it from the matching assistant `tool_calls` entry via
+   * `tool_call_id` when it is omitted.
    */
   name?: string;
 
   /**
-   * Optional tool calls
+   * Tool calls requested by the model (assistant messages only).
+   *
+   * Pass `AIResponse.toolCalls` back here unchanged when continuing a tool
+   * loop so every provider can replay the call with its original id.
    */
-  tool_calls?: Array<{
-    id: string;
-    type: 'function';
-    function: {
-      name: string;
-      arguments: string;
-    };
-  }>;
+  tool_calls?: AIToolCall[];
+
+  /**
+   * Id of the tool call this message answers (`role: 'tool'` messages only).
+   *
+   * Required by OpenAI-compatible APIs (`tool_call_id`), Anthropic
+   * (`tool_use_id`) and Bedrock (`toolUseId`) to pair a tool result with
+   * the assistant tool call that requested it.
+   */
+  tool_call_id?: string;
 }
+
+/**
+ * A function call requested by the model.
+ *
+ * Returned in `AIResponse.toolCalls` and replayed in `AIMessage.tool_calls`.
+ */
+export interface AIToolCall {
+  /**
+   * Call id, echoed back as `AIMessage.tool_call_id` on the tool result
+   */
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    /**
+     * JSON-encoded call arguments
+     */
+    arguments: string;
+  };
+  /**
+   * Opaque provider signature that must be replayed with the call.
+   *
+   * Set by Gemini (thought signatures, required by Gemini 3 function
+   * calling). Other providers ignore it.
+   */
+  thoughtSignature?: string;
+  /**
+   * Anthropic extended-thinking blocks that opened the assistant turn which
+   * requested this call, with their signatures, in their original order.
+   *
+   * Set on the first tool call of a response when extended thinking is
+   * enabled. Anthropic requires a replayed assistant `tool_use` turn to start
+   * with its thinking blocks while thinking is enabled, so replay
+   * `response.toolCalls` unchanged (and persist this field if you store
+   * the conversation). Other providers ignore it.
+   */
+  thinkingBlocks?: AIThinkingBlock[];
+}
+
+/**
+ * An Anthropic extended-thinking content block, kept opaque for replay.
+ */
+export type AIThinkingBlock =
+  | { type: 'thinking'; thinking: string; signature: string }
+  | { type: 'redacted_thinking'; data: string };
 
 /**
  * Options for chat completion requests
@@ -302,6 +390,19 @@ export interface ChatOptions extends AIRequestControls {
   onProgress?: (chunk: string) => void;
 
   /**
+   * Called by streaming adapters when the reply ends, with the normalised
+   * finish reason. Used for continuation; also useful to detect truncation.
+   */
+  onFinishReason?: (reason: AIFinishReason) => void;
+
+  /**
+   * Continue a reply that stopped on its output limit and return the stitched
+   * text. Off by default; ignored for tools and JSON output. Each part is a
+   * separate request bounded by the output ceiling.
+   */
+  continueOnLength?: ContinueOnLengthOption;
+
+  /**
    * Thinking level for providers that expose reasoning controls.
    * Gemini 3 models use named levels:
    * - 'minimal': No thinking for most queries (Gemini 3 Flash only)
@@ -372,6 +473,13 @@ export interface CompletionOptions extends AIRequestControls {
    * Callback for streaming responses
    */
   onProgress?: (chunk: string) => void;
+
+  /**
+   * Continue a reply that stopped on its output limit and return the stitched
+   * text. Off by default; ignored for tools and JSON output. Each part is a
+   * separate request bounded by the output ceiling.
+   */
+  continueOnLength?: ContinueOnLengthOption;
 
   /**
    * Custom tags to attach to the usage event for this call.
@@ -621,6 +729,13 @@ export interface MessageOptions extends AIRequestControls {
    * Callback for streaming responses
    */
   onProgress?: (chunk: string) => void;
+
+  /**
+   * Continue a reply that stopped on its output limit and return the stitched
+   * text. Off by default; ignored for tools and JSON output. Each part is a
+   * separate request bounded by the output ceiling.
+   */
+  continueOnLength?: ContinueOnLengthOption;
 
   /**
    * Custom tags to attach to the usage event for this call.
@@ -1298,19 +1413,23 @@ export interface AIResponse {
   /**
    * Finish reason
    */
-  finishReason?: 'stop' | 'length' | 'tool_calls' | 'content_filter';
+  finishReason?: AIFinishReason;
 
   /**
    * Tool calls made by the model
    */
-  toolCalls?: Array<{
-    id: string;
-    type: 'function';
-    function: {
-      name: string;
-      arguments: string;
-    };
-  }>;
+  toolCalls?: AIToolCall[];
+
+  /**
+   * True when the reply ended on the output limit (after any continuations).
+   */
+  truncated?: boolean;
+
+  /**
+   * Number of provider requests stitched into this reply. Set when
+   * continuation ran.
+   */
+  parts?: number;
 }
 
 /**
@@ -1822,6 +1941,13 @@ export interface AIRateLimitOptions {
   maxAttempts?: number;
 
   /**
+   * Longest provider reset wait (ms) still retried in-process. A rate limit
+   * that resets further away is not retried and its `RateLimitError` has
+   * `retryable: false`. Defaults to 60000.
+   */
+  maxRetryDelayMs?: number;
+
+  /**
    * Qwen3-TTS only: maximum requests per minute for its local token bucket.
    */
   requestsPerMinute?: number;
@@ -1851,6 +1977,12 @@ export interface BaseAIOptions {
    * package defaults; raising a ceiling must therefore be deliberate.
    */
   generationLimits?: Partial<AIGenerationLimits>;
+
+  /**
+   * Client-wide default for continuing replies that stop on the output limit
+   * (see {@link ContinueOnLengthOption}). A per-call `continueOnLength` wins.
+   */
+  continueOnLength?: ContinueOnLengthOption;
 
   /**
    * Custom headers
@@ -2224,26 +2356,119 @@ export class AuthenticationError extends AIError {
   }
 }
 
+/** What a provider said about a rate limit, as kept on {@link RateLimitError}. */
+export interface RateLimitErrorDetails {
+  /**
+   * The provider's own reason text, for example
+   * `token limit exceeded (277867/250000, resets every 1h)`.
+   */
+  reason?: string;
+  /**
+   * Milliseconds until the limit resets, when the provider said so: a
+   * `Retry-After` header, a reset header, or text such as "try again in 20s".
+   */
+  retryAfterMs?: number;
+  /**
+   * Length of the limit window the provider named without saying when it
+   * resets ("resets every 1h"); the limit lifts within this time.
+   */
+  limitWindowMs?: number;
+  /** Model the request was for, when known. */
+  model?: string;
+  /** The provider error this was mapped from. */
+  cause?: unknown;
+  /**
+   * Longest wait still worth retrying soon. When the reset is further away
+   * (`retryAfterMs`, else `limitWindowMs`), `retryable` is false. Defaults to
+   * {@link DEFAULT_RATE_LIMIT_MAX_RETRY_DELAY_MS}; `rateLimit.maxRetryDelayMs`
+   * overrides it for paced clients.
+   */
+  maxRetryDelayMs?: number;
+}
+
+/**
+ * Default for {@link RateLimitErrorDetails.maxRetryDelayMs}: a rate limit that
+ * resets more than a minute away is not worth retrying in-process.
+ */
+export const DEFAULT_RATE_LIMIT_MAX_RETRY_DELAY_MS = 60_000;
+
+/**
+ * Whether a rate limit that lifts after `waitMs` is worth retrying soon, given
+ * the longest acceptable wait. An unknown wait counts as retryable.
+ */
+export function isRateLimitRetryableSoon(
+  waitMs: number | undefined,
+  maxRetryDelayMs: number = DEFAULT_RATE_LIMIT_MAX_RETRY_DELAY_MS,
+): boolean {
+  return waitMs === undefined || waitMs <= maxRetryDelayMs;
+}
+
+const MAX_RATE_LIMIT_REASON_LENGTH = 500;
+
 /**
  * Thrown when the provider's rate limit has been exceeded.
  *
  * @param provider - Provider that enforced the rate limit
  * @param retryAfter - Seconds to wait before retrying, if provided by the API
+ * @param details - The provider's reason text and reset hints
  */
 export class RateLimitError extends AIError {
+  /**
+   * False when the limit resets further away than the longest wait worth
+   * retrying soon (see {@link RateLimitErrorDetails.maxRetryDelayMs}).
+   */
+  declare retryable: boolean;
+  /** Seconds until the limit resets, when the provider said so. */
   public retryAfter?: number;
+  /** Milliseconds until the limit resets, when the provider said so. */
+  public retryAfterMs?: number;
+  /** Length of a limit window named without a reset time (see details). */
+  public limitWindowMs?: number;
+  /** The provider's own reason text, when it sent one. */
+  public reason?: string;
 
-  constructor(provider?: string, retryAfter?: number) {
+  constructor(
+    provider?: string,
+    retryAfter?: number,
+    details: RateLimitErrorDetails = {},
+  ) {
+    const retryAfterMs = finiteNonNegative(
+      details.retryAfterMs ??
+        (retryAfter !== undefined ? retryAfter * 1000 : undefined),
+    );
+    const seconds =
+      finiteNonNegative(retryAfter) ??
+      (retryAfterMs !== undefined ? Math.ceil(retryAfterMs / 1000) : undefined);
+    const reason = details.reason
+      ?.replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, MAX_RATE_LIMIT_REASON_LENGTH);
     super(
-      `Rate limit exceeded${retryAfter ? `, retry after ${retryAfter}s` : ''}`,
+      `Rate limit exceeded${reason ? `: ${reason}` : ''}${seconds ? `, retry after ${seconds}s` : ''}`,
       'RATE_LIMIT',
       provider,
-      undefined,
+      details.model,
       true,
     );
     this.name = 'RateLimitError';
-    this.retryAfter = retryAfter;
+    this.retryAfter = seconds;
+    this.retryAfterMs = retryAfterMs;
+    this.limitWindowMs = finiteNonNegative(details.limitWindowMs);
+    // A limit that lifts far away is not worth retrying soon: job runners
+    // should reschedule after `retryAfterMs` (or `limitWindowMs`) instead.
+    this.retryable = isRateLimitRetryableSoon(
+      this.retryAfterMs ?? this.limitWindowMs,
+      details.maxRetryDelayMs,
+    );
+    this.reason = reason || undefined;
+    if (details.cause !== undefined) this.cause = details.cause;
   }
+}
+
+function finiteNonNegative(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : undefined;
 }
 
 /**

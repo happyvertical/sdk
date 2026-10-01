@@ -6,19 +6,22 @@
  * Note: Claude models do not support embeddings - use OpenAI or another provider for that.
  */
 
-import { extractRetryAfterSeconds } from '../rate-limit';
+import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
   type PreparedRequestControls,
   prepareRequestControls,
 } from '../safety';
+import { parseToolArguments } from '../tool-messages';
 import type {
   AICapabilities,
   AIInterface,
   AIMessage,
   AIModel,
   AIResponse,
+  AIThinkingBlock,
+  AIToolCall,
   AnthropicOptions,
   ChatOptions,
   CompletionOptions,
@@ -47,9 +50,24 @@ import {
   ContextLengthError,
   extractTextContent,
   ModelNotFoundError,
-  RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
+
+type AnthropicContentBlock =
+  | AIThinkingBlock
+  | { type: 'text'; text: string }
+  | {
+      type: 'tool_use';
+      id: string;
+      name: string;
+      input: Record<string, unknown>;
+    }
+  | { type: 'tool_result'; tool_use_id: string; content: string };
+
+interface AnthropicMessage {
+  role: 'user' | 'assistant';
+  content: string | AnthropicContentBlock[];
+}
 
 // Note: This implementation will require @anthropic-ai/sdk package
 // For now, this is a placeholder that defines the interface
@@ -178,22 +196,12 @@ export class AnthropicProvider implements AIInterface {
             ? [options.stop]
             : undefined,
         system: system || undefined,
-        tools:
-          options.tools && options.tools.length > 0
-            ? options.tools.map((tool) => ({
-                name: tool.function.name,
-                description: tool.function.description || '',
-                input_schema: tool.function.parameters || { type: 'object' },
-              }))
-            : undefined,
-        tool_choice: this.mapToolChoice(options.toolChoice),
+        ...this.mapToolParams(options, anthropicMessages),
         stream: false,
       };
-      if ((options.reasoning?.maxTokens || 0) > 0) {
-        requestParams.thinking = {
-          type: 'enabled',
-          budget_tokens: options.reasoning?.maxTokens,
-        };
+      const thinking = this.mapThinking(options, anthropicMessages);
+      if (thinking) {
+        requestParams.thinking = thinking;
       }
 
       // Add response format if specified
@@ -216,7 +224,7 @@ export class AnthropicProvider implements AIInterface {
         .map((block: any) => block.text)
         .join('');
 
-      const toolCalls = response.content
+      const toolCalls: AIToolCall[] = response.content
         .filter((block: any) => block.type === 'tool_use')
         .map((block: any) => ({
           id: block.id,
@@ -226,6 +234,13 @@ export class AnthropicProvider implements AIInterface {
             arguments: JSON.stringify(block.input),
           },
         }));
+
+      // Extended thinking: the replayed tool_use turn must start with these
+      // blocks (signatures intact), so they ride on the first tool call.
+      const thinkingBlocks = extractThinkingBlocks(response.content);
+      if (toolCalls.length > 0 && thinkingBlocks.length > 0) {
+        toolCalls[0].thinkingBlocks = thinkingBlocks;
+      }
 
       const usage: TokenUsage = {
         promptTokens: response.usage.input_tokens,
@@ -289,6 +304,7 @@ export class AnthropicProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
   }
 
@@ -338,6 +354,7 @@ export class AnthropicProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;
@@ -391,6 +408,15 @@ export class AnthropicProvider implements AIInterface {
     );
   }
 
+  /**
+   * Streams a chat completion as text chunks.
+   *
+   * Streams yield text only and never surface tool calls, so `options.tools`
+   * and `options.toolChoice` are ignored: tools are declared only when the
+   * replayed history contains `tool_use` blocks (Anthropic requires it), with
+   * `tool_choice: { type: 'none' }`. Use `chat()` for rounds that may call
+   * tools.
+   */
   async *stream(
     messages: AIMessage[],
     options: ChatOptions = {},
@@ -419,20 +445,26 @@ export class AnthropicProvider implements AIInterface {
             ? [options.stop]
             : undefined,
         system: system || undefined,
+        // stream() yields text only, so a tool call would be lost: declare
+        // tools only when the replayed history requires it, with
+        // tool_choice none.
+        ...this.mapHistoryToolParams(anthropicMessages),
         stream: true,
       };
-      if ((options.reasoning?.maxTokens || 0) > 0) {
-        requestParams.thinking = {
-          type: 'enabled',
-          budget_tokens: options.reasoning?.maxTokens,
-        };
+      const thinking = this.mapThinking(options, anthropicMessages);
+      if (thinking) {
+        requestParams.thinking = thinking;
       }
       const stream = await this.client.messages.create(requestParams, {
         signal: controls.signal,
         timeout: controls.timeout,
       });
 
+      let streamStopReason: string | null = null;
       for await (const chunk of stream) {
+        if (chunk.type === 'message_delta' && chunk.delta?.stop_reason) {
+          streamStopReason = chunk.delta.stop_reason;
+        }
         if (
           chunk.type === 'content_block_delta' &&
           chunk.delta.type === 'text_delta'
@@ -443,6 +475,9 @@ export class AnthropicProvider implements AIInterface {
           yield chunk.delta.text;
         }
       }
+      options.onFinishReason?.(
+        this.mapFinishReason(streamStopReason) ?? 'stop',
+      );
 
       emitUsage(
         this.options,
@@ -662,31 +697,211 @@ export class AnthropicProvider implements AIInterface {
     );
   }
 
+  /**
+   * Maps internal messages to Anthropic Messages API turns.
+   *
+   * Assistant `tool_calls` become `tool_use` blocks and `role: 'tool'`
+   * results become `tool_result` blocks paired by `tool_call_id`
+   * (`tool_use_id`). Consecutive tool results are grouped into one user turn,
+   * as Anthropic requires every result for a turn to follow it directly.
+   * Only answered calls are replayed as `tool_use`, and only results whose
+   * `tool_call_id` matches a replayed call become `tool_result`. A result
+   * without `tool_call_id`, or one answering no replayed call, falls back to
+   * plain text (and a call left unanswered keeps only its text).
+   */
   private mapMessagesToAnthropic(messages: AIMessage[]): {
     system?: string;
-    anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    anthropicMessages: AnthropicMessage[];
   } {
     // Anthropic handles system messages separately
     let system: string | undefined;
-    const anthropicMessages: Array<{
-      role: 'user' | 'assistant';
-      content: string;
-    }> = [];
+    const anthropicMessages: AnthropicMessage[] = [];
+    const answeredToolCallIds = new Set(
+      messages
+        .filter((message) => message.role === 'tool' && message.tool_call_id)
+        .map((message) => message.tool_call_id as string),
+    );
+    // Calls replayed as tool_use: those with an answer. Only results for
+    // these ids become tool_result blocks; any other result is an orphan
+    // Anthropic would reject, so it falls back to plain text.
+    const replayedToolUseIds = new Set<string>();
+    for (const message of messages) {
+      if (message.role !== 'assistant') continue;
+      for (const toolCall of message.tool_calls || []) {
+        if (answeredToolCallIds.has(toolCall.id)) {
+          replayedToolUseIds.add(toolCall.id);
+        }
+      }
+    }
 
     for (const message of messages) {
       const textContent = extractTextContent(message.content);
       if (message.role === 'system') {
         // Combine multiple system messages
         system = system ? `${system}\n\n${textContent}` : textContent;
-      } else {
-        anthropicMessages.push({
-          role: message.role === 'assistant' ? 'assistant' : 'user',
-          content: textContent,
-        });
+        continue;
       }
+
+      if (
+        message.role === 'tool' &&
+        message.tool_call_id &&
+        replayedToolUseIds.has(message.tool_call_id)
+      ) {
+        const block: AnthropicContentBlock = {
+          type: 'tool_result',
+          tool_use_id: message.tool_call_id,
+          content: textContent,
+        };
+        const previous = anthropicMessages[anthropicMessages.length - 1];
+        if (
+          previous?.role === 'user' &&
+          Array.isArray(previous.content) &&
+          previous.content.every((part) => part.type === 'tool_result')
+        ) {
+          previous.content.push(block);
+        } else {
+          anthropicMessages.push({ role: 'user', content: [block] });
+        }
+        continue;
+      }
+
+      const toolCalls =
+        message.role === 'assistant'
+          ? (message.tool_calls || []).filter((toolCall) =>
+              answeredToolCallIds.has(toolCall.id),
+            )
+          : [];
+      if (toolCalls.length > 0) {
+        const content: AnthropicContentBlock[] = [];
+        for (const toolCall of toolCalls) {
+          for (const block of toolCall.thinkingBlocks || []) {
+            content.push({ ...block });
+          }
+        }
+        if (textContent) {
+          content.push({ type: 'text', text: textContent });
+        }
+        for (const toolCall of toolCalls) {
+          content.push({
+            type: 'tool_use',
+            id: toolCall.id,
+            name: toolCall.function.name,
+            input: parseToolArguments(toolCall.function.arguments),
+          });
+        }
+        anthropicMessages.push({ role: 'assistant', content });
+        continue;
+      }
+
+      anthropicMessages.push({
+        role: message.role === 'assistant' ? 'assistant' : 'user',
+        content: textContent,
+      });
     }
 
     return { system, anthropicMessages };
+  }
+
+  /**
+   * Builds the `tools` / `tool_choice` request fields.
+   *
+   * Anthropic rejects a request whose history contains `tool_use` or
+   * `tool_result` blocks unless `tools` is declared. A tool loop's final,
+   * tool-less round (no `tools`, typically `toolChoice: 'none'`) still
+   * replays that history, so when the caller declares no tools but the
+   * history uses some, this declares a minimal definition for each tool the
+   * history references and sets `tool_choice: { type: 'none' }` so the model
+   * answers in text instead of calling them.
+   */
+  private mapToolParams(
+    options: ChatOptions,
+    anthropicMessages: AnthropicMessage[],
+  ): { tools?: Record<string, any>[]; tool_choice?: Record<string, any> } {
+    const tools = this.mapTools(options);
+    if (tools) {
+      return { tools, tool_choice: this.mapToolChoice(options.toolChoice) };
+    }
+    return this.mapHistoryToolParams(anthropicMessages);
+  }
+
+  /**
+   * Declares a minimal definition for each tool the replayed history
+   * references, with `tool_choice: { type: 'none' }`, or nothing when the
+   * history has no `tool_use` blocks. Used for tool-less rounds and for
+   * every stream (streams never yield tool calls).
+   */
+  private mapHistoryToolParams(anthropicMessages: AnthropicMessage[]): {
+    tools?: Record<string, any>[];
+    tool_choice?: Record<string, any>;
+  } {
+    // mapMessagesToAnthropic emits tool_result only for ids it replayed as
+    // tool_use (orphan results become text), so tool_use names cover every
+    // tool the history references.
+    const historyToolNames = new Set<string>();
+    for (const message of anthropicMessages) {
+      if (!Array.isArray(message.content)) continue;
+      for (const block of message.content) {
+        if (block.type === 'tool_use') historyToolNames.add(block.name);
+      }
+    }
+    if (historyToolNames.size === 0) {
+      return {};
+    }
+
+    return {
+      tools: [...historyToolNames].map((name) => ({
+        name,
+        description:
+          'Used earlier in this conversation; not available for this turn.',
+        input_schema: { type: 'object' },
+      })),
+      tool_choice: { type: 'none' },
+    };
+  }
+
+  /**
+   * Builds the `thinking` request field for `options.reasoning.maxTokens`.
+   *
+   * While thinking is enabled, Anthropic requires the assistant turn of an
+   * in-progress tool loop (the last assistant turn, when it holds `tool_use`)
+   * to start with its thinking blocks. They are replayed from
+   * `AIToolCall.thinkingBlocks`; when that turn has none (the history came
+   * from another provider, a store that dropped the field, or a call made
+   * without thinking), thinking is left off for this request rather than
+   * sending a request Anthropic would reject.
+   */
+  private mapThinking(
+    options: ChatOptions,
+    anthropicMessages: AnthropicMessage[],
+  ): { type: 'enabled'; budget_tokens: number } | undefined {
+    const budget = options.reasoning?.maxTokens || 0;
+    if (budget <= 0) return undefined;
+
+    const lastAssistant = [...anthropicMessages]
+      .reverse()
+      .find((message) => message.role === 'assistant');
+    if (
+      lastAssistant &&
+      Array.isArray(lastAssistant.content) &&
+      lastAssistant.content.some((block) => block.type === 'tool_use')
+    ) {
+      const firstType = lastAssistant.content[0]?.type;
+      if (firstType !== 'thinking' && firstType !== 'redacted_thinking') {
+        return undefined;
+      }
+    }
+
+    return { type: 'enabled', budget_tokens: budget };
+  }
+
+  private mapTools(options: ChatOptions): Record<string, any>[] | undefined {
+    return options.tools && options.tools.length > 0
+      ? options.tools.map((tool) => ({
+          name: tool.function.name,
+          description: tool.function.description || '',
+          input_schema: tool.function.parameters || { type: 'object' },
+        }))
+      : undefined;
   }
 
   private mapToolChoice(
@@ -700,7 +915,7 @@ export class AnthropicProvider implements AIInterface {
     }
 
     if (toolChoice === 'none') {
-      return undefined; // Anthropic doesn't have explicit 'none', just omit tools
+      return { type: 'none' };
     }
 
     if (typeof toolChoice === 'object' && toolChoice.type === 'function') {
@@ -740,10 +955,7 @@ export class AnthropicProvider implements AIInterface {
         case 401:
           return new AuthenticationError('anthropic');
         case 429:
-          return new RateLimitError(
-            'anthropic',
-            extractRetryAfterSeconds(error),
-          );
+          return rateLimitErrorFrom('anthropic', error);
         case 404:
           return new ModelNotFoundError(
             apiError.message || 'Model not found',
@@ -760,4 +972,24 @@ export class AnthropicProvider implements AIInterface {
         : 'Unknown Anthropic error occurred';
     return new AIError(errorMessage, 'UNKNOWN_ERROR', 'anthropic');
   }
+}
+
+/**
+ * Thinking and redacted-thinking blocks from an Anthropic response, copied
+ * with only the fields the API accepts back.
+ */
+function extractThinkingBlocks(content: any[]): AIThinkingBlock[] {
+  const blocks: AIThinkingBlock[] = [];
+  for (const block of content || []) {
+    if (block?.type === 'thinking') {
+      blocks.push({
+        type: 'thinking',
+        thinking: block.thinking,
+        signature: block.signature,
+      });
+    } else if (block?.type === 'redacted_thinking') {
+      blocks.push({ type: 'redacted_thinking', data: block.data });
+    }
+  }
+  return blocks;
 }

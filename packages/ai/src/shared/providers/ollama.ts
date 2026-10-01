@@ -7,7 +7,8 @@
  */
 
 import { ValidationError } from '@happyvertical/utils';
-
+import { resolveContinuation } from '../continuation';
+import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -15,6 +16,7 @@ import {
   type PreparedRequestControls,
   prepareRequestControls,
 } from '../safety';
+import { indexToolCallNames, resolveToolResultName } from '../tool-messages';
 import type {
   AICapabilities,
   AIInterface,
@@ -50,7 +52,6 @@ import {
   ContextLengthError,
   extractTextContent,
   ModelNotFoundError,
-  RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
 
@@ -419,7 +420,10 @@ export class OllamaProvider implements AIInterface {
       case 413:
         return new ContextLengthError('ollama');
       case 429:
-        return new RateLimitError('ollama');
+        return rateLimitErrorFrom('ollama', {
+          headers: response.headers,
+          message: text,
+        });
       default:
         if (/content[_ -]?filter/i.test(message)) {
           return new ContentFilterError('ollama');
@@ -680,6 +684,7 @@ export class OllamaProvider implements AIInterface {
     messages: AIMessage[],
     signal?: AbortSignal,
   ): Promise<OllamaMessage[]> {
+    const toolCallNames = indexToolCallNames(messages);
     const mappedMessages = await Promise.all(
       messages.map(async (message) => {
         const content = extractTextContent(message.content);
@@ -719,8 +724,12 @@ export class OllamaProvider implements AIInterface {
           }));
         }
 
-        if (mapped.role === 'tool' && message.name) {
-          mapped.tool_name = message.name;
+        if (mapped.role === 'tool') {
+          // Ollama pairs results with calls by function name.
+          const toolName = resolveToolResultName(message, toolCallNames);
+          if (toolName) {
+            mapped.tool_name = toolName;
+          }
         }
 
         return mapped;
@@ -903,6 +912,23 @@ export class OllamaProvider implements AIInterface {
     prompt: string,
     options: CompletionOptions = {},
   ): Promise<AIResponse> {
+    if (resolveContinuation(this.options, options)) {
+      // /generate has no assistant turn to continue from, so a completion that
+      // may continue on the output limit runs as a one-message chat.
+      return this.chat([{ role: 'user', content: prompt }], {
+        model: options.model,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+        topP: options.topP,
+        stop: options.stop,
+        onProgress: options.onProgress,
+        signal: options.signal,
+        timeout: options.timeout,
+        reasoning: options.reasoning,
+        usageTags: options.usageTags,
+        continueOnLength: options.continueOnLength,
+      });
+    }
     const startTime = Date.now();
     let controls: PreparedRequestControls | undefined;
     try {
@@ -991,6 +1017,7 @@ export class OllamaProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;
@@ -1220,6 +1247,7 @@ export class OllamaProvider implements AIInterface {
 
       let finalUsage: TokenUsage | undefined;
       let finalModel = model;
+      let streamFinish: AIResponse['finishReason'] = 'stop';
 
       for await (const chunk of this.parseNdjson<OllamaChatResponse>(
         response,
@@ -1240,8 +1268,10 @@ export class OllamaProvider implements AIInterface {
 
         if (chunk.done) {
           finalUsage = mapUsage(chunk.prompt_eval_count, chunk.eval_count);
+          streamFinish = mapFinishReason(chunk.done_reason);
         }
       }
+      options.onFinishReason?.(streamFinish ?? 'stop');
 
       emitUsage(
         this.options,

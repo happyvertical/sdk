@@ -7,7 +7,7 @@
 
 import { ValidationError } from '@happyvertical/utils';
 
-import { extractRetryAfterSeconds } from '../rate-limit';
+import { rateLimitErrorFrom } from '../rate-limit';
 import { normalizeBaseAIOptions, prepareRequestControls } from '../safety';
 import type {
   AICapabilities,
@@ -44,7 +44,7 @@ import type {
   VoiceDesignOptions,
   VoiceListOptions,
 } from '../types';
-import { AIError, AuthenticationError, RateLimitError } from '../types';
+import { AIError, AuthenticationError } from '../types';
 import { emitUsage } from './usage';
 
 const PROVIDER = 'typesafe';
@@ -392,12 +392,13 @@ export class TypeSafeProvider implements AIInterface {
       });
       if (!response.ok) {
         if (response.status === 401) throw new AuthenticationError(PROVIDER);
-        if (response.status === 429 || response.status === 529)
-          throw new RateLimitError(
-            PROVIDER,
-            extractRetryAfterSeconds(response.headers),
-          );
         const text = await response.text();
+        if (response.status === 429 || response.status === 529)
+          throw rateLimitErrorFrom(
+            PROVIDER,
+            { headers: response.headers, message: text },
+            { model },
+          );
         throw new AIError(
           `TypeSafe request failed (${response.status}): ${text.slice(0, 500)}`,
           'API_ERROR',

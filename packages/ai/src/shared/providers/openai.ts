@@ -8,7 +8,7 @@
  */
 
 import OpenAI from 'openai';
-import { extractRetryAfterSeconds } from '../rate-limit';
+import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -51,7 +51,6 @@ import {
   ContentFilterError,
   ContextLengthError,
   ModelNotFoundError,
-  RateLimitError,
 } from '../types';
 import { emitUsage } from './usage';
 
@@ -313,7 +312,11 @@ export class OpenAIProvider implements AIInterface {
             parameters: tool.function.parameters,
           },
         })),
-        tool_choice: this.mapToolChoice(options.toolChoice),
+        // OpenAI rejects tool_choice without tools (a tool loop's final,
+        // tool-less round still says toolChoice: 'none').
+        tool_choice: options.tools?.length
+          ? this.mapToolChoice(options.toolChoice)
+          : undefined,
         response_format: options.responseFormat,
         seed: options.seed,
         stream: false,
@@ -432,6 +435,7 @@ export class OpenAIProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
   }
 
@@ -487,6 +491,7 @@ export class OpenAIProvider implements AIInterface {
       timeout: options.timeout,
       reasoning: options.reasoning,
       usageTags: options.usageTags,
+      continueOnLength: options.continueOnLength,
     });
 
     return response.content;
@@ -907,7 +912,9 @@ export class OpenAIProvider implements AIInterface {
         timeout: controls.timeout,
       });
 
+      let streamFinish: string | null = null;
       for await (const chunk of stream) {
+        streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
         const content = chunk.choices[0]?.delta?.content;
         if (content) {
           if (options.onProgress) {
@@ -916,6 +923,7 @@ export class OpenAIProvider implements AIInterface {
           yield content;
         }
       }
+      options.onFinishReason?.(this.mapFinishReason(streamFinish) ?? 'stop');
 
       emitUsage(
         this.options,
@@ -1118,7 +1126,23 @@ export class OpenAIProvider implements AIInterface {
       }
 
       if (message.tool_calls && message.role === 'assistant') {
-        (baseMessage as any).tool_calls = message.tool_calls;
+        // Replay only the wire fields; provider-specific extras such as
+        // Gemini thought signatures are not part of the OpenAI schema.
+        (baseMessage as any).tool_calls = message.tool_calls.map(
+          (toolCall) => ({
+            id: toolCall.id,
+            type: toolCall.type,
+            function: {
+              name: toolCall.function.name,
+              arguments: toolCall.function.arguments,
+            },
+          }),
+        );
+      }
+
+      if (message.role === 'tool' && message.tool_call_id) {
+        // OpenAI rejects tool results without the id of the call they answer.
+        (baseMessage as any).tool_call_id = message.tool_call_id;
       }
 
       return baseMessage as OpenAI.Chat.ChatCompletionMessageParam;
@@ -1205,10 +1229,7 @@ export class OpenAIProvider implements AIInterface {
         case 401:
           return new AuthenticationError(this.profile.providerName);
         case 429: {
-          return new RateLimitError(
-            this.profile.providerName,
-            extractRetryAfterSeconds(error),
-          );
+          return rateLimitErrorFrom(this.profile.providerName, error);
         }
         case 404:
           return new ModelNotFoundError(

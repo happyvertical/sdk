@@ -339,7 +339,8 @@ LiteLLM uses the same SDK surface, mapping projects to LiteLLM teams and virtual
 Every generative provider constructor applies the same safe defaults, including
 instances created directly instead of through `getAI()`:
 
-- 4,096 output tokens per request
+- 4,096 output tokens when the caller passes no `maxTokens` (`defaultOutputTokens`)
+- a 131,072-token output ceiling (`maxOutputTokens`), so an explicit `maxTokens` is bounded by the model, not this package
 - 1,024 reasoning tokens per request
 - one generated image per request
 - a 120-second provider timeout
@@ -392,6 +393,48 @@ effective token ceilings plus sanitized `usageTags`; prompts, responses, and
 credentials are never included. Legacy `thinkingLevel` options remain available
 as deprecated aliases and are normalized through the reasoning ceiling.
 
+## Continuing Truncated Replies
+
+When a reply stops because it hit its output limit (`finishReason: 'length'`:
+OpenAI-compatible `length`, Anthropic/Bedrock `max_tokens`, Gemini
+`MAX_TOKENS`, Ollama `length`), `getAI()` clients can ask the model to carry on
+and return one stitched reply. It is **off by default**: each continuation is a
+full extra request (up to `1 + maxContinuations` times the spend), which should
+be a deliberate choice, and the generation guardrails above apply to every part.
+
+```typescript
+const result = await ai.chat(messages, { continueOnLength: true });
+// or { continueOnLength: { maxContinuations: 2 } }  (default 3)
+// or set it as the client default: getAI({ ..., continueOnLength: true })
+
+result.content;   // stitched text
+result.parts;     // requests used (set when continuation ran)
+result.truncated; // true if the reply still ended on the limit
+```
+
+- Each continuation re-sends the conversation with the partial reply as an
+  assistant turn plus a "continue exactly where you stopped" user turn, and any
+  text the model repeats at the seam (12+ characters) is trimmed. When a part
+  ends a sentence and the next starts a new one without a space, the space is
+  restored.
+- `chat`, `complete`, `message`, and `stream` all support it (Ollama's
+  `complete` switches from `/generate` to a one-message chat when it is on); a stream stays one
+  continuous stream (the first characters of each continuation are held briefly
+  so a repeated seam can be trimmed). `onProgress` receives only the stitched text.
+- `usage` on the result is the sum across parts. Provider `onUsage` hooks still
+  fire once per upstream request, so their sum equals the total.
+- Tool calls and `responseFormat: { type: 'json_object' }` are never continued
+  (stitching them is unsafe); the reply is returned as-is with `truncated: true`.
+- With `rateLimit` pacing, every part is its own paced request: a rate-limit
+  retry repeats only the part that was rejected, never the parts already paid for.
+- A reply that hits the limit before producing any text (reasoning used the
+  whole budget) is not continued; it is returned with `truncated: true`.
+- Aborting through `signal` stops before the next part is requested. A part
+  that fails throws the error; the partial text is not returned.
+- `truncated: true` is also set when continuation is off and the reply hit the limit.
+- Streaming adapters report the finish reason through `ChatOptions.onFinishReason`;
+  a continued stream reports it once, with the last part's reason.
+
 ## Opt-In Rate-Limit Pacing
 
 Use `rateLimit` when multiple calls share the same provider budget and you want
@@ -434,12 +477,24 @@ in-process retry wrapper is applied. Provider retries still default to zero.
 | `cooldownMs` | `number` | `0` | Minimum delay after a successful call before the next call with the same key |
 | `initialDelayMs` | `number` | `5000` | Fallback retry delay when the provider does not return `Retry-After` |
 | `maxAttempts` | `number` | `1` | Total attempts, including the initial call; increase explicitly only for an approved workload |
+| `maxRetryDelayMs` | `number` | `60000` | Longest reset wait still retried; a limit that resets further away is not retried and its error has `retryable: false` |
 | `requestsPerMinute` | `number` | provider-specific | Used by `qwen3-tts` local token-bucket limiting |
 | `maxConcurrent` | `number` | provider-specific | Used by `qwen3-tts` local concurrency limiting |
 
 - If `key` is omitted, `@happyvertical/ai` derives a provider-scoped key from the configured credentials
 - Setting any of `key`, `cooldownMs`, `initialDelayMs`, or `maxAttempts` also opts in when `enabled` is omitted
 - Only normalized rate-limit failures are retried
+- The request `timeout` covers the whole call from the caller's side: time
+  queued behind other calls on the same key, cooldown and retry waits, and the
+  request itself, which gets only what is left. A call still queued at its
+  deadline fails with `AIError` code `AI_TIMEOUT` and never reaches the provider.
+  When a rate limit has closed the key past the deadline, the call fails at once
+  with a `RateLimitError` carrying the original `reason` and the remaining
+  `retryAfterMs`. A retry that cannot finish before the deadline is not started.
+  Aborting `signal` releases a queued call (`AI_ABORTED`). Methods without
+  request controls (`embed`, `getModels`, speech) use the client `timeout` for
+  their queue wait when one is set. With `continueOnLength`, each part is its
+  own request with its own timeout.
 - `stream()` is left unchanged; pacing is applied to the promise-returning request methods
 
 Example quota-sensitive batch workload:
@@ -534,13 +589,28 @@ All extend `AIError`: `AuthenticationError`, `RateLimitError`, `ModelNotFoundErr
 
 - `AIError.retryable` distinguishes retryable failures from terminal ones
 - `RateLimitError.retryAfter` exposes provider retry hints in seconds when available
+- `RateLimitError.reason` keeps the provider's own text (for example
+  `token limit exceeded (277867/250000, resets every 1h)`), and the message
+  includes it, so callers can say why a call was refused
+- `RateLimitError.retryAfterMs` is the time until the limit resets when the
+  provider said so: `Retry-After`, a reset header (`x-ratelimit-reset-*`,
+  `anthropic-ratelimit-*-reset`), or text such as "try again in 20s"
+- `RateLimitError.limitWindowMs` is set when the provider names a limit window
+  but no reset time ("resets every 1h"); the limit lifts within that time
+- `error.cause` is the provider error it was mapped from
+- `RateLimitError.retryable` is `false` when the limit resets more than a
+  minute away (`retryAfterMs`, else `limitWindowMs`; `rateLimit.maxRetryDelayMs`
+  changes the threshold). Job runners should not re-run such a job soon; they
+  can reschedule it after `retryAfterMs ?? limitWindowMs`
 
 ```typescript
 try {
   await ai.chat(messages);
 } catch (error) {
-  if (error instanceof RateLimitError && error.retryable) {
-    console.log('retry after seconds:', error.retryAfter);
+  if (error instanceof RateLimitError) {
+    console.log('why:', error.reason);
+    if (error.retryable) console.log('retry after seconds:', error.retryAfter);
+    else console.log('lifts in ms:', error.retryAfterMs ?? error.limitWindowMs);
   }
 }
 ```
@@ -573,6 +643,46 @@ if (response.toolCalls) {
   console.log(response.toolCalls[0].function.name);
 }
 ```
+
+To continue the loop, replay the assistant turn with `tool_calls` unchanged
+and answer each call with a `role: 'tool'` message carrying its
+`tool_call_id`. Every chat provider maps this to its native pairing
+(`tool_call_id` for OpenAI-compatible APIs including Bifrost and LiteLLM,
+`tool_use_id` for Anthropic, `toolUseId` for Bedrock, `functionResponse` for
+Gemini, `tool_name` for Ollama). `name` on the tool message is optional; it is
+resolved from the matching call when a provider needs it.
+
+```typescript
+const call = response.toolCalls[0];
+const followUp = await ai.chat([
+  { role: 'user', content: 'What is the weather in Tokyo?' },
+  { role: 'assistant', content: response.content, tool_calls: response.toolCalls },
+  { role: 'tool', tool_call_id: call.id, content: JSON.stringify({ tempC: 21 }) },
+], { tools });
+```
+
+Replay `response.toolCalls` as returned, and keep every field if you persist
+the conversation: provider-specific replay data rides on the tool calls.
+Gemini 3 needs `thoughtSignature`, and Anthropic with extended thinking
+(`reasoning.maxTokens`) needs `thinkingBlocks` (the signed thinking that opened
+the tool-calling turn). If an Anthropic tool loop's latest `tool_use` turn has
+no `thinkingBlocks`, that request is sent without extended thinking instead of
+failing.
+Gemini replays only calls that have a result, and when a Gemini 3 step has no
+`thoughtSignature` it sends Google's documented placeholder signature, which
+avoids the 400 but lowers reasoning quality, so persist the real one.
+
+A loop's final round usually asks for a plain answer (`toolChoice: 'none'`,
+often with no `tools`) while replaying the tool history. Anthropic and Bedrock
+reject tool history without declared tools, so both declare a minimal
+definition for each tool the history references. Anthropic sends
+`tool_choice: { type: 'none' }`; Bedrock Converse has no "none" choice, so it
+keeps the tools, omits `toolChoice`, and adds a system instruction not to call
+tools (an instruction, not a guarantee; check `finishReason`).
+
+`stream()` yields text only and never returns tool calls, so run tool-calling
+rounds with `chat()`. Anthropic streams ignore `tools`/`toolChoice` and declare
+tools only when the replayed history needs them, with `tool_choice` none.
 
 ## Usage Tracking
 

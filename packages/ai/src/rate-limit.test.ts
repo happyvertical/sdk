@@ -1,8 +1,12 @@
+import OpenAI from 'openai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OpenAIProvider } from './shared/providers/openai';
 import {
   __getAIRateLimitStateForTests,
   __resetAIRateLimitStateForTests,
   createRateLimitedAI,
+  parseDurationMs,
+  rateLimitErrorFrom,
 } from './shared/rate-limit';
 import {
   type AIInterface,
@@ -302,5 +306,289 @@ describe('shared AI rate limiting', () => {
     }
 
     expect(__getAIRateLimitStateForTests().count).toBe(maxBudgetCoordinators);
+  });
+});
+
+describe('rate-limit error details', () => {
+  const BIFROST_REASON =
+    'token limit exceeded (277867/250000, resets every 1h)';
+
+  it('parses durations', () => {
+    expect(parseDurationMs('20s')).toBe(20_000);
+    expect(parseDurationMs('6m0s')).toBe(360_000);
+    expect(parseDurationMs('1h')).toBe(3_600_000);
+    expect(parseDurationMs('250ms')).toBe(250);
+    expect(parseDurationMs('2 minutes')).toBe(120_000);
+    expect(parseDurationMs('1.5s')).toBe(1500);
+    expect(parseDurationMs('soon')).toBeUndefined();
+    expect(parseDurationMs('3 messages')).toBeUndefined();
+  });
+
+  it('keeps the provider reason and the window it names', async () => {
+    const create = vi
+      .fn()
+      .mockRejectedValue(
+        OpenAI.APIError.generate(
+          429,
+          { error: { message: BIFROST_REASON, type: 'rate_limit' } },
+          undefined,
+          new Headers(),
+        ),
+      );
+    const provider = new OpenAIProvider({ apiKey: 'test' });
+    (provider as any).client = { chat: { completions: { create } } };
+    const error = await provider
+      .chat([{ role: 'user', content: 'hi' }])
+      .catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect(error.reason).toBe(BIFROST_REASON);
+    expect(error.message).toBe(`Rate limit exceeded: ${BIFROST_REASON}`);
+    expect(error.limitWindowMs).toBe(3_600_000);
+    expect(error.retryAfterMs).toBeUndefined();
+    expect(error.retryAfter).toBeUndefined();
+    expect(error.cause).toBeInstanceOf(OpenAI.APIError);
+  });
+
+  it('reads Retry-After, reset headers, and "try again in" text', () => {
+    const retryAfter = rateLimitErrorFrom('openai', {
+      message: '429 slow down',
+      headers: new Headers({ 'retry-after': '20' }),
+    });
+    expect(retryAfter).toMatchObject({
+      reason: 'slow down',
+      retryAfter: 20,
+      retryAfterMs: 20_000,
+    });
+    expect(retryAfter.message).toBe(
+      'Rate limit exceeded: slow down, retry after 20s',
+    );
+
+    const resetHeader = rateLimitErrorFrom('openai', {
+      headers: { 'x-ratelimit-reset-tokens': '6m0s' },
+    });
+    expect(resetHeader).toMatchObject({
+      retryAfterMs: 360_000,
+      retryAfter: 360,
+    });
+
+    const text = rateLimitErrorFrom('openai', {
+      error: {
+        message: 'Rate limit reached for gpt-4o. Please try again in 1.5s.',
+      },
+    });
+    expect(text.retryAfterMs).toBe(1500);
+    expect(text.retryAfter).toBe(2);
+  });
+
+  it('reads Anthropic and raw JSON bodies', () => {
+    expect(
+      rateLimitErrorFrom('anthropic', {
+        status: 429,
+        error: {
+          type: 'error',
+          error: { type: 'rate_limit_error', message: 'Too many tokens' },
+        },
+      }).reason,
+    ).toBe('Too many tokens');
+    expect(
+      rateLimitErrorFrom('ollama', {
+        message: '{"error":"quota used up, resets in 30s"}',
+      }),
+    ).toMatchObject({
+      reason: 'quota used up, resets in 30s',
+      retryAfterMs: 30_000,
+    });
+    expect(
+      rateLimitErrorFrom('openai', { message: '429 status code (no body)' })
+        .reason,
+    ).toBeUndefined();
+  });
+});
+
+describe('far rate-limit resets', () => {
+  afterEach(() => {
+    __resetAIRateLimitStateForTests();
+  });
+
+  it('marks a reset beyond a minute as not retryable soon', () => {
+    expect(new RateLimitError('openai', 30).retryable).toBe(true);
+    expect(new RateLimitError('openai', 60).retryable).toBe(true);
+    expect(new RateLimitError('openai', 3600).retryable).toBe(false);
+    expect(new RateLimitError('openai').retryable).toBe(true);
+    const window = rateLimitErrorFrom('bifrost', {
+      error: {
+        message: 'token limit exceeded (277867/250000, resets every 1h)',
+      },
+    });
+    expect(window).toMatchObject({
+      retryable: false,
+      limitWindowMs: 3_600_000,
+    });
+    expect(
+      new RateLimitError('openai', 120, { maxRetryDelayMs: 300_000 }).retryable,
+    ).toBe(true);
+  });
+
+  it('does not retry a far reset and applies the client threshold', async () => {
+    const chat = vi.fn(async () => {
+      throw new RateLimitError('openai', undefined, {
+        reason: 'token limit exceeded (277867/250000, resets every 1h)',
+        limitWindowMs: 3_600_000,
+      });
+    });
+    const ai = createRateLimitedAI(createTestAI({ chat }), {
+      apiKey: 'test-key',
+      rateLimit: { key: 'far-reset', maxAttempts: 3, initialDelayMs: 1 },
+    });
+    const error = await ai
+      .chat([{ role: 'user', content: 'hello' }])
+      .catch((caught) => caught);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ retryable: false, limitWindowMs: 3_600_000 });
+
+    // A client that accepts long waits keeps it retryable.
+    __resetAIRateLimitStateForTests();
+    const patient = createRateLimitedAI(createTestAI({ chat }), {
+      apiKey: 'test-key',
+      rateLimit: { key: 'far-reset-2', maxRetryDelayMs: 7_200_000 },
+    });
+    const patientError = await patient
+      .chat([{ role: 'user', content: 'hello' }])
+      .catch((caught) => caught);
+    expect(patientError.retryable).toBe(true);
+  });
+});
+
+describe('timeout covers queue wait', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    __resetAIRateLimitStateForTests();
+  });
+
+  const messages = [{ role: 'user' as const, content: 'hello' }];
+
+  it('times out a call still queued behind another on the same key', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const chat = vi.fn(
+      (_messages: unknown, options?: { timeout?: number }) =>
+        new Promise<{ content: string }>((resolve) =>
+          setTimeout(
+            () => resolve({ content: `ok ${options?.timeout}` }),
+            5000,
+          ),
+        ),
+    );
+    const ai = createRateLimitedAI(createTestAI({ chat } as any), {
+      apiKey: 'test-key',
+      rateLimit: { key: 'queue-timeout' },
+    });
+
+    const first = ai.chat(messages, { timeout: 10_000 });
+    const second = ai.chat(messages, { timeout: 2000 }).catch((e) => e);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    const error = await second;
+    expect(error).toMatchObject({ code: 'AI_TIMEOUT' });
+    expect(error.message).toContain('2000ms');
+
+    await vi.advanceTimersByTimeAsync(3000);
+    await expect(first).resolves.toEqual({ content: 'ok 10000' });
+    // The timed-out call never reached the provider.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the request only what is left of the timeout', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const chat = vi.fn(async () => ({ content: 'ok' }));
+    const ai = createRateLimitedAI(createTestAI({ chat }), {
+      apiKey: 'test-key',
+      timeout: 3000,
+      rateLimit: { key: 'remaining', cooldownMs: 1000 },
+    });
+
+    await ai.chat(messages);
+    const second = ai.chat(messages);
+    await vi.advanceTimersByTimeAsync(1000);
+    await second;
+    expect(chat.mock.calls.map((call: any[]) => call[1]?.timeout)).toEqual([
+      3000, 2000,
+    ]);
+  });
+
+  it('fails fast with the rate-limit reason when the key is closed past the deadline', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const chat = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new RateLimitError('openai', 600, { reason: 'quota exhausted' }),
+      )
+      .mockResolvedValue({ content: 'ok' });
+    const ai = createRateLimitedAI(createTestAI({ chat }), {
+      apiKey: 'test-key',
+      rateLimit: { key: 'closed-key', maxAttempts: 3 },
+    });
+
+    const first = await ai.chat(messages).catch((e) => e);
+    expect(first).toMatchObject({
+      reason: 'quota exhausted',
+      retryable: false,
+    });
+    expect(chat).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    const second = await ai.chat(messages, { timeout: 5000 }).catch((e) => e);
+    expect(second).toBeInstanceOf(RateLimitError);
+    expect(second).toMatchObject({
+      reason: 'quota exhausted',
+      retryable: false,
+      retryAfterMs: 599_000,
+    });
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start a retry that cannot finish before the deadline', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const chat = vi.fn(async () => {
+      throw new RateLimitError('openai', 5);
+    });
+    const ai = createRateLimitedAI(createTestAI({ chat }), {
+      apiKey: 'test-key',
+      rateLimit: { key: 'no-room', maxAttempts: 3 },
+    });
+    const error = await ai.chat(messages, { timeout: 3000 }).catch((e) => e);
+    expect(error).toMatchObject({ code: 'RATE_LIMIT', retryAfter: 5 });
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases a queued call when the caller aborts', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const chat = vi.fn(
+      () =>
+        new Promise<{ content: string }>((resolve) =>
+          setTimeout(() => resolve({ content: 'ok' }), 5000),
+        ),
+    );
+    const ai = createRateLimitedAI(createTestAI({ chat }), {
+      apiKey: 'test-key',
+      rateLimit: { key: 'abort-queued' },
+    });
+    const controller = new AbortController();
+    const first = ai.chat(messages);
+    const second = ai
+      .chat(messages, { signal: controller.signal })
+      .catch((e) => e);
+    await vi.advanceTimersByTimeAsync(100);
+    controller.abort();
+    expect(await second).toMatchObject({ code: 'AI_ABORTED' });
+    await vi.advanceTimersByTimeAsync(5000);
+    await first;
+    expect(chat).toHaveBeenCalledTimes(1);
   });
 });
