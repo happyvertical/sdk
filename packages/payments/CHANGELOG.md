@@ -1,5 +1,7 @@
 # @happyvertical/payments
 
+## 0.98.0
+
 ## 0.96.1
 
 ## 0.96.0

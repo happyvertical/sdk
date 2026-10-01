@@ -1,5 +1,31 @@
 # @happyvertical/ai
 
+## 0.98.0
+
+### Minor Changes
+
+- 1ff633a: Add opt-in `continueOnLength` (per call or client default). When a reply stops on its output limit, `getAI()` clients continue from where it stopped and return the stitched text across `chat`, `complete`, `message`, and `stream` (Ollama `complete` runs as a one-message chat when continuation is on, since `/generate` cannot be continued), with seam-overlap trimming and restored sentence spacing at the seam, summed usage, and `maxContinuations` (default 3). Results expose `truncated` and `parts`; Gemini `MAX_TOKENS` now maps to `finishReason: 'length'`; streaming adapters report `onFinishReason` (once per continued stream, with the last part's reason). Tool calls, JSON output, and a reply that hit the limit before producing any text are never continued (they return `truncated: true`). With `rateLimit` pacing each continuation part is paced and retried on its own, so a rate-limit retry never re-requests parts already returned. An aborted `signal` stops the chain before the next part is requested.
+- 1ff633a: A `RateLimitError` whose limit resets more than a minute away (`retryAfterMs`, else `limitWindowMs`) now has `retryable: false`, so job runners and `isRetryableAIError` stop re-running work that cannot succeed soon; reschedule it after `retryAfterMs ?? limitWindowMs` instead. Paced clients never retry such errors in-process, and the new `rateLimit.maxRetryDelayMs` option (default 60000) sets the threshold. Behavior change: callers that treated every `RateLimitError` as retryable now see `false` for far resets. The pacing retry delay also honors millisecond reset hints.
+- 1ff633a: `RateLimitError` keeps what the provider said. New fields: `reason` (the provider's text, for example Bifrost's `token limit exceeded (277867/250000, resets every 1h)`, now also in the message), `retryAfterMs` (from `Retry-After`, `x-ratelimit-reset-*` / `anthropic-ratelimit-*-reset` headers, or text such as "try again in 20s"; `retryAfter` in seconds is filled from it too), `limitWindowMs` (a named window with no reset time, such as "resets every 1h"), and `cause` (the provider error). The constructor takes an optional third `details` argument. All chat providers that map a 429 now fill these; TypeSafe's `Retry-After` header was previously never read.
+- 1ff633a: With `rateLimit` pacing, the request `timeout` now covers the whole call: time queued behind other calls on the same key, cooldown and retry waits, and the request itself (which gets only the remaining time). Previously a call could wait in the queue far longer than its timeout. A call still queued at its deadline fails with `AI_TIMEOUT` without reaching the provider; when a rate limit has closed the key past the deadline it fails at once with a `RateLimitError` carrying the original `reason` and remaining `retryAfterMs`; a retry that cannot finish in time is not started; aborting `signal` releases a queued call. Behavior change: paced calls that used to wait out a long queue now time out.
+
+### Patch Changes
+
+- 1ff633a: Stop capping explicit `maxTokens` at 4096 by default. The output ceiling (`generationLimits.maxOutputTokens`) now defaults to 131072; the 4096 default applies only when a caller passes no `maxTokens` (`generationLimits.defaultOutputTokens`). A deployment-configured ceiling is still enforced (error or clamp).
+
+  Behavior change that can raise spend: a caller that passes a large `maxTokens` (for example 16000) previously had it rejected or clamped to 4096 and now gets up to the requested number of output tokens per request. Set `generationLimits.maxOutputTokens` to keep a lower ceiling.
+
+- 1ff633a: Fix multi-round tool loops across chat providers:
+
+  - `AIMessage` gains `tool_call_id`, and tool call ids round-trip through every chat provider (OpenAI-compatible providers such as OpenAI, Bifrost, and LiteLLM previously dropped it, so the second call of a tool loop failed with 400). Tool calls share a new `AIToolCall` type with optional `thoughtSignature` (Gemini 3) and `thinkingBlocks` (Anthropic).
+  - `tool_choice` is sent only when tools are declared (OpenAI-compatible and Anthropic), so a loop's final, tool-less round no longer fails.
+  - Anthropic declares minimal definitions for tools referenced by the history on a final tool-less round, maps `toolChoice: 'none'` to `tool_choice: { type: 'none' }`, replays thinking and redacted-thinking blocks ahead of `tool_use` in extended-thinking loops, sends tool results that match no replayed `tool_use` as plain text, and declares tools in `stream()` only when the history needs them (streams do not yield tool calls).
+  - Bedrock keeps `toolConfig` on a loop's final round (`'none'` omits `toolChoice` and adds a no-tools system instruction).
+  - Gemini replays only function calls that have a matching response and sends Google's documented placeholder thought signature for Gemini 3 when history lacks one; persist `thoughtSignature` to avoid it.
+
+- 2084a7d: List gateway transcription and TTS models from the Bifrost and LiteLLM providers instead of filtering them out. `getModels()` now returns transcription models (model-ID tokens `whisper`, `transcribe`, `transcription`, `speech-to-text`, and Voxtral realtime checkpoints) with the `transcription` capability and TTS models (tokens `tts`, `speech`) with the `speech` capability, both with `supportsFunctions` and `supportsVision` false. Markers match whole model-ID tokens delimited by `/`, `-`, `_`, `.` or `:`, so ids that merely contain them, such as `huggingface/mattshumer/...`, are not treated as audio. Automatic chat, vision, embeddings, and image-generation model resolution never selects audio models. Moderation and rerank models remain filtered.
+  - @happyvertical/utils@0.98.0
+
 ## 0.96.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @happyvertical/video
 
+## 0.98.0
+
+### Patch Changes
+
+- @happyvertical/images@0.98.0
+- @happyvertical/logger@0.98.0
+- @happyvertical/utils@0.98.0
+
 ## 0.96.1
 
 ### Patch Changes
