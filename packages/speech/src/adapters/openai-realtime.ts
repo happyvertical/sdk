@@ -35,7 +35,13 @@ import type {
   StreamingSessionOptions,
   StreamingTranscriber,
   StreamingTurnDetection,
+  StreamingTurnLimit,
 } from '../shared/streaming-types.js';
+import {
+  describeTurnLimit,
+  resolveTurnLimit,
+  type TurnLimit,
+} from '../shared/turn-limit.js';
 import {
   resolveWebSocketFactory,
   type SpeechWebSocketFactory,
@@ -66,6 +72,8 @@ export const openAIRealtimeProtocol = (
   provider: ADAPTER,
   commitAck: 'committed',
   endCommit: 'if-audio',
+  // No per-turn cap by default: server VAD ends turns. Manual sessions may opt
+  // in with `maxTurnSeconds`.
   sessionMessages(config: RealtimeSessionConfig) {
     return [
       {
@@ -239,16 +247,57 @@ export class OpenAIRealtimeTranscriber implements StreamingTranscriber {
     this.createWebSocket = resolveWebSocketFactory(ADAPTER, options);
     this.audioFormat = resolveOpenAIRealtimeFormat(options.format);
     this.protocol = openAIRealtimeProtocol(options);
+    resolveTurnLimit(ADAPTER, undefined, options);
   }
 
-  start(options: StreamingSessionOptions = {}): StreamingSession {
+  /**
+   * A turn limit applies only to `manual` sessions with `maxTurnSeconds` set;
+   * under server or semantic VAD the provider ends turns itself.
+   */
+  turnLimit(
+    options: StreamingSessionOptions = {},
+  ): StreamingTurnLimit | undefined {
+    return describeTurnLimit(
+      this.resolveTurnLimit(options),
+      this.sessionFormat(options),
+    );
+  }
+
+  private sessionFormat(
+    options: StreamingSessionOptions,
+  ): StreamingAudioFormat {
     // A different encoding starts from that encoding's defaults.
-    const format = resolveOpenAIRealtimeFormat(
+    return resolveOpenAIRealtimeFormat(
       options.format?.encoding &&
         options.format.encoding !== this.audioFormat.encoding
         ? options.format
         : { ...this.audioFormat, ...options.format },
     );
+  }
+
+  private resolveTurnLimit(
+    options: StreamingSessionOptions,
+  ): TurnLimit | undefined {
+    const limit = resolveTurnLimit(
+      ADAPTER,
+      this.protocol.maxTurnSeconds,
+      options,
+      this.options,
+    );
+    return this.turnDetection(options).type === 'manual' ? limit : undefined;
+  }
+
+  private turnDetection(
+    options: StreamingSessionOptions,
+  ): StreamingTurnDetection {
+    return (
+      options.turnDetection ??
+      this.options.turnDetection ?? { type: 'server_vad' }
+    );
+  }
+
+  start(options: StreamingSessionOptions = {}): StreamingSession {
+    const format = this.sessionFormat(options);
     const connect = realtimeConnector({
       adapter: ADAPTER,
       url: this.url,
@@ -269,8 +318,7 @@ export class OpenAIRealtimeTranscriber implements StreamingTranscriber {
           this.options.model?.trim() ||
           OPENAI_REALTIME_DEFAULT_MODEL,
         format,
-        turnDetection: options.turnDetection ??
-          this.options.turnDetection ?? { type: 'server_vad' },
+        turnDetection: this.turnDetection(options),
         language: options.language ?? this.options.language,
         prompt: options.prompt ?? this.options.prompt,
       },
@@ -285,6 +333,7 @@ export class OpenAIRealtimeTranscriber implements StreamingTranscriber {
         this.options.maxBufferedBytes ?? DEFAULT_STREAMING_MAX_BUFFERED_BYTES,
       signal: options.signal,
       onUsage: [this.options.onUsage, options.onUsage],
+      turnLimit: this.resolveTurnLimit(options),
     });
   }
 }

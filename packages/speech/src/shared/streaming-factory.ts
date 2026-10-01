@@ -17,10 +17,12 @@ import {
 import {
   InvalidSpeechAdapterError,
   SpeechConfigurationError,
+  SpeechError,
 } from './errors.js';
 import { unwrapRawAudio } from './pcm.js';
 import type {
   GetStreamingTranscriberOptions,
+  StreamingSessionOptions,
   StreamingTranscriber,
   StreamingTranscriberType,
   StreamingTurnDetection,
@@ -49,6 +51,7 @@ export const STREAMING_TRANSCRIBER_ENV_KEYS = {
   ],
   connectTimeoutMs: ['HAVE_SPEECH_STREAMING_CONNECT_TIMEOUT_MS'],
   headers: ['HAVE_SPEECH_STREAMING_HEADERS'],
+  maxTurnSeconds: ['HAVE_SPEECH_STREAMING_MAX_TURN_SECONDS'],
 } as const;
 
 export interface StreamingFactoryContext {
@@ -104,6 +107,9 @@ export function getStreamingTranscriber(
     connectTimeoutMs:
       options.connectTimeoutMs ??
       parseOptionalInteger(readEnv(env, ...keys.connectTimeoutMs)),
+    maxTurnSeconds:
+      options.maxTurnSeconds ??
+      parseMaxTurnSeconds(readEnv(env, ...keys.maxTurnSeconds)),
     headers,
   };
 
@@ -135,6 +141,25 @@ export function parseTurnDetection(
   );
 }
 
+/**
+ * Parses `HAVE_SPEECH_STREAMING_MAX_TURN_SECONDS`: a positive number of
+ * seconds, or `Infinity` for no limit.
+ */
+export function parseMaxTurnSeconds(
+  value: string | undefined,
+): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    throw new SpeechConfigurationError(
+      'HAVE_SPEECH_STREAMING_MAX_TURN_SECONDS must be a positive number of seconds or Infinity',
+    );
+  }
+  return parsed;
+}
+
 export interface StreamingTranscriberWrapperOptions {
   /** Bytes per `write()`. Default 64 KiB. */
   chunkBytes?: number;
@@ -157,6 +182,11 @@ export interface StreamingTranscriberWrapperOptions {
  * `audio/pcma`, or untyped bytes in the adapter's default format. WAV headers
  * and MIME parameters set the session format; compressed recordings are
  * rejected, so use an HTTP transcriber for WebM/MP4/Ogg.
+ *
+ * A clip longer than the adapter's per-turn limit (`maxTurnSeconds`) is
+ * never sent as one turn: with rollover (the default) the session splits it
+ * into several turns at quiet boundaries, and with `rollover: false` the clip
+ * is rejected with `SPEECH_TURN_TOO_LONG` before connecting.
  */
 export function wrapStreamingTranscriber(
   streaming: StreamingTranscriber,
@@ -195,7 +225,7 @@ export function wrapStreamingTranscriber(
         channels: raw.format.channels ?? declared?.channels,
       };
 
-      const session = streaming.start({
+      const sessionOptions: StreamingSessionOptions = {
         format: Object.fromEntries(
           Object.entries(format).filter(([, value]) => value !== undefined),
         ),
@@ -207,7 +237,21 @@ export function wrapStreamingTranscriber(
         onUsage: request.onUsage,
         metadata: request.metadata,
         turnDetection: options.turnDetection ?? { type: 'manual' },
-      });
+      };
+      const limit = streaming.turnLimit?.(sessionOptions);
+      if (
+        limit &&
+        !limit.rollover &&
+        raw.bytes.byteLength > limit.maxTurnBytes
+      ) {
+        throw new SpeechError(
+          `The recording is longer than one turn may be (maxTurnSeconds ${limit.maxTurnSeconds} s) and rollover is disabled; enable rollover or split the recording`,
+          'SPEECH_TURN_TOO_LONG',
+          streaming.type,
+        );
+      }
+
+      const session = streaming.start(sessionOptions);
 
       try {
         for (
