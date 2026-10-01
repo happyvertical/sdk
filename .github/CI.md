@@ -31,9 +31,7 @@ base. The reusable code-validation workflows retain the same-repository guard
 and receive the reviewed head as `checkout_ref`. Merge groups use their
 synthetic `github.sha` normally.
 
-The lifecycle workflow stays on plain `pull_request` by design — the agent
-policy audits `on.pull_request.types` and rejects a narrowed trigger set. Fork
-code is never checked out in a trusted-base job. See "External fork pull
+Fork code is never checked out in a trusted-base job. See "External fork pull
 requests" for the supported contribution route.
 
 For an external fork, hosted baseline jobs run only the trusted base. The
@@ -113,14 +111,9 @@ rejects that skipped protected result, so it fails. This boundary is necessary
 because these are `pull_request_target` jobs, which must not check out
 unreviewed fork code with trusted-base permissions.
 
-`Required CI` is the fork guard, and it is the check that fails here.
-`lifecycle`, the other required check, is hosted, triggers on plain
-`pull_request`, and is deliberately not guarded, so it still runs on a fork
-pull request — but it validates claim and pull-request lifecycle state rather
-than the code, so it is no part of the fork guard and ordinarily passes. If it
-does fail, read it on its own terms: most often a commit message carries a
-closing keyword the pull request body does not declare, or the change edits
-managed policy files. Its message says what to correct.
+`Required CI` is the fork guard, the only required check, and the check that
+fails here. (The former `lifecycle` agent-policy check was retired in #1263 and
+is no longer required.)
 
 A red `Required CI` here is the policy working as intended, not a CI fault. Do
 not report it as broken infrastructure, and do not weaken the guard to make it

@@ -47,7 +47,6 @@
   },
   "github": {
     "required_status_checks": [
-      "lifecycle",
       "Required CI"
     ]
   }

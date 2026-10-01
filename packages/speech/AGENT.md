@@ -52,7 +52,7 @@ Adapter constructors are internal implementation details. Keep new backends behi
 - On-device STT (`type: 'local'`) runs Whisper/Moonshine ONNX models with transformers.js behind the `@happyvertical/speech/local` subpath; importing that subpath registers the type with the factory.
 - Studio Server TTS (`type: 'studio-server'`) posts multipart form data to `/v1/tts/synthesize`.
 - Qwen3 TTS (`type: 'qwen3-tts'`) posts multipart form data to `/v1/audio/speech`.
-- OpenAI-compatible TTS (`type: 'openai-compatible'`) posts OpenAI-shaped JSON to `/v1/audio/speech`.
+- OpenAI-compatible TTS (`type: 'openai-compatible'`) posts OpenAI-shaped JSON to `<base>/audio/speech`, resolved like the transcriber (`resolveOpenAICompatibleUrl`: server root → `/v1/audio/speech`, `/vN` root → `/audio/speech`, full endpoint as-is; an explicit `speechPath` resolves relative to `baseUrl` instead).
 
 ## Shared Building Blocks
 
