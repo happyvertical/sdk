@@ -13,7 +13,15 @@ afterEach(() => {
 });
 
 function fixture() {
-  const track = { enabled: true, stop: vi.fn() };
+  const trackEvents = new Map<string, () => void>();
+  const track = {
+    enabled: true,
+    stop: vi.fn(),
+    addEventListener: vi.fn((type: string, listener: () => void) =>
+      trackEvents.set(type, listener),
+    ),
+    removeEventListener: vi.fn((type: string) => trackEvents.delete(type)),
+  };
   const stream = {
     getTracks: () => [track],
     getAudioTracks: () => [track],
@@ -64,6 +72,7 @@ function fixture() {
     peer,
     channel,
     track,
+    endMicrophone: () => trackEvents.get('ended')?.(),
     audio,
     sent,
     event,
@@ -454,5 +463,23 @@ describe('review regressions: manual audio turns and post-header setup failure',
       callId: 'rtc_recovery',
       message: 'Voice setup failed and termination needs retry',
     });
+  });
+});
+
+describe('microphone revocation', () => {
+  it('fails visibly and releases media when the connected microphone ends', async () => {
+    const f = fixture();
+    const errors: Error[] = [];
+    f.session.on('error', (error) => errors.push(error));
+    await f.session.connect();
+    f.endMicrophone();
+    expect(f.session.state).toBe('failed');
+    expect(errors[0]?.message).toContain('Microphone');
+    expect(f.peer.close).toHaveBeenCalledOnce();
+    expect(f.track.stop).toHaveBeenCalledOnce();
+    expect(f.track.removeEventListener).toHaveBeenCalledWith(
+      'ended',
+      expect.any(Function),
+    );
   });
 });

@@ -252,6 +252,15 @@ export function createOpenAIWebRTCVoiceSession(
           microphone = stream;
           stream.getAudioTracks().forEach((track) => {
             track.enabled = !micMuted;
+            const ended = () =>
+              fail('Microphone ended; allow access and start a new session');
+            track.addEventListener('ended', ended);
+            disposers.push(() => track.removeEventListener('ended', ended));
+            if (track.readyState === 'ended')
+              throw new SpeechConfigurationError(
+                'Microphone stream has ended',
+                ADAPTER,
+              );
           });
           if (!stream.getAudioTracks().length)
             throw new SpeechConfigurationError(
