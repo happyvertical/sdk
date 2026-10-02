@@ -17,7 +17,9 @@
     "On-device STT",
     "Studio Server TTS",
     "Qwen3 TTS",
-    "OpenAI-compatible TTS"
+    "OpenAI-compatible TTS",
+    "OpenAI WebRTC conversational voice",
+    "Server call creation/termination"
   ],
   "requires": {
     "workspace": [],

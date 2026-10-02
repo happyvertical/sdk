@@ -13,6 +13,14 @@
     "./local": {
       "import": "./dist/local.js",
       "types": "./dist/local.d.ts"
+    },
+    "./conversation": {
+      "import": "./dist/conversation.js",
+      "types": "./dist/conversation.d.ts"
+    },
+    "./conversation/server": {
+      "import": "./dist/conversation-server.js",
+      "types": "./dist/conversation-server.d.ts"
     }
   },
   "scripts": {

@@ -27,7 +27,7 @@ pnpm --filter @happyvertical/speech clean
 
 ## Ecosystem Relationships
 - Provides: Speech provider abstraction for STT and TTS backends
-- Implements: Studio Server STT, OpenAI-compatible STT, OpenAI Realtime streaming STT, Voxtral Realtime streaming STT, On-device STT, Studio Server TTS, Qwen3 TTS, OpenAI-compatible TTS
+- Implements: Studio Server STT, OpenAI-compatible STT, OpenAI Realtime streaming STT, Voxtral Realtime streaming STT, On-device STT, Studio Server TTS, Qwen3 TTS, OpenAI-compatible TTS, OpenAI WebRTC conversational voice, Server call creation/termination
 - Requires: @huggingface/transformers
 - Stability: experimental (Marked as preview or experimental in package guidance.)
 <!-- END AGENT:GENERATED -->
@@ -53,6 +53,8 @@ Adapter constructors are internal implementation details. Keep new backends behi
 - Studio Server TTS (`type: 'studio-server'`) posts multipart form data to `/v1/tts/synthesize`.
 - Qwen3 TTS (`type: 'qwen3-tts'`) posts multipart form data to `/v1/audio/speech`.
 - OpenAI-compatible TTS (`type: 'openai-compatible'`) posts OpenAI-shaped JSON to `<base>/audio/speech`, resolved like the transcriber (`resolveOpenAICompatibleUrl`: server root → `/v1/audio/speech`, `/vN` root → `/audio/speech`, full endpoint as-is; an explicit `speechPath` resolves relative to `baseUrl` instead).
+
+- OpenAI WebRTC conversational voice (`createOpenAIWebRTCVoiceSession`) uses the optional `@happyvertical/speech/conversation` entry for audio input/output, typed turns, transcripts and interruption. Server call creation/termination is isolated in `@happyvertical/speech/conversation/server`; hosts own credentials and admission policy.
 
 ## Shared Building Blocks
 
