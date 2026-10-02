@@ -31,6 +31,8 @@ export interface VoiceSession {
   /** Coalesced while connecting; terminal sessions cannot be reconnected. */
   connect(): Promise<void>;
   sendText(text: string): string;
+  /** Commit buffered microphone input in manual turn mode, then optionally generate a reply. */
+  commitInput(respond?: boolean): void;
   /** Request a response, e.g. an opening introduction. */
   respond(instructions?: string): void;
   /** Cancels active generation and clears unplayed WebRTC audio. */

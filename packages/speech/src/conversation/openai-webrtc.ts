@@ -370,6 +370,10 @@ export function createOpenAIWebRTCVoiceSession(
       session.respond();
       return id;
     },
+    commitInput(respond = true) {
+      send({ type: 'input_audio_buffer.commit' });
+      if (respond) session.respond();
+    },
     respond(instructions) {
       send({
         type: 'response.create',

@@ -116,15 +116,23 @@ export async function createOpenAIVoiceCall(
   const body = new FormData();
   body.set('sdp', offer);
   body.set('session', JSON.stringify(openAIConversationConfig(options)));
-  const response = await request(callBase(options.baseUrl), { body }, options);
-  const location = response.headers.get('location');
-  const callId = location?.split('/').pop();
-  if (!callId || !/^rtc_[A-Za-z0-9_-]+$/.test(callId))
-    throw new SpeechProviderError(
-      'openai-conversation',
-      'Call response did not contain a WebRTC call id',
-    );
+  let callId: string | undefined;
   try {
+    const response = await request(
+      callBase(options.baseUrl),
+      { body },
+      options,
+      (headers) => {
+        const value = headers.get('location')?.split('/').pop();
+        if (!value || !/^rtc_[A-Za-z0-9_-]+$/.test(value))
+          throw new SpeechProviderError(
+            'openai-conversation',
+            'Call response did not contain a WebRTC call id',
+          );
+        // Capture identity before consuming a response body that can fail or time out.
+        callId = value;
+      },
+    );
     const answer = await response.text();
     if (!validSdp(answer))
       throw new SpeechProviderError(
@@ -132,13 +140,15 @@ export async function createOpenAIVoiceCall(
         'Call response did not contain a valid SDP answer',
       );
     options.signal?.throwIfAborted();
-    return { answer, callId };
+    return { answer, callId: callId! };
   } catch (error) {
-    // Once identified, a rejected/aborted call must not remain billable.
-    await hangupOpenAIVoiceCall(callId, {
-      ...options,
-      signal: undefined,
-    }).catch(() => undefined);
+    if (callId) {
+      try {
+        await hangupOpenAIVoiceCall(callId, { ...options, signal: undefined });
+      } catch {
+        throw new VoiceCallSetupError(callId);
+      }
+    }
     throw error;
   }
 }
@@ -200,6 +210,7 @@ async function request(
   url: string,
   init: RequestInit,
   options: OpenAIVoiceCallControlOptions,
+  onHeaders?: (headers: Headers) => void,
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(
@@ -223,13 +234,8 @@ async function request(
         'OpenAI voice call request failed',
         { status: response.status },
       );
-    // Keep the timeout active while consuming the response body too.
-    const body = await response.text();
-    if (body.length > 65_536)
-      throw new SpeechProviderError(
-        'openai-conversation',
-        'Voice call response exceeded its size limit',
-      );
+    onHeaders?.(response.headers);
+    const body = await readBody(response, signal);
     return new Response(response.status === 204 ? null : body, {
       status: response.status,
       headers: response.headers,
@@ -245,5 +251,55 @@ async function request(
     );
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Failed setup whose cleanup also failed. The host must reserve admission and retry termination. */
+export class VoiceCallSetupError extends SpeechProviderError {
+  constructor(readonly callId: string) {
+    super(
+      'openai-conversation',
+      'Voice setup failed and termination needs retry',
+    );
+  }
+}
+
+async function readBody(
+  response: Response,
+  signal: AbortSignal,
+): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const cancel = () => {
+    void reader.cancel().catch(() => undefined);
+  };
+  signal.addEventListener('abort', cancel, { once: true });
+  try {
+    while (true) {
+      signal.throwIfAborted();
+      const { done, value } = await reader.read();
+      signal.throwIfAborted();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 65_536)
+        throw new SpeechProviderError(
+          'openai-conversation',
+          'Voice call response exceeded its size limit',
+        );
+      chunks.push(value);
+    }
+    const data = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      data.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return new TextDecoder().decode(data);
+  } finally {
+    signal.removeEventListener('abort', cancel);
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
 }

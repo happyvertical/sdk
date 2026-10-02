@@ -396,3 +396,63 @@ describe('server call lifecycle', () => {
     ).rejects.toThrow('transport failed');
   });
 });
+
+describe('review regressions: manual audio turns and post-header setup failure', () => {
+  const config = { apiKey: 'test-key', model: 'test-model' };
+  it('commits manual microphone input before creating a reply', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.commitInput();
+    expect(f.sent).toEqual([
+      { type: 'input_audio_buffer.commit' },
+      { type: 'response.create' },
+    ]);
+    f.session.commitInput(false);
+    expect(f.sent.at(-1)).toEqual({ type: 'input_audio_buffer.commit' });
+    f.session.close();
+  });
+  it.each([
+    'oversize',
+    'broken',
+    'stalled',
+  ])('terminates identified calls after %s response body failure', async (mode) => {
+    const body =
+      mode === 'oversize'
+        ? 'a'.repeat(65537)
+        : new ReadableStream({
+            start(controller) {
+              if (mode === 'broken') controller.error(new Error('body failed'));
+            },
+          });
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(body, {
+          headers: { location: '/v1/realtime/calls/rtc_recovery' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(
+      createOpenAIVoiceCall(SDP, { ...config, fetch, timeoutMs: 15 }),
+    ).rejects.toBeDefined();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[1][0]).toContain('/rtc_recovery/hangup');
+    expect(fetch.mock.calls[1][1].signal.aborted).toBe(false);
+  });
+  it('preserves a recovery handle when setup and hangup both fail', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response('bad answer', {
+          headers: { location: '/v1/realtime/calls/rtc_recovery' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response('failed', { status: 503 }));
+    await expect(
+      createOpenAIVoiceCall(SDP, { ...config, fetch }),
+    ).rejects.toMatchObject({
+      callId: 'rtc_recovery',
+      message: 'Voice setup failed and termination needs retry',
+    });
+  });
+});
