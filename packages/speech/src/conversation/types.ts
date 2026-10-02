@@ -39,7 +39,7 @@ export interface VoiceSession {
   interrupt(): void;
   setMicMuted(muted: boolean): void;
   setOutputMuted(muted: boolean): void;
-  /** Resolve a tool call; policy and execution belong to the host. */
+  /** Submit a tool output without generating a reply. After every tool in the completed response resolves, the host calls respond() once. */
   submitToolResult(callId: string, result: unknown): void;
   /** Idempotently releases tracks, peer connection, playback and listeners. */
   close(): void;

@@ -272,6 +272,8 @@ describe('OpenAI conversational WebRTC session', () => {
     expect(usage).toEqual([{ total_tokens: 7 }]);
     expect(tools).toHaveLength(1);
     f.session.submitToolResult('c', { ok: true });
+    expect(f.sent.at(-1)?.type).toBe('conversation.item.create');
+    f.session.respond();
     expect(f.sent.at(-1)).toEqual({ type: 'response.create' });
     f.session.close();
   });
@@ -481,5 +483,49 @@ describe('microphone revocation', () => {
       'ended',
       expect.any(Function),
     );
+  });
+});
+
+describe('GitHub review regressions', () => {
+  it('submits every parallel tool result before a host requests one continuation', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.submitToolResult('c1', { ok: true });
+    f.session.submitToolResult('c2', { ok: true });
+    expect(f.sent.map((event) => event.type)).toEqual([
+      'conversation.item.create',
+      'conversation.item.create',
+    ]);
+    f.session.respond();
+    expect(f.sent.at(-1)).toEqual({ type: 'response.create' });
+    f.session.close();
+  });
+  it('reports incomplete replies and failed transcription without exposing provider payloads', async () => {
+    const f = fixture();
+    const errors: Error[] = [];
+    f.session.on('error', (error) => errors.push(error));
+    await f.session.connect();
+    f.event({
+      type: 'response.done',
+      response: {
+        status: 'incomplete',
+        status_details: { reason: 'max_output_tokens' },
+      },
+    });
+    f.event({
+      type: 'conversation.item.input_audio_transcription.failed',
+      item_id: 'u',
+      error: { message: 'private provider payload' },
+    });
+    expect(errors.map((error) => error.message)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('incomplete'),
+        expect.stringContaining('transcription'),
+      ]),
+    );
+    expect(errors).toHaveLength(2);
+    expect(f.session.state).toBe('connected');
+    expect(JSON.stringify(errors)).not.toContain('private provider payload');
+    f.session.close();
   });
 });

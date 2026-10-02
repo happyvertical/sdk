@@ -130,6 +130,12 @@ export function createOpenAIWebRTCVoiceSession(
       case 'conversation.item.input_audio_transcription.completed':
         transcript(event.item_id, 'user', event.transcript, true);
         break;
+      case 'conversation.item.input_audio_transcription.failed':
+        emit(
+          'error',
+          new SpeechProviderError(ADAPTER, 'Input transcription failed'),
+        );
+        break;
       case 'response.output_audio_transcript.delta':
         transcript(event.item_id, 'assistant', event.delta, false, true);
         break;
@@ -168,10 +174,15 @@ export function createOpenAIWebRTCVoiceSession(
         emit('response', { active: false, responseId });
         if (response.usage && typeof response.usage === 'object')
           emit('usage', record(response.usage));
-        if (response.status === 'failed')
+        if (response.status === 'failed' || response.status === 'incomplete')
           emit(
             'error',
-            new SpeechProviderError(ADAPTER, 'Voice response failed'),
+            new SpeechProviderError(
+              ADAPTER,
+              response.status === 'incomplete'
+                ? 'Voice response incomplete'
+                : 'Voice response failed',
+            ),
           );
         break;
       }
@@ -421,7 +432,6 @@ export function createOpenAIWebRTCVoiceSession(
           output: JSON.stringify(result),
         },
       });
-      session.respond();
     },
     close() {
       if (state === 'closed') return;
