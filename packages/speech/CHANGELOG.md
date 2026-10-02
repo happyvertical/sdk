@@ -1,5 +1,11 @@
 # @happyvertical/speech
 
+## 0.99.0
+
+### Minor Changes
+
+- a9ed658: Add optional browser WebRTC conversational voice sessions and server call lifecycle helpers for OpenAI Realtime, preserving existing STT/TTS APIs.
+
 ## 0.98.0
 
 ### Minor Changes
