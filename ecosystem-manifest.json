@@ -1306,7 +1306,9 @@
         "On-device STT",
         "Studio Server TTS",
         "Qwen3 TTS",
-        "OpenAI-compatible TTS"
+        "OpenAI-compatible TTS",
+        "OpenAI WebRTC conversational voice",
+        "Server call creation/termination"
       ],
       "requires": {
         "workspace": [],
@@ -1935,6 +1937,16 @@
       "type": "implements",
       "from": "@happyvertical/speech",
       "to": "OpenAI-compatible TTS"
+    },
+    {
+      "type": "implements",
+      "from": "@happyvertical/speech",
+      "to": "OpenAI WebRTC conversational voice"
+    },
+    {
+      "type": "implements",
+      "from": "@happyvertical/speech",
+      "to": "Server call creation/termination"
     },
     {
       "type": "provides",

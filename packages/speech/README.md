@@ -415,3 +415,36 @@ HV_SPEECH_MODEL_TESTS=1 pnpm --filter @happyvertical/speech test local-transcrib
 Docker or Testcontainers integration suites should run the fixture services or Studio Server with mock backends. Model-backed tests must remain opt-in, for example behind `HV_SPEECH_MODEL_TESTS=1`, so the normal SDK suite never downloads model weights.
 
 On Apple Silicon, run model-backed Qwen tests with a host-native Metal/MLX runtime or against a remote cluster service; Docker contract tests should continue using mock backends because Linux containers do not expose the host Metal runtime.
+
+## Conversational voice (OpenAI WebRTC)
+
+`@happyvertical/speech/conversation` is an optional browser-safe speech-to-speech session API. It is separate from `getStreamingTranscriber()`: transcription sessions recognize audio, while conversational sessions also generate replies and audio. Existing STT/TTS entry points remain compatible.
+
+```typescript
+import { createOpenAIWebRTCVoiceSession } from '@happyvertical/speech/conversation';
+
+const voice = createOpenAIWebRTCVoiceSession({
+  getMicrophone: () => navigator.mediaDevices.getUserMedia({ audio: true }),
+  negotiate: async (offer, signal) => {
+    const response = await fetch('/api/voice/call', { method: 'POST', body: offer, signal });
+    if (!response.ok) throw new Error('Voice unavailable');
+    return response.text();
+  },
+});
+voice.on('transcript', (turn) => renderTurn(turn)); // upsert by itemId
+voice.on('speaking', (active) => animatePlayback(active));
+await voice.connect();
+voice.sendText('What can you help me with?');
+// voice.interrupt(); voice.setMicMuted(true); voice.setOutputMuted(true);
+voice.close();
+```
+
+The host server imports `createOpenAIVoiceCall` and `hangupOpenAIVoiceCall` from `@happyvertical/speech/conversation/server`. Call creation accepts the SDP offer and a server-owned model, voice (default `marin`), instructions, optional transcription model, turn detection and tools. It returns `{ answer, callId }`; return only the answer to the browser and retain the call id for termination. The browser never receives a long-lived provider key. Optional server helpers are not reachable from the browser conversation entry or the core entry.
+
+The host owns authorization, tenant/session attribution, origin checks, request/admission limits, idle/hard timeouts and server-side termination. Configuration sent at creation is not an immutable authorization boundary: an untrusted WebRTC client can send protocol events. Use provider spend controls and server-side monitoring when enforcing call policy. Never expose privileged tools to an anonymous client. Creating a call is not automatically retried because a retry may create another billable session.
+
+A session takes ownership of the stream returned by `getMicrophone`, including stopping tracks returned after cancellation. `connect()` coalesces pending requests; closed/failed sessions are terminal. `close()` releases playback, tracks, peer/data channel and listeners. The host must separately end its server call lease, including on client negotiation failure. Connection timeout includes permission acquisition; a late permission grant is cleaned up. Unexpected channel/peer loss fails the session; create a new session and explicitly restore only completed history rather than replaying unacknowledged audio.
+
+Transcript events contain `itemId`, `role`, full accumulated `text` and `final`. Final transcripts are deduplicated. Input transcription is an optional asynchronous side channel and does not drive model replies. `speaking` follows WebRTC output-buffer playback events, while `response` describes generation. Muting input disables tracks and clears buffered input; muting output silences playback independently. `interrupt()` cancels active generation and clears queued playback; OpenAI WebRTC handles interruption history truncation. Recoverable provider/playback errors emit `error`; callers should show an actionable status. No raw audio is retained by this adapter.
+
+Protocol reference: [OpenAI WebRTC](https://developers.openai.com/api/docs/guides/voice-webrtc), [server controls](https://developers.openai.com/api/docs/guides/voice-server-controls). Real media behavior still requires browser QA; deterministic transport tests do not prove microphone permissions or echo cancellation.
