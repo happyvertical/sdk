@@ -8,6 +8,7 @@ import {
   AuthenticationError,
   ConflictError,
   ConnectionError,
+  DirectoryError,
   NotFoundError,
   ValidationError,
 } from '../shared/errors.js';
@@ -97,6 +98,22 @@ describe('StalwartAdapter', () => {
       expect(user.username).toBe('alice');
       expect(user.displayName).toBe('Alice Smith');
       expect(user.email).toBe('alice@example.com');
+    });
+
+    it('unwraps a current Stalwart management API response', async () => {
+      mockRequest({
+        data: {
+          name: 'alice',
+          description: 'Alice Smith',
+          type: 'individual',
+          emails: ['alice@example.com'],
+        },
+      });
+
+      await expect(adapter.getUser('alice')).resolves.toMatchObject({
+        username: 'alice',
+        email: 'alice@example.com',
+      });
     });
 
     it('should throw NotFoundError for missing user', async () => {
@@ -337,6 +354,54 @@ describe('StalwartAdapter', () => {
         id: 'contact-bentley',
         email: 'contact@bentleyalberta.com',
       });
+    });
+
+    it('finds a mailbox through paginated current Stalwart principal responses', async () => {
+      mockRequest({
+        data: {
+          items: [{ name: 'contact-other', type: 'individual' }],
+          total: 2,
+        },
+      });
+      mockRequest({
+        data: {
+          items: [{ name: 'contact-bentley', type: 'individual' }],
+          total: 2,
+        },
+      });
+      mockRequest({
+        data: {
+          name: 'contact-other',
+          type: 'individual',
+          emails: ['contact@other.example'],
+        },
+      });
+      mockRequest({
+        data: {
+          name: 'contact-bentley',
+          type: 'individual',
+          emails: ['contact@bentleyalberta.com'],
+        },
+      });
+
+      await expect(
+        adapter.findMailboxByEmail('contact@bentleyalberta.com'),
+      ).resolves.toMatchObject({ id: 'contact-bentley' });
+
+      expect(mockFetch.mock.calls[0][0]).toContain(
+        '/api/principal?types=individual&page=1&limit=100',
+      );
+      expect(mockFetch.mock.calls[1][0]).toContain(
+        '/api/principal?types=individual&page=2&limit=100',
+      );
+    });
+
+    it('fails closed for a current principal page without items', async () => {
+      mockRequest({ data: { total: 1 } });
+
+      await expect(
+        adapter.findMailboxByEmail('contact@bentleyalberta.com'),
+      ).rejects.toThrow(DirectoryError);
     });
 
     it('returns null when no mailbox has the requested full address', async () => {

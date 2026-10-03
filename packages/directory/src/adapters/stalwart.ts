@@ -50,6 +50,11 @@ interface StalwartPrincipal {
   [key: string]: unknown;
 }
 
+interface StalwartPrincipalPage {
+  items?: StalwartPrincipal[];
+  total?: number;
+}
+
 export class StalwartAdapter implements StalwartDirectoryAdapter {
   private readonly options: StalwartOptions;
   private readonly authHeader: string;
@@ -109,7 +114,16 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
       const text = await response.text();
       if (!text) return undefined as T;
       try {
-        return JSON.parse(text) as T;
+        const parsed = JSON.parse(text) as unknown;
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed) &&
+          'data' in parsed
+        ) {
+          return (parsed as { data: T }).data;
+        }
+        return parsed as T;
       } catch {
         return text as T;
       }
@@ -143,7 +157,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
 
   async testConnection(): Promise<boolean> {
     try {
-      await this.request('GET', '/api/principal?type=individual&limit=1');
+      await this.request('GET', '/api/principal?types=individual&limit=1');
       return true;
     } catch (error) {
       if (error instanceof AuthenticationError) {
@@ -201,10 +215,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   }
 
   async listUsers(): Promise<DirectoryUser[]> {
-    const names = await this.request<string[]>(
-      'GET',
-      '/api/principal?type=individual',
-    );
+    const names = await this.listPrincipalNames('individual');
     const users = await Promise.all(
       (names ?? []).map((name) => this.getUser(name)),
     );
@@ -256,10 +267,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   }
 
   async listGroups(): Promise<DirectoryGroup[]> {
-    const names = await this.request<string[]>(
-      'GET',
-      '/api/principal?type=group',
-    );
+    const names = await this.listPrincipalNames('group');
     const groups = await Promise.all(
       (names ?? []).map((name) => this.getGroup(name)),
     );
@@ -352,10 +360,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   }
 
   async listDomains(): Promise<MailDomain[]> {
-    const names = await this.request<string[]>(
-      'GET',
-      '/api/principal?type=domain',
-    );
+    const names = await this.listPrincipalNames('domain');
     const domains = await Promise.all(
       (names ?? []).map((name) => this.getDomain(name)),
     );
@@ -416,10 +421,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
 
   async findMailboxByEmail(email: string): Promise<Mailbox | null> {
     this.assertMailboxEmail(email);
-    const names = await this.request<string[]>(
-      'GET',
-      '/api/principal?type=individual',
-    );
+    const names = await this.listPrincipalNames('individual');
     const principals = await Promise.all(
       (names ?? []).map((name) =>
         this.request<StalwartPrincipal>(
@@ -497,10 +499,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   }
 
   async listMailboxes(): Promise<Mailbox[]> {
-    const names = await this.request<string[]>(
-      'GET',
-      '/api/principal?type=individual',
-    );
+    const names = await this.listPrincipalNames('individual');
     const mailboxes = await Promise.all(
       (names ?? []).map((name) => this.getMailbox(name)),
     );
@@ -510,6 +509,55 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   // ==========================================================================
   // Principal Mapping Helpers
   // ==========================================================================
+
+  private async listPrincipalNames(
+    type: StalwartPrincipal['type'],
+  ): Promise<string[]> {
+    const names: string[] = [];
+    let page = 1;
+    let fetched = 0;
+    let total = 0;
+
+    do {
+      const result = await this.request<string[] | StalwartPrincipalPage>(
+        'GET',
+        `/api/principal?types=${encodeURIComponent(type)}&page=${page}&limit=100`,
+      );
+
+      if (Array.isArray(result)) {
+        return result;
+      }
+
+      const items = result?.items;
+      if (!Array.isArray(items)) {
+        throw new DirectoryError(
+          'Stalwart principal list response did not include an items array',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
+
+      if (items.length === 0 && fetched < (result.total ?? 0)) {
+        throw new DirectoryError(
+          'Stalwart principal list pagination ended before the reported total',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
+
+      names.push(
+        ...items
+          .filter((principal) => principal.type === type)
+          .map((principal) => principal.name)
+          .filter((name): name is string => Boolean(name)),
+      );
+      fetched += items.length;
+      total = result.total ?? items.length;
+      page += 1;
+    } while (fetched < total);
+
+    return names;
+  }
 
   private principalToUser(principal: StalwartPrincipal): DirectoryUser {
     return {
