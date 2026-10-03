@@ -186,6 +186,27 @@ export interface CreateMailboxInput {
   quota?: number;
 }
 
+/**
+ * Desired mailbox state for a caller that owns a stable Stalwart principal id.
+ *
+ * `ensureMailbox` never changes the credentials of an existing mailbox found
+ * by `email`; `password` is used only when the mailbox must be created.
+ */
+export interface EnsureMailboxInput extends CreateMailboxInput {
+  principalId: string;
+}
+
+/**
+ * Result of reconciling a mailbox address.
+ *
+ * Callers must use `created` to decide whether it is safe to persist the
+ * supplied credential: an existing mailbox keeps its original credential.
+ */
+export interface EnsureMailboxResult {
+  mailbox: Mailbox;
+  created: boolean;
+}
+
 export interface UpdateMailboxInput {
   name?: string;
   password?: string;
@@ -207,6 +228,14 @@ export interface StalwartDirectoryAdapter extends DirectoryAdapter {
   // Mailbox CRUD
   createMailbox(input: CreateMailboxInput): Promise<Mailbox>;
   getMailbox(id: string): Promise<Mailbox>;
+  /** Find a mailbox by its complete primary email address. */
+  findMailboxByEmail(email: string): Promise<Mailbox | null>;
+  /**
+   * Return the mailbox for `email`, creating it under `principalId` only when
+   * that address does not already exist. Existing credentials are preserved;
+   * `created` reports whether this call created the mailbox.
+   */
+  ensureMailbox(input: EnsureMailboxInput): Promise<EnsureMailboxResult>;
   updateMailbox(id: string, input: UpdateMailboxInput): Promise<Mailbox>;
   deleteMailbox(id: string): Promise<void>;
   listMailboxes(): Promise<Mailbox[]>;

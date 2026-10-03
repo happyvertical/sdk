@@ -12,6 +12,7 @@ import {
   ConnectionError,
   DirectoryError,
   NotFoundError,
+  ValidationError,
 } from '../shared/errors.js';
 import type {
   CreateDkimKeyInput,
@@ -23,6 +24,8 @@ import type {
   DirectoryUser,
   DkimKey,
   DnsRecord,
+  EnsureMailboxInput,
+  EnsureMailboxResult,
   Mailbox,
   MailDomain,
   StalwartDirectoryAdapter,
@@ -46,6 +49,11 @@ interface StalwartPrincipal {
   quota?: number;
   secrets?: string[];
   [key: string]: unknown;
+}
+
+interface StalwartPrincipalPage {
+  items?: StalwartPrincipal[];
+  total?: number;
 }
 
 export class StalwartAdapter implements StalwartDirectoryAdapter {
@@ -107,7 +115,16 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
       const text = await response.text();
       if (!text) return undefined as T;
       try {
-        return JSON.parse(text) as T;
+        const parsed = JSON.parse(text) as unknown;
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed) &&
+          'data' in parsed
+        ) {
+          return (parsed as { data: T }).data;
+        }
+        return parsed as T;
       } catch {
         return text as T;
       }
@@ -141,7 +158,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
 
   async testConnection(): Promise<boolean> {
     try {
-      await this.request('GET', '/api/principal?type=individual&limit=1');
+      await this.request('GET', '/api/principal?types=individual&limit=1');
       return true;
     } catch (error) {
       if (error instanceof AuthenticationError) {
@@ -199,10 +216,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   }
 
   async listUsers(): Promise<DirectoryUser[]> {
-    const names = await this.request<string[]>(
-      'GET',
-      '/api/principal?type=individual',
-    );
+    const names = await this.listPrincipalNames('individual');
     const users = await Promise.all(
       (names ?? []).map((name) => this.getUser(name)),
     );
@@ -254,10 +268,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   }
 
   async listGroups(): Promise<DirectoryGroup[]> {
-    const names = await this.request<string[]>(
-      'GET',
-      '/api/principal?type=group',
-    );
+    const names = await this.listPrincipalNames('group');
     const groups = await Promise.all(
       (names ?? []).map((name) => this.getGroup(name)),
     );
@@ -350,10 +361,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   }
 
   async listDomains(): Promise<MailDomain[]> {
-    const names = await this.request<string[]>(
-      'GET',
-      '/api/principal?type=domain',
-    );
+    const names = await this.listPrincipalNames('domain');
     const domains = await Promise.all(
       (names ?? []).map((name) => this.getDomain(name)),
     );
@@ -401,17 +409,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
     const atIndex = input.email.indexOf('@');
     const localPart =
       atIndex >= 0 ? input.email.slice(0, atIndex) : input.email;
-    const principal: StalwartPrincipal = {
-      name: localPart,
-      type: 'individual',
-      description: input.name,
-      emails: [input.email],
-      secrets: [input.password],
-      quota: input.quota,
-    };
-
-    await this.request('POST', '/api/principal', principal);
-    return this.getMailbox(localPart);
+    return this.createMailboxWithPrincipalId(input, localPart);
   }
 
   async getMailbox(id: string): Promise<Mailbox> {
@@ -420,6 +418,71 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
       `/api/principal/${encodeURIComponent(id)}`,
     );
     return this.principalToMailbox(principal);
+  }
+
+  async findMailboxByEmail(email: string): Promise<Mailbox | null> {
+    this.assertMailboxEmail(email);
+    const names = await this.listPrincipalNames('individual');
+    const principals = await Promise.all(
+      (names ?? []).map((name) =>
+        this.request<StalwartPrincipal>(
+          'GET',
+          `/api/principal/${encodeURIComponent(name)}`,
+        ),
+      ),
+    );
+    const principal = principals.find((entry) => entry.emails?.includes(email));
+    return principal ? this.principalToMailbox(principal, email) : null;
+  }
+
+  async ensureMailbox(input: EnsureMailboxInput): Promise<EnsureMailboxResult> {
+    this.assertMailboxEmail(input.email);
+    if (!input.principalId.trim()) {
+      throw new ValidationError(
+        'Mailbox principalId must not be empty',
+        PROVIDER,
+      );
+    }
+
+    const existing = await this.findMailboxByEmail(input.email);
+    if (existing) {
+      return { mailbox: existing, created: false };
+    }
+
+    try {
+      const mailbox = await this.createMailboxWithPrincipalId(
+        input,
+        input.principalId,
+      );
+      return { mailbox, created: true };
+    } catch (error) {
+      if (!(error instanceof ConflictError)) {
+        throw error;
+      }
+
+      const concurrentlyCreated = await this.findMailboxByEmail(input.email);
+      if (concurrentlyCreated) {
+        return { mailbox: concurrentlyCreated, created: false };
+      }
+      throw new ConflictError('mailbox principal', input.principalId, PROVIDER);
+    }
+  }
+
+  private async createMailboxWithPrincipalId(
+    input: CreateMailboxInput,
+    principalId: string,
+  ): Promise<Mailbox> {
+    const principal: StalwartPrincipal = {
+      name: principalId,
+      type: 'individual',
+      description: input.name,
+      emails: [input.email],
+      secrets: [input.password],
+      quota: input.quota,
+    };
+
+    await this.request('POST', '/api/principal', principal);
+    return this.getMailbox(principalId);
   }
 
   async updateMailbox(id: string, input: UpdateMailboxInput): Promise<Mailbox> {
@@ -441,10 +504,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   }
 
   async listMailboxes(): Promise<Mailbox[]> {
-    const names = await this.request<string[]>(
-      'GET',
-      '/api/principal?type=individual',
-    );
+    const names = await this.listPrincipalNames('individual');
     const mailboxes = await Promise.all(
       (names ?? []).map((name) => this.getMailbox(name)),
     );
@@ -454,6 +514,85 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   // ==========================================================================
   // Principal Mapping Helpers
   // ==========================================================================
+
+  private async listPrincipalNames(
+    type: StalwartPrincipal['type'],
+  ): Promise<string[]> {
+    const names: string[] = [];
+    let page = 1;
+    let fetched = 0;
+    let total = 0;
+
+    do {
+      const result = await this.request<string[] | StalwartPrincipalPage>(
+        'GET',
+        `/api/principal?types=${encodeURIComponent(type)}&page=${page}&limit=100`,
+      );
+
+      if (Array.isArray(result)) {
+        return result;
+      }
+
+      const items = result?.items;
+      if (!Array.isArray(items)) {
+        throw new DirectoryError(
+          'Stalwart principal list response did not include an items array',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
+
+      const declaredTotal = result.total;
+      if (
+        typeof declaredTotal !== 'number' ||
+        !Number.isSafeInteger(declaredTotal) ||
+        declaredTotal < 0
+      ) {
+        throw new DirectoryError(
+          'Stalwart principal list response did not include a valid total',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
+
+      if (
+        items.some(
+          (principal) =>
+            principal.type !== type ||
+            typeof principal.name !== 'string' ||
+            !principal.name,
+        )
+      ) {
+        throw new DirectoryError(
+          'Stalwart principal list response included an invalid principal',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
+
+      if (items.length === 0 && fetched < declaredTotal) {
+        throw new DirectoryError(
+          'Stalwart principal list pagination ended before the reported total',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
+
+      names.push(...items.map((principal) => principal.name));
+      fetched += items.length;
+      total = declaredTotal;
+      if (fetched > total) {
+        throw new DirectoryError(
+          'Stalwart principal list response exceeded the reported total',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
+      page += 1;
+    } while (fetched < total);
+
+    return names;
+  }
 
   private principalToUser(principal: StalwartPrincipal): DirectoryUser {
     return {
@@ -476,11 +615,29 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
     };
   }
 
-  private principalToMailbox(principal: StalwartPrincipal): Mailbox {
+  private assertMailboxEmail(email: string): void {
+    const atIndex = email.indexOf('@');
+    if (
+      atIndex <= 0 ||
+      atIndex !== email.lastIndexOf('@') ||
+      atIndex === email.length - 1 ||
+      /\s/.test(email)
+    ) {
+      throw new ValidationError(
+        `Invalid mailbox email address: ${email}`,
+        PROVIDER,
+      );
+    }
+  }
+
+  private principalToMailbox(
+    principal: StalwartPrincipal,
+    matchedEmail?: string,
+  ): Mailbox {
     return {
       id: principal.name,
       name: principal.description ?? principal.name,
-      email: principal.emails?.[0] ?? '',
+      email: matchedEmail ?? principal.emails?.[0] ?? '',
       quota: principal.quota,
       active: true,
     };
