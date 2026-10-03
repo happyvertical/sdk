@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.99.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - make QuickBooks invoice retries request-ID safe (#1324) (accounting)
+
 ## 0.99.0
 
 ## 0.98.0
