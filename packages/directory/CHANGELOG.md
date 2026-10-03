@@ -1,5 +1,16 @@
 # @happyvertical/directory
 
+## 0.100.0
+
+### Minor Changes
+
+- 78a888e: Add full-address Stalwart mailbox lookup and idempotent mailbox reconciliation
+  with creation provenance for safe credential persistence.
+
+### Patch Changes
+
+- @happyvertical/utils@0.100.0
+
 ## 0.99.1
 
 ### Patch Changes
