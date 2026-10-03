@@ -237,6 +237,13 @@ export class QuickBooksProvider implements AccountingProvider {
     const timeout = this.options.timeout ?? 30000;
     const maxRetries =
       method === 'GET' || requestId ? (this.options.maxRetries ?? 3) : 0;
+    const responseEntity = [
+      'Customer',
+      'Vendor',
+      'Bill',
+      'Invoice',
+      'Payment',
+    ].find((entity) => entity.toLowerCase() === endpoint.split(/[/?]/, 1)[0]);
     const accessToken = await this.ensureAccessToken();
     let uncertain = false;
 
@@ -263,15 +270,15 @@ export class QuickBooksProvider implements AccountingProvider {
           );
         }
         const result = await response.json();
-        // A successful status without an invoice identity cannot be reconciled locally.
+        // Every supported write must return a usable remote identity. Validate
+        // inside this boundary so malformed successes cannot escape reconciliation.
         if (
-          method === 'POST' &&
-          endpoint === 'invoice' &&
-          (!result?.Invoice ||
-            typeof result.Invoice.Id !== 'string' ||
-            !result.Invoice.Id)
+          method !== 'GET' &&
+          responseEntity &&
+          (typeof result?.[responseEntity]?.Id !== 'string' ||
+            !result[responseEntity].Id.trim())
         ) {
-          throw new Error('QBO invoice response is missing Invoice.Id');
+          throw new Error(`QBO response is missing ${responseEntity}.Id`);
         }
         return result as T;
       } catch (error) {

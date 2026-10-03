@@ -45,7 +45,7 @@ immutability, and concurrency in its outbox. Never prepare a new descriptor with
 an old ID for different contents: a stateless SDK cannot detect that across
 processes. Existing Stripe `idempotencyKey` is not a QuickBooks request ID.
 Descriptors are create-only and are refused with `externalId`; update, send,
-void, payment, customer, vendor, and bill operations do not accept them.
+void, customer, vendor, and bill operations do not accept them.
 
 QuickBooks reads retain automatic retry of transport failures, HTTP 429, and
 5xx responses. Invoice creates with a descriptor retry these failures using
@@ -55,8 +55,7 @@ retries; the default is three retries after the initial attempt. Timeout covers
 reading the response as well as fetching it.
 
 **All unkeyed QuickBooks writes now make one attempt**, including invoice
-creates/updates/send/void, customer/vendor/bill creates and updates, and payment
-recording. This deliberately replaces the previous automatic write retry
+creates/updates/send/void and customer/vendor/bill creates and updates. This deliberately replaces the previous automatic write retry
 behavior, which could duplicate a remotely accepted write. HTTP 429 is also
 single-attempt for those operations. Stripe behavior is unchanged.
 `QuickBooksWriteError` reports `outcome: 'rejected'` for an initial HTTP client

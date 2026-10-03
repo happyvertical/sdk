@@ -325,6 +325,69 @@ describe('QuickBooks invoice request identity', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it.each([
+    'Customer',
+    'Vendor',
+    'Bill',
+  ] as const)('keeps malformed successful %s creates inside the uncertainty boundary', async (entity) => {
+    const p = provider();
+    const input = invoice();
+    const push = () =>
+      entity === 'Customer'
+        ? p.customers.push({ id: 'local', name: 'Customer' })
+        : entity === 'Vendor'
+          ? p.vendors.push({ id: 'local', name: 'Vendor' })
+          : p.bills.push({
+              ...input,
+              vendorId: 'vendor',
+              billDate: input.issueDate,
+            });
+    for (const body of [
+      {},
+      { [entity]: {} },
+      { [entity]: { Id: 123 } },
+      { [entity]: { Id: ' ' } },
+    ]) {
+      const fetcher = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify(body)));
+      vi.stubGlobal('fetch', fetcher);
+      const { error } = await settle(push());
+      expect(error).toBeInstanceOf(QuickBooksWriteError);
+      expect(error).toMatchObject({
+        outcome: 'unknown',
+        endpoint: entity.toLowerCase(),
+        realmId: 'realm-a',
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ [entity]: { Id: 'remote-valid' } })),
+        ),
+    );
+    expect((await settle(push())).value?.externalId).toBe('remote-valid');
+  });
+
+  it.each([
+    'customer',
+    'vendor',
+    'bill',
+    'invoice',
+    'invoice/existing/send',
+    'payment',
+  ])('reports a malformed update/send/write response at %s as uncertain', async (endpoint) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}')));
+    const { error } = await settle(
+      provider().request('POST', endpoint, { Id: 'existing' }),
+    );
+    expect(error).toMatchObject({ outcome: 'unknown', endpoint });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('retains GET retries and honors maxRetries zero', async () => {
     const fetcher = vi
       .fn()
