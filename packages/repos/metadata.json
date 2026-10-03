@@ -2,8 +2,8 @@
   "name": "@happyvertical/repos",
   "path": "packages/repos",
   "position": {
-    "index": 22,
-    "count": 32
+    "index": 23,
+    "count": 33
   },
   "description": "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps",
   "provides": [

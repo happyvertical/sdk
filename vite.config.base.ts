@@ -105,6 +105,7 @@ export function createPackageConfig(
           '@aws-sdk/credential-providers',
           /^@aws-sdk\//, // Externalize all AWS SDK packages
           'date-fns',
+          'ical.js',
           'pluralize',
           'uuid',
           '@paralleldrive/cuid2',

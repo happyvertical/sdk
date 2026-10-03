@@ -7,7 +7,7 @@ Standardized caching interface supporting Memory, File, and Redis backends
 ## Package Map
 - Package: `@happyvertical/cache`
 - Hierarchy path: `@happyvertical/sdk > packages > cache`
-- Workspace position: `5 of 32` local packages
+- Workspace position: `5 of 33` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: `@happyvertical/geo`, `@happyvertical/translator`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/cache clean
 - Requires: @happyvertical/utils, @aws-sdk/client-s3, @aws-sdk/credential-providers, redis
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

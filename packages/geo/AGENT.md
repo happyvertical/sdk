@@ -7,7 +7,7 @@ Standardized geographical information interface supporting Google Maps and OpenS
 ## Package Map
 - Package: `@happyvertical/geo`
 - Hierarchy path: `@happyvertical/sdk > packages > geo`
-- Workspace position: `12 of 32` local packages
+- Workspace position: `12 of 33` local packages
 - Internal dependencies: `@happyvertical/cache`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/geo clean
 - Requires: @happyvertical/cache, @happyvertical/utils, @googlemaps/google-maps-services-js, @photostructure/tz-lookup
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

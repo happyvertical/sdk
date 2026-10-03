@@ -7,7 +7,7 @@ Foundation utilities for ID generation, date parsing, URL handling, string conve
 ## Package Map
 - Package: `@happyvertical/utils`
 - Hierarchy path: `@happyvertical/sdk > packages > utils`
-- Workspace position: `30 of 32` local packages
+- Workspace position: `31 of 33` local packages
 - Internal dependencies: none
 - Internal dependents: `@happyvertical/accounting`, `@happyvertical/ai`, `@happyvertical/analytics`, `@happyvertical/auth`, `@happyvertical/cache`, `@happyvertical/comfyui`, `@happyvertical/directory`, `@happyvertical/documents`, `@happyvertical/email`, `@happyvertical/encryption`, `@happyvertical/files`, `@happyvertical/geo`, `@happyvertical/jobs`, `@happyvertical/logger`, `@happyvertical/messages`, `@happyvertical/sdk-mcp`, `@happyvertical/secrets`, `@happyvertical/social`, `@happyvertical/sql`, `@happyvertical/translator`, `@happyvertical/video`, `@happyvertical/weather`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/utils clean
 - Requires: @paralleldrive/cuid2, date-fns, pluralize, uuid
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

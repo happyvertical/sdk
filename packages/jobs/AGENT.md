@@ -7,7 +7,7 @@ Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, 
 ## Package Map
 - Package: `@happyvertical/jobs`
 - Hierarchy path: `@happyvertical/sdk > packages > jobs`
-- Workspace position: `16 of 32` local packages
+- Workspace position: `17 of 33` local packages
 - Internal dependencies: `@happyvertical/sql`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/jobs clean
 - Requires: @happyvertical/sql, @happyvertical/utils, @aws-sdk/client-sqs, @google-cloud/tasks, bull, bullmq
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

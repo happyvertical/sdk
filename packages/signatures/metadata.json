@@ -2,8 +2,8 @@
   "name": "@happyvertical/signatures",
   "path": "packages/signatures",
   "position": {
-    "index": 25,
-    "count": 32
+    "index": 26,
+    "count": 33
   },
   "description": "Provider-neutral e-signature workflows with a BoldSign adapter",
   "provides": [

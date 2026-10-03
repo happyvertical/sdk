@@ -7,7 +7,7 @@ Unified encryption and cryptography operations with adapter-based architecture
 ## Package Map
 - Package: `@happyvertical/encryption`
 - Hierarchy path: `@happyvertical/sdk > packages > encryption`
-- Workspace position: `10 of 32` local packages
+- Workspace position: `10 of 33` local packages
 - Internal dependencies: `@happyvertical/logger`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/encryption typecheck
 - Requires: @happyvertical/logger, @happyvertical/utils, @openpgp/web-stream-tools, openpgp, tweetnacl, tweetnacl-util
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

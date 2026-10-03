@@ -7,7 +7,7 @@ Structured logging for HAVE SDK with signal adapter
 ## Package Map
 - Package: `@happyvertical/logger`
 - Hierarchy path: `@happyvertical/sdk > packages > logger`
-- Workspace position: `18 of 32` local packages
+- Workspace position: `19 of 33` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: `@happyvertical/comfyui`, `@happyvertical/email`, `@happyvertical/encryption`, `@happyvertical/messages`, `@happyvertical/social`, `@happyvertical/video`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/logger typecheck
 - Requires: @happyvertical/utils, @sentry/node
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

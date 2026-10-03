@@ -3,7 +3,7 @@
   "path": "packages/documents",
   "position": {
     "index": 8,
-    "count": 32
+    "count": 33
   },
   "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
   "provides": [

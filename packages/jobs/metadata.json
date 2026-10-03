@@ -2,8 +2,8 @@
   "name": "@happyvertical/jobs",
   "path": "packages/jobs",
   "position": {
-    "index": 16,
-    "count": 32
+    "index": 17,
+    "count": 33
   },
   "description": "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)",
   "provides": [

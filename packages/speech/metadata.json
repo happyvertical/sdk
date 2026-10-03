@@ -2,8 +2,8 @@
   "name": "@happyvertical/speech",
   "path": "packages/speech",
   "position": {
-    "index": 27,
-    "count": 32
+    "index": 28,
+    "count": 33
   },
   "description": "Speech provider abstraction for STT and TTS backends",
   "provides": [

@@ -7,7 +7,7 @@ MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files
 ## Package Map
 - Package: `@happyvertical/sdk-mcp`
 - Hierarchy path: `@happyvertical/sdk > packages > sdk-mcp`
-- Workspace position: `23 of 32` local packages
+- Workspace position: `24 of 33` local packages
 - Internal dependencies: `@happyvertical/ai`, `@happyvertical/files`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/sdk-mcp clean
 - Requires: @happyvertical/ai, @happyvertical/files, @happyvertical/utils, @modelcontextprotocol/sdk
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

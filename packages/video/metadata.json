@@ -2,8 +2,8 @@
   "name": "@happyvertical/video",
   "path": "packages/video",
   "position": {
-    "index": 31,
-    "count": 32
+    "index": 32,
+    "count": 33
   },
   "description": "Video processing utilities with adapter pattern for composition and transcoding",
   "provides": [

@@ -2,8 +2,8 @@
   "name": "@happyvertical/messages",
   "path": "packages/messages",
   "position": {
-    "index": 19,
-    "count": 32
+    "index": 20,
+    "count": 33
   },
   "description": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)",
   "provides": [

@@ -7,7 +7,7 @@ Provider-neutral e-signature workflows with a BoldSign adapter
 ## Package Map
 - Package: `@happyvertical/signatures`
 - Hierarchy path: `@happyvertical/sdk > packages > signatures`
-- Workspace position: `25 of 32` local packages
+- Workspace position: `26 of 33` local packages
 - Internal dependencies: none
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

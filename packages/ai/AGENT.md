@@ -7,7 +7,7 @@ Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev t
 ## Package Map
 - Package: `@happyvertical/ai`
 - Hierarchy path: `@happyvertical/sdk > packages > ai`
-- Workspace position: `2 of 32` local packages
+- Workspace position: `2 of 33` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: `@happyvertical/sdk-mcp`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/ai clean
 - Requires: @happyvertical/utils, @anthropic-ai/sdk, @aws-sdk/client-bedrock-runtime, @google/genai, openai
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

@@ -7,7 +7,7 @@ Unified analytics interface for Google Analytics 4, Plausible, and more
 ## Package Map
 - Package: `@happyvertical/analytics`
 - Hierarchy path: `@happyvertical/sdk > packages > analytics`
-- Workspace position: `3 of 32` local packages
+- Workspace position: `3 of 33` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/analytics clean
 - Requires: @happyvertical/utils, googleapis
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

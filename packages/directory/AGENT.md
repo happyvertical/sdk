@@ -7,7 +7,7 @@ Unified directory services with adapter-based architecture (Kanidm, Stalwart, Po
 ## Package Map
 - Package: `@happyvertical/directory`
 - Hierarchy path: `@happyvertical/sdk > packages > directory`
-- Workspace position: `7 of 32` local packages
+- Workspace position: `7 of 33` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -31,4 +31,3 @@ pnpm --filter @happyvertical/directory clean
 - Requires: @happyvertical/utils, @aws-sdk/client-iam, @aws-sdk/client-organizations, @aws-sdk/client-sts, pg
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-
