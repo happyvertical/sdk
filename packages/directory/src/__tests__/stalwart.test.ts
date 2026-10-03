@@ -404,6 +404,35 @@ describe('StalwartAdapter', () => {
       ).rejects.toThrow(DirectoryError);
     });
 
+    it('fails closed when current principal pagination metadata is incomplete', async () => {
+      mockRequest({ data: { items: [] } });
+
+      await expect(
+        adapter.ensureMailbox({
+          principalId: 'contact-bentley',
+          name: 'Contact',
+          email: 'contact@bentleyalberta.com',
+          password: 'password',
+        }),
+      ).rejects.toThrow(DirectoryError);
+      expect(
+        mockFetch.mock.calls.some((call) => call[1].method === 'POST'),
+      ).toBe(false);
+    });
+
+    it.each([
+      { name: 'contact-bentley' },
+      { type: 'individual' },
+      { name: '', type: 'individual' },
+      { name: 'contact-bentley', type: 'group' },
+    ])('fails closed for a malformed current principal entry', async (item) => {
+      mockRequest({ data: { items: [item], total: 1 } });
+
+      await expect(
+        adapter.findMailboxByEmail('contact@bentleyalberta.com'),
+      ).rejects.toThrow(DirectoryError);
+    });
+
     it('returns null when no mailbox has the requested full address', async () => {
       mockRequest(['contact-other']);
       mockRequest({

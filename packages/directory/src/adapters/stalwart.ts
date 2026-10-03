@@ -537,7 +537,35 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
         );
       }
 
-      if (items.length === 0 && fetched < (result.total ?? 0)) {
+      const declaredTotal = result.total;
+      if (
+        typeof declaredTotal !== 'number' ||
+        !Number.isSafeInteger(declaredTotal) ||
+        declaredTotal < 0
+      ) {
+        throw new DirectoryError(
+          'Stalwart principal list response did not include a valid total',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
+
+      if (
+        items.some(
+          (principal) =>
+            principal.type !== type ||
+            typeof principal.name !== 'string' ||
+            !principal.name,
+        )
+      ) {
+        throw new DirectoryError(
+          'Stalwart principal list response included an invalid principal',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
+
+      if (items.length === 0 && fetched < declaredTotal) {
         throw new DirectoryError(
           'Stalwart principal list pagination ended before the reported total',
           'INVALID_API_RESPONSE',
@@ -545,14 +573,16 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
         );
       }
 
-      names.push(
-        ...items
-          .filter((principal) => principal.type === type)
-          .map((principal) => principal.name)
-          .filter((name): name is string => Boolean(name)),
-      );
+      names.push(...items.map((principal) => principal.name));
       fetched += items.length;
-      total = result.total ?? items.length;
+      total = declaredTotal;
+      if (fetched > total) {
+        throw new DirectoryError(
+          'Stalwart principal list response exceeded the reported total',
+          'INVALID_API_RESPONSE',
+          PROVIDER,
+        );
+      }
       page += 1;
     } while (fetched < total);
 
