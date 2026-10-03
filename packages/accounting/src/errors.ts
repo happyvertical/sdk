@@ -46,3 +46,39 @@ export class StripeApiError extends Error {
 function str(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
 }
+
+/** A write was rejected, or may have committed and requires caller reconciliation. */
+export class QuickBooksWriteError extends Error {
+  readonly code = 'QBO_WRITE_ERROR';
+  readonly outcome: 'unknown' | 'rejected';
+  readonly realmId: string;
+  readonly environment: 'sandbox' | 'production';
+  readonly endpoint: string;
+  readonly requestId?: string;
+  readonly payloadHash?: string;
+  readonly status?: number;
+
+  constructor(details: {
+    outcome: 'unknown' | 'rejected';
+    realmId: string;
+    environment: 'sandbox' | 'production';
+    endpoint: string;
+    requestId?: string;
+    payloadHash?: string;
+    status?: number;
+    cause: unknown;
+  }) {
+    super(
+      `QuickBooks write outcome ${details.outcome}; reconcile before creating a new request identity`,
+      { cause: details.cause },
+    );
+    this.name = 'QuickBooksWriteError';
+    this.outcome = details.outcome;
+    this.realmId = details.realmId;
+    this.environment = details.environment;
+    this.endpoint = details.endpoint;
+    this.requestId = details.requestId;
+    this.payloadHash = details.payloadHash;
+    this.status = details.status;
+  }
+}

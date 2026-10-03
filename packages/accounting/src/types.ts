@@ -225,14 +225,23 @@ export interface InvoiceLineItemInput {
   periodEnd?: Date;
 }
 
-/**
- * Invoice input for sync operations
- */
+/** Persist this descriptor with the approved invoice before the first QuickBooks create. */
+export interface QuickBooksInvoiceRequest {
+  readonly requestId: string;
+  readonly realmId: string;
+  readonly environment: 'sandbox' | 'production';
+  /** SHA-256 of the exact mapped JSON payload; not an authorization signature. */
+  readonly payloadHash: string;
+}
+
+/** Invoice input for sync operations. */
 export interface InvoiceInput {
   /** Local ID */
   id: string;
   /** External provider ID (if already synced) */
   externalId?: string;
+  /** QuickBooks create-only identity, prepared with prepareQuickBooksInvoiceRequest. */
+  quickbooksRequest?: QuickBooksInvoiceRequest;
   /** Invoice number */
   invoiceNumber: string;
   /** Customer local ID */

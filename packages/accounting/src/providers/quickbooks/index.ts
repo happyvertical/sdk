@@ -8,6 +8,7 @@
 /// <reference path="../../intuit-oauth.d.ts" />
 
 import { createHmac } from 'node:crypto';
+import { QuickBooksWriteError } from '../../errors.js';
 import type {
   AccountingProvider,
   Address,
@@ -32,6 +33,7 @@ import type {
   ListOptions,
   PaymentInput,
   PaymentOperations,
+  QuickBooksInvoiceRequest,
   QuickBooksOptions,
   SyncResult,
   TokenSet,
@@ -40,6 +42,10 @@ import type {
   WebhookEvent,
   WebhookOperations,
 } from '../../types.js';
+import {
+  mapInvoiceToQBO,
+  validateQuickBooksInvoiceRequest,
+} from './invoice-request.js';
 
 // =============================================================================
 // Utility Functions
@@ -203,78 +209,102 @@ export class QuickBooksProvider implements AccountingProvider {
     method: 'GET' | 'POST' | 'DELETE',
     endpoint: string,
     body?: unknown,
+    invoiceRequest?: QuickBooksInvoiceRequest,
   ): Promise<T> {
-    const accessToken = await this.ensureAccessToken();
-    const url = `${this.baseUrl}/v3/company/${this.realmId}/${endpoint}`;
-    const timeout = this.options.timeout || 30000;
-    const maxRetries = this.options.maxRetries || 3;
-
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        try {
-          const response = await fetch(url, {
-            method,
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: body ? JSON.stringify(body) : undefined,
-            signal: controller.signal,
-          });
-
-          clearTimeout(timeoutId);
-
-          if (!response.ok) {
-            const errorText = await response.text();
-
-            // Don't retry client errors (4xx) except rate limiting
-            if (
-              response.status >= 400 &&
-              response.status < 500 &&
-              response.status !== 429
-            ) {
-              throw new Error(
-                `QBO API error (${response.status}): ${errorText}`,
-              );
-            }
-
-            // Retry on server errors and rate limiting
-            throw new Error(`QBO API error (${response.status}): ${errorText}`);
-          }
-
-          return (await response.json()) as T;
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-
-        // Don't retry client errors (4xx except 429) - re-throw immediately
-        const errorMessage = lastError.message;
-        const statusMatch = errorMessage.match(/QBO API error \((\d+)\)/);
-        if (statusMatch) {
-          const status = Number.parseInt(statusMatch[1], 10);
-          if (status >= 400 && status < 500 && status !== 429) {
-            throw lastError;
-          }
-        }
-
-        // Don't retry on abort (timeout) for the last attempt
-        if (attempt < maxRetries) {
-          // Exponential backoff: 1s, 2s, 4s
-          const backoffMs = 2 ** attempt * 1000;
-          await sleep(backoffMs);
-        }
+    // Freeze identity and bytes before any asynchronous work.
+    const serializedBody =
+      body === undefined ? undefined : JSON.stringify(body);
+    const realmId = this.realmId;
+    const environment =
+      this.options.environment === 'production' ? 'production' : 'sandbox';
+    if (invoiceRequest) {
+      if (method !== 'POST' || endpoint !== 'invoice') {
+        throw new Error(
+          'QuickBooks request identity is only supported for invoice creation',
+        );
       }
+      validateQuickBooksInvoiceRequest(
+        invoiceRequest,
+        realmId,
+        environment,
+        serializedBody,
+      );
     }
+    const requestId = invoiceRequest?.requestId;
+    const payloadHash = invoiceRequest?.payloadHash;
+    const url = new URL(`${this.baseUrl}/v3/company/${realmId}/${endpoint}`);
+    if (requestId) url.searchParams.set('requestid', requestId);
+    const timeout = this.options.timeout ?? 30000;
+    const maxRetries =
+      method === 'GET' || requestId ? (this.options.maxRetries ?? 3) : 0;
+    const accessToken = await this.ensureAccessToken();
+    let uncertain = false;
 
-    throw lastError || new Error('Request failed after retries');
+    for (let attempt = 0; ; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      let status: number | undefined;
+      let failure: unknown;
+      try {
+        const response = await fetch(url.toString(), {
+          method,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: serializedBody,
+          signal: controller.signal,
+        });
+        status = response.status;
+        if (!response.ok) {
+          throw new Error(
+            `QBO API error (${status}): ${await response.text()}`,
+          );
+        }
+        const result = await response.json();
+        // A successful status without an invoice identity cannot be reconciled locally.
+        if (
+          method === 'POST' &&
+          endpoint === 'invoice' &&
+          (!result?.Invoice ||
+            typeof result.Invoice.Id !== 'string' ||
+            !result.Invoice.Id)
+        ) {
+          throw new Error('QBO invoice response is missing Invoice.Id');
+        }
+        return result as T;
+      } catch (error) {
+        failure = error;
+        uncertain ||=
+          status === undefined ||
+          status >= 500 ||
+          (status >= 200 && status < 300);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      const retryable =
+        status === undefined ||
+        status === 429 ||
+        status >= 500 ||
+        (status >= 200 && status < 300);
+      if (!retryable || attempt >= maxRetries) {
+        if (method !== 'GET') {
+          throw new QuickBooksWriteError({
+            realmId,
+            environment,
+            endpoint,
+            requestId,
+            status,
+            payloadHash,
+            outcome: uncertain ? 'unknown' : 'rejected',
+            cause: failure,
+          });
+        }
+        throw failure;
+      }
+      await sleep(2 ** attempt * 1000);
+    }
   }
 
   /**
@@ -392,12 +422,17 @@ class QuickBooksInvoiceOperations implements InvoiceOperations {
   constructor(private provider: QuickBooksProvider) {}
 
   async push(invoice: InvoiceInput): Promise<SyncResult> {
+    if (invoice.externalId && invoice.quickbooksRequest)
+      throw new Error(
+        'QuickBooks invoice request identity cannot be used for updates',
+      );
     const qboInvoice = mapInvoiceToQBO(invoice);
 
     const response = await this.provider.request<{ Invoice: QBOInvoice }>(
       'POST',
       'invoice',
       qboInvoice,
+      invoice.quickbooksRequest,
     );
 
     return {
@@ -437,6 +472,10 @@ class QuickBooksInvoiceOperations implements InvoiceOperations {
 
   async sync(invoice: InvoiceInput): Promise<SyncResult> {
     if (invoice.externalId) {
+      if (invoice.quickbooksRequest)
+        throw new Error(
+          'QuickBooks invoice request identity cannot be used for updates',
+        );
       const existing = await this.provider.request<{ Invoice: QBOInvoice }>(
         'GET',
         `invoice/${invoice.externalId}`,
@@ -1033,33 +1072,6 @@ function mapQBOToCustomer(qbo: QBOCustomer): ExternalCustomer {
   };
 }
 
-function mapInvoiceToQBO(invoice: InvoiceInput): QBOInvoiceCreate {
-  if (invoice.collectionMethod === 'charge_automatically') {
-    // QuickBooks cannot charge a stored payment method for an invoice.
-    throw new Error(
-      'QuickBooks does not support charge_automatically invoice collection',
-    );
-  }
-  return {
-    CustomerRef: { value: invoice.customerExternalId || invoice.customerId },
-    DocNumber: invoice.invoiceNumber,
-    TxnDate: formatLocalDate(invoice.issueDate),
-    DueDate: formatLocalDate(invoice.dueDate),
-    Line: invoice.lineItems.map((item, idx) => ({
-      LineNum: idx + 1,
-      Description: item.description,
-      Amount: item.amount ?? item.quantity * item.unitPrice,
-      DetailType: 'SalesItemLineDetail' as const,
-      SalesItemLineDetail: {
-        Qty: item.quantity,
-        UnitPrice: item.unitPrice,
-      },
-    })),
-    CurrencyRef: invoice.currency ? { value: invoice.currency } : undefined,
-    CustomerMemo: invoice.memo ? { value: invoice.memo } : undefined,
-  };
-}
-
 function mapQBOToInvoice(qbo: QBOInvoice): ExternalInvoice {
   const balance = qbo.Balance ?? 0;
   const totalAmount = qbo.TotalAmt ?? 0;
@@ -1290,8 +1302,6 @@ interface QBOInvoiceBase {
   CurrencyRef?: QBORef;
   CustomerMemo?: { value: string };
 }
-
-interface QBOInvoiceCreate extends QBOInvoiceBase {}
 
 interface QBOInvoiceUpdate extends QBOInvoiceBase {
   Id: string;
