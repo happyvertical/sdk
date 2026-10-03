@@ -613,6 +613,70 @@ describe('StalwartAdapter', () => {
   });
 
   describe('error handling', () => {
+    it('unwraps successful Stalwart data responses before mapping error envelopes', async () => {
+      mockRequest({
+        data: {
+          name: 'example.com',
+          type: 'domain',
+        },
+      });
+
+      await expect(adapter.getDomain('example.com')).resolves.toEqual({
+        id: 'example.com',
+        name: 'example.com',
+        active: true,
+      });
+    });
+
+    it('maps an HTTP 200 notFound envelope to NotFoundError', async () => {
+      mockRequest({ error: 'notFound', item: 'test.invalid' });
+
+      await expect(adapter.getDomain('test.invalid')).rejects.toMatchObject({
+        name: 'NotFoundError',
+        code: 'NOT_FOUND',
+        provider: 'stalwart',
+        resourceId: 'test.invalid',
+      });
+    });
+
+    it.each([
+      {
+        envelope: {
+          error: 'fieldAlreadyExists',
+          field: 'name',
+          value: 'alice',
+        },
+        errorType: ConflictError,
+      },
+      {
+        envelope: { error: 'fieldMissing', field: 'name' },
+        errorType: ValidationError,
+      },
+      { envelope: { error: 'unsupported' }, errorType: ValidationError },
+      { envelope: { error: 'assertFailed' }, errorType: ValidationError },
+      { envelope: { error: 'unauthorized' }, errorType: AuthenticationError },
+      { envelope: { error: 'forbidden' }, errorType: AuthenticationError },
+    ])('maps HTTP 200 $envelope.error envelopes to typed errors', async ({
+      envelope,
+      errorType,
+    }) => {
+      mockRequest(envelope);
+
+      await expect(adapter.createUser({ username: 'alice' })).rejects.toThrow(
+        errorType,
+      );
+    });
+
+    it('fails closed for an unknown HTTP 200 error envelope', async () => {
+      mockRequest({ error: 'unexpectedFailure' });
+
+      await expect(adapter.getDomain('test.invalid')).rejects.toMatchObject({
+        name: 'DirectoryError',
+        code: 'API_ERROR',
+        provider: 'stalwart',
+      });
+    });
+
     it('should throw ConflictError on 409', async () => {
       // createUser does POST then would GET, but POST fails with 409
       mockRequest({ error: 'conflict' }, 409);

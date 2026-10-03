@@ -56,6 +56,14 @@ interface StalwartPrincipalPage {
   total?: number;
 }
 
+/** Error envelope returned by the legacy Stalwart management API. */
+interface StalwartManagementError {
+  error: string;
+  field?: string;
+  item?: string;
+  value?: string;
+}
+
 export class StalwartAdapter implements StalwartDirectoryAdapter {
   private readonly options: StalwartOptions;
   private readonly authHeader: string;
@@ -114,20 +122,27 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
     if (response.ok) {
       const text = await response.text();
       if (!text) return undefined as T;
+
+      let parsed: unknown;
       try {
-        const parsed = JSON.parse(text) as unknown;
-        if (
-          parsed &&
-          typeof parsed === 'object' &&
-          !Array.isArray(parsed) &&
-          'data' in parsed
-        ) {
-          return (parsed as { data: T }).data;
-        }
-        return parsed as T;
+        parsed = JSON.parse(text) as unknown;
       } catch {
         return text as T;
       }
+
+      if (this.isManagementError(parsed)) {
+        throw this.toDirectoryError(parsed, path);
+      }
+
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        'data' in parsed
+      ) {
+        return (parsed as { data: T }).data;
+      }
+      return parsed as T;
     }
 
     const errorBody = await response.text().catch(() => '');
@@ -592,6 +607,51 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
     } while (fetched < total);
 
     return names;
+  }
+
+  private isManagementError(value: unknown): value is StalwartManagementError {
+    return (
+      value !== null &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      'error' in value &&
+      typeof value.error === 'string'
+    );
+  }
+
+  private toDirectoryError(
+    error: StalwartManagementError,
+    path: string,
+  ): DirectoryError {
+    switch (error.error) {
+      case 'notFound':
+        return new NotFoundError('resource', error.item ?? path, PROVIDER);
+      case 'fieldAlreadyExists':
+        return new ConflictError(
+          error.field ?? 'resource',
+          error.value ?? path,
+          PROVIDER,
+        );
+      case 'fieldMissing':
+      case 'unsupported':
+      case 'assertFailed':
+        return new ValidationError(
+          `Stalwart API request failed validation: ${error.error}`,
+          PROVIDER,
+        );
+      case 'unauthorized':
+      case 'forbidden':
+        return new AuthenticationError(
+          `Authentication failed: ${error.error}`,
+          PROVIDER,
+        );
+      default:
+        return new DirectoryError(
+          `Stalwart API error: ${error.error}`,
+          'API_ERROR',
+          PROVIDER,
+        );
+    }
   }
 
   private principalToUser(principal: StalwartPrincipal): DirectoryUser {
