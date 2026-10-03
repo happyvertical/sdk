@@ -279,7 +279,7 @@ describe('QuickBooks invoice request identity', () => {
     }
   });
 
-  it('does not retry a keyed definitive rejection', async () => {
+  it('does not retry a keyed client error but preserves logical uncertainty', async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValue(new Response('invalid', { status: 400 }));
@@ -287,10 +287,41 @@ describe('QuickBooks invoice request identity', () => {
     const { error } = await settle(provider().invoices.push(keyed()));
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(error).toMatchObject({
-      outcome: 'rejected',
+      outcome: 'unknown',
       requestId: 'invoice-1',
       status: 400,
     });
+  });
+
+  it('preserves uncertainty after a lost response and a client error on a restarted worker', async () => {
+    const input = keyed();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('accepted remotely, response lost')),
+    );
+    const first = await settle(provider('realm-a', 0).invoices.push(input));
+    expect(first.error).toMatchObject({
+      outcome: 'unknown',
+      requestId: 'invoice-1',
+    });
+    // A durable outbox rehydrates its original descriptor; there is no shared
+    // provider instance, mutable descriptor state, or process-level registry.
+    const replay = {
+      ...invoice(),
+      quickbooksRequest: JSON.parse(JSON.stringify(input.quickbooksRequest)),
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(new Response('rejected later', { status: 400 }));
+    vi.stubGlobal('fetch', fetcher);
+    const second = await settle(provider().invoices.push(replay));
+    expect(second.error).toMatchObject({
+      outcome: 'unknown',
+      requestId: 'invoice-1',
+      status: 400,
+      payloadHash: input.quickbooksRequest!.payloadHash,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it('preserves the identity after retry exhaustion', async () => {

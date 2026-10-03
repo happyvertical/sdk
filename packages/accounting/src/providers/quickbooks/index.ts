@@ -245,7 +245,10 @@ export class QuickBooksProvider implements AccountingProvider {
       'Payment',
     ].find((entity) => entity.toLowerCase() === endpoint.split(/[/?]/, 1)[0]);
     const accessToken = await this.ensureAccessToken();
-    let uncertain = false;
+    // A persisted identity may have been sent by an earlier worker. Without a
+    // durable attempt history, even its first observed 4xx cannot prove that
+    // the logical write was never accepted. Fail closed across process retries.
+    let uncertain = requestId !== undefined;
 
     for (let attempt = 0; ; attempt++) {
       const controller = new AbortController();

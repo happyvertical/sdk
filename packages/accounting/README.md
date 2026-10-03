@@ -58,10 +58,14 @@ reading the response as well as fetching it.
 creates/updates/send/void and customer/vendor/bill creates and updates. This deliberately replaces the previous automatic write retry
 behavior, which could duplicate a remotely accepted write. HTTP 429 is also
 single-attempt for those operations. Stripe behavior is unchanged.
-`QuickBooksWriteError` reports `outcome: 'rejected'` for an initial HTTP client
+`QuickBooksWriteError` reports `outcome: 'rejected'` for an unkeyed HTTP client
 rejection (including 429), or `outcome: 'unknown'` for transport failures,
-server failures, or malformed success responses. After any uncertain attempt,
-a later rejection does not erase the uncertainty. Its realm, environment,
+server failures, or malformed success responses. **Every keyed failure is
+conservatively `unknown`, including HTTP 4xx on the first locally observed
+attempt.** A stateless SDK cannot prove that a persisted identity was never
+sent by an earlier worker. This preserves uncertainty across process restarts
+and later rejections without requiring mutable descriptor state. Client errors
+still receive no automatic retry (except keyed 429 responses). Its realm, environment,
 endpoint, optional request ID/payload hash, HTTP status, and cause support caller
 reconciliation. A local validation or token acquisition error occurs before the
 write and is not wrapped. Never treat an unknown outcome as a clean failure.
