@@ -12,6 +12,7 @@ import {
   ConnectionError,
   DirectoryError,
   NotFoundError,
+  ValidationError,
 } from '../shared/errors.js';
 import type {
   CreateDkimKeyInput,
@@ -23,6 +24,7 @@ import type {
   DirectoryUser,
   DkimKey,
   DnsRecord,
+  EnsureMailboxInput,
   Mailbox,
   MailDomain,
   StalwartDirectoryAdapter,
@@ -401,17 +403,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
     const atIndex = input.email.indexOf('@');
     const localPart =
       atIndex >= 0 ? input.email.slice(0, atIndex) : input.email;
-    const principal: StalwartPrincipal = {
-      name: localPart,
-      type: 'individual',
-      description: input.name,
-      emails: [input.email],
-      secrets: [input.password],
-      quota: input.quota,
-    };
-
-    await this.request('POST', '/api/principal', principal);
-    return this.getMailbox(localPart);
+    return this.createMailboxWithPrincipalId(input, localPart);
   }
 
   async getMailbox(id: string): Promise<Mailbox> {
@@ -420,6 +412,70 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
       `/api/principal/${encodeURIComponent(id)}`,
     );
     return this.principalToMailbox(principal);
+  }
+
+  async findMailboxByEmail(email: string): Promise<Mailbox | null> {
+    this.assertMailboxEmail(email);
+    const names = await this.request<string[]>(
+      'GET',
+      '/api/principal?type=individual',
+    );
+    const principals = await Promise.all(
+      (names ?? []).map((name) =>
+        this.request<StalwartPrincipal>(
+          'GET',
+          `/api/principal/${encodeURIComponent(name)}`,
+        ),
+      ),
+    );
+    const principal = principals.find((entry) => entry.emails?.includes(email));
+    return principal ? this.principalToMailbox(principal, email) : null;
+  }
+
+  async ensureMailbox(input: EnsureMailboxInput): Promise<Mailbox> {
+    this.assertMailboxEmail(input.email);
+    if (!input.principalId.trim()) {
+      throw new ValidationError(
+        'Mailbox principalId must not be empty',
+        PROVIDER,
+      );
+    }
+
+    const existing = await this.findMailboxByEmail(input.email);
+    if (existing) {
+      return existing;
+    }
+
+    try {
+      return await this.createMailboxWithPrincipalId(input, input.principalId);
+    } catch (error) {
+      if (!(error instanceof ConflictError)) {
+        throw error;
+      }
+
+      const conflictingMailbox = await this.getMailbox(input.principalId);
+      if (conflictingMailbox.email === input.email) {
+        return conflictingMailbox;
+      }
+      throw new ConflictError('mailbox principal', input.principalId, PROVIDER);
+    }
+  }
+
+  private async createMailboxWithPrincipalId(
+    input: CreateMailboxInput,
+    principalId: string,
+  ): Promise<Mailbox> {
+    const principal: StalwartPrincipal = {
+      name: principalId,
+      type: 'individual',
+      description: input.name,
+      emails: [input.email],
+      secrets: [input.password],
+      quota: input.quota,
+    };
+
+    await this.request('POST', '/api/principal', principal);
+    return this.getMailbox(principalId);
   }
 
   async updateMailbox(id: string, input: UpdateMailboxInput): Promise<Mailbox> {
@@ -476,11 +532,29 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
     };
   }
 
-  private principalToMailbox(principal: StalwartPrincipal): Mailbox {
+  private assertMailboxEmail(email: string): void {
+    const atIndex = email.indexOf('@');
+    if (
+      atIndex <= 0 ||
+      atIndex !== email.lastIndexOf('@') ||
+      atIndex === email.length - 1 ||
+      /\s/.test(email)
+    ) {
+      throw new ValidationError(
+        `Invalid mailbox email address: ${email}`,
+        PROVIDER,
+      );
+    }
+  }
+
+  private principalToMailbox(
+    principal: StalwartPrincipal,
+    matchedEmail?: string,
+  ): Mailbox {
     return {
       id: principal.name,
       name: principal.description ?? principal.name,
-      email: principal.emails?.[0] ?? '',
+      email: matchedEmail ?? principal.emails?.[0] ?? '',
       quota: principal.quota,
       active: true,
     };

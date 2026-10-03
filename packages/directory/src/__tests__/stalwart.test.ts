@@ -7,7 +7,9 @@ import { StalwartAdapter } from '../adapters/stalwart.js';
 import {
   AuthenticationError,
   ConflictError,
+  ConnectionError,
   NotFoundError,
+  ValidationError,
 } from '../shared/errors.js';
 import type { StalwartOptions } from '../shared/types.js';
 
@@ -316,6 +318,165 @@ describe('StalwartAdapter', () => {
 
       const mailboxes = await adapter.listMailboxes();
       expect(mailboxes).toHaveLength(2);
+    });
+
+    it('finds a mailbox by its complete email address', async () => {
+      mockRequest(['contact-bentley']);
+      mockRequest({
+        name: 'contact-bentley',
+        description: 'Contact',
+        type: 'individual',
+        emails: ['contact@bentleyalberta.com'],
+      });
+
+      const mailbox = await adapter.findMailboxByEmail(
+        'contact@bentleyalberta.com',
+      );
+
+      expect(mailbox).toMatchObject({
+        id: 'contact-bentley',
+        email: 'contact@bentleyalberta.com',
+      });
+    });
+
+    it('returns null when no mailbox has the requested full address', async () => {
+      mockRequest(['contact-other']);
+      mockRequest({
+        name: 'contact-other',
+        type: 'individual',
+        emails: ['contact@other.example'],
+      });
+
+      await expect(
+        adapter.findMailboxByEmail('contact@bentleyalberta.com'),
+      ).resolves.toBeNull();
+    });
+
+    it('rejects a malformed mailbox address before issuing a request', async () => {
+      await expect(adapter.findMailboxByEmail('not-an-email')).rejects.toThrow(
+        ValidationError,
+      );
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('propagates a Stalwart connection failure while finding an address', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('connection refused'));
+
+      await expect(
+        adapter.findMailboxByEmail('contact@bentleyalberta.com'),
+      ).rejects.toThrow(ConnectionError);
+    });
+
+    it('reuses an existing full-address mailbox without rotating its password', async () => {
+      mockRequest(['contact-bentley']);
+      mockRequest({
+        name: 'contact-bentley',
+        description: 'Contact',
+        type: 'individual',
+        emails: ['contact@bentleyalberta.com'],
+      });
+
+      const mailbox = await adapter.ensureMailbox({
+        principalId: 'contact-bentley',
+        name: 'Contact',
+        email: 'contact@bentleyalberta.com',
+        password: 'new-password-must-not-be-sent',
+      });
+
+      expect(mailbox.id).toBe('contact-bentley');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(
+        mockFetch.mock.calls.some((call) => call[1].method === 'POST'),
+      ).toBe(false);
+      expect(
+        mockFetch.mock.calls.some((call) => call[1].method === 'PATCH'),
+      ).toBe(false);
+    });
+
+    it('creates full-address mailboxes under distinct caller-owned principal ids', async () => {
+      mockRequest([]);
+      mockRequest({});
+      mockRequest({
+        name: 'contact-bentley',
+        description: 'Contact',
+        type: 'individual',
+        emails: ['contact@bentleyalberta.com'],
+      });
+      mockRequest([]);
+      mockRequest({});
+      mockRequest({
+        name: 'contact-lacombe',
+        description: 'Contact',
+        type: 'individual',
+        emails: ['contact@lacombe.news'],
+      });
+
+      await adapter.ensureMailbox({
+        principalId: 'contact-bentley',
+        name: 'Contact',
+        email: 'contact@bentleyalberta.com',
+        password: 'password-1',
+      });
+      await adapter.ensureMailbox({
+        principalId: 'contact-lacombe',
+        name: 'Contact',
+        email: 'contact@lacombe.news',
+        password: 'password-2',
+      });
+
+      const posts = mockFetch.mock.calls.filter(
+        (call) => call[1].method === 'POST',
+      );
+      expect(posts).toHaveLength(2);
+      expect(JSON.parse(posts[0][1].body)).toMatchObject({
+        name: 'contact-bentley',
+        emails: ['contact@bentleyalberta.com'],
+      });
+      expect(JSON.parse(posts[1][1].body)).toMatchObject({
+        name: 'contact-lacombe',
+        emails: ['contact@lacombe.news'],
+      });
+    });
+
+    it('rejects a principal-id conflict bound to a different mailbox address', async () => {
+      mockRequest([]);
+      mockRequest({ error: 'conflict' }, 409);
+      mockRequest({
+        name: 'contact-bentley',
+        type: 'individual',
+        emails: ['contact@other.example'],
+      });
+
+      await expect(
+        adapter.ensureMailbox({
+          principalId: 'contact-bentley',
+          name: 'Contact',
+          email: 'contact@bentleyalberta.com',
+          password: 'password',
+        }),
+      ).rejects.toThrow(ConflictError);
+    });
+
+    it('adopts a mailbox that won a concurrent create race', async () => {
+      mockRequest([]);
+      mockRequest({ error: 'conflict' }, 409);
+      mockRequest({
+        name: 'contact-bentley',
+        type: 'individual',
+        emails: ['contact@bentleyalberta.com'],
+      });
+
+      await expect(
+        adapter.ensureMailbox({
+          principalId: 'contact-bentley',
+          name: 'Contact',
+          email: 'contact@bentleyalberta.com',
+          password: 'password',
+        }),
+      ).resolves.toMatchObject({
+        id: 'contact-bentley',
+        email: 'contact@bentleyalberta.com',
+      });
     });
   });
 

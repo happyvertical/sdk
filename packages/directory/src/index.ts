@@ -71,6 +71,7 @@ export type {
   EnsureAwsAccountInput,
   EnsureAwsIamRoleInput,
   EnsureAwsOuInput,
+  EnsureMailboxInput,
   GetDirectoryAdapterOptions,
   KanidmDirectoryAdapter,
   KanidmOptions,
