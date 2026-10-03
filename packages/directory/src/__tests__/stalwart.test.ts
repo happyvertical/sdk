@@ -441,8 +441,9 @@ describe('StalwartAdapter', () => {
     it('rejects a principal-id conflict bound to a different mailbox address', async () => {
       mockRequest([]);
       mockRequest({ error: 'conflict' }, 409);
+      mockRequest(['contact-other']);
       mockRequest({
-        name: 'contact-bentley',
+        name: 'contact-other',
         type: 'individual',
         emails: ['contact@other.example'],
       });
@@ -460,8 +461,9 @@ describe('StalwartAdapter', () => {
     it('adopts a mailbox that won a concurrent create race', async () => {
       mockRequest([]);
       mockRequest({ error: 'conflict' }, 409);
+      mockRequest(['contact-other-principal']);
       mockRequest({
-        name: 'contact-bentley',
+        name: 'contact-other-principal',
         type: 'individual',
         emails: ['contact@bentleyalberta.com'],
       });
@@ -474,7 +476,30 @@ describe('StalwartAdapter', () => {
           password: 'password',
         }),
       ).resolves.toMatchObject({
-        id: 'contact-bentley',
+        id: 'contact-other-principal',
+        email: 'contact@bentleyalberta.com',
+      });
+    });
+
+    it('adopts a concurrent address when it is not the primary email', async () => {
+      mockRequest([]);
+      mockRequest({ error: 'conflict' }, 409);
+      mockRequest(['contact-other-principal']);
+      mockRequest({
+        name: 'contact-other-principal',
+        type: 'individual',
+        emails: ['primary@bentleyalberta.com', 'contact@bentleyalberta.com'],
+      });
+
+      await expect(
+        adapter.ensureMailbox({
+          principalId: 'contact-bentley',
+          name: 'Contact',
+          email: 'contact@bentleyalberta.com',
+          password: 'password',
+        }),
+      ).resolves.toMatchObject({
+        id: 'contact-other-principal',
         email: 'contact@bentleyalberta.com',
       });
     });

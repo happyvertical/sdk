@@ -453,9 +453,9 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
         throw error;
       }
 
-      const conflictingMailbox = await this.getMailbox(input.principalId);
-      if (conflictingMailbox.email === input.email) {
-        return conflictingMailbox;
+      const concurrentlyCreated = await this.findMailboxByEmail(input.email);
+      if (concurrentlyCreated) {
+        return concurrentlyCreated;
       }
       throw new ConflictError('mailbox principal', input.principalId, PROVIDER);
     }
