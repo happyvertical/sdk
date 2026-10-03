@@ -25,6 +25,7 @@ import type {
   DkimKey,
   DnsRecord,
   EnsureMailboxInput,
+  EnsureMailboxResult,
   Mailbox,
   MailDomain,
   StalwartDirectoryAdapter,
@@ -434,7 +435,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
     return principal ? this.principalToMailbox(principal, email) : null;
   }
 
-  async ensureMailbox(input: EnsureMailboxInput): Promise<Mailbox> {
+  async ensureMailbox(input: EnsureMailboxInput): Promise<EnsureMailboxResult> {
     this.assertMailboxEmail(input.email);
     if (!input.principalId.trim()) {
       throw new ValidationError(
@@ -445,11 +446,15 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
 
     const existing = await this.findMailboxByEmail(input.email);
     if (existing) {
-      return existing;
+      return { mailbox: existing, created: false };
     }
 
     try {
-      return await this.createMailboxWithPrincipalId(input, input.principalId);
+      const mailbox = await this.createMailboxWithPrincipalId(
+        input,
+        input.principalId,
+      );
+      return { mailbox, created: true };
     } catch (error) {
       if (!(error instanceof ConflictError)) {
         throw error;
@@ -457,7 +462,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
 
       const concurrentlyCreated = await this.findMailboxByEmail(input.email);
       if (concurrentlyCreated) {
-        return concurrentlyCreated;
+        return { mailbox: concurrentlyCreated, created: false };
       }
       throw new ConflictError('mailbox principal', input.principalId, PROVIDER);
     }

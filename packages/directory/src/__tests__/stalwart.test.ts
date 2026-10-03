@@ -470,14 +470,17 @@ describe('StalwartAdapter', () => {
         emails: ['contact@bentleyalberta.com'],
       });
 
-      const mailbox = await adapter.ensureMailbox({
+      const result = await adapter.ensureMailbox({
         principalId: 'contact-bentley',
         name: 'Contact',
         email: 'contact@bentleyalberta.com',
         password: 'new-password-must-not-be-sent',
       });
 
-      expect(mailbox.id).toBe('contact-bentley');
+      expect(result).toMatchObject({
+        mailbox: { id: 'contact-bentley' },
+        created: false,
+      });
       expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(
         mockFetch.mock.calls.some((call) => call[1].method === 'POST'),
@@ -505,18 +508,22 @@ describe('StalwartAdapter', () => {
         emails: ['contact@lacombe.news'],
       });
 
-      await adapter.ensureMailbox({
-        principalId: 'contact-bentley',
-        name: 'Contact',
-        email: 'contact@bentleyalberta.com',
-        password: 'password-1',
-      });
-      await adapter.ensureMailbox({
-        principalId: 'contact-lacombe',
-        name: 'Contact',
-        email: 'contact@lacombe.news',
-        password: 'password-2',
-      });
+      await expect(
+        adapter.ensureMailbox({
+          principalId: 'contact-bentley',
+          name: 'Contact',
+          email: 'contact@bentleyalberta.com',
+          password: 'password-1',
+        }),
+      ).resolves.toMatchObject({ created: true });
+      await expect(
+        adapter.ensureMailbox({
+          principalId: 'contact-lacombe',
+          name: 'Contact',
+          email: 'contact@lacombe.news',
+          password: 'password-2',
+        }),
+      ).resolves.toMatchObject({ created: true });
 
       const posts = mockFetch.mock.calls.filter(
         (call) => call[1].method === 'POST',
@@ -570,8 +577,11 @@ describe('StalwartAdapter', () => {
           password: 'password',
         }),
       ).resolves.toMatchObject({
-        id: 'contact-other-principal',
-        email: 'contact@bentleyalberta.com',
+        mailbox: {
+          id: 'contact-other-principal',
+          email: 'contact@bentleyalberta.com',
+        },
+        created: false,
       });
     });
 
@@ -593,8 +603,11 @@ describe('StalwartAdapter', () => {
           password: 'password',
         }),
       ).resolves.toMatchObject({
-        id: 'contact-other-principal',
-        email: 'contact@bentleyalberta.com',
+        mailbox: {
+          id: 'contact-other-principal',
+          email: 'contact@bentleyalberta.com',
+        },
+        created: false,
       });
     });
   });
