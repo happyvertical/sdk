@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.100.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - map Stalwart error envelopes (#1329) (directory)
+
 ## 0.100.0
 
 ## 0.99.1
