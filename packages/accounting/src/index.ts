@@ -38,7 +38,8 @@ import type {
   StripeOptions,
 } from './types.js';
 
-export { StripeApiError } from './errors.js';
+export { QuickBooksWriteError, StripeApiError } from './errors.js';
+export { prepareQuickBooksInvoiceRequest } from './providers/quickbooks/invoice-request.js';
 // Re-export all types
 export * from './types.js';
 

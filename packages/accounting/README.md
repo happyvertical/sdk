@@ -2,6 +2,88 @@
 
 Provider-neutral accounting synchronization with Stripe billing support.
 
+## QuickBooks invoice creation and retries
+
+Prepare a caller-owned request descriptor **once**, persist it with the approved
+invoice in your durable outbox, then pass it on every create attempt:
+
+```ts
+import { prepareQuickBooksInvoiceRequest, QuickBooksWriteError } from '@happyvertical/accounting';
+
+const quickbooksRequest = prepareQuickBooksInvoiceRequest(invoice, {
+  requestId: outbox.requestId, // e.g. a persisted UUID, never regenerated on retry
+  realmId: outbox.realmId,
+  environment: 'sandbox',
+});
+// Persist quickbooksRequest AND the invoice snapshot before invoking push.
+try {
+  const result = await qbo.invoices.push({ ...invoice, quickbooksRequest });
+  // Persist result.externalId on the same outbox record.
+} catch (error) {
+  if (error instanceof QuickBooksWriteError && error.outcome === 'unknown') {
+    // Keep this record pending reconciliation; it may already exist remotely.
+    // Retry only the unchanged snapshot + descriptor, never with a new ID.
+  } else {
+    throw error;
+  }
+}
+```
+
+The helper performs no HTTP. Its JSON-roundtrippable descriptor binds the exact
+mapped QuickBooks payload (SHA-256) to the realm and sandbox/production environment.
+`push()` and create-only `sync()` verify that binding before authentication or
+HTTP, including on a new provider instance. Restore invoice date fields as `Date`
+objects when loading an outbox. Mapping uses local calendar dates, so keep the
+same timezone across workers; a changed mapped date fails closed. Changes to
+mapped fields, realm, environment, or descriptor hash are rejected locally.
+Request IDs accept this SDK's conservative subset: 1–50 ASCII letters, digits,
+dots, underscores, and hyphens. The URL receives the caller's exact `requestid`.
+
+The descriptor is a consistency check, **not an authorization token or durable
+ID registry**. The caller must enforce uniqueness, tenant/realm ownership,
+immutability, and concurrency in its outbox. Never prepare a new descriptor with
+an old ID for different contents: a stateless SDK cannot detect that across
+processes. Existing Stripe `idempotencyKey` is not a QuickBooks request ID.
+Descriptors are create-only and are refused with `externalId`; update, send,
+void, customer, vendor, and bill operations do not accept them.
+
+QuickBooks reads retain automatic retry of transport failures, HTTP 429, and
+5xx responses. Invoice creates with a descriptor retry these failures using
+identical URL/body bytes; malformed successful invoice responses also remain
+uncertain and may be retried under that identity. `maxRetries: 0` disables
+retries; the default is three retries after the initial attempt. Timeout covers
+reading the response as well as fetching it.
+
+**All unkeyed QuickBooks writes now make one attempt**, including invoice
+creates/updates/send/void and customer/vendor/bill creates and updates. This deliberately replaces the previous automatic write retry
+behavior, which could duplicate a remotely accepted write. HTTP 429 is also
+single-attempt for those operations. Stripe behavior is unchanged.
+`QuickBooksWriteError` reports `outcome: 'rejected'` for an unkeyed HTTP client
+rejection (including 429), or `outcome: 'unknown'` for transport failures,
+server failures, or malformed success responses. **Every keyed failure is
+conservatively `unknown`, including HTTP 4xx on the first locally observed
+attempt.** A stateless SDK cannot prove that a persisted identity was never
+sent by an earlier worker. This preserves uncertainty across process restarts
+and later rejections without requiring mutable descriptor state. Client errors
+still receive no automatic retry (except keyed 429 responses). Its realm, environment,
+endpoint, optional request ID/payload hash, HTTP status, and cause support caller
+reconciliation. A local validation or token acquisition error occurs before the
+write and is not wrapped. Never treat an unknown outcome as a clean failure.
+
+Intuit documents request-ID replay in its [API best practices](https://blogs.a.intuit.com/2018/09/10/quickbooks-online-api-best-practices/)
+and [request ID field contract](https://developer.intuit.com/app/developer/qbo/docs/learn/learn-basic-field-definitions#request-id).
+The [static documentation](https://static.developer.intuit.com/output_html/qbo/docs/learn/learn-basic-field-definitions.html)
+confirms the 50-character limit and per-realm uniqueness requirement.
+Our regression tests mock remote acceptance and response loss; they prove SDK
+identity/byte preservation and retry policy, **not live Intuit deduplication**.
+No sandbox credentials were available for this change. Before relying on remote
+idempotency, verify in an authorized sandbox: send a uniquely identified invoice,
+repeat the identical request with the same ID, confirm the same Invoice.Id and
+one invoice, and simulate a lost response before replaying it. Record realm,
+environment, request ID, timestamps, and returned IDs without credentials.
+No replay retention period or exactly-once guarantee is asserted here; reconcile
+old or uncertain requests against QuickBooks before any new creation identity.
+
 ## Stripe invoices
 
 Accounting amounts use currency major units: `12.34` means USD 12.34 and
