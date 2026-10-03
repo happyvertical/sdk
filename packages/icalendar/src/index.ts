@@ -88,9 +88,10 @@ function utf8ByteLength(value: string): number {
 function enforceLineLimits(
   input: string,
   limits: ResolvedICalendarParseLimits,
-): void {
+): string[] {
   let logicalLine = '';
   let hasLogicalLine = false;
+  const logicalLines: string[] = [];
 
   const checkLogicalLine = (): void => {
     if (!hasLogicalLine) return;
@@ -102,6 +103,7 @@ function enforceLineLimits(
         limits.maxUnfoldedLineBytes,
       );
     }
+    logicalLines.push(logicalLine);
   };
 
   for (const physicalLine of input.split(/\r\n|[\n\r]/)) {
@@ -128,6 +130,33 @@ function enforceLineLimits(
   }
 
   checkLogicalLine();
+  return logicalLines;
+}
+
+function assertExactlyOneCalendarDocument(logicalLines: string[]): void {
+  let componentDepth = 0;
+  let calendarRoots = 0;
+
+  for (const logicalLine of logicalLines) {
+    const begin = /^BEGIN:([^;:]+)$/i.exec(logicalLine);
+    if (begin) {
+      if (componentDepth === 0 && begin[1].toUpperCase() === 'VCALENDAR') {
+        calendarRoots += 1;
+      }
+      componentDepth += 1;
+      continue;
+    }
+
+    if (/^END:[^;:]+$/i.test(logicalLine)) {
+      componentDepth = Math.max(0, componentDepth - 1);
+    }
+  }
+
+  if (calendarRoots !== 1) {
+    throw new ICalendarDocumentError(
+      'Expected exactly one top-level VCALENDAR document',
+    );
+  }
 }
 
 function countComponents(component: ICalendarComponent): number {
@@ -165,7 +194,8 @@ export function parseICalendar(
     );
   }
 
-  enforceLineLimits(input, resolvedLimits);
+  const logicalLines = enforceLineLimits(input, resolvedLimits);
+  assertExactlyOneCalendarDocument(logicalLines);
 
   let parsed: unknown;
   try {
