@@ -26,6 +26,7 @@ export function createOpenAIWebRTCVoiceSession(
   let outputMuted = options.outputMuted ?? false;
   let responseId: string | undefined;
   let responseActive = false;
+  let pendingResponseCreateEventId: string | undefined;
   let responseQueued = false;
   let queuedResponseInstructions: string | undefined;
   let speaking = false;
@@ -77,6 +78,7 @@ export function createOpenAIWebRTCVoiceSession(
     }
     playback(false);
     responseActive = false;
+    pendingResponseCreateEventId = undefined;
     responseQueued = false;
     responseId = undefined;
     queuedResponseInstructions = undefined;
@@ -100,12 +102,16 @@ export function createOpenAIWebRTCVoiceSession(
   function createResponse(instructions?: string): void {
     // A response is active as soon as the request is sent. Waiting for
     // response.created leaves a gap in which a typed turn can create a
-    // conflicting default-conversation response.
+    // conflicting default-conversation response. The event ID lets an error
+    // prove that this speculative request was rejected before it became active.
+    const eventId = `hv_${crypto.randomUUID().replaceAll('-', '').slice(0, 24)}`;
     responseId = undefined;
     send({
+      event_id: eventId,
       type: 'response.create',
       ...(instructions ? { response: { instructions } } : {}),
     });
+    pendingResponseCreateEventId = eventId;
     responseActive = true;
   }
   function requestResponse(instructions?: string): void {
@@ -198,6 +204,7 @@ export function createOpenAIWebRTCVoiceSession(
       case 'response.created': {
         const response = record(event.response);
         responseId = typeof response.id === 'string' ? response.id : undefined;
+        pendingResponseCreateEventId = undefined;
         responseActive = true;
         emit('response', { active: true, responseId });
         break;
@@ -205,6 +212,7 @@ export function createOpenAIWebRTCVoiceSession(
       case 'response.done': {
         const response = record(event.response);
         const wasActive = responseActive;
+        pendingResponseCreateEventId = undefined;
         responseActive = false;
         emit('response', { active: false, responseId });
         if (response.usage && typeof response.usage === 'object')
@@ -237,7 +245,16 @@ export function createOpenAIWebRTCVoiceSession(
             arguments: event.arguments,
           });
         break;
-      case 'error':
+      case 'error': {
+        const error = record(event.error);
+        const rejectedPendingResponse =
+          pendingResponseCreateEventId !== undefined &&
+          error.event_id === pendingResponseCreateEventId;
+        if (rejectedPendingResponse) {
+          pendingResponseCreateEventId = undefined;
+          responseActive = false;
+          responseId = undefined;
+        }
         emit(
           'error',
           new SpeechProviderError(
@@ -245,7 +262,11 @@ export function createOpenAIWebRTCVoiceSession(
             'Realtime provider rejected a conversation event',
           ),
         );
+        // Error handlers can synchronously request a retry. If none did, a
+        // correlated rejection must release the coalesced typed response.
+        if (rejectedPendingResponse) releaseQueuedResponse();
         break;
+      }
     }
   }
 
