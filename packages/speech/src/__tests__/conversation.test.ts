@@ -220,6 +220,93 @@ describe('OpenAI conversational WebRTC session', () => {
     expect(() => f.session.sendText('a'.repeat(16001))).toThrow();
     f.session.close();
   });
+  it('queues interrupted typed turns until the active response is terminal', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond('intro');
+    f.session.interrupt();
+    f.session.sendText('first typed turn');
+    f.session.sendText('second typed turn');
+
+    expect(f.sent.map((event) => event.type)).toEqual([
+      'response.create',
+      'response.cancel',
+      'output_audio_buffer.clear',
+      'conversation.item.create',
+      'conversation.item.create',
+    ]);
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(1);
+
+    // An already-active rejection cannot release or retry the queued turn.
+    f.event({
+      type: 'error',
+      error: { code: 'conversation_already_has_active_response' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(1);
+
+    f.event({
+      type: 'response.done',
+      response: { id: 'intro', status: 'cancelled' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+    expect(f.sent.at(-1)).toEqual({ type: 'response.create' });
+    f.session.close();
+  });
+  it.each([
+    'completed',
+    'cancelled',
+    'failed',
+    'incomplete',
+  ] as const)('releases a queued typed response after terminal %s completion', async (status) => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond();
+    f.session.sendText('queued');
+    f.event({ type: 'response.done', response: { id: 'active', status } });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+    f.session.close();
+  });
+  it('lets a terminal tool continuation consume a queued response request once', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond();
+    f.session.sendText('typed while the tool response is active');
+    f.session.submitToolResult('tool', { ok: true });
+    f.session.on('response', ({ active }) => {
+      if (!active) f.session.respond();
+    });
+    f.event({
+      type: 'response.done',
+      response: { id: 'tool-response', status: 'completed' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+    expect(f.sent.at(-1)).toEqual({ type: 'response.create' });
+    f.session.close();
+  });
+  it('drops a queued typed response when the session disconnects', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond();
+    f.session.sendText('do not replay after disconnect');
+    f.session.close();
+    f.event({
+      type: 'response.done',
+      response: { id: 'active', status: 'cancelled' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(1);
+  });
   it('separates mic and output mute and interrupts active generation plus queued playback', async () => {
     const f = fixture();
     await f.session.connect();

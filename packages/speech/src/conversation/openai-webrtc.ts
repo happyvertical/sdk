@@ -26,6 +26,8 @@ export function createOpenAIWebRTCVoiceSession(
   let outputMuted = options.outputMuted ?? false;
   let responseId: string | undefined;
   let responseActive = false;
+  let responseQueued = false;
+  let queuedResponseInstructions: string | undefined;
   let speaking = false;
   const abort = new AbortController();
   const listeners = new Map<
@@ -75,6 +77,9 @@ export function createOpenAIWebRTCVoiceSession(
     }
     playback(false);
     responseActive = false;
+    responseQueued = false;
+    responseId = undefined;
+    queuedResponseInstructions = undefined;
     turns.clear();
   }
   function fail(message: string): void {
@@ -91,6 +96,35 @@ export function createOpenAIWebRTCVoiceSession(
         ADAPTER,
       );
     channel.send(JSON.stringify(event));
+  }
+  function createResponse(instructions?: string): void {
+    // A response is active as soon as the request is sent. Waiting for
+    // response.created leaves a gap in which a typed turn can create a
+    // conflicting default-conversation response.
+    responseId = undefined;
+    send({
+      type: 'response.create',
+      ...(instructions ? { response: { instructions } } : {}),
+    });
+    responseActive = true;
+  }
+  function requestResponse(instructions?: string): void {
+    if (responseActive) {
+      responseQueued = true;
+      if (instructions) queuedResponseInstructions = instructions;
+      return;
+    }
+    responseQueued = false;
+    const nextInstructions = instructions ?? queuedResponseInstructions;
+    queuedResponseInstructions = undefined;
+    createResponse(nextInstructions);
+  }
+  function releaseQueuedResponse(): void {
+    if (!responseQueued || state !== 'connected') return;
+    responseQueued = false;
+    const instructions = queuedResponseInstructions;
+    queuedResponseInstructions = undefined;
+    createResponse(instructions);
   }
   function transcript(
     itemId: unknown,
@@ -170,6 +204,7 @@ export function createOpenAIWebRTCVoiceSession(
       }
       case 'response.done': {
         const response = record(event.response);
+        const wasActive = responseActive;
         responseActive = false;
         emit('response', { active: false, responseId });
         if (response.usage && typeof response.usage === 'object')
@@ -184,6 +219,10 @@ export function createOpenAIWebRTCVoiceSession(
                 : 'Voice response failed',
             ),
           );
+        // A response listener may synchronously request a tool continuation.
+        // That request consumes the coalesced typed turn, so only drain when it
+        // remains pending after listeners have run.
+        if (wasActive) releaseQueuedResponse();
         break;
       }
       case 'response.function_call_arguments.done':
@@ -395,10 +434,7 @@ export function createOpenAIWebRTCVoiceSession(
       if (respond) session.respond();
     },
     respond(instructions) {
-      send({
-        type: 'response.create',
-        ...(instructions ? { response: { instructions } } : {}),
-      });
+      requestResponse(instructions);
     },
     interrupt() {
       if (state !== 'connected') return;
