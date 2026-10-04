@@ -7,7 +7,7 @@ Speech provider abstraction for STT and TTS backends
 ## Package Map
 - Package: `@happyvertical/speech`
 - Hierarchy path: `@happyvertical/sdk > packages > speech`
-- Workspace position: `27 of 32` local packages
+- Workspace position: `28 of 33` local packages
 - Internal dependencies: none
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

@@ -7,7 +7,7 @@ Low-level email protocol operations with adapter-based architecture
 ## Package Map
 - Package: `@happyvertical/email`
 - Hierarchy path: `@happyvertical/sdk > packages > email`
-- Workspace position: `9 of 32` local packages
+- Workspace position: `9 of 33` local packages
 - Internal dependencies: `@happyvertical/logger`, `@happyvertical/utils`
 - Internal dependents: `@happyvertical/messages`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -31,4 +31,3 @@ pnpm --filter @happyvertical/email clean
 - Requires: @happyvertical/logger, @happyvertical/utils, google-auth-library, googleapis, imapflow, mailparser, node-pop3, nodemailer
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

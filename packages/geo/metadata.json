@@ -3,7 +3,7 @@
   "path": "packages/geo",
   "position": {
     "index": 12,
-    "count": 32
+    "count": 33
   },
   "description": "Standardized geographical information interface supporting Google Maps and OpenStreetMap",
   "provides": [

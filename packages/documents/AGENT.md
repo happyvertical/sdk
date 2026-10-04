@@ -7,7 +7,7 @@ Multi-part document processing with support for PDF, HTML, and Markdown
 ## Package Map
 - Package: `@happyvertical/documents`
 - Hierarchy path: `@happyvertical/sdk > packages > documents`
-- Workspace position: `8 of 32` local packages
+- Workspace position: `8 of 33` local packages
 - Internal dependencies: `@happyvertical/files`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -29,4 +29,3 @@ pnpm --filter @happyvertical/documents test
 - Requires: @happyvertical/files, @happyvertical/utils, @happyvertical/ocr, @happyvertical/pdf, @happyvertical/spider
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

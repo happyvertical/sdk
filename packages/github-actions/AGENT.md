@@ -7,7 +7,7 @@ Reusable GitHub Actions utilities for issue triage, PR validation, and workflow 
 ## Package Map
 - Package: `@happyvertical/github-actions`
 - Hierarchy path: `@happyvertical/sdk > packages > github-actions`
-- Workspace position: `13 of 32` local packages
+- Workspace position: `13 of 33` local packages
 - Internal dependencies: `@happyvertical/projects`, `@happyvertical/repos`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/github-actions clean
 - Requires: @happyvertical/projects, @happyvertical/repos
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

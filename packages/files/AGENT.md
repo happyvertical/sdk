@@ -7,7 +7,7 @@ File system utilities for local and remote file operations
 ## Package Map
 - Package: `@happyvertical/files`
 - Hierarchy path: `@happyvertical/sdk > packages > files`
-- Workspace position: `11 of 32` local packages
+- Workspace position: `11 of 33` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: `@happyvertical/documents`, `@happyvertical/sdk-mcp`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/files clean
 - Requires: @happyvertical/utils, @aws-sdk/client-s3, google-auth-library, googleapis
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

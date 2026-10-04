@@ -2,8 +2,8 @@
   "name": "@happyvertical/logger",
   "path": "packages/logger",
   "position": {
-    "index": 18,
-    "count": 32
+    "index": 19,
+    "count": 33
   },
   "description": "Structured logging for HAVE SDK with signal adapter",
   "provides": [

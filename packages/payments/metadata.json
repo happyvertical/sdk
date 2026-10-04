@@ -2,8 +2,8 @@
   "name": "@happyvertical/payments",
   "path": "packages/payments",
   "position": {
-    "index": 20,
-    "count": 32
+    "index": 21,
+    "count": 33
   },
   "description": "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe",
   "provides": [

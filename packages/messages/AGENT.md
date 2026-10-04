@@ -7,7 +7,7 @@ Unified multi-channel messaging with adapter-based architecture (Slack, Twitter,
 ## Package Map
 - Package: `@happyvertical/messages`
 - Hierarchy path: `@happyvertical/sdk > packages > messages`
-- Workspace position: `19 of 32` local packages
+- Workspace position: `20 of 33` local packages
 - Internal dependencies: `@happyvertical/email`, `@happyvertical/logger`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -31,4 +31,3 @@ pnpm --filter @happyvertical/messages clean
 - Requires: @happyvertical/email, @happyvertical/logger, @happyvertical/utils, @slack/web-api
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

@@ -1,21 +1,21 @@
 {
-  "name": "@happyvertical/weather",
-  "path": "packages/weather",
+  "name": "@happyvertical/icalendar",
+  "path": "packages/icalendar",
   "position": {
-    "index": 33,
+    "index": 15,
     "count": 33
   },
-  "description": "Weather data provider abstraction for HAppyVertical SDK",
+  "description": "Bounded RFC 5545 iCalendar parsing facade",
   "provides": [
-    "Weather data provider abstraction for HAppyVertical SDK"
+    "Bounded RFC 5545 iCalendar parsing facade"
   ],
   "implements": [],
   "requires": {
-    "workspace": [
-      "@happyvertical/utils"
-    ],
+    "workspace": [],
     "externalHappyVertical": [],
-    "external": []
+    "external": [
+      "ical.js"
+    ]
   },
   "dependents": [],
   "stability": {
@@ -23,6 +23,8 @@
     "reason": "Primary package surface is described as implemented and production-oriented."
   },
   "keywords": [
-    "weather"
+    "icalendar",
+    "rfc5545",
+    "calendar"
   ]
 }

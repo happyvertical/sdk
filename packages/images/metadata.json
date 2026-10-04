@@ -2,8 +2,8 @@
   "name": "@happyvertical/images",
   "path": "packages/images",
   "position": {
-    "index": 15,
-    "count": 32
+    "index": 16,
+    "count": 33
   },
   "description": "Image processing utilities with adapter pattern for scaling from static to enterprise",
   "provides": [

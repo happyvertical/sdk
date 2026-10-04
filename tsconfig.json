@@ -60,6 +60,7 @@
     { "path": "./packages/auth" },
     { "path": "./packages/cache" },
     { "path": "./packages/geo" },
+    { "path": "./packages/icalendar" },
     { "path": "./packages/images" },
     { "path": "./packages/translator" },
     { "path": "./packages/weather" },

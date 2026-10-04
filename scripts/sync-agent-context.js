@@ -470,7 +470,6 @@ function renderPackageAgent(pkg) {
     '',
     generatedBlock,
     trailingNotes ? `\n\n${trailingNotes}` : '',
-    '',
   ].join('\n');
 }
 

@@ -2,8 +2,8 @@
   "name": "@happyvertical/sdk-mcp",
   "path": "packages/sdk-mcp",
   "position": {
-    "index": 23,
-    "count": 32
+    "index": 24,
+    "count": 33
   },
   "description": "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files",
   "provides": [

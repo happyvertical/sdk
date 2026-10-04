@@ -7,7 +7,7 @@ Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr wit
 ## Package Map
 - Package: `@happyvertical/auth`
 - Hierarchy path: `@happyvertical/sdk > packages > auth`
-- Workspace position: `4 of 32` local packages
+- Workspace position: `4 of 33` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/auth clean
 - Requires: @happyvertical/utils, @aws-sdk/client-cognito-identity-provider, jose, nostr-tools
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

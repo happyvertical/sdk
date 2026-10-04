@@ -7,7 +7,7 @@ Image processing utilities with adapter pattern for scaling from static to enter
 ## Package Map
 - Package: `@happyvertical/images`
 - Hierarchy path: `@happyvertical/sdk > packages > images`
-- Workspace position: `15 of 32` local packages
+- Workspace position: `16 of 33` local packages
 - Internal dependencies: none
 - Internal dependents: `@happyvertical/video`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/images clean
 - Requires: @resvg/resvg-js, jimp, satori, sharp
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

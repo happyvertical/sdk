@@ -7,7 +7,7 @@ Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOp
 ## Package Map
 - Package: `@happyvertical/repos`
 - Hierarchy path: `@happyvertical/sdk > packages > repos`
-- Workspace position: `22 of 32` local packages
+- Workspace position: `23 of 33` local packages
 - Internal dependencies: `@happyvertical/graphql`
 - Internal dependents: `@happyvertical/github-actions`, `@happyvertical/projects`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/repos clean
 - Requires: @happyvertical/graphql, js-yaml, nostr-tools
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

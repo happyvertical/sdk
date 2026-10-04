@@ -7,7 +7,7 @@ Video processing utilities with adapter pattern for composition and transcoding
 ## Package Map
 - Package: `@happyvertical/video`
 - Hierarchy path: `@happyvertical/sdk > packages > video`
-- Workspace position: `31 of 32` local packages
+- Workspace position: `32 of 33` local packages
 - Internal dependencies: `@happyvertical/images`, `@happyvertical/logger`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/video clean
 - Requires: @happyvertical/images, @happyvertical/logger, @happyvertical/utils, sharp
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

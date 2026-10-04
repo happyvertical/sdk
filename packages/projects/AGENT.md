@@ -7,7 +7,7 @@ Standardized project management interface for GitHub Projects, Jira, ZenHub, and
 ## Package Map
 - Package: `@happyvertical/projects`
 - Hierarchy path: `@happyvertical/sdk > packages > projects`
-- Workspace position: `21 of 32` local packages
+- Workspace position: `22 of 33` local packages
 - Internal dependencies: `@happyvertical/graphql`, `@happyvertical/repos`
 - Internal dependents: `@happyvertical/github-actions`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
@@ -30,4 +30,3 @@ pnpm --filter @happyvertical/projects clean
 - Requires: @happyvertical/graphql, @happyvertical/repos
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
-

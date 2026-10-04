@@ -1,0 +1,53 @@
+{
+  "name": "@happyvertical/icalendar",
+  "version": "0.100.1",
+  "description": "Bounded RFC 5545 iCalendar parsing facade",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "AGENT.md",
+    "metadata.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest --config ../../vitest.package.config.ts run",
+    "test:watch": "vitest --config ../../vitest.package.config.ts"
+  },
+  "keywords": [
+    "icalendar",
+    "ics",
+    "rfc5545",
+    "calendar"
+  ],
+  "author": "HappyVertical",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/icalendar"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "dependencies": {
+    "ical.js": "2.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.10",
+    "typescript": "5.9.3",
+    "vite": "8.1.4",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "4.1.10"
+  }
+}
