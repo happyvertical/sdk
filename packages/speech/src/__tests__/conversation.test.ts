@@ -293,6 +293,33 @@ describe('OpenAI conversational WebRTC session', () => {
     expect(f.sent.at(-1)).toEqual({ type: 'response.create' });
     f.session.close();
   });
+  it('retains an error-callback response until the continuation response is terminal', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond();
+    f.session.sendText('typed while active');
+    f.session.on('response', ({ active }) => {
+      if (!active) f.session.respond();
+    });
+    f.session.on('error', () => f.session.respond());
+
+    f.event({
+      type: 'response.done',
+      response: { id: 'failed', status: 'failed' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+
+    f.event({
+      type: 'response.done',
+      response: { id: 'continuation', status: 'completed' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(3);
+    f.session.close();
+  });
   it('drops a queued typed response when the session disconnects', async () => {
     const f = fixture();
     await f.session.connect();

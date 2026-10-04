@@ -120,7 +120,7 @@ export function createOpenAIWebRTCVoiceSession(
     createResponse(nextInstructions);
   }
   function releaseQueuedResponse(): void {
-    if (!responseQueued || state !== 'connected') return;
+    if (!responseQueued || responseActive || state !== 'connected') return;
     responseQueued = false;
     const instructions = queuedResponseInstructions;
     queuedResponseInstructions = undefined;
