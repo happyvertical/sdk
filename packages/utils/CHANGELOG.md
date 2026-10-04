@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.100.2
+
+### Patch Changes
+
+- ### Features
+
+  - add bounded RFC5545 parser (#1331) (icalendar)
+
 ## 0.100.1
 
 ### Patch Changes
