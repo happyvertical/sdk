@@ -38,8 +38,14 @@ import type {
   StripeOptions,
 } from './types.js';
 
-export { QuickBooksWriteError, StripeApiError } from './errors.js';
+export type { QuickBooksOAuthErrorCode } from './errors.js';
+export {
+  QuickBooksOAuthError,
+  QuickBooksWriteError,
+  StripeApiError,
+} from './errors.js';
 export { prepareQuickBooksInvoiceRequest } from './providers/quickbooks/invoice-request.js';
+export { createQuickBooksOAuthClient } from './providers/quickbooks/oauth.js';
 // Re-export all types
 export * from './types.js';
 

@@ -113,6 +113,33 @@ export interface TokenSet {
   tokenType?: string;
 }
 
+/** Configuration for a QuickBooks Online authorization-code connection. */
+export interface QuickBooksOAuthOptions {
+  clientId: string;
+  clientSecret: string;
+  environment: 'sandbox' | 'production';
+  /** Exact callback URI registered in the Intuit developer portal. */
+  redirectUri: string;
+}
+
+/** Successful QuickBooks Online authorization-code exchange. */
+export interface QuickBooksOAuthConnection {
+  realmId: string;
+  tokens: TokenSet;
+  /** Scopes returned by Intuit, when the token response supplies them. */
+  grantedScopes?: string[];
+}
+
+/** Public lifecycle operations for connecting a QuickBooks company. */
+export interface QuickBooksOAuthClient {
+  authorizationUrl(input: { state: string }): string;
+  exchangeCallback(input: {
+    callbackUrl: string;
+    expectedState: string;
+  }): Promise<QuickBooksOAuthConnection>;
+  revoke(input: { refreshToken: string }): Promise<void>;
+}
+
 // =============================================================================
 // Input Types (what SMRT models provide)
 // =============================================================================
