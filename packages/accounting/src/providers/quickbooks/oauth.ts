@@ -54,9 +54,19 @@ export async function createQuickBooksOAuthClient(
       );
       if (realmId.length > 255)
         throw new QuickBooksOAuthError('INVALID_CALLBACK');
+      for (const name of callback.searchParams.keys())
+        if (!['code', 'realmId', 'state'].includes(name))
+          throw new QuickBooksOAuthError('INVALID_CALLBACK');
+
+      // Rebuild from the configured redirect and the three validated values.
+      // intuit-oauth treats a callback `redirectUri` query as an override.
+      const exchangeUrl = new URL(redirect);
+      exchangeUrl.searchParams.set('code', code);
+      exchangeUrl.searchParams.set('realmId', realmId);
+      exchangeUrl.searchParams.set('state', state);
 
       try {
-        const response = await client.createToken(callback.toString());
+        const response = await client.createToken(exchangeUrl.toString());
         const token = response.getJson();
         const tokens = mapTokens(token);
         const grantedScopes = scopes(token.scope);

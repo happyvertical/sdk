@@ -98,6 +98,11 @@ describe('QuickBooks OAuth client', () => {
     ['missing realm', callback.replace('realmId=realm-17&', '')],
     ['duplicate state', `${callback}&state=second`],
     ['missing state', callback.replace('&state=opaque-state', '')],
+    [
+      'dependency redirect override',
+      `${callback}&redirectUri=https%3A%2F%2Fother.example.test%2Fcallback`,
+    ],
+    ['unexpected query input', `${callback}&locale=en-CA`],
   ])('rejects %s before token exchange', async (_label, callbackUrl) => {
     const connection = await client();
     await expect(
