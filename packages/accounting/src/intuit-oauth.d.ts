@@ -20,6 +20,7 @@ declare module 'intuit-oauth' {
     token_type: string;
     x_refresh_token_expires_in?: number;
     id_token?: string;
+    scope?: string | string[];
   }
 
   export interface TokenResponse {

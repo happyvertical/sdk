@@ -2,6 +2,42 @@
 
 Provider-neutral accounting synchronization with Stripe billing support.
 
+## QuickBooks connection OAuth
+
+Use the public connection helper to generate an accounting authorization URL,
+exchange Intuit's callback, and revoke a refresh token:
+
+```ts
+import { createQuickBooksOAuthClient } from '@happyvertical/accounting';
+
+const oauth = await createQuickBooksOAuthClient({
+  clientId: process.env.QBO_CLIENT_ID!,
+  clientSecret: process.env.QBO_CLIENT_SECRET!,
+  environment: 'sandbox',
+  redirectUri: 'https://app.example.com/api/accounting/quickbooks/callback',
+});
+
+const url = oauth.authorizationUrl({ state: oneUseOpaqueState });
+const connection = await oauth.exchangeCallback({
+  callbackUrl: request.url,
+  expectedState: oneUseOpaqueState,
+});
+await oauth.revoke({ refreshToken: connection.tokens.refreshToken });
+```
+
+The helper requests only Intuit's QuickBooks accounting scope. Before the
+official client receives a callback, it requires the configured origin and
+path, exactly one nonempty state, code, and realm ID, and a constant-time state
+match. Returned failures have stable `QuickBooksOAuthError.code` values and do
+not retain provider errors that may contain callback URLs or credentials.
+
+The application owns one-use state bound to its authenticated principal,
+tenant, and environment; authorization to connect the returned realm;
+encrypted token storage; and atomic connection persistence. The helper does
+not make those application decisions. The redirect URI must also be registered
+in Intuit's developer portal. See Intuit's [OAuth client authorization-code flow](https://github.com/intuit/oauth-jsclient#authorization-code-flow)
+and [revocation helper](https://github.com/intuit/oauth-jsclient#revoke-access_token).
+
 ## QuickBooks invoice creation and retries
 
 Prepare a caller-owned request descriptor **once**, persist it with the approved

@@ -82,3 +82,30 @@ export class QuickBooksWriteError extends Error {
     this.status = details.status;
   }
 }
+
+export type QuickBooksOAuthErrorCode =
+  | 'INVALID_CONFIGURATION'
+  | 'INVALID_STATE'
+  | 'INVALID_CALLBACK'
+  | 'INVALID_TOKEN'
+  | 'AUTHORIZATION_FAILED'
+  | 'EXCHANGE_FAILED'
+  | 'REVOCATION_FAILED';
+
+/** Sanitized QuickBooks OAuth lifecycle failure safe for application logs. */
+export class QuickBooksOAuthError extends Error {
+  constructor(readonly code: QuickBooksOAuthErrorCode) {
+    super(messages[code]);
+    this.name = 'QuickBooksOAuthError';
+  }
+}
+
+const messages: Record<QuickBooksOAuthErrorCode, string> = {
+  INVALID_CONFIGURATION: 'QuickBooks OAuth configuration is invalid',
+  INVALID_STATE: 'QuickBooks OAuth state validation failed',
+  INVALID_CALLBACK: 'QuickBooks OAuth callback is invalid',
+  INVALID_TOKEN: 'QuickBooks OAuth token is invalid',
+  AUTHORIZATION_FAILED: 'QuickBooks OAuth authorization failed',
+  EXCHANGE_FAILED: 'QuickBooks OAuth token exchange failed',
+  REVOCATION_FAILED: 'QuickBooks OAuth token revocation failed',
+};
