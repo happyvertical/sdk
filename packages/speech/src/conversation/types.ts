@@ -33,7 +33,7 @@ export interface VoiceSession {
   sendText(text: string): string;
   /** Commit buffered microphone input in manual turn mode, then optionally generate a reply. */
   commitInput(respond?: boolean): void;
-  /** Request a response, e.g. an opening introduction. */
+  /** Request a response, e.g. an opening introduction. Requests during an active response wait for terminal completion. */
   respond(instructions?: string): void;
   /** Cancels active generation and clears unplayed WebRTC audio. */
   interrupt(): void;

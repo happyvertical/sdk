@@ -214,11 +214,196 @@ describe('OpenAI conversational WebRTC session', () => {
           content: [{ type: 'input_text', text: 'hello' }],
         },
       },
-      { type: 'response.create' },
+      expect.objectContaining({
+        type: 'response.create',
+        event_id: expect.any(String),
+      }),
     ]);
     expect(() => f.session.sendText('  ')).toThrow('1–16000');
     expect(() => f.session.sendText('a'.repeat(16001))).toThrow();
     f.session.close();
+  });
+  it('queues interrupted typed turns until the active response is terminal', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond('intro');
+    f.session.interrupt();
+    f.session.sendText('first typed turn');
+    f.session.sendText('second typed turn');
+
+    expect(f.sent.map((event) => event.type)).toEqual([
+      'response.create',
+      'response.cancel',
+      'output_audio_buffer.clear',
+      'conversation.item.create',
+      'conversation.item.create',
+    ]);
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(1);
+
+    // An error for another client event cannot release or retry the queued turn.
+    f.event({
+      type: 'error',
+      error: {
+        code: 'conversation_already_has_active_response',
+        event_id: 'different-client-event',
+      },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(1);
+
+    f.event({
+      type: 'response.done',
+      response: { id: 'intro', status: 'cancelled' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+    expect(f.sent.at(-1)).toEqual(
+      expect.objectContaining({
+        type: 'response.create',
+        event_id: expect.any(String),
+      }),
+    );
+    f.session.close();
+  });
+  it('keeps queued text pending after an uncorrelated active-response error', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond();
+    f.event({ type: 'response.created', response: { id: 'active' } });
+    f.session.sendText('typed while active');
+
+    f.event({ type: 'error', error: { code: 'server_error' } });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(1);
+
+    f.event({
+      type: 'response.done',
+      response: { id: 'active', status: 'completed' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+    f.session.close();
+  });
+  it('releases queued text after a correlated response.create rejection', async () => {
+    const f = fixture();
+    const errors: Error[] = [];
+    f.session.on('error', (error) => errors.push(error));
+    await f.session.connect();
+    f.session.respond('intro');
+    const rejected = f.sent.at(-1);
+    expect(rejected).toEqual(
+      expect.objectContaining({
+        type: 'response.create',
+        event_id: expect.any(String),
+      }),
+    );
+    f.session.sendText('typed after rejected intro');
+
+    f.event({
+      type: 'error',
+      error: { event_id: rejected?.event_id, code: 'invalid_event' },
+    });
+
+    const responses = f.sent.filter(
+      (event) => event.type === 'response.create',
+    );
+    expect(responses).toHaveLength(2);
+    expect(responses[1]).toEqual(
+      expect.objectContaining({
+        type: 'response.create',
+        event_id: expect.any(String),
+      }),
+    );
+    expect(responses[1]?.event_id).not.toBe(rejected?.event_id);
+    expect(errors).toHaveLength(1);
+    f.session.close();
+  });
+  it.each([
+    'completed',
+    'cancelled',
+    'failed',
+    'incomplete',
+  ] as const)('releases a queued typed response after terminal %s completion', async (status) => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond();
+    f.session.sendText('queued');
+    f.event({ type: 'response.done', response: { id: 'active', status } });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+    f.session.close();
+  });
+  it('lets a terminal tool continuation consume a queued response request once', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond();
+    f.session.sendText('typed while the tool response is active');
+    f.session.submitToolResult('tool', { ok: true });
+    f.session.on('response', ({ active }) => {
+      if (!active) f.session.respond();
+    });
+    f.event({
+      type: 'response.done',
+      response: { id: 'tool-response', status: 'completed' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+    expect(f.sent.at(-1)).toEqual(
+      expect.objectContaining({
+        type: 'response.create',
+        event_id: expect.any(String),
+      }),
+    );
+    f.session.close();
+  });
+  it('retains an error-callback response until the continuation response is terminal', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond();
+    f.session.sendText('typed while active');
+    f.session.on('response', ({ active }) => {
+      if (!active) f.session.respond();
+    });
+    f.session.on('error', () => f.session.respond());
+
+    f.event({
+      type: 'response.done',
+      response: { id: 'failed', status: 'failed' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+
+    f.event({
+      type: 'response.done',
+      response: { id: 'continuation', status: 'completed' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(3);
+    f.session.close();
+  });
+  it('drops a queued typed response when the session disconnects', async () => {
+    const f = fixture();
+    await f.session.connect();
+    f.session.respond();
+    f.session.sendText('do not replay after disconnect');
+    f.session.close();
+    f.event({
+      type: 'response.done',
+      response: { id: 'active', status: 'cancelled' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(1);
   });
   it('separates mic and output mute and interrupts active generation plus queued playback', async () => {
     const f = fixture();
@@ -274,7 +459,12 @@ describe('OpenAI conversational WebRTC session', () => {
     f.session.submitToolResult('c', { ok: true });
     expect(f.sent.at(-1)?.type).toBe('conversation.item.create');
     f.session.respond();
-    expect(f.sent.at(-1)).toEqual({ type: 'response.create' });
+    expect(f.sent.at(-1)).toEqual(
+      expect.objectContaining({
+        type: 'response.create',
+        event_id: expect.any(String),
+      }),
+    );
     f.session.close();
   });
   it('fails unexpected channel/peer loss without replaying any turn', async () => {
@@ -416,7 +606,10 @@ describe('review regressions: manual audio turns and post-header setup failure',
     f.session.commitInput();
     expect(f.sent).toEqual([
       { type: 'input_audio_buffer.commit' },
-      { type: 'response.create' },
+      expect.objectContaining({
+        type: 'response.create',
+        event_id: expect.any(String),
+      }),
     ]);
     f.session.commitInput(false);
     expect(f.sent.at(-1)).toEqual({ type: 'input_audio_buffer.commit' });
@@ -497,7 +690,12 @@ describe('GitHub review regressions', () => {
       'conversation.item.create',
     ]);
     f.session.respond();
-    expect(f.sent.at(-1)).toEqual({ type: 'response.create' });
+    expect(f.sent.at(-1)).toEqual(
+      expect.objectContaining({
+        type: 'response.create',
+        event_id: expect.any(String),
+      }),
+    );
     f.session.close();
   });
   it('reports incomplete replies and failed transcription without exposing provider payloads', async () => {
