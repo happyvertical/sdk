@@ -72,21 +72,116 @@ export function mapInvoiceToQBO(invoice: InvoiceInput) {
       'QuickBooks does not support charge_automatically invoice collection',
     );
   }
+  if (invoice.automaticTax)
+    throw new Error(
+      'QuickBooks does not support automaticTax invoice calculation',
+    );
+  if (
+    invoice.quickbooksMapping &&
+    !['TaxExcluded', 'NotApplicable'].includes(
+      invoice.quickbooksMapping.globalTaxCalculation,
+    )
+  )
+    throw new Error(
+      'QuickBooks globalTaxCalculation must be TaxExcluded or NotApplicable',
+    );
+  const finite = (value: number, label: string) => {
+    if (!Number.isFinite(value) || value < 0)
+      throw new Error(
+        `QuickBooks ${label} must be a finite non-negative amount`,
+      );
+    return value;
+  };
+  const reference = (value: string | undefined, label: string) => {
+    if (!value || value.trim() !== value || value.length > 255)
+      throw new Error(
+        `QuickBooks ${label} must be a non-empty realm reference`,
+      );
+    return { value };
+  };
+  finite(invoice.subtotal, 'subtotal');
+  finite(invoice.taxAmount, 'tax amount');
+  finite(invoice.totalAmount, 'total amount');
+  if (invoice.lineItems.length === 0)
+    throw new Error('QuickBooks invoices require at least one sales line');
+  const close = (a: number, b: number) => Math.abs(a - b) <= 1e-9;
+  const lines = invoice.lineItems.map((item, idx) => {
+    if (item.discount !== undefined && item.discount !== 0)
+      throw new Error(
+        'QuickBooks line discounts are not supported; record an explicit supported sales line instead',
+      );
+    if (item.taxRate !== undefined && item.taxRate !== 0)
+      throw new Error(
+        'QuickBooks numeric taxRate is not supported; use a realm taxCodeRef',
+      );
+    if (item.taxCode !== undefined)
+      throw new Error(
+        'QuickBooks generic taxCode is not a realm tax reference; use quickbooksMapping.taxCodeRef',
+      );
+    finite(item.quantity, `line ${idx + 1} quantity`);
+    finite(item.unitPrice, `line ${idx + 1} unit price`);
+    const amount = finite(
+      item.amount ?? item.quantity * item.unitPrice,
+      `line ${idx + 1} amount`,
+    );
+    return {
+      LineNum: idx + 1,
+      Description: item.description,
+      Amount: amount,
+      DetailType: 'SalesItemLineDetail' as const,
+      SalesItemLineDetail: {
+        Qty: item.quantity,
+        UnitPrice: item.unitPrice,
+        ItemRef: item.quickbooksMapping
+          ? reference(item.quickbooksMapping.itemRef, `line ${idx + 1} itemRef`)
+          : undefined,
+        TaxCodeRef: item.quickbooksMapping
+          ? reference(
+              item.quickbooksMapping.taxCodeRef,
+              `line ${idx + 1} taxCodeRef`,
+            )
+          : undefined,
+      },
+    };
+  });
+  const mappedSubtotal = lines.reduce((sum, line) => sum + line.Amount, 0);
+  if (!close(mappedSubtotal, invoice.subtotal))
+    throw new Error('QuickBooks line amounts must equal the invoice subtotal');
+  if (!close(invoice.subtotal + invoice.taxAmount, invoice.totalAmount))
+    throw new Error(
+      'QuickBooks subtotal plus tax must equal the invoice total',
+    );
+  const hasLineMapping = invoice.lineItems.some(
+    (item) => item.quickbooksMapping,
+  );
+  if ((invoice.taxAmount > 0 || hasLineMapping) && !invoice.quickbooksMapping)
+    throw new Error(
+      'QuickBooks mapped or nonzero-tax invoices require explicit globalTaxCalculation',
+    );
+  if (
+    invoice.quickbooksMapping &&
+    invoice.lineItems.some((item) => !item.quickbooksMapping)
+  )
+    throw new Error(
+      'QuickBooks mapped invoices require itemRef and taxCodeRef on every line',
+    );
+  if (
+    invoice.taxAmount > 0 &&
+    invoice.quickbooksMapping?.globalTaxCalculation === 'NotApplicable'
+  )
+    throw new Error(
+      'QuickBooks nonzero tax cannot use NotApplicable global tax calculation',
+    );
   return {
     CustomerRef: { value: invoice.customerExternalId || invoice.customerId },
     DocNumber: invoice.invoiceNumber,
     TxnDate: formatLocalDate(invoice.issueDate),
     DueDate: formatLocalDate(invoice.dueDate),
-    Line: invoice.lineItems.map((item, idx) => ({
-      LineNum: idx + 1,
-      Description: item.description,
-      Amount: item.amount ?? item.quantity * item.unitPrice,
-      DetailType: 'SalesItemLineDetail' as const,
-      SalesItemLineDetail: {
-        Qty: item.quantity,
-        UnitPrice: item.unitPrice,
-      },
-    })),
+    Line: lines,
+    GlobalTaxCalculation: invoice.quickbooksMapping?.globalTaxCalculation,
+    TxnTaxDetail: invoice.quickbooksMapping
+      ? { TotalTax: invoice.taxAmount }
+      : undefined,
     CurrencyRef: invoice.currency ? { value: invoice.currency } : undefined,
     CustomerMemo: invoice.memo ? { value: invoice.memo } : undefined,
   };

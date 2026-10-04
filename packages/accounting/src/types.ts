@@ -178,6 +178,20 @@ export interface CustomerInput {
  */
 export type InvoiceCollectionMethod = 'send_invoice' | 'charge_automatically';
 
+/** Realm-specific QuickBooks references for one invoice sales line. */
+export interface QuickBooksInvoiceLineMapping {
+  /** Existing Item.Id in the target QuickBooks company. */
+  itemRef: string;
+  /** Existing TaxCode.Id in the target QuickBooks company. */
+  taxCodeRef: string;
+}
+
+/** QuickBooks global-tax behavior for a non-US invoice. */
+export interface QuickBooksInvoiceMapping {
+  /** Whether line amounts exclude tax or have no applicable tax. */
+  globalTaxCalculation: 'TaxExcluded' | 'NotApplicable';
+}
+
 /**
  * Invoice line item input
  */
@@ -206,10 +220,12 @@ export interface InvoiceLineItemInput {
   /**
    * Provider product tax code that classifies this line for automatic tax
    * (Stripe Tax: a `txcd_...` code, sent as the invoice item's `tax_code`).
-   * Omit to use the provider account's default product tax code. Providers
-   * without product tax codes ignore it.
+   * Omit to use the provider account's default product tax code. QuickBooks
+   * rejects this generic field; use `quickbooksMapping.taxCodeRef` instead.
    */
   taxCode?: string;
+  /** Explicit realm-specific references used only by the QuickBooks provider. */
+  quickbooksMapping?: QuickBooksInvoiceLineMapping;
   /** Calculated line total */
   amount?: number;
   /**
@@ -242,6 +258,8 @@ export interface InvoiceInput {
   externalId?: string;
   /** QuickBooks create-only identity, prepared with prepareQuickBooksInvoiceRequest. */
   quickbooksRequest?: QuickBooksInvoiceRequest;
+  /** Explicit non-US QuickBooks tax mapping; required for a nonzero QBO tax amount. */
+  quickbooksMapping?: QuickBooksInvoiceMapping;
   /** Invoice number */
   invoiceNumber: string;
   /** Customer local ID */

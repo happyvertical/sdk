@@ -5,6 +5,7 @@ import {
 } from '../../index.js';
 import type { InvoiceInput } from '../../types.js';
 import { QuickBooksProvider } from './index.js';
+import { mapInvoiceToQBO } from './invoice-request.js';
 
 function provider(realmId = 'realm-a', maxRetries = 2) {
   const p = new QuickBooksProvider({
@@ -42,6 +43,26 @@ function keyed() {
   });
   return input;
 }
+
+function mappedInvoice(): InvoiceInput {
+  return {
+    ...invoice(),
+    subtotal: 100,
+    taxAmount: 5,
+    totalAmount: 105,
+    currency: 'CAD',
+    lineItems: [
+      {
+        description: 'Reviewed work',
+        quantity: 2,
+        unitPrice: 50,
+        amount: 100,
+        quickbooksMapping: { itemRef: 'item-17', taxCodeRef: 'tax-gst' },
+      },
+    ],
+    quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+  };
+}
 function ok() {
   return new Response(JSON.stringify({ Invoice: { Id: 'remote-1' } }));
 }
@@ -62,6 +83,165 @@ describe('QuickBooks invoice request identity', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('maps explicit realm item and Canadian tax references into the stable payload', () => {
+    expect(mapInvoiceToQBO(mappedInvoice())).toMatchObject({
+      Line: [
+        {
+          Amount: 100,
+          SalesItemLineDetail: {
+            ItemRef: { value: 'item-17' },
+            TaxCodeRef: { value: 'tax-gst' },
+          },
+        },
+      ],
+      GlobalTaxCalculation: 'TaxExcluded',
+      TxnTaxDetail: { TotalTax: 5 },
+      CurrencyRef: { value: 'CAD' },
+    });
+  });
+
+  it.each([
+    'item',
+    'tax-code',
+    'tax-amount',
+    'global-tax',
+  ])('binds changed %s mapping into request identity', (change) => {
+    const original = mappedInvoice();
+    const descriptor = prepareQuickBooksInvoiceRequest(original, {
+      requestId: 'mapped-1',
+      realmId: 'realm-a',
+      environment: 'sandbox',
+    });
+    const changed = structuredClone(original);
+    changed.issueDate = original.issueDate;
+    changed.dueDate = original.dueDate;
+    const lineMapping = changed.lineItems[0].quickbooksMapping;
+    const invoiceMapping = changed.quickbooksMapping;
+    if (!lineMapping || !invoiceMapping)
+      throw new Error('invalid test fixture');
+    if (change === 'item') lineMapping.itemRef = 'item-18';
+    if (change === 'tax-code') lineMapping.taxCodeRef = 'tax-hst';
+    if (change === 'tax-amount') {
+      changed.taxAmount = 13;
+      changed.totalAmount = 113;
+    }
+    if (change === 'global-tax') {
+      changed.taxAmount = 0;
+      changed.totalAmount = 100;
+      invoiceMapping.globalTaxCalculation = 'NotApplicable';
+    }
+    changed.quickbooksRequest = descriptor;
+    expect(() => mapInvoiceToQBO(changed)).not.toThrow();
+    expect(() =>
+      prepareQuickBooksInvoiceRequest(changed, {
+        requestId: 'mapped-1',
+        realmId: 'realm-a',
+        environment: 'sandbox',
+      }),
+    ).not.toThrow();
+    expect(changed.quickbooksRequest.payloadHash).not.toBe(
+      prepareQuickBooksInvoiceRequest(changed, {
+        requestId: 'mapped-1',
+        realmId: 'realm-a',
+        environment: 'sandbox',
+      }).payloadHash,
+    );
+  });
+
+  it.each([
+    ['discount', (input: InvoiceInput) => (input.lineItems[0].discount = 1)],
+    [
+      'numeric tax rate',
+      (input: InvoiceInput) => (input.lineItems[0].taxRate = 0.05),
+    ],
+    [
+      'generic tax code',
+      (input: InvoiceInput) => (input.lineItems[0].taxCode = 'txcd_1'),
+    ],
+    [
+      'missing global tax',
+      (input: InvoiceInput) => delete input.quickbooksMapping,
+    ],
+    [
+      'missing line mapping',
+      (input: InvoiceInput) => delete input.lineItems[0].quickbooksMapping,
+    ],
+    ['inconsistent subtotal', (input: InvoiceInput) => (input.subtotal = 99)],
+    ['inconsistent total', (input: InvoiceInput) => (input.totalAmount = 104)],
+    [
+      'unknown global tax calculation',
+      (input: InvoiceInput) => {
+        if (!input.quickbooksMapping) throw new Error('invalid test fixture');
+        input.quickbooksMapping.globalTaxCalculation = 'unexpected' as never;
+      },
+    ],
+    [
+      'blank item reference',
+      (input: InvoiceInput) => {
+        if (!input.lineItems[0].quickbooksMapping)
+          throw new Error('invalid test fixture');
+        input.lineItems[0].quickbooksMapping.itemRef = ' ';
+      },
+    ],
+    [
+      'missing tax reference',
+      (input: InvoiceInput) => {
+        if (!input.lineItems[0].quickbooksMapping)
+          throw new Error('invalid test fixture');
+        input.lineItems[0].quickbooksMapping.taxCodeRef = undefined as never;
+      },
+    ],
+    ['empty line list', (input: InvoiceInput) => (input.lineItems = [])],
+  ] as const)('rejects unsupported or incomplete %s input', (_label, change) => {
+    const input = mappedInvoice();
+    change(input);
+    expect(() => mapInvoiceToQBO(input)).toThrow(/QuickBooks/);
+  });
+
+  it('preserves legacy untaxed lines and accepts explicit zero discount and tax rate', () => {
+    const input = invoice();
+    input.lineItems[0].discount = 0;
+    input.lineItems[0].taxRate = 0;
+    expect(mapInvoiceToQBO(input).Line[0].SalesItemLineDetail).toEqual({
+      Qty: 1,
+      UnitPrice: 50,
+      ItemRef: undefined,
+      TaxCodeRef: undefined,
+    });
+  });
+
+  it('returns provider-calculated read-back totals and raw synchronization state', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            Invoice: {
+              Id: 'remote-taxed',
+              SyncToken: '7',
+              CustomerRef: { value: 'customer-1' },
+              DocNumber: 'INV-1',
+              TxnDate: '2026-09-01',
+              DueDate: '2026-09-30',
+              Line: [],
+              TotalAmt: 105,
+              Balance: 105,
+              TxnTaxDetail: { TotalTax: 5 },
+              CurrencyRef: { value: 'CAD' },
+            },
+          }),
+        ),
+      ),
+    );
+    const pulled = await provider().invoices.pull('remote-taxed');
+    expect(pulled).toMatchObject({
+      subtotal: 100,
+      taxAmount: 5,
+      totalAmount: 105,
+    });
+    expect((pulled.raw as { SyncToken: string }).SyncToken).toBe('7');
   });
 
   it('replays accepted-but-lost response with identical requestid and bytes, including a restarted caller', async () => {
@@ -118,7 +298,11 @@ describe('QuickBooks invoice request identity', () => {
   ])('refuses persisted descriptor %s misuse before auth or fetch', async (change) => {
     const input = keyed();
     const p = provider(change === 'realm' ? 'realm-b' : 'realm-a');
-    if (change === 'payload') input.lineItems[0].unitPrice = 100;
+    if (change === 'payload') {
+      input.lineItems[0].unitPrice = 100;
+      input.subtotal = 100;
+      input.totalAmount = 100;
+    }
     if (change === 'environment')
       input.quickbooksRequest = {
         ...input.quickbooksRequest!,

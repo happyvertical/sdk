@@ -1295,6 +1295,7 @@ interface QBOInvoiceLine {
     Qty?: number;
     UnitPrice?: number;
     ItemRef?: QBORef;
+    TaxCodeRef?: QBORef;
   };
 }
 
@@ -1309,6 +1310,7 @@ interface QBOInvoiceBase {
   TxnTaxDetail?: {
     TotalTax?: number;
   };
+  GlobalTaxCalculation?: 'TaxExcluded' | 'NotApplicable';
   CurrencyRef?: QBORef;
   CustomerMemo?: { value: string };
 }
