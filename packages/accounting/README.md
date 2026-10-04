@@ -4,6 +4,50 @@ Provider-neutral accounting synchronization with Stripe billing support.
 
 ## QuickBooks invoice creation and retries
 
+QuickBooks sales lines can carry explicit references to existing entities in the
+target company:
+
+```ts
+const invoice = {
+  // ...provider-neutral invoice fields...
+  currency: 'CAD',
+  subtotal: 100,
+  taxAmount: 5,
+  totalAmount: 105,
+  quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+  lineItems: [
+    {
+      description: 'Reviewed work',
+      quantity: 1,
+      unitPrice: 100,
+      quickbooksMapping: {
+        itemRef: '123', // Item.Id in this QuickBooks company
+        taxCodeRef: 'GST', // TaxCode.Id in this QuickBooks company
+      },
+    },
+  ],
+};
+```
+
+The QuickBooks adapter maps these values to `SalesItemLineDetail.ItemRef`,
+`SalesItemLineDetail.TaxCodeRef`, `GlobalTaxCalculation`, and
+`TxnTaxDetail.TotalTax`. It supports `TaxExcluded` and zero-tax
+`NotApplicable`; tax-inclusive inputs are rejected because the provider-neutral
+line model does not allocate included tax. Every mapped line must supply both
+realm-specific references. The caller must validate that those IDs belong to
+the configured company. See Intuit's [invoice API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/most-commonly-used/invoice)
+and [item API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/item).
+
+Legacy untaxed invoices without `quickbooksMapping` remain supported. The
+adapter fails before authentication or HTTP when an input would otherwise be
+silently discarded: nonzero line `discount`, nonzero numeric `taxRate`, generic
+`taxCode`, `automaticTax`, inconsistent totals, partial mappings, or invalid
+references. Explicit zero `discount` and `taxRate` are accepted. This mapping
+API has no discount representation and does not silently net discounts into
+prices. An explicit line `amount` must agree with `quantity × unitPrice`; the
+adapter compares ordinary decimal calculations without assuming a fixed number
+of decimal places for every currency.
+
 Prepare a caller-owned request descriptor **once**, persist it with the approved
 invoice in your durable outbox, then pass it on every create attempt:
 
@@ -76,8 +120,7 @@ The [static documentation](https://static.developer.intuit.com/output_html/qbo/d
 confirms the 50-character limit and per-realm uniqueness requirement.
 Our regression tests mock remote acceptance and response loss; they prove SDK
 identity/byte preservation and retry policy, **not live Intuit deduplication**.
-No sandbox credentials were available for this change. Before relying on remote
-idempotency, verify in an authorized sandbox: send a uniquely identified invoice,
+Before relying on remote idempotency, verify in an authorized sandbox: send a uniquely identified invoice,
 repeat the identical request with the same ID, confirm the same Invoice.Id and
 one invoice, and simulate a lost response before replaying it. Record realm,
 environment, request ID, timestamps, and returned IDs without credentials.
