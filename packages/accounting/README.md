@@ -44,7 +44,9 @@ silently discarded: nonzero line `discount`, nonzero numeric `taxRate`, generic
 `taxCode`, `automaticTax`, inconsistent totals, partial mappings, or invalid
 references. Explicit zero `discount` and `taxRate` are accepted. This mapping
 API has no discount representation and does not silently net discounts into
-prices.
+prices. An explicit line `amount` must agree with `quantity × unitPrice`; the
+adapter compares ordinary decimal calculations without assuming a fixed number
+of decimal places for every currency.
 
 Prepare a caller-owned request descriptor **once**, persist it with the approved
 invoice in your durable outbox, then pass it on every create attempt:

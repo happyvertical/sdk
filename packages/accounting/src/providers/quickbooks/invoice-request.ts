@@ -104,7 +104,9 @@ export function mapInvoiceToQBO(invoice: InvoiceInput) {
   finite(invoice.totalAmount, 'total amount');
   if (invoice.lineItems.length === 0)
     throw new Error('QuickBooks invoices require at least one sales line');
-  const close = (a: number, b: number) => Math.abs(a - b) <= 1e-9;
+  const close = (a: number, b: number) =>
+    Math.abs(a - b) <=
+    Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b)) * 8;
   const lines = invoice.lineItems.map((item, idx) => {
     if (item.discount !== undefined && item.discount !== 0)
       throw new Error(
@@ -124,6 +126,10 @@ export function mapInvoiceToQBO(invoice: InvoiceInput) {
       item.amount ?? item.quantity * item.unitPrice,
       `line ${idx + 1} amount`,
     );
+    if (!close(amount, item.quantity * item.unitPrice))
+      throw new Error(
+        `QuickBooks line ${idx + 1} amount must equal quantity times unit price`,
+      );
     return {
       LineNum: idx + 1,
       Description: item.description,
@@ -144,7 +150,16 @@ export function mapInvoiceToQBO(invoice: InvoiceInput) {
       },
     };
   });
-  const mappedSubtotal = lines.reduce((sum, line) => sum + line.Amount, 0);
+  // Compensated summation limits accumulated binary floating-point error
+  // without assuming a currency-specific number of decimal places.
+  let mappedSubtotal = 0;
+  let compensation = 0;
+  for (const line of lines) {
+    const adjusted = line.Amount - compensation;
+    const next = mappedSubtotal + adjusted;
+    compensation = next - mappedSubtotal - adjusted;
+    mappedSubtotal = next;
+  }
   if (!close(mappedSubtotal, invoice.subtotal))
     throw new Error('QuickBooks line amounts must equal the invoice subtotal');
   if (!close(invoice.subtotal + invoice.taxAmount, invoice.totalAmount))

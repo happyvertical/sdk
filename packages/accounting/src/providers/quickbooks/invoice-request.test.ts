@@ -109,6 +109,10 @@ describe('QuickBooks invoice request identity', () => {
     'global-tax',
   ])('binds changed %s mapping into request identity', (change) => {
     const original = mappedInvoice();
+    if (change === 'global-tax') {
+      original.taxAmount = 0;
+      original.totalAmount = 100;
+    }
     const descriptor = prepareQuickBooksInvoiceRequest(original, {
       requestId: 'mapped-1',
       realmId: 'realm-a',
@@ -128,8 +132,6 @@ describe('QuickBooks invoice request identity', () => {
       changed.totalAmount = 113;
     }
     if (change === 'global-tax') {
-      changed.taxAmount = 0;
-      changed.totalAmount = 100;
       invoiceMapping.globalTaxCalculation = 'NotApplicable';
     }
     changed.quickbooksRequest = descriptor;
@@ -171,6 +173,14 @@ describe('QuickBooks invoice request identity', () => {
     ['inconsistent subtotal', (input: InvoiceInput) => (input.subtotal = 99)],
     ['inconsistent total', (input: InvoiceInput) => (input.totalAmount = 104)],
     [
+      'contradictory line amount',
+      (input: InvoiceInput) => {
+        input.lineItems[0].amount = 90;
+        input.subtotal = 90;
+        input.totalAmount = 95;
+      },
+    ],
+    [
       'unknown global tax calculation',
       (input: InvoiceInput) => {
         if (!input.quickbooksMapping) throw new Error('invalid test fixture');
@@ -210,6 +220,20 @@ describe('QuickBooks invoice request identity', () => {
       ItemRef: undefined,
       TaxCodeRef: undefined,
     });
+  });
+
+  it('accepts ordinary decimal multiplication and compensated multi-line totals', () => {
+    const input = invoice();
+    input.lineItems = Array.from({ length: 100 }, (_, index) => ({
+      description: `Decimal line ${index + 1}`,
+      quantity: 3,
+      unitPrice: 0.1,
+      amount: 0.1 * 3,
+    }));
+    input.subtotal = 30;
+    input.taxAmount = 0;
+    input.totalAmount = 30;
+    expect(() => mapInvoiceToQBO(input)).not.toThrow();
   });
 
   it('returns provider-calculated read-back totals and raw synchronization state', async () => {
