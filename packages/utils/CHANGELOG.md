@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.100.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - send Stalwart DKIM algorithm (#1334) (directory)
+
 ## 0.100.2
 
 ### Patch Changes
