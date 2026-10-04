@@ -274,6 +274,27 @@ describe('StalwartAdapter', () => {
       });
       expect(key.domain).toBe('example.com');
       expect(key.selector).toBe('default');
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({
+        algorithm: 'Rsa',
+        domain: 'example.com',
+        selector: 'default',
+      });
+    });
+
+    it('should send the requested Stalwart DKIM algorithm', async () => {
+      mockRequest({});
+
+      await adapter.createDkimKey({
+        domain: 'example.com',
+        selector: 'default',
+        algorithm: 'Ed25519',
+      });
+
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({
+        algorithm: 'Ed25519',
+        domain: 'example.com',
+        selector: 'default',
+      });
     });
 
     it('should get DNS records', async () => {

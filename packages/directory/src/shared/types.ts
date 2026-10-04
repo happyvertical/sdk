@@ -162,6 +162,8 @@ export interface DkimKey {
 export interface CreateDkimKeyInput {
   domain: string;
   selector: string;
+  /** Stalwart's key-generation algorithm. Defaults to `Rsa`. */
+  algorithm?: 'Rsa' | 'Ed25519';
 }
 
 export interface DnsRecord {

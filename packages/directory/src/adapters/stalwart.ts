@@ -392,6 +392,7 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
       id?: string;
       publicKey?: string;
     }>('POST', '/api/dkim', {
+      algorithm: input.algorithm ?? 'Rsa',
       domain: input.domain,
       selector: input.selector,
     });
