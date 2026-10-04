@@ -181,6 +181,24 @@ describe('QuickBooks invoice request identity', () => {
       },
     ],
     [
+      'overflowing line multiplication',
+      (input: InvoiceInput) => {
+        input.lineItems[0].quantity = Number.MAX_VALUE;
+        input.lineItems[0].unitPrice = 2;
+      },
+    ],
+    [
+      'overflowing subtotal plus tax',
+      (input: InvoiceInput) => {
+        input.lineItems[0].quantity = 1;
+        input.lineItems[0].unitPrice = Number.MAX_VALUE;
+        input.lineItems[0].amount = Number.MAX_VALUE;
+        input.subtotal = Number.MAX_VALUE;
+        input.taxAmount = Number.MAX_VALUE;
+        input.totalAmount = Number.MAX_VALUE;
+      },
+    ],
+    [
       'unknown global tax calculation',
       (input: InvoiceInput) => {
         if (!input.quickbooksMapping) throw new Error('invalid test fixture');

@@ -105,8 +105,10 @@ export function mapInvoiceToQBO(invoice: InvoiceInput) {
   if (invoice.lineItems.length === 0)
     throw new Error('QuickBooks invoices require at least one sales line');
   const close = (a: number, b: number) =>
+    Number.isFinite(a) &&
+    Number.isFinite(b) &&
     Math.abs(a - b) <=
-    Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b)) * 8;
+      Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b)) * 8;
   const lines = invoice.lineItems.map((item, idx) => {
     if (item.discount !== undefined && item.discount !== 0)
       throw new Error(
