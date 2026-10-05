@@ -1,5 +1,11 @@
 # @happyvertical/speech
 
+## 0.102.0
+
+### Minor Changes
+
+- b12bde0: Add `transcriberInputFormat(type)` to the main entry, a pure `@happyvertical/speech/pcm` entry (`encodeWavPcm16`, strict `parseWavPcm16`, `resampleMono`, `float32ToPcm16`, `pcm16ToFloat32`, `WavFormatError`), and a `@happyvertical/speech/browser` entry with `createPcmCapture` for recording microphone audio as the raw PCM the realtime transcribers require.
+
 ## 0.101.3
 
 ### Patch Changes
