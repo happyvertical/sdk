@@ -197,7 +197,8 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    if: ${{ !inputs.dry-run }}
+    if: ${{ github.ref == 'refs/heads/main' && !inputs.dry-run }}
+    environment: release
     name: Publish platform packages
 
     steps:

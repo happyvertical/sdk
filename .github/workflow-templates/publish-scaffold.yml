@@ -15,6 +15,9 @@ on:
 
 jobs:
   publish:
+    # Holds the publish token in the main-only `release` environment (iac#2165).
+    if: github.ref == 'refs/heads/main'
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
