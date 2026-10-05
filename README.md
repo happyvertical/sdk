@@ -187,3 +187,8 @@ npx changeset                 # create changeset for PR
 ## License
 
 MIT — see [LICENSE](./LICENSE) for details.
+
+## TypeScript declaration compatibility
+
+See [published declaration portability](docs/declaration-portability.md) for supported
+consumer resolution modes and strict packed-package checks.

@@ -7,6 +7,7 @@
       "dependsOn": ["^build"],
       "inputs": [
         "$TURBO_ROOT$/vite.config.base.ts",
+        "$TURBO_ROOT$/scripts/declarations.ts",
         "src/**",
         "package.json",
         "tsconfig.json",
@@ -18,6 +19,7 @@
       "dependsOn": ["^build"],
       "inputs": [
         "$TURBO_ROOT$/vite.config.base.ts",
+        "$TURBO_ROOT$/scripts/declarations.ts",
         "$TURBO_ROOT$/vitest.package.config.ts",
         "$TURBO_ROOT$/vitest.shared.ts",
         "$TURBO_ROOT$/vitest.setup.ts",

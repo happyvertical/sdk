@@ -1504,6 +1504,7 @@
         "externalHappyVertical": [],
         "external": [
           "@paralleldrive/cuid2",
+          "@types/pluralize",
           "date-fns",
           "pluralize",
           "uuid"

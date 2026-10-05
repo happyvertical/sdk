@@ -4,9 +4,13 @@ import { spawnSync } from 'node:child_process';
 const packageDirectory = new URL('..', import.meta.url);
 const repositoryDirectory = new URL('../../..', import.meta.url);
 
+// Build dependency declarations before checking secrets on a fresh checkout.
 const build = spawnSync(
   'pnpm',
-  ['--dir', repositoryDirectory.pathname, '--filter', '@happyvertical/secrets', 'build'],
+  [
+    '--dir', repositoryDirectory.pathname, '--filter',
+    '@happyvertical/secrets...', '--recursive', 'build',
+  ],
   { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
 );
 if (build.status !== 0) {

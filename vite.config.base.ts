@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
-import dts from 'vite-plugin-dts';
+import { declarations } from './scripts/declarations.js';
 
 /**
  * Shared Vite configuration factory for all SDK packages
@@ -179,26 +179,6 @@ export function createPackageConfig(
       target: 'es2022',
       reportCompressedSize: false, // Speed up build
     },
-    plugins: [
-      dts({
-        outDir: resolve(packageDir, 'dist'),
-        include: [resolve(packageDir, 'src/**/*.ts')],
-        exclude: [
-          // Test files
-          '**/*.test.ts',
-          '**/*.spec.ts',
-          '**/*.test.*.ts',
-          // Config files
-          '**/*.config.ts',
-          '**/*.config.js',
-          // Declaration files
-          '**/*.d.ts',
-        ],
-        insertTypesEntry: false, // We handle this in package.json
-        rollupTypes: false,
-        // Use package-specific tsconfig
-        tsconfigPath: resolve(packageDir, 'tsconfig.json'),
-      }),
-    ],
+    plugins: [declarations(packageDir)],
   });
 }
