@@ -27,6 +27,6 @@ pnpm --filter @happyvertical/utils clean
 ## Ecosystem Relationships
 - Provides: Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging
 - Implements: none
-- Requires: @paralleldrive/cuid2, date-fns, pluralize, uuid
+- Requires: @paralleldrive/cuid2, @types/pluralize, date-fns, pluralize, uuid
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->

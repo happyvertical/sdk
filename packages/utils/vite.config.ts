@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
-import dts from 'vite-plugin-dts';
+import { declarations } from '../../scripts/declarations.js';
 
 const packageDir = __dirname;
 const agentContextEntry = resolve(packageDir, 'src/cli/claude-context.ts');
@@ -81,21 +81,5 @@ export default defineConfig({
     target: 'es2022',
     reportCompressedSize: false,
   },
-  plugins: [
-    dts({
-      outDir: resolve(packageDir, 'dist'),
-      include: [resolve(packageDir, 'src/**/*.ts')],
-      exclude: [
-        '**/*.test.ts',
-        '**/*.spec.ts',
-        '**/*.test.*.ts',
-        '**/*.config.ts',
-        '**/*.config.js',
-        '**/*.d.ts',
-      ],
-      insertTypesEntry: false,
-      rollupTypes: false,
-      tsconfigPath: resolve(packageDir, 'tsconfig.json'),
-    }),
-  ],
+  plugins: [declarations(packageDir)],
 });
