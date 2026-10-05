@@ -253,7 +253,11 @@ export interface InvoiceLineItemInput {
   taxCode?: string;
   /** Explicit realm-specific references used only by the QuickBooks provider. */
   quickbooksMapping?: QuickBooksInvoiceLineMapping;
-  /** Calculated line total */
+  /**
+   * Calculated line total in currency major units. QuickBooks preserves this
+   * value and accepts the exact quantity × unitPrice or its decimal half-up
+   * result at an explicitly recognized ISO currency's minor precision.
+   */
   amount?: number;
   /**
    * Service period start. Set together with `periodEnd`; the Stripe provider

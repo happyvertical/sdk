@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { InvoiceInput, QuickBooksInvoiceRequest } from '../../types.js';
+import { matchesCurrencyRoundedLineAmount } from './line-amount.js';
 
 /** Prepare once, persist before sending, and reuse unchanged. Performs no I/O. */
 export function prepareQuickBooksInvoiceRequest(
@@ -128,7 +129,15 @@ export function mapInvoiceToQBO(invoice: InvoiceInput) {
       item.amount ?? item.quantity * item.unitPrice,
       `line ${idx + 1} amount`,
     );
-    if (!close(amount, item.quantity * item.unitPrice))
+    if (
+      !close(amount, item.quantity * item.unitPrice) &&
+      !matchesCurrencyRoundedLineAmount(
+        item.quantity,
+        item.unitPrice,
+        amount,
+        invoice.currency,
+      )
+    )
       throw new Error(
         `QuickBooks line ${idx + 1} amount must equal quantity times unit price`,
       );
