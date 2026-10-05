@@ -308,8 +308,13 @@ export function parseWavPcm16(
       dataAt = body;
       dataSize = size;
     }
-    // RIFF chunks are word aligned: an odd size is followed by one pad byte.
-    offset = body + size + (size % 2);
+    // RIFF chunks are word aligned: an odd size is followed by one pad byte,
+    // which must also lie inside the RIFF.
+    const next = body + size + (size % 2);
+    if (next > riffEnd) {
+      fail('truncated', `${JSON.stringify(id)} chunk is missing its pad byte`);
+    }
+    offset = next;
   }
   if (!fmt || dataAt === undefined) {
     return fail(

@@ -405,6 +405,14 @@ describe('parseWavPcm16 hostile input', () => {
     ).toBe('malformed_chunk');
   });
 
+  it('rejects an odd-sized final chunk with no pad byte inside the RIFF', () => {
+    const padded = build([...good(), { id: 'LIST', body: Uint8Array.of(1) }]);
+    expect(parseWavPcm16(padded).frames).toBe(8);
+    const unpadded = padded.slice(0, padded.length - 1);
+    new DataView(unpadded.buffer).setUint32(4, unpadded.length - 8, true);
+    expect(reasonOf(() => parseWavPcm16(unpadded))).toBe('truncated');
+  });
+
   it('rejects an EXTENSIBLE extension that runs past its fmt chunk', () => {
     const body = extensibleBody();
     new DataView(body.buffer).setUint16(16, 65535, true);
