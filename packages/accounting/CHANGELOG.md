@@ -1,5 +1,22 @@
 # @happyvertical/accounting
 
+## 0.101.3
+
+### Patch Changes
+
+- SDK 0.101.2 was published to the registry but its repository release never completed. Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. Recovery evidence: https://github.com/happyvertical/sdk/actions/runs/37264164839.
+- Updated dependencies
+  - @happyvertical/utils@0.101.3
+
+## 0.101.2
+
+### Patch Changes
+
+- bcd6a1a: Accept retained QuickBooks line amounts rounded half-up at an explicitly recognized currency's ISO minor precision, preserving quantity, unit price, amount and request identity. Keep contradictory amounts and unsupported inputs fail-closed.
+- ac8204d: Keep Intuit's official OAuth client external to the accounting bundle so the
+  public QuickBooks OAuth and token-refresh paths execute in plain Node.js.
+  - @happyvertical/utils@0.101.2
+
 ## 0.101.1
 
 ### Patch Changes
