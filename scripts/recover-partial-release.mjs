@@ -16,6 +16,17 @@ export const recovery = Object.freeze({
   evidence: 'https://github.com/happyvertical/sdk/actions/runs/37237977423',
 });
 
+// Keep earlier reservations explicit so historical recovery remains reproducible.
+export const recoveries = Object.freeze([
+  recovery,
+  Object.freeze({
+    occupied: '0.101.2',
+    target: '0.101.3',
+    registry: OWN_REGISTRY,
+    evidence: 'https://github.com/happyvertical/sdk/actions/runs/37264164839',
+  }),
+]);
+
 export function versionExists(name, version, registry, run = spawnSync) {
   const result = run('npm', ['view', `${name}@${version}`, 'version', '--json',
     ...registryArgs(registry), '--prefer-online'], {
@@ -41,8 +52,9 @@ export function recoverPartialRelease(root = process.cwd(), {
 } = {}) {
   const read = (path) => JSON.parse(readFileSync(path, 'utf8'));
   const candidate = read(join(root, 'packages/utils/package.json')).version;
-  if (candidate !== recovery.occupied) return false;
-  if (registry !== recovery.registry) throw new Error('Partial release recovery requires its recorded primary registry');
+  const reservation = recoveries.find((entry) => entry.occupied === candidate);
+  if (!reservation) return false;
+  if (registry !== reservation.registry) throw new Error('Partial release recovery requires its recorded primary registry');
   const manifests = readdirSync(join(root, 'packages'), { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => join(root, 'packages', entry.name, 'package.json'))
@@ -52,20 +64,20 @@ export function recoverPartialRelease(root = process.cwd(), {
   const family = manifests.map(read).filter((pkg) => names.includes(pkg.name));
   if (family.some((pkg) => pkg.version !== candidate)) throw new Error('Inconsistent recovery family versions');
   for (const name of names) {
-    if (exists(name, recovery.target, registry)) {
-      throw new Error(`${name}@${recovery.target} is occupied; a newly reviewed recovery is required`);
+    if (exists(name, reservation.target, registry)) {
+      throw new Error(`${name}@${reservation.target} is occupied; a newly reviewed recovery is required`);
     }
   }
   // A second ordinary Changesets patch pass preserves pending release notes and
   // updates fixed-family dependencies/lockfile with the same supported tooling.
-  const note = `SDK ${recovery.occupied} was partially published and never completed. `
+  const note = `SDK ${reservation.occupied} was published to the registry but its repository release never completed. `
     + `Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. `
-    + `Recovery evidence: ${recovery.evidence}.`;
+    + `Recovery evidence: ${reservation.evidence}.`;
   writeFileSync(join(root, '.changeset/partial-release-recovery.md'),
     `---\n${names.map((name) => `${JSON.stringify(name)}: patch`).join("\n")}\n---\n\n${note}\n`, { flag: 'wx' });
   version();
   if (manifests.map(read).filter((pkg) => names.includes(pkg.name))
-    .some((pkg) => pkg.version !== recovery.target)) {
+    .some((pkg) => pkg.version !== reservation.target)) {
     throw new Error('Changesets did not produce the recorded recovery target');
   }
   return true;

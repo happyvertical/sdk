@@ -24,7 +24,7 @@ function fixture(t, candidate = recovery.occupied) {
   return { root, put, read: (path) => readFileSync(join(root, path), 'utf8') };
 }
 
-for (const candidate of ['0.100.4', '0.101.1', '0.102.0']) {
+for (const candidate of ['0.100.4', '0.101.1', '0.101.3', '0.102.0']) {
   test(`leaves unreserved candidate ${candidate} untouched`, (t) => {
     const { root } = fixture(t, candidate);
     assert.equal(recoverPartialRelease(root, { exists: () => assert.fail('lookup'), version: () => assert.fail('version') }), false);
@@ -86,8 +86,8 @@ test('real Changesets preserves feature notes and exact internal versions while 
   for (const name of ['utils', 'speech']) {
     assert.equal(JSON.parse(read(`packages/${name}/package.json`)).version, recovery.target);
   }
-  assert.match(read('packages/utils/CHANGELOG.md'), /partially published and never completed/);
-  assert.match(read('packages/speech/CHANGELOG.md'), /partially published and never completed/);
+  assert.match(read('packages/utils/CHANGELOG.md'), /repository release never completed/);
+  assert.match(read('packages/speech/CHANGELOG.md'), /repository release never completed/);
   assert.equal(JSON.parse(read('packages/speech/package.json')).dependencies['@happyvertical/utils'], recovery.target);
   assert.match(read('packages/speech/CHANGELOG.md'), /Preserve response queue fix and pending feature/);
   assert.equal(recoverPartialRelease(root, { exists: () => assert.fail('retry lookup'), version }), false);
@@ -107,4 +107,39 @@ test('workflow performs recovery after first Changesets pass and before exposing
  test('Changesets failure stops recovery', (t) => {
   const { root } = fixture(t);
   assert.throws(() => recoverPartialRelease(root, { exists: () => false, version: () => { throw new Error('version command failed'); } }), /version command failed/);
+});
+
+ test('recovers occupied 0.101.2 through real Changesets without dropping merged fixes', (t) => {
+  const { root, put, read } = fixture(t, '0.101.1');
+  put('.changeset/merged-fixes.md', '---\n"@happyvertical/speech": patch\n---\n\nRetain Node OAuth and currency rounding fixes.\n');
+  const version = () => {
+    const result = spawnSync(process.execPath, [resolve('node_modules/@changesets/cli/bin.js'), 'version'], { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  };
+  version();
+  assert.equal(JSON.parse(read('packages/utils/package.json')).version, '0.101.2');
+  const lookups = [];
+  assert.equal(recoverPartialRelease(root, { exists: (name, target, registry) => {
+    lookups.push([name, target, registry]); return false;
+  }, version }), true);
+  assert.deepEqual(lookups, ['@happyvertical/speech', '@happyvertical/utils'].map((name) => [name, '0.101.3', recovery.registry]));
+  for (const name of ['utils', 'speech']) {
+    assert.equal(JSON.parse(read(`packages/${name}/package.json`)).version, '0.101.3');
+    assert.match(read(`packages/${name}/CHANGELOG.md`), /37264164839/);
+  }
+  assert.equal(JSON.parse(read('packages/speech/package.json')).dependencies['@happyvertical/utils'], '0.101.3');
+  assert.match(read('packages/speech/CHANGELOG.md'), /Retain Node OAuth and currency rounding fixes/);
+  assert.equal(recoverPartialRelease(root, { exists: () => assert.fail('retry lookup'), version }), false);
+});
+
+test('0.101.2 reservation denies an occupied or unknown target before changing files', (t) => {
+  const { root, read, put } = fixture(t, '0.101.2');
+  for (const exists of [() => true, () => { throw new Error('offline'); }]) {
+    assert.throws(() => recoverPartialRelease(root, { exists, version: () => assert.fail('version') }), /occupied|offline/);
+    assert.throws(() => read('.changeset/partial-release-recovery.md'), /ENOENT/);
+    assert.equal(JSON.parse(read('packages/utils/package.json')).version, '0.101.2');
+  }
+  assert.throws(() => recoverPartialRelease(root, { registry: 'https://registry.npmjs.org/' }), /recorded primary/);
+  put('packages/speech/package.json', { name: '@happyvertical/speech', version: '0.101.1', publishConfig: {} });
+  assert.throws(() => recoverPartialRelease(root, { exists: () => assert.fail('lookup') }), /Inconsistent/);
 });
