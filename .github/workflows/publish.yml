@@ -81,6 +81,8 @@ permissions:
 jobs:
   prepare-release:
     name: Prepare Release
+    if: github.ref == 'refs/heads/main'
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -233,7 +235,10 @@ jobs:
   publish-release:
     name: Publish Verified Release
     needs: [prepare-release, pack-release]
-    if: needs.prepare-release.outputs.should-publish == 'true' && needs.pack-release.result == 'success'
+    if: |
+      github.ref == 'refs/heads/main' &&
+      needs.prepare-release.outputs.should-publish == 'true' && needs.pack-release.result == 'success'
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
@@ -397,11 +402,13 @@ jobs:
     needs: [prepare-release, publish-release]
     if: |
       always() && !cancelled() &&
+      github.ref == 'refs/heads/main' &&
       inputs.publish-mode != 'changesets' &&
       needs.prepare-release.result == 'success' &&
       (needs.publish-release.result == 'success' || needs.publish-release.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: release
     continue-on-error: true
     permissions:
       contents: read

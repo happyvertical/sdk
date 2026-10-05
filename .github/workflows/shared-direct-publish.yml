@@ -76,6 +76,8 @@ permissions:
 jobs:
   release:
     name: Version and Publish
+    if: github.ref == 'refs/heads/main'
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
