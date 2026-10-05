@@ -169,10 +169,10 @@ function readFmt(
       );
     }
     const cbSize = view.getUint16(body + 16, true);
-    if (cbSize < 22) {
+    if (cbSize < 22 || 18 + cbSize > size) {
       fail(
         'malformed_chunk',
-        `WAVE_FORMAT_EXTENSIBLE extension is ${cbSize} bytes; at least 22 required`,
+        `WAVE_FORMAT_EXTENSIBLE extension (${cbSize} bytes) is under 22 or runs past its fmt chunk`,
       );
     }
     const validBits = view.getUint16(body + 18, true);
@@ -229,7 +229,8 @@ function readFmt(
  * chunk, format tag 1 (or WAVE_FORMAT_EXTENSIBLE with the PCM subtype), 16
  * bits, a consistent header, and a declared data length that lies within the
  * buffer, is non-zero and is a whole number of frames. Nothing is clamped or
- * guessed. Bytes after the data chunk are ignored.
+ * guessed. Every chunk inside the declared RIFF is bounds-checked, including
+ * those after `data`; bytes beyond the RIFF are ignored.
  */
 export function parseWavPcm16(
   bytes: Uint8Array,
@@ -255,6 +256,8 @@ export function parseWavPcm16(
   }
 
   let fmt: Fmt | undefined;
+  let dataAt: number | undefined;
+  let dataSize = 0;
   let offset = 12;
   while (offset < riffEnd) {
     if (offset + 8 > riffEnd) {
@@ -289,6 +292,9 @@ export function parseWavPcm16(
         );
       }
     } else if (id === 'data') {
+      if (dataAt !== undefined) {
+        fail('malformed_chunk', 'WAV has more than one data chunk');
+      }
       if (!fmt)
         fail('data_before_fmt', 'WAV data chunk precedes its fmt chunk');
       if (size === 0) fail('empty_data', 'WAV data chunk is empty');
@@ -299,26 +305,31 @@ export function parseWavPcm16(
           `WAV data (${size} bytes) is not a whole number of ${frameBytes}-byte frames`,
         );
       }
-      const data = bytes.subarray(body, body + size);
-      const samples = new Int16Array(size / 2);
-      for (let index = 0; index < samples.length; index += 1) {
-        samples[index] = view.getInt16(body + index * 2, true);
-      }
-      const frames = size / frameBytes;
-      return {
-        sampleRate: fmt.sampleRate,
-        channels: fmt.channels,
-        frames,
-        durationMs: Math.round((frames / fmt.sampleRate) * 1000),
-        samples,
-        data,
-      };
+      dataAt = body;
+      dataSize = size;
     }
     // RIFF chunks are word aligned: an odd size is followed by one pad byte.
     offset = body + size + (size % 2);
   }
-  return fail(
-    fmt ? 'missing_data' : 'missing_fmt',
-    fmt ? 'WAV has no data chunk' : 'WAV has no fmt chunk',
-  );
+  if (!fmt || dataAt === undefined) {
+    return fail(
+      fmt ? 'missing_data' : 'missing_fmt',
+      fmt ? 'WAV has no data chunk' : 'WAV has no fmt chunk',
+    );
+  }
+  // Every chunk inside the RIFF has now been bounds-checked; decode.
+  const data = bytes.subarray(dataAt, dataAt + dataSize);
+  const samples = new Int16Array(dataSize / 2);
+  for (let index = 0; index < samples.length; index += 1) {
+    samples[index] = view.getInt16(dataAt + index * 2, true);
+  }
+  const frames = dataSize / (fmt.channels * 2);
+  return {
+    sampleRate: fmt.sampleRate,
+    channels: fmt.channels,
+    frames,
+    durationMs: Math.round((frames / fmt.sampleRate) * 1000),
+    samples,
+    data,
+  };
 }

@@ -169,7 +169,7 @@ describe('encodeWavPcm16 / parseWavPcm16', () => {
       { id: 'junk', body: Uint8Array.from([9]) },
       { id: 'data', body: dataBody(4) },
     ]);
-    const withTrailing = Uint8Array.from([...wav, 1, 2, 3]);
+    const withTrailing = Uint8Array.from([...wav, 1, 2, 3]); // outside the RIFF
     expect(parseWavPcm16(withTrailing).frames).toBe(4);
   });
 
@@ -329,8 +329,22 @@ describe('parseWavPcm16 hostile input', () => {
     const wav = Uint8Array.from([...build(good()), 1, 2, 3]);
     const view = new DataView(wav.buffer);
     view.setUint32(4, wav.length - 8, true);
-    // data chunk found first, so trailing garbage inside RIFF is never read
-    expect(parseWavPcm16(wav).frames).toBe(8);
+    // trailing garbage inside the RIFF is rejected, not skipped
+    expect(reasonOf(() => parseWavPcm16(wav))).toBe('malformed_chunk');
+    // a valid chunk after data is fine; a truncated or second data chunk is not
+    const afterData = build([
+      ...good(),
+      { id: 'LIST', body: new Uint8Array(4) },
+    ]);
+    expect(parseWavPcm16(afterData).frames).toBe(8);
+    const truncatedAfter = build([
+      ...good(),
+      { id: 'LIST', body: new Uint8Array(4), declared: 100 },
+    ]);
+    expect(reasonOf(() => parseWavPcm16(truncatedAfter))).toBe('truncated');
+    expect(reasonOf(() => parseWavPcm16(build([...good(), good()[1]])))).toBe(
+      'malformed_chunk',
+    );
     const noData = build([
       { id: 'fmt ', body: fmtBody() },
       { id: 'xxxx', body: new Uint8Array(0) },
@@ -388,6 +402,14 @@ describe('parseWavPcm16 hostile input', () => {
     ).toBe('unsupported_bits');
     expect(
       reasonOf(() => parseWavPcm16(wrap(extensibleBody().subarray(0, 30)))),
+    ).toBe('malformed_chunk');
+  });
+
+  it('rejects an EXTENSIBLE extension that runs past its fmt chunk', () => {
+    const body = extensibleBody();
+    new DataView(body.buffer).setUint16(16, 65535, true);
+    expect(
+      reasonOf(() => parseWavPcm16(build([{ id: 'fmt ', body }, good()[1]]))),
     ).toBe('malformed_chunk');
   });
 
@@ -487,6 +509,13 @@ describe('resampleMono', () => {
   it('preserves DC, including at the edges', () => {
     const out = resampleMono(new Float32Array(4800).fill(0.25), 48000, 16000);
     for (const i of [0, 1, out.length - 1]) expect(out[i]).toBeCloseTo(0.25, 4);
+  });
+
+  it('bounds the output before the equal-rate copy', () => {
+    const huge = { length: MAX_RESAMPLE_OUTPUT_SAMPLES + 1 } as Float32Array;
+    expect(reasonOf(() => resampleMono(huge, 16000, 16000))).toBe(
+      'invalid_argument',
+    );
   });
 
   it('rejects invalid rates and unbounded output', () => {

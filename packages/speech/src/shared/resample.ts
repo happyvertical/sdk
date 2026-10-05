@@ -40,8 +40,6 @@ export function resampleMono(
       );
     }
   }
-  if (fromRate === toRate) return samples.slice();
-
   const length = Math.floor((samples.length * toRate) / fromRate);
   if (length > MAX_RESAMPLE_OUTPUT_SAMPLES) {
     throw new WavFormatError(
@@ -49,6 +47,7 @@ export function resampleMono(
       `resampled output would be ${length} samples; the limit is ${MAX_RESAMPLE_OUTPUT_SAMPLES}`,
     );
   }
+  if (fromRate === toRate) return samples.slice();
   const out = new Float32Array(length);
   const step = fromRate / toRate;
   // Cutoff relative to the input Nyquist; 1 means no low-pass.
