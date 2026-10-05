@@ -80,9 +80,22 @@ silently discarded: nonzero line `discount`, nonzero numeric `taxRate`, generic
 `taxCode`, `automaticTax`, inconsistent totals, partial mappings, or invalid
 references. Explicit zero `discount` and `taxRate` are accepted. This mapping
 API has no discount representation and does not silently net discounts into
-prices. An explicit line `amount` must agree with `quantity × unitPrice`; the
-adapter compares ordinary decimal calculations without assuming a fixed number
-of decimal places for every currency.
+prices. An explicit line `amount` must agree with `quantity × unitPrice`, either
+as the existing exact-product calculation or as its decimal **half-up** result at
+the explicitly supplied currency's ISO 4217 minor precision. For example, CAD
+quantity `1.0005` × unit price `10` accepts the retained line amount `10.01`.
+The adapter preserves all three supplied values; it does not replace the amount,
+round an omitted amount, or change subtotal/tax reconciliation. The rounded path
+requires an amount exactly on the currency's minor-unit grid, not an arbitrary
+monetary tolerance. Negative quantities, prices and amounts remain unsupported.
+
+Precision comes from [ISO 4217 List One published 2026-09-17](https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml),
+not runtime display formatting (which differs for IQD, MGA and RSD). Zero-, two-,
+three- and four-decimal codes include JPY, CAD, KWD and CLF respectively. Missing,
+unknown and `N.A.` minor-unit codes do not enable rounding; their existing
+exact-product behavior is retained. Currency recognition does not assert that a
+particular QuickBooks company supports that currency: the caller still owns the
+company's currency configuration and authoritative readback.
 
 Prepare a caller-owned request descriptor **once**, persist it with the approved
 invoice in your durable outbox, then pass it on every create attempt:
