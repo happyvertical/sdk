@@ -10,6 +10,7 @@
     "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && lefthook install || echo 'Skipping lefthook install (not in git repository)'",
     "test": "turbo run test",
     "test:ci-scripts": "node --test scripts/*.test.mjs",
+    "test:accounting-packed-node": "node scripts/accounting-packed-node-smoke.mjs",
     "test:watch": "turbo run test:watch",
     "test:unit": "npx vitest run --grep '\\.test\\.ts$'",
     "test:integration": "npx vitest run --grep '\\.spec\\.ts$'",

@@ -152,6 +152,9 @@ export function createPackageConfig(
           'imapflow',
           'node-pop3',
           'mailparser',
+          // Node-only OAuth client. Bundling its CommonJS browser shims makes
+          // the generated ESM chunk evaluate `window` in plain Node.js.
+          'intuit-oauth',
 
           // Internal @happyvertical/* packages - externalize to avoid cross-package bundling
           /^@happyvertical\//,

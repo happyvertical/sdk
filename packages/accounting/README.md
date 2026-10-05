@@ -4,6 +4,9 @@ Provider-neutral accounting synchronization with Stripe billing support.
 
 ## QuickBooks connection OAuth
 
+The package loads Intuit's official OAuth client as a Node.js runtime
+dependency. No browser globals or consumer-provided shims are required.
+
 Use the public connection helper to generate an accounting authorization URL,
 exchange Intuit's callback, and revoke a refresh token:
 
