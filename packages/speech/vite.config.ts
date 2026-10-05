@@ -2,6 +2,8 @@ import { createPackageConfig } from '../../vite.config.base.js';
 
 const config = createPackageConfig('speech', {
   local: 'src/local.ts',
+  pcm: 'src/pcm.ts',
+  browser: 'src/browser.ts',
   conversation: 'src/conversation.ts',
   'conversation-server': 'src/conversation-server.ts',
 });

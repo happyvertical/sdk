@@ -14,6 +14,14 @@
       "import": "./dist/local.js",
       "types": "./dist/local.d.ts"
     },
+    "./pcm": {
+      "import": "./dist/pcm.js",
+      "types": "./dist/pcm.d.ts"
+    },
+    "./browser": {
+      "import": "./dist/browser.js",
+      "types": "./dist/browser.d.ts"
+    },
     "./conversation": {
       "import": "./dist/conversation.js",
       "types": "./dist/conversation.d.ts"

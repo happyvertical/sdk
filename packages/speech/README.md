@@ -274,6 +274,42 @@ HAVE_SPEECH_STREAMING_MAX_TURN_SECONDS=270        # per-turn cap; Infinity remov
 
 A base URL may be `ws(s)://` or `http(s)://`: a server root gets `/v1/realtime`, a base ending in a version segment gets `/realtime`, and for `openai-realtime` `intent=transcription` is added unless an `intent` is present. `voxtral-realtime` requires a base URL. `createStreamingClientSecret()` reads the same `TYPE`, `BASE_URL` (mapped to `…/v1/realtime/client_secrets`), `API_KEY`, `MODEL`, `LANGUAGE`, `TURN_DETECTION`, `TIMEOUT`, and `HEADERS` variables. `HAVE_SPEECH_TRANSCRIBER_TYPE=openai-realtime` also routes `getTranscriber()` to the wrapped streaming adapter, which then reads `HAVE_SPEECH_STREAMING_*`.
 
+## Capturing audio for the realtime transcribers
+
+`voxtral-realtime` and `openai-realtime` take raw 16-bit little-endian mono PCM (raw, or in a WAV) at one exact rate and reject compressed containers such as the webm/ogg a browser's `MediaRecorder` produces. `transcriberInputFormat(type)` says what to record:
+
+| Type | Input |
+| --- | --- |
+| `voxtral-realtime` | `{ kind: 'pcm16', sampleRate: 16000, channels: 1 }` |
+| `openai-realtime` | `{ kind: 'pcm16', sampleRate: 24000, channels: 1 }` (the default `audio/pcm` format; G.711 is an explicit adapter option) |
+| `studio-server`, `openai-compatible`, `local` | `{ kind: 'compressed' }` (any container the backend or platform decodes) |
+
+Three entry points, none of which loads Node-only code:
+
+- `@happyvertical/speech` exports `transcriberInputFormat` and `TranscriberInputFormat`.
+- `@happyvertical/speech/pcm` (browser, workers, Node): `encodeWavPcm16(samples, sampleRate)`, `parseWavPcm16(bytes, { sampleRate?, channels? })`, `resampleMono(samples, fromRate, toRate)`, `float32ToPcm16`, `pcm16ToFloat32`, and `WavFormatError` (stable `reason`).
+- `@happyvertical/speech/browser` (SSR-safe to import): `createPcmCapture(stream, { sampleRate, maxDurationMs })`, `pcmCaptureSupported()`, and `PcmCaptureError`.
+
+`parseWavPcm16` is strict because it reads untrusted bytes. It rejects, with `WavFormatError`, anything that is not a well-formed RIFF/WAVE with `fmt ` before `data`, format tag 1 (or `WAVE_FORMAT_EXTENSIBLE` whose subtype GUID is PCM), 16 bits, a consistent block align and byte rate, a non-empty data chunk that is a whole number of frames, and any declared size (RIFF, chunk or data) that exceeds the buffer. Nothing is clamped, nothing is allocated from a declared size, and work is linear in the input. It returns `{ sampleRate, channels, frames, durationMs, samples, data }`.
+
+`resampleMono` is a windowed-sinc (Hann, 16 zero crossings per side) interpolator. Downsampling low-passes at 95% of the target Nyquist first, so a 12 kHz tone does not alias when going 48 kHz to 16 kHz. It is built for speech recognition, not mastering, and output length is `floor(n * to / from)`, capped at 2^28 samples.
+
+`createPcmCapture` uses `AudioContext` + `AudioWorklet` (worklet inlined via a Blob URL, no bundler setup), mixes all channels to mono, drops audio past `maxDurationMs` (`truncated: true`, optional `onLimit`), and on `stop()` or `cancel()` disconnects the nodes, closes the context and revokes the Blob URL. You keep ownership of the `MediaStream` and its tracks.
+
+```typescript
+import { createPcmCapture } from '@happyvertical/speech/browser';
+import { transcriberInputFormat } from '@happyvertical/speech';
+
+const format = transcriberInputFormat('voxtral-realtime');
+if (format.kind !== 'pcm16') throw new Error('expected a raw PCM transcriber');
+const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+const capture = createPcmCapture(mic, { sampleRate: format.sampleRate, maxDurationMs: 30_000 });
+// ...on release:
+const { wav } = await capture.stop(); // mono 16-bit WAV at format.sampleRate
+for (const track of mic.getTracks()) track.stop();
+await fetch('/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
+```
+
 ## On-device Transcription
 
 `type: 'local'` runs Whisper or Moonshine ONNX models on the device with [transformers.js](https://huggingface.co/docs/transformers.js). In a browser it uses WebGPU or WASM; in Node it uses onnxruntime-node. Audio never leaves the device, there is no API key or per-call cost, and once the model is cached it works offline.
