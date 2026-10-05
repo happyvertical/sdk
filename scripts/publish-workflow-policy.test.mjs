@@ -8,13 +8,17 @@ import test from 'node:test';
 const PUBLISH_SECRET = /secrets\.(NPM_HAPPYVERTICAL_PUBLISH_TOKEN|NPM_TOKEN)\b/;
 const workflowDir = new URL('../.github/workflows/', import.meta.url);
 
+const templateDir = new URL('../.github/workflow-templates/', import.meta.url);
+
 function allWorkflows() {
-  return readdirSync(workflowDir, { recursive: true })
-    .filter((f) => /\.ya?ml$/.test(f))
-    .map((f) => ({
-      file: f,
-      source: readFileSync(new URL(f, workflowDir), 'utf8'),
-    }));
+  return [workflowDir, templateDir].flatMap((dir) =>
+    readdirSync(dir, { recursive: true })
+      .filter((f) => /\.ya?ml$/.test(f))
+      .map((f) => ({
+        file: f,
+        source: readFileSync(new URL(f, dir), 'utf8'),
+      })),
+  );
 }
 
 function jobsOf(source) {
