@@ -49,3 +49,56 @@ export class SpeechProviderError extends SpeechError {
     }
   }
 }
+
+/** Why a WAV buffer was rejected by `parseWavPcm16`, or an encode input refused. */
+export type WavFormatErrorReason =
+  | 'not_riff'
+  | 'truncated'
+  | 'malformed_chunk'
+  | 'missing_fmt'
+  | 'duplicate_fmt'
+  | 'data_before_fmt'
+  | 'missing_data'
+  | 'empty_data'
+  | 'unsupported_format'
+  | 'unsupported_bits'
+  | 'inconsistent_header'
+  | 'misaligned_data'
+  | 'rate_mismatch'
+  | 'channel_mismatch'
+  | 'invalid_argument';
+
+/**
+ * Thrown by the PCM/WAV utilities (`@happyvertical/speech/pcm`) for input that
+ * is not exactly the 16-bit PCM WAV that was asked for, and for invalid
+ * arguments (sample rate, sizes). `reason` is stable and machine-readable.
+ */
+export class WavFormatError extends SpeechError {
+  readonly reason: WavFormatErrorReason;
+
+  constructor(reason: WavFormatErrorReason, message: string) {
+    super(message, 'SPEECH_INVALID_WAV');
+    this.name = 'WavFormatError';
+    this.reason = reason;
+  }
+}
+
+/** Why a browser PCM capture could not start or produce audio. */
+export type PcmCaptureErrorReason =
+  | 'unsupported'
+  | 'setup_failed'
+  | 'cancelled';
+
+/** Thrown by `createPcmCapture` (`@happyvertical/speech/browser`). */
+export class PcmCaptureError extends SpeechError {
+  readonly reason: PcmCaptureErrorReason;
+
+  constructor(reason: PcmCaptureErrorReason, message: string, cause?: unknown) {
+    super(message, 'SPEECH_PCM_CAPTURE');
+    this.name = 'PcmCaptureError';
+    this.reason = reason;
+    if (cause !== undefined) {
+      this.cause = cause;
+    }
+  }
+}

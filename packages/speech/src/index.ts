@@ -55,6 +55,10 @@ export {
   type SpeechFactoryContext,
 } from './shared/factory.js';
 export {
+  type TranscriberInputFormat,
+  transcriberInputFormat,
+} from './shared/input-format.js';
+export {
   audioSecondsForBytes,
   bytesPerSecond,
   unwrapRawAudio,
