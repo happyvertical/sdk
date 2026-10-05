@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.102.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - emit NodeNext-compatible SDK declarations (#1357) (config)
+
 ## 0.102.0
 
 ## 0.101.3
