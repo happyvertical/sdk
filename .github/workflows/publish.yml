@@ -130,6 +130,7 @@ jobs:
           if git rev-parse "v$before" >/dev/null 2>&1; then
             pnpm run changeset:auto
             pnpm run changeset:version
+            node scripts/recover-partial-release.mjs
             after=$(node -p "require('./packages/utils/package.json').version")
           else
             release_commit=$(git log --fixed-strings --grep="chore(release): v$before" --format='%H' -n 1)
