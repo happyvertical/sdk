@@ -113,6 +113,13 @@ interface EngineEntry {
   listeners: Set<(report: WebLLMLoadProgress) => void>;
 }
 
+/**
+ * Per-engine request queues. WebLLM runs one generation at a time per engine
+ * and `interruptGenerate()` stops whichever one is running, so requests are
+ * serialized here and only the running request may interrupt.
+ */
+const engineQueues = new WeakMap<object, Promise<void>>();
+
 /** Engines shared by every provider instance that uses the prebuilt model list. */
 const sharedEngines = new Map<string, EngineEntry>();
 
@@ -387,8 +394,28 @@ export class WebLLMProvider implements AIInterface {
       case 'tool_calls':
         return 'tool_calls' as const;
       default:
-        // 'abort' is surfaced as an error by the caller when the signal fired.
         return 'stop' as const;
+    }
+  }
+
+  /**
+   * WebLLM reports `abort` when generation was interrupted. The provider's own
+   * aborts are raised before this point, so reaching it means someone else
+   * interrupted the engine (for example a caller sharing a supplied engine);
+   * a truncated reply must not look like a normal stop.
+   */
+  private assertNotInterrupted(
+    reason: string | null | undefined,
+    model: string,
+  ): void {
+    if (reason === 'abort') {
+      throw new AIError(
+        'Generation was interrupted before it finished',
+        'AI_INTERRUPTED',
+        PROVIDER,
+        model,
+        true,
+      );
     }
   }
 
@@ -448,6 +475,33 @@ export class WebLLMProvider implements AIInterface {
     return undefined;
   }
 
+  /**
+   * Waits for this request's turn on the engine; resolves to a release fn. A
+   * queued request that is aborted or times out leaves the queue at once and
+   * never interrupts the generation ahead of it.
+   */
+  private async lockEngine(
+    engine: WebLLMEngineLike,
+    signal: AbortSignal,
+  ): Promise<() => void> {
+    const previous = engineQueues.get(engine) ?? Promise.resolve();
+    let release: () => void = () => {};
+    const mine = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    engineQueues.set(
+      engine,
+      previous.then(() => mine),
+    );
+    try {
+      await abortable(previous, signal);
+    } catch (error) {
+      release();
+      throw error;
+    }
+    return release;
+  }
+
   /** Interrupts generation when the composed signal fires; returns a detach fn. */
   private bindInterrupt(
     engine: WebLLMEngineLike,
@@ -476,6 +530,7 @@ export class WebLLMProvider implements AIInterface {
     const startTime = Date.now();
     let controls: PreparedRequestControls | undefined;
     let detach: (() => void) | undefined;
+    let release: (() => void) | undefined;
     const model =
       options.model || this.options.defaultModel || DEFAULT_WEBLLM_MODEL;
     try {
@@ -484,6 +539,7 @@ export class WebLLMProvider implements AIInterface {
       // consume the generation budget.
       const engine = await this.acquireEngine(model, options.signal);
       controls = prepareRequestControls(this.options, options);
+      release = await this.lockEngine(engine, controls.signal);
       detach = this.bindInterrupt(engine, controls.signal);
 
       const response = await engine.chat.completions.create(
@@ -502,6 +558,7 @@ export class WebLLMProvider implements AIInterface {
       }
 
       const choice = response?.choices?.[0];
+      this.assertNotInterrupted(choice?.finish_reason, model);
       if (!choice) {
         throw new AIError(
           'No choices returned from webllm',
@@ -546,6 +603,7 @@ export class WebLLMProvider implements AIInterface {
       );
     } finally {
       detach?.();
+      release?.();
       controls?.cleanup();
     }
   }
@@ -613,6 +671,7 @@ export class WebLLMProvider implements AIInterface {
     let controls: PreparedRequestControls | undefined;
     let detach: (() => void) | undefined;
     let engine: WebLLMEngineLike | undefined;
+    let release: (() => void) | undefined;
     let finished = false;
     const model =
       options.model || this.options.defaultModel || DEFAULT_WEBLLM_MODEL;
@@ -620,6 +679,7 @@ export class WebLLMProvider implements AIInterface {
       options = normalizeChatOptions(this.options, options, PROVIDER, model);
       engine = await this.acquireEngine(model, options.signal);
       controls = prepareRequestControls(this.options, options);
+      release = await this.lockEngine(engine, controls.signal);
       detach = this.bindInterrupt(engine, controls.signal);
 
       const chunks = await engine.chat.completions.create(
@@ -655,6 +715,7 @@ export class WebLLMProvider implements AIInterface {
           this.abortError(controls, options, model) ?? controls.signal.reason
         );
       }
+      this.assertNotInterrupted(finishReason, model);
       finished = true;
       options.onFinishReason?.(this.mapFinishReason(finishReason));
       emitUsage(
@@ -671,7 +732,13 @@ export class WebLLMProvider implements AIInterface {
         this.abortError(controls, options, model) ?? this.mapError(error, model)
       );
     } finally {
-      if (!finished && engine && controls && !controls.signal.aborted) {
+      if (
+        !finished &&
+        release &&
+        engine &&
+        controls &&
+        !controls.signal.aborted
+      ) {
         // Consumer stopped early: do not leave the GPU generating.
         try {
           void Promise.resolve(engine.interruptGenerate()).catch(() => {});
@@ -680,6 +747,7 @@ export class WebLLMProvider implements AIInterface {
         }
       }
       detach?.();
+      release?.();
       controls?.cleanup();
     }
   }

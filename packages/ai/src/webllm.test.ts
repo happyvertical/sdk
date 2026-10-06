@@ -415,6 +415,69 @@ describe('abort and timeout', () => {
     expect(h.interrupt).toHaveBeenCalled();
   });
 
+  it('serializes requests per engine and only interrupts the running one', async () => {
+    const ai = provider({ engine: mockEngine() });
+    const first = new AbortController();
+    const second = new AbortController();
+    const releases: Array<() => void> = [];
+    h.create.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releases.push(() => resolve(completion()));
+        }),
+    );
+    const running = ai.chat([{ role: 'user', content: '1' }], {
+      signal: first.signal,
+    });
+    await vi.waitFor(() => expect(h.create).toHaveBeenCalledTimes(1));
+    const queued = ai.chat([{ role: 'user', content: '2' }], {
+      signal: second.signal,
+    });
+    queued.catch(() => {});
+
+    // Aborting the queued request rejects it at once without touching the engine.
+    second.abort();
+    await expect(queued).rejects.toMatchObject({ code: 'AI_ABORTED' });
+    expect(h.interrupt).not.toHaveBeenCalled();
+    expect(h.create).toHaveBeenCalledTimes(1);
+
+    // The running request is unaffected and a later request still gets its turn.
+    releases[0]();
+    await expect(running).resolves.toMatchObject({ content: 'hello' });
+    const third = ai.chat([{ role: 'user', content: '3' }]);
+    await vi.waitFor(() => expect(h.create).toHaveBeenCalledTimes(2));
+    releases[1]();
+    await expect(third).resolves.toMatchObject({ content: 'hello' });
+    expect(first.signal.aborted).toBe(false);
+  });
+
+  it('does not report an engine-side interruption as a normal stop', async () => {
+    h.create.mockResolvedValue(
+      completion({
+        choices: [{ message: { content: 'cut' }, finish_reason: 'abort' }],
+      }),
+    );
+    await expect(
+      provider().chat([{ role: 'user', content: 'hi' }]),
+    ).rejects.toMatchObject({ code: 'AI_INTERRUPTED', retryable: true });
+
+    h.create.mockResolvedValue(
+      (async function* () {
+        yield {
+          choices: [{ delta: { content: 'a' }, finish_reason: 'abort' }],
+        };
+      })(),
+    );
+    const drain = async () => {
+      for await (const _ of provider().stream([
+        { role: 'user', content: 'hi' },
+      ])) {
+        // drain
+      }
+    };
+    await expect(drain()).rejects.toMatchObject({ code: 'AI_INTERRUPTED' });
+  });
+
   it('rejects immediately when already aborted', async () => {
     const controller = new AbortController();
     controller.abort();

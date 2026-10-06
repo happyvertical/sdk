@@ -235,8 +235,13 @@ unconstrained JSON mode.
   A supplied engine is never loaded, cached, or unloaded by this package and the
   WebGPU check is skipped; `model` is sent only when you set it.
 - **Cancel**: `signal` and `timeout` call `engine.interruptGenerate()` and throw
-  `AIError` with code `AI_ABORTED` / `AI_TIMEOUT`. Interruption is engine-wide,
-  so do not run two generations on one engine at once.
+  `AIError` with code `AI_ABORTED` / `AI_TIMEOUT`. WebLLM generates one request
+  at a time per engine and `interruptGenerate()` stops whatever is running, so
+  requests to one engine are queued by this package: `timeout` and `signal`
+  cover the wait too, and an aborted or timed-out request never interrupts
+  another's generation. If something outside this package interrupts a supplied
+  engine mid-request, the call throws `AI_INTERRUPTED` instead of returning a
+  truncated reply as a normal stop.
 
 ### Capabilities and limits
 
