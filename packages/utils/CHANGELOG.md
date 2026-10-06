@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.102.3
+
+### Patch Changes
+
+- ### Features
+
+  - PGlite backend for browser and serverless Node databases (#1362) (sql)
+
 ## 0.102.2
 
 ### Patch Changes

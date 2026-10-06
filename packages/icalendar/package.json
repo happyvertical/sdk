@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/icalendar",
-  "version": "0.102.2",
+  "version": "0.102.3",
   "description": "Bounded RFC 5545 iCalendar parsing facade",
   "type": "module",
   "main": "./dist/index.js",

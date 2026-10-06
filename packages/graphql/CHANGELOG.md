@@ -1,5 +1,7 @@
 # @happyvertical/graphql
 
+## 0.102.3
+
 ## 0.102.2
 
 ## 0.102.1
