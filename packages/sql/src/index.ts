@@ -1,4 +1,5 @@
 import { loadEnvConfig } from '@happyvertical/utils';
+import type { PGliteOptions } from './pglite';
 import type { PostgresOptions } from './postgres';
 import type {
   DatabaseInterface,
@@ -14,6 +15,7 @@ export type GetDatabaseOptions =
   | (PostgresOptions & { type?: 'postgres' })
   | (SqliteOptions & { type?: 'sqlite' })
   | (DuckDBOptions & { type?: 'duckdb' })
+  | (PGliteOptions & { type?: 'pglite' })
   | JSONOptions;
 
 /**
@@ -37,7 +39,7 @@ function isDatabaseInstance(value: any): value is DatabaseInterface {
  * Creates a database connection based on the provided options, or returns an existing database instance
  *
  * Loads configuration from environment variables using the HAVE_SQL_* pattern:
- * - HAVE_SQL_TYPE → type ('sqlite' | 'postgres' | 'duckdb' | 'json')
+ * - HAVE_SQL_TYPE → type ('sqlite' | 'postgres' | 'pglite' | 'duckdb' | 'json')
  * - HAVE_SQL_URL → url (connection string)
  * - HAVE_SQL_HOST → host (database server hostname)
  * - HAVE_SQL_PORT → port (database server port number)
@@ -104,6 +106,10 @@ export async function getDatabase(
   if (options.type === 'postgres') {
     const postgres = await import('./postgres.js');
     return postgres.getDatabase(options as PostgresOptions);
+  }
+  if (options.type === 'pglite') {
+    const pglite = await import('./pglite.js');
+    return pglite.getDatabase(options as PGliteOptions);
   }
   if (options.type === 'sqlite') {
     const sqlite = await import('./sqlite.js');
@@ -245,6 +251,10 @@ export {
 
 // Export adapter cache utilities (for testing)
 export { clearConnectionCache } from './json.js';
+// PGlite (browser-capable Postgres). Types only: the adapter and its
+// `PGlitePeerMissingError` load from `@happyvertical/sql/pglite`, which keeps
+// the root entry free of the optional `@electric-sql/pglite` peer.
+export type { PGliteLike, PGliteOptions } from './pglite';
 export { clearPostgresConnectionCache } from './postgres.js';
 // Postgres CLI shell-outs and URL helpers
 export {

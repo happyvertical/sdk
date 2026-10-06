@@ -36,6 +36,10 @@
     "./backup": {
       "import": "./dist/backup/index.js",
       "types": "./dist/backup/index.d.ts"
+    },
+    "./pglite": {
+      "import": "./dist/pglite.js",
+      "types": "./dist/pglite.d.ts"
     }
   },
   "scripts": {
@@ -63,10 +67,14 @@
     "sqlite-vss": "^0.1.2"
   },
   "peerDependencies": {
+    "@electric-sql/pglite": ">=0.5.0 <1",
     "@russellthehippo/honker-node": "^0.3.3",
     "@sqliteai/sqlite-vector": "^1.0.0"
   },
   "peerDependenciesMeta": {
+    "@electric-sql/pglite": {
+      "optional": true
+    },
     "@russellthehippo/honker-node": {
       "optional": true
     },
@@ -75,6 +83,9 @@
     }
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-pgvector": "^0.0.9",
+    "@types/emscripten": "^1.41.1",
     "@types/node": "25.0.10",
     "@types/pg": "^8.20.0",
     "typescript": "5.9.3",

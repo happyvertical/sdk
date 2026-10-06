@@ -1000,6 +1000,15 @@ importers:
         specifier: ^0.1.2
         version: 0.1.2
     devDependencies:
+      '@electric-sql/pglite-pgvector':
+        specifier: ^0.0.9
+        version: 0.0.9(@electric-sql/pglite@0.5.8)
+      '@electric-sql/pglite':
+        specifier: ^0.5.8
+        version: 0.5.8
+      '@types/emscripten':
+        specifier: ^1.41.1
+        version: 1.41.6
       '@types/node':
         specifier: 24.12.2
         version: 24.12.2
@@ -3063,6 +3072,14 @@ packages:
 
   '@duckdb/node-bindings@1.4.3-r.3':
     resolution: {integrity: sha512-QrkUgZw4Xwn5lNbvUHXcF3F5OvVexf9uQyJnxrLTzs9P93Be0UB+b4hr1EZwf1OMMocchN9iG1R839aVIfSJBg==}
+
+  '@electric-sql/pglite-pgvector@0.0.9':
+    resolution: {integrity: sha512-ue4iBW651gDQwBwn97Ekv1lYGPvXa1ymHbRbTCSL0Ib286PRDD1VDOwzwEoekZuO/wctMbTzKzlwdgDwYrqZ8A==}
+    peerDependencies:
+      '@electric-sql/pglite': 0.5.8
+
+  '@electric-sql/pglite@0.5.8':
+    resolution: {integrity: sha512-n9tsbUOhwx2epK1V0ZG9Ar4SHWUju04dhmzZXiSBXwBoleOvIfals33NAaWgagQVAL4Rbvx/Ptsu3P+pA09f6Q==}
 
   '@emnapi/core@1.11.1':
     resolution: {integrity: sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==}
@@ -6399,6 +6416,9 @@ packages:
 
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
+
+  '@types/emscripten@1.41.6':
+    resolution: {integrity: sha512-uN+9i8bFT5CUcZfyIEYDrSueACEyKGbUs5kC/72DGlZZoinh84sJfVV0i8UOJD1asdzkvLPBRrKs41kZ8MdEXg==}
 
   '@types/eslint-scope@3.7.7':
     resolution: {integrity: sha512-MzMFlSLBqNF2gcHWO0G1vP/YQyfvrxZ0bF+u7mzUdZ1/xK4A4sru+nraZz5i3iEIk1l1uyicaDVTB4QbbEkAYg==}
@@ -17441,6 +17461,12 @@ snapshots:
       '@duckdb/node-bindings-linux-x64': 1.4.3-r.3
       '@duckdb/node-bindings-win32-x64': 1.4.3-r.3
 
+  '@electric-sql/pglite-pgvector@0.0.9(@electric-sql/pglite@0.5.8)':
+    dependencies:
+      '@electric-sql/pglite': 0.5.8
+
+  '@electric-sql/pglite@0.5.8': {}
+
   '@emnapi/core@1.11.1':
     dependencies:
       '@emnapi/wasi-threads': 1.2.2
@@ -20821,6 +20847,8 @@ snapshots:
       '@types/ms': 2.1.0
 
   '@types/deep-eql@4.0.2': {}
+
+  '@types/emscripten@1.41.6': {}
 
   '@types/eslint-scope@3.7.7':
     dependencies:

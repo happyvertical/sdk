@@ -104,7 +104,7 @@ export interface DatabaseOptions extends DatabaseCacheOptions {
    * How long a queued transaction waits for the connection, in milliseconds.
    *
    * Applies to the single-connection adapters — SQLite (both the LibSQL and
-   * native paths), DuckDB and JSON. Those drive one connection, so transactions
+   * native paths), DuckDB, JSON and PGlite. Those drive one connection, so transactions
    * run one at a time and an overlapping `transaction()` waits its turn.
    * PostgreSQL pools and ignores this.
    *
@@ -237,7 +237,7 @@ export interface JSONOptions extends DatabaseOptions {
    * How long a queued transaction waits for the connection, in milliseconds.
    *
    * Applies to the single-connection adapters — SQLite (both the LibSQL and
-   * native paths), DuckDB and JSON. Those drive one connection, so transactions
+   * native paths), DuckDB, JSON and PGlite. Those drive one connection, so transactions
    * run one at a time and an overlapping `transaction()` waits its turn.
    * PostgreSQL pools and ignores this.
    *
@@ -1112,8 +1112,8 @@ export interface DatabaseInterface {
    * parameter rather than opening a nested one.
    *
    * **Transactions are serialized per connection on the single-connection
-   * adapters** — SQLite (both paths), DuckDB and JSON drive one connection, and
-   * a connection can only be in one transaction at a time, so a concurrent
+   * adapters** — SQLite (both paths), DuckDB, JSON and PGlite drive one
+   * connection, and a connection can only be in one transaction at a time, so a concurrent
    * `transaction()` waits for the one in progress rather than corrupting it. A
    * queued call that waits longer than `transactionQueueTimeout` (30s by
    * default) rejects rather than stalling indefinitely. Re-entrant calls do not
