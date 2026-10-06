@@ -1,5 +1,13 @@
 # @happyvertical/jobs
 
+## 0.102.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.102.2
+  - @happyvertical/sql@0.102.2
+
 ## 0.102.1
 
 ### Patch Changes

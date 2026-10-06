@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/ai",
-  "version": "0.102.1",
+  "version": "0.102.2",
   "description": "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev typed decisions",
   "type": "module",
   "main": "./dist/index.js",

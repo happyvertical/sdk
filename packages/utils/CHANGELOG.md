@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.102.2
+
+### Patch Changes
+
+- ### Features
+
+  - in-browser WebLLM chat provider under @happyvertical/ai/local (#1361) (ai)
+
 ## 0.102.1
 
 ### Patch Changes

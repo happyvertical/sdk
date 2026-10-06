@@ -1,5 +1,7 @@
 # @happyvertical/icalendar
 
+## 0.102.2
+
 ## 0.102.1
 
 ## 0.102.0
