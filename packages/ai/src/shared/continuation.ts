@@ -32,13 +32,17 @@ interface ResolvedContinuation {
  */
 export function resolveContinuation(
   providerOptions: BaseAIOptions,
-  options: Pick<ChatOptions, 'tools' | 'responseFormat'> & {
+  options: Pick<ChatOptions, 'tools' | 'responseFormat' | 'responseSchema'> & {
     continueOnLength?: ContinueOnLengthOption;
   },
 ): ResolvedContinuation | undefined {
   const setting = options.continueOnLength ?? providerOptions.continueOnLength;
   if (!setting) return undefined;
-  if (options.tools?.length || options.responseFormat?.type === 'json_object') {
+  if (
+    options.tools?.length ||
+    options.responseFormat?.type === 'json_object' ||
+    options.responseSchema
+  ) {
     return undefined;
   }
   const requested =

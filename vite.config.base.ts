@@ -123,6 +123,8 @@ export function createPackageConfig(
           '@google-cloud/translate',
           'deepl-node',
           'redis',
+          // Optional peer of @happyvertical/ai/local; loaded lazily by consumers.
+          '@mlc-ai/web-llm',
           '@modelcontextprotocol/sdk',
           /^@modelcontextprotocol\//,
           'undici',
