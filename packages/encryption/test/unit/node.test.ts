@@ -1,13 +1,13 @@
-import { describe, expect, it, beforeEach } from 'vitest';
-import { getEncryption } from '../../src/index.js';
-import type { Encryption, KeyPair } from '../../src/shared/types.js';
 import * as crypto from 'node:crypto';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { getEncryption } from '../../src/index.js';
 import {
   DecryptError,
   EncryptError,
   KeyError,
-  SignatureError
+  SignatureError,
 } from '../../src/shared/errors.js';
+import type { Encryption, KeyPair } from '../../src/shared/types.js';
 
 describe('Node Crypto Adapter', () => {
   describe('AES-256-GCM Encryption', () => {
@@ -19,7 +19,7 @@ describe('Node Crypto Adapter', () => {
       encryption = await getEncryption({
         type: 'node',
         algorithm: 'aes-256-gcm',
-        key
+        key,
       });
     });
 
@@ -61,22 +61,22 @@ describe('Node Crypto Adapter', () => {
       const wrongKeyEncryption = await getEncryption({
         type: 'node',
         algorithm: 'aes-256-gcm',
-        key: crypto.randomBytes(32)
+        key: crypto.randomBytes(32),
       });
 
       await expect(wrongKeyEncryption.decryptText(encrypted)).rejects.toThrow(
-        DecryptError
+        DecryptError,
       );
     });
 
     it('should throw error when encrypting without key', async () => {
       const noKeyEncryption = await getEncryption({
         type: 'node',
-        algorithm: 'aes-256-gcm'
+        algorithm: 'aes-256-gcm',
       });
 
       await expect(noKeyEncryption.encryptText('Secret')).rejects.toThrow(
-        EncryptError
+        EncryptError,
       );
     });
 
@@ -85,7 +85,7 @@ describe('Node Crypto Adapter', () => {
       const corrupted = encrypted.slice(0, -10) + 'XXXXXXXXXX';
 
       await expect(encryption.decryptText(corrupted)).rejects.toThrow(
-        DecryptError
+        DecryptError,
       );
     });
   });
@@ -99,7 +99,7 @@ describe('Node Crypto Adapter', () => {
       encryption = await getEncryption({
         type: 'node',
         algorithm: 'aes-256-cbc',
-        key
+        key,
       });
     });
 
@@ -125,12 +125,20 @@ describe('Node Crypto Adapter', () => {
       const wrongKeyEncryption = await getEncryption({
         type: 'node',
         algorithm: 'aes-256-cbc',
-        key: crypto.randomBytes(32)
+        key: crypto.randomBytes(32),
       });
 
-      await expect(wrongKeyEncryption.decryptText(encrypted)).rejects.toThrow(
-        DecryptError
-      );
+      // CBC is unauthenticated: about 1 in 256 wrong-key decryptions happen to
+      // end in valid PKCS#7 padding and return garbage instead of throwing.
+      // Either way the original plaintext must not come back.
+      const result = await wrongKeyEncryption
+        .decryptText(encrypted)
+        .catch((error: unknown) => error);
+      if (result instanceof Error) {
+        expect(result).toBeInstanceOf(DecryptError);
+      } else {
+        expect(result).not.toBe('Secret');
+      }
     });
   });
 
@@ -142,8 +150,8 @@ describe('Node Crypto Adapter', () => {
         keyDerivation: {
           password: 'my-password',
           salt: 'my-salt',
-          iterations: 100000
-        }
+          iterations: 100000,
+        },
       });
 
       const message = 'Secret message';
@@ -160,8 +168,8 @@ describe('Node Crypto Adapter', () => {
         keyDerivation: {
           password: 'my-password',
           salt: 'my-salt',
-          iterations: 100000
-        }
+          iterations: 100000,
+        },
       };
 
       const encryption1 = await getEncryption(options);
@@ -180,8 +188,8 @@ describe('Node Crypto Adapter', () => {
         algorithm: 'aes-128-gcm',
         keyDerivation: {
           password: 'my-password',
-          keyLength: 16 // 128 bits
-        }
+          keyLength: 16, // 128 bits
+        },
       });
 
       const message = 'Secret';
@@ -199,12 +207,12 @@ describe('Node Crypto Adapter', () => {
     beforeEach(async () => {
       encryption = await getEncryption({
         type: 'node',
-        algorithm: 'rsa-oaep'
+        algorithm: 'rsa-oaep',
       });
 
       keypair = await encryption.generateKeyPair({
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
     });
 
@@ -213,7 +221,7 @@ describe('Node Crypto Adapter', () => {
         type: 'node',
         algorithm: 'rsa-oaep',
         publicKey: keypair.publicKey as string,
-        privateKey: keypair.privateKey as string
+        privateKey: keypair.privateKey as string,
       });
 
       const message = 'Secret message';
@@ -228,7 +236,7 @@ describe('Node Crypto Adapter', () => {
         type: 'node',
         algorithm: 'rsa-oaep',
         publicKey: keypair.publicKey as string,
-        privateKey: keypair.privateKey as string
+        privateKey: keypair.privateKey as string,
       });
 
       const buffer = Buffer.from('Binary message');
@@ -243,7 +251,7 @@ describe('Node Crypto Adapter', () => {
         type: 'node',
         algorithm: 'rsa-oaep',
         publicKey: keypair.publicKey as string,
-        privateKey: keypair.privateKey as string
+        privateKey: keypair.privateKey as string,
       });
 
       const encrypted = await rsaEncryption.encryptText('Secret');
@@ -251,28 +259,28 @@ describe('Node Crypto Adapter', () => {
       // Generate different keypair
       const wrongKeypair = await encryption.generateKeyPair({
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
 
       const wrongKeyEncryption = await getEncryption({
         type: 'node',
         algorithm: 'rsa-oaep',
-        privateKey: wrongKeypair.privateKey as string
+        privateKey: wrongKeypair.privateKey as string,
       });
 
       await expect(wrongKeyEncryption.decryptText(encrypted)).rejects.toThrow(
-        DecryptError
+        DecryptError,
       );
     });
 
     it('should throw error when encrypting without public key', async () => {
       const noKeyEncryption = await getEncryption({
         type: 'node',
-        algorithm: 'rsa-oaep'
+        algorithm: 'rsa-oaep',
       });
 
       await expect(noKeyEncryption.encryptText('Secret')).rejects.toThrow(
-        EncryptError
+        EncryptError,
       );
     });
 
@@ -280,18 +288,18 @@ describe('Node Crypto Adapter', () => {
       const rsaEncryption = await getEncryption({
         type: 'node',
         algorithm: 'rsa-oaep',
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       const encrypted = await rsaEncryption.encryptText('Secret');
 
       const noPrivateKeyEncryption = await getEncryption({
         type: 'node',
-        algorithm: 'rsa-oaep'
+        algorithm: 'rsa-oaep',
       });
 
       await expect(
-        noPrivateKeyEncryption.decryptText(encrypted)
+        noPrivateKeyEncryption.decryptText(encrypted),
       ).rejects.toThrow(DecryptError);
     });
   });
@@ -302,14 +310,14 @@ describe('Node Crypto Adapter', () => {
     beforeEach(async () => {
       encryption = await getEncryption({
         type: 'node',
-        algorithm: 'aes-256-gcm'
+        algorithm: 'aes-256-gcm',
       });
     });
 
     it('should generate RSA keypair', async () => {
       const keypair = await encryption.generateKeyPair({
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
 
       expect(typeof keypair.publicKey).toBe('string');
@@ -322,16 +330,18 @@ describe('Node Crypto Adapter', () => {
       const keypair = await encryption.generateKeyPair({
         type: 'rsa',
         keySize: 2048,
-        passphrase: 'secret-passphrase'
+        passphrase: 'secret-passphrase',
       });
 
-      expect(keypair.privateKey).toContain('-----BEGIN ENCRYPTED PRIVATE KEY-----');
+      expect(keypair.privateKey).toContain(
+        '-----BEGIN ENCRYPTED PRIVATE KEY-----',
+      );
     });
 
     it('should generate EC keypair', async () => {
       const keypair = await encryption.generateKeyPair({
         type: 'ecc',
-        curve: 'prime256v1'
+        curve: 'prime256v1',
       });
 
       expect(typeof keypair.publicKey).toBe('string');
@@ -341,7 +351,7 @@ describe('Node Crypto Adapter', () => {
     it('should generate ECDSA keypair', async () => {
       const keypair = await encryption.generateKeyPair({
         type: 'ecdsa',
-        curve: 'prime256v1'
+        curve: 'prime256v1',
       });
 
       expect(typeof keypair.publicKey).toBe('string');
@@ -357,7 +367,7 @@ describe('Node Crypto Adapter', () => {
 
     it('should throw error for unsupported key type', async () => {
       await expect(
-        encryption.generateKeyPair({ type: 'invalid' as any })
+        encryption.generateKeyPair({ type: 'invalid' as any }),
       ).rejects.toThrow(KeyError);
     });
   });
@@ -369,18 +379,18 @@ describe('Node Crypto Adapter', () => {
     beforeEach(async () => {
       encryption = await getEncryption({
         type: 'node',
-        algorithm: 'rsa-oaep'
+        algorithm: 'rsa-oaep',
       });
 
       keypair = await encryption.generateKeyPair({
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
     });
 
     it('should import and export public key', async () => {
       const imported = await encryption.importKey(keypair.publicKey as string, {
-        type: 'public'
+        type: 'public',
       });
 
       expect(imported.type).toBe('public');
@@ -394,9 +404,12 @@ describe('Node Crypto Adapter', () => {
     });
 
     it('should import and export private key', async () => {
-      const imported = await encryption.importKey(keypair.privateKey as string, {
-        type: 'private'
-      });
+      const imported = await encryption.importKey(
+        keypair.privateKey as string,
+        {
+          type: 'private',
+        },
+      );
 
       expect(imported.type).toBe('private');
       expect(imported.format).toBe('pem');
@@ -410,15 +423,15 @@ describe('Node Crypto Adapter', () => {
       const protectedKeypair = await encryption.generateKeyPair({
         type: 'rsa',
         keySize: 2048,
-        passphrase: 'secret'
+        passphrase: 'secret',
       });
 
       const imported = await encryption.importKey(
         protectedKeypair.privateKey as string,
         {
           type: 'private',
-          passphrase: 'secret'
-        }
+          passphrase: 'secret',
+        },
       );
 
       expect(imported.type).toBe('private');
@@ -426,11 +439,11 @@ describe('Node Crypto Adapter', () => {
 
     it('should export key as buffer', async () => {
       const imported = await encryption.importKey(keypair.publicKey as string, {
-        type: 'public'
+        type: 'public',
       });
 
       const exported = await encryption.exportKey(imported, {
-        format: 'binary'
+        format: 'binary',
       });
 
       expect(Buffer.isBuffer(exported)).toBe(true);
@@ -444,12 +457,12 @@ describe('Node Crypto Adapter', () => {
     beforeEach(async () => {
       encryption = await getEncryption({
         type: 'node',
-        algorithm: 'rsa-oaep'
+        algorithm: 'rsa-oaep',
       });
 
       keypair = await encryption.generateKeyPair({
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
     });
 
@@ -457,7 +470,7 @@ describe('Node Crypto Adapter', () => {
       const nodeCrypto = await getEncryption({
         type: 'node',
         algorithm: 'rsa-oaep',
-        privateKey: keypair.privateKey as string
+        privateKey: keypair.privateKey as string,
       });
 
       const message = 'Message to sign';
@@ -466,7 +479,7 @@ describe('Node Crypto Adapter', () => {
       expect(typeof signature).toBe('string');
 
       const valid = await nodeCrypto.verify!(message, signature, {
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       expect(valid).toBe(true);
@@ -476,7 +489,7 @@ describe('Node Crypto Adapter', () => {
       const nodeCrypto = await getEncryption({
         type: 'node',
         algorithm: 'rsa-oaep',
-        privateKey: keypair.privateKey as string
+        privateKey: keypair.privateKey as string,
       });
 
       const message = Buffer.from('Binary message to sign');
@@ -485,7 +498,7 @@ describe('Node Crypto Adapter', () => {
       expect(Buffer.isBuffer(signature)).toBe(true);
 
       const valid = await nodeCrypto.verify!(message, signature, {
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       expect(valid).toBe(true);
@@ -495,14 +508,14 @@ describe('Node Crypto Adapter', () => {
       const nodeCrypto = await getEncryption({
         type: 'node',
         algorithm: 'rsa-oaep',
-        privateKey: keypair.privateKey as string
+        privateKey: keypair.privateKey as string,
       });
 
       const message = 'Original message';
       const signature = await nodeCrypto.sign!(message);
 
       const valid = await nodeCrypto.verify!('Tampered message', signature, {
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       expect(valid).toBe(false);
@@ -511,24 +524,24 @@ describe('Node Crypto Adapter', () => {
     it('should detect signature from wrong key', async () => {
       const keypair1 = await encryption.generateKeyPair({
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
       const keypair2 = await encryption.generateKeyPair({
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
 
       const nodeCrypto1 = await getEncryption({
         type: 'node',
         algorithm: 'rsa-oaep',
-        privateKey: keypair1.privateKey as string
+        privateKey: keypair1.privateKey as string,
       });
 
       const message = 'Message';
       const signature = await nodeCrypto1.sign!(message);
 
       const valid = await nodeCrypto1.verify!(message, signature, {
-        publicKey: keypair2.publicKey as string
+        publicKey: keypair2.publicKey as string,
       });
 
       expect(valid).toBe(false);
@@ -537,16 +550,16 @@ describe('Node Crypto Adapter', () => {
     it('should sign with provided private key option', async () => {
       const nodeCrypto = await getEncryption({
         type: 'node',
-        algorithm: 'rsa-oaep'
+        algorithm: 'rsa-oaep',
       });
 
       const message = 'Message';
       const signature = await nodeCrypto.sign!(message, {
-        privateKey: keypair.privateKey as string
+        privateKey: keypair.privateKey as string,
       });
 
       const valid = await nodeCrypto.verify!(message, signature, {
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       expect(valid).toBe(true);
@@ -555,7 +568,7 @@ describe('Node Crypto Adapter', () => {
     it('should throw error when signing without key', async () => {
       const nodeCrypto = await getEncryption({
         type: 'node',
-        algorithm: 'rsa-oaep'
+        algorithm: 'rsa-oaep',
       });
 
       await expect(nodeCrypto.sign!('Message')).rejects.toThrow(SignatureError);
@@ -565,7 +578,7 @@ describe('Node Crypto Adapter', () => {
       const nodeCrypto = await getEncryption({
         type: 'node',
         algorithm: 'rsa-oaep',
-        privateKey: keypair.privateKey as string
+        privateKey: keypair.privateKey as string,
       });
 
       const signature = await nodeCrypto.sign!('Message');
@@ -578,20 +591,20 @@ describe('Node Crypto Adapter', () => {
     it('should work with ECDSA keys', async () => {
       const ecKeypair = await encryption.generateKeyPair({
         type: 'ecdsa',
-        curve: 'prime256v1'
+        curve: 'prime256v1',
       });
 
       const nodeCrypto = await getEncryption({
         type: 'node',
         algorithm: 'rsa-oaep', // Algorithm doesn't matter for signing
-        privateKey: ecKeypair.privateKey as string
+        privateKey: ecKeypair.privateKey as string,
       });
 
       const message = 'Message';
       const signature = await nodeCrypto.sign!(message);
 
       const valid = await nodeCrypto.verify!(message, signature, {
-        publicKey: ecKeypair.publicKey as string
+        publicKey: ecKeypair.publicKey as string,
       });
 
       expect(valid).toBe(true);
@@ -603,7 +616,7 @@ describe('Node Crypto Adapter', () => {
       const encryption = await getEncryption({
         type: 'node',
         algorithm: 'aes-256-gcm',
-        key: crypto.randomBytes(32)
+        key: crypto.randomBytes(32),
       });
 
       const capabilities = await encryption.getCapabilities();
@@ -621,7 +634,7 @@ describe('Node Crypto Adapter', () => {
     it('should report correct capabilities for RSA', async () => {
       const encryption = await getEncryption({
         type: 'node',
-        algorithm: 'rsa-oaep'
+        algorithm: 'rsa-oaep',
       });
 
       const capabilities = await encryption.getCapabilities();
@@ -636,7 +649,7 @@ describe('Node Crypto Adapter', () => {
       const encryption = await getEncryption({
         type: 'node',
         algorithm: 'aes-256-gcm',
-        key: crypto.randomBytes(32)
+        key: crypto.randomBytes(32),
       });
 
       expect(encryption.getAdapter()).toBe('node');
@@ -647,21 +660,23 @@ describe('Node Crypto Adapter', () => {
     it('should throw EncryptError on encryption failure', async () => {
       const encryption = await getEncryption({
         type: 'node',
-        algorithm: 'aes-256-gcm'
+        algorithm: 'aes-256-gcm',
       });
 
-      await expect(encryption.encryptText('test')).rejects.toThrow(EncryptError);
+      await expect(encryption.encryptText('test')).rejects.toThrow(
+        EncryptError,
+      );
     });
 
     it('should throw DecryptError on decryption failure', async () => {
       const encryption = await getEncryption({
         type: 'node',
         algorithm: 'aes-256-gcm',
-        key: crypto.randomBytes(32)
+        key: crypto.randomBytes(32),
       });
 
       await expect(encryption.decryptText('invalid-data')).rejects.toThrow(
-        DecryptError
+        DecryptError,
       );
     });
 
@@ -669,11 +684,11 @@ describe('Node Crypto Adapter', () => {
       const encryption = await getEncryption({
         type: 'node',
         algorithm: 'aes-256-gcm',
-        key: crypto.randomBytes(32)
+        key: crypto.randomBytes(32),
       });
 
       await expect(
-        encryption.generateKeyPair({ type: 'invalid' as any })
+        encryption.generateKeyPair({ type: 'invalid' as any }),
       ).rejects.toThrow(KeyError);
     });
 
@@ -681,7 +696,7 @@ describe('Node Crypto Adapter', () => {
       const encryption = await getEncryption({
         type: 'node',
         algorithm: 'aes-256-gcm',
-        key: crypto.randomBytes(32)
+        key: crypto.randomBytes(32),
       });
 
       await expect(encryption.sign!('message')).rejects.toThrow(SignatureError);
