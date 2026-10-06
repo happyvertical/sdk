@@ -542,14 +542,17 @@ export class WebLLMProvider implements AIInterface {
       release = await this.lockEngine(engine, controls.signal);
       detach = this.bindInterrupt(engine, controls.signal);
 
-      const response = await engine.chat.completions.create(
-        this.buildRequest(
-          messages,
-          options as ChatOptions & { maxTokens: number },
-          this.requestModel(model, options),
-          false,
-          true,
+      const response = await abortable(
+        engine.chat.completions.create(
+          this.buildRequest(
+            messages,
+            options as ChatOptions & { maxTokens: number },
+            this.requestModel(model, options),
+            false,
+            true,
+          ),
         ),
+        controls.signal,
       );
       if (controls.signal.aborted) {
         throw (
@@ -672,7 +675,8 @@ export class WebLLMProvider implements AIInterface {
     let detach: (() => void) | undefined;
     let engine: WebLLMEngineLike | undefined;
     let release: (() => void) | undefined;
-    let finished = false;
+    let iterator: AsyncIterator<WebLLMChunk> | undefined;
+    let iteratorDone = false;
     const model =
       options.model || this.options.defaultModel || DEFAULT_WEBLLM_MODEL;
     try {
@@ -682,25 +686,41 @@ export class WebLLMProvider implements AIInterface {
       release = await this.lockEngine(engine, controls.signal);
       detach = this.bindInterrupt(engine, controls.signal);
 
-      const chunks = await engine.chat.completions.create(
-        this.buildRequest(
-          messages,
-          options as ChatOptions & { maxTokens: number },
-          this.requestModel(model, options),
-          true,
-          false,
-        ),
-      );
+      const pending: Promise<AsyncIterable<WebLLMChunk>> =
+        engine.chat.completions.create(
+          this.buildRequest(
+            messages,
+            options as ChatOptions & { maxTokens: number },
+            this.requestModel(model, options),
+            true,
+            false,
+          ),
+        );
+      let chunks: AsyncIterable<WebLLMChunk>;
+      try {
+        chunks = await abortable(pending, controls.signal);
+      } catch (error) {
+        // If the engine hands the stream over after we gave up, finish it so
+        // WebLLM's own per-model lock is released.
+        void pending.then(
+          (late) => drainIterator(late[Symbol.asyncIterator]()),
+          () => {},
+        );
+        throw error;
+      }
+      // Iterated by hand: WebLLM releases its per-model lock only when its
+      // generator runs to completion, never on an early `return()`.
+      iterator = chunks[Symbol.asyncIterator]();
 
       let finishReason: string | null | undefined;
       let usage: TokenUsage | undefined;
-      for await (const chunk of chunks as AsyncIterable<{
-        choices?: Array<{
-          delta?: { content?: string | null };
-          finish_reason?: string | null;
-        }>;
-        usage?: unknown;
-      }>) {
+      for (;;) {
+        const step = await iterator.next();
+        if (step.done) {
+          iteratorDone = true;
+          break;
+        }
+        const chunk = step.value;
         const choice = chunk.choices?.[0];
         finishReason = choice?.finish_reason ?? finishReason;
         if (chunk.usage) usage = this.mapUsage(chunk.usage);
@@ -716,7 +736,6 @@ export class WebLLMProvider implements AIInterface {
         );
       }
       this.assertNotInterrupted(finishReason, model);
-      finished = true;
       options.onFinishReason?.(this.mapFinishReason(finishReason));
       emitUsage(
         this.options,
@@ -732,19 +751,16 @@ export class WebLLMProvider implements AIInterface {
         this.abortError(controls, options, model) ?? this.mapError(error, model)
       );
     } finally {
-      if (
-        !finished &&
-        release &&
-        engine &&
-        controls &&
-        !controls.signal.aborted
-      ) {
-        // Consumer stopped early: do not leave the GPU generating.
+      if (iterator && !iteratorDone && engine) {
+        // Consumer stopped early (or the loop threw): stop the GPU, then let
+        // the engine's generator finish so its lock is released before the
+        // next request is admitted.
         try {
           void Promise.resolve(engine.interruptGenerate()).catch(() => {});
         } catch {
           // Best effort.
         }
+        await drainIterator(iterator);
       }
       detach?.();
       release?.();
@@ -888,6 +904,28 @@ export class WebLLMProvider implements AIInterface {
 
   async getVoices(_options?: VoiceListOptions): Promise<Voice[]> {
     return unsupported('Voice listing');
+  }
+}
+
+/** One streamed WebLLM chunk (structural subset). */
+interface WebLLMChunk {
+  choices?: Array<{
+    delta?: { content?: string | null };
+    finish_reason?: string | null;
+  }>;
+  usage?: unknown;
+}
+
+/** Runs a WebLLM stream to its end, ignoring errors; used after interrupting it. */
+async function drainIterator(
+  iterator: AsyncIterator<WebLLMChunk>,
+): Promise<void> {
+  try {
+    while (!(await iterator.next()).done) {
+      // discard
+    }
+  } catch {
+    // The engine already stopped; nothing more to release.
   }
 }
 

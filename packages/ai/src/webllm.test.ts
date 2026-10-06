@@ -247,6 +247,37 @@ describe('streaming', () => {
     });
   });
 
+  it('lets the engine generator finish after an early stop so its lock is released', async () => {
+    // Model WebLLM: the per-model lock is freed only when the generator completes.
+    let locked = false;
+    let interrupted = false;
+    const lockedStream = async function* () {
+      locked = true;
+      try {
+        yield { choices: [{ delta: { content: 'a' }, finish_reason: null }] };
+        while (!interrupted) {
+          yield { choices: [{ delta: { content: 'x' }, finish_reason: null }] };
+        }
+        yield { choices: [{ delta: {}, finish_reason: 'abort' }] };
+      } finally {
+        locked = false;
+      }
+    };
+    h.interrupt.mockImplementation(() => {
+      interrupted = true;
+    });
+    h.create.mockImplementationOnce(async () => lockedStream());
+
+    const ai = provider({ engine: mockEngine() });
+    for await (const _ of ai.stream([{ role: 'user', content: 'hi' }])) {
+      break;
+    }
+    expect(h.interrupt).toHaveBeenCalledTimes(1);
+    expect(locked).toBe(false);
+    // The next request on the same engine is admitted and completes.
+    await expect(ai.message('again')).resolves.toBe('hello');
+  });
+
   it('interrupts generation when the consumer stops early', async () => {
     h.create.mockResolvedValue(chunksOf(['a', 'b', 'c']));
     for await (const _ of provider().stream([
