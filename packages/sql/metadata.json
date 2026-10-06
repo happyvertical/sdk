@@ -17,6 +17,7 @@
     "externalHappyVertical": [],
     "external": [
       "@duckdb/node-api",
+      "@electric-sql/pglite",
       "@libsql/client",
       "@russellthehippo/honker-node",
       "@sqliteai/sqlite-vector",

@@ -125,6 +125,8 @@ export function createPackageConfig(
           'redis',
           // Optional peer of @happyvertical/ai/local; loaded lazily by consumers.
           '@mlc-ai/web-llm',
+          // Optional peer of @happyvertical/sql/pglite; loaded lazily by consumers.
+          /^@electric-sql\/pglite/,
           '@modelcontextprotocol/sdk',
           /^@modelcontextprotocol\//,
           'undici',

@@ -1,6 +1,6 @@
 # @happyvertical/sql
 
-Database interface with support for SQLite (via LibSQL/Turso), PostgreSQL, DuckDB, and a JSON adapter (DuckDB-backed). Provides a unified API across all backends with template literal queries, CRUD helpers, transactions, schema synchronization, and vector search (PostgreSQL via pgvector).
+Database interface with support for SQLite (via LibSQL/Turso), PostgreSQL, PGlite (Postgres in WebAssembly, for browsers and serverless Node), DuckDB, and a JSON adapter (DuckDB-backed). Provides a unified API across all backends with template literal queries, CRUD helpers, transactions, schema synchronization, and vector search (PostgreSQL via pgvector).
 
 ## Installation
 
@@ -67,6 +67,99 @@ PostgreSQL also accepts `max` (20 by default), `connectionTimeoutMillis`, and
 `idleTimeoutMillis`. Lifecycle timeouts must be integer milliseconds from `0`
 through Node.js's maximum timer delay of `2,147,483,647`; `0` disables the
 corresponding timeout. Omitted timeout values retain `pg`'s defaults.
+
+### PGlite: Postgres in the browser and in serverless Node
+
+`type: 'pglite'` runs real PostgreSQL compiled to WebAssembly
+([`@electric-sql/pglite`](https://github.com/electric-sql/pglite)). It speaks the
+same Postgres dialect as the `pg` adapter — native UUID ids and foreign keys,
+BIGINT, migrations, `ON CONFLICT` upserts — so code and migrations written for
+Postgres run unchanged. It needs no server, which also makes it a convenient
+Postgres for Node tests.
+
+`@electric-sql/pglite` is an **optional peer dependency**. Install it only where
+you use the adapter; it is imported lazily when a pglite database is created,
+and a missing install throws a `PGlitePeerMissingError` with the install command.
+
+```bash
+pnpm add @happyvertical/sql @electric-sql/pglite
+```
+
+**In a browser, import the adapter from its own entry point.** The package root
+also reaches Node-only adapters (`pg`, libsql, DuckDB), so a bundler targeting a
+page should use `@happyvertical/sql/pglite`, whose import graph contains no
+`node:` built-ins and no `pg`:
+
+```typescript
+import { getDatabase } from '@happyvertical/sql/pglite';
+
+const db = await getDatabase({ dataDir: 'idb://planner' });
+
+await db.query('CREATE TABLE IF NOT EXISTS tasks (id uuid PRIMARY KEY, title text)');
+await db.insert('tasks', { id: crypto.randomUUID(), title: 'Ship it' });
+
+await db.transaction(async (tx) => {
+  await tx.insert('tasks', { id: crypto.randomUUID(), title: 'Write docs' });
+});
+```
+
+In Node (or anywhere the root entry is fine), `getDatabase({ type: 'pglite' })`
+from `@happyvertical/sql` reaches the same adapter.
+
+#### Persistence: `dataDir`
+
+| `dataDir` | Storage | Where |
+|-----------|---------|-------|
+| omitted, `'memory://'` | In memory; gone when the database closes | Everywhere |
+| `'idb://<name>'` | IndexedDB | Browser |
+| `'opfs-ahp://<name>'` | Origin Private File System | Browser (in a worker) |
+| a filesystem path, e.g. `'./data/app'` | Directory on disk | Node, Bun, Deno |
+
+`url` is accepted as an alias, so `HAVE_SQL_URL=idb://planner` selects the
+location. A persistent `dataDir` is its own cache identity — two PGlite
+instances on the same storage would corrupt it — so repeated
+`getDatabase()` calls for it return one instance. An in-memory database is
+private to the call that created it; pass the same `dbid` to share one.
+
+#### Extensions and further options
+
+`extensions` is forwarded to PGlite, so pass the extension objects its packages
+export. The `vector` capability then works as it does on PostgreSQL:
+
+```typescript
+import { vector } from '@electric-sql/pglite-pgvector';
+
+const db = await getDatabase({
+  type: 'pglite',
+  dataDir: 'idb://notes',
+  extensions: { vector },
+});
+
+await db.vector.ensureColumn('notes', 'embedding', 384);
+```
+
+`pglite: { ... }` forwards anything else to PGlite's constructor
+(`relaxedDurability`, `initialMemory`, `loadDataDir`, `parsers`, ...).
+`client` builds the adapter on an instance you created, such as a
+`PGliteWorker` that keeps the database off the main thread; the adapter never
+closes it.
+
+#### Differences from the `pg` adapter
+
+- **One connection.** PGlite runs a single backend, so transactions take turns,
+  exactly as on the SQLite adapters (see [Transactions](#transactions)). A
+  statement issued outside a transaction while one is open waits for it, and
+  both reject at `transactionQueueTimeout` (30s by default) with an explanation
+  rather than hanging. Inside a `transaction()` callback, use the `tx` you were
+  handed; a top-level `db.*` call there waits on the connection its own caller
+  holds.
+- **Nested transactions use the handle you are given.** Browsers have no
+  `AsyncLocalStorage`, so each nested callback receives a handle bound to its own
+  savepoint. Call `tx.transaction()` on that handle, not on the outer one.
+- **No `acquireSession()`.** There is no second connection to pin.
+- **`schemas` is ignored**, as on `pg`: tables are managed by migrations.
+- `db.client` is the underlying `PGlite` instance. Using it directly bypasses the
+  transaction lock.
 
 ### Connection caching and cleanup
 
@@ -324,7 +417,7 @@ try {
 ```
 
 On the single-connection adapters — SQLite (both the LibSQL and native paths),
-DuckDB and JSON — a connection can only be in one transaction at a time, so
+DuckDB, JSON and PGlite — a connection can only be in one transaction at a time, so
 **transactions are serialized per connection**: an overlapping `transaction()`
 waits for the one in progress instead of interleaving with it. A call that waits
 longer than `transactionQueueTimeout` (30s by default) rejects rather than
@@ -357,7 +450,8 @@ open, operations invoked through its parent scope queue behind that child; a
 child rollback therefore cannot silently remove a successful parent operation.
 The enclosing commit or rollback drains all
 accepted child scopes before ending the transaction. PostgreSQL pools separate
-connections, so top-level transactions there run concurrently and never queue.
+connections, so top-level transactions there run concurrently and never queue;
+PGlite has one connection and queues them like SQLite does.
 PostgreSQL CRUD helpers apply the same value serialization both inside and
 outside a transaction: objects and arrays are encoded for JSON/JSONB columns,
 dates use ISO timestamps, binary buffers and views retain their native `bytea`
@@ -543,7 +637,7 @@ that raw session handle.
 
 ### Vector Search (PostgreSQL)
 
-PostgreSQL adapters expose `db.vector` when pgvector is available:
+PostgreSQL adapters (and PGlite with its pgvector extension) expose `db.vector` when pgvector is available:
 
 ```typescript
 await db.vector.ensureColumn('documents', 'embedding', 1536);
@@ -630,6 +724,7 @@ shipping it beyond development or test environments.
 |---------|--------|---------|-------|
 | SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; built-in `node:sqlite` for capabilities and `secureFile` | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only; trusted-parent secure files are macOS/Linux-only |
 | PostgreSQL | `'postgres'` | `pg` Pool | Connection pooling, pgvector support |
+| PGlite | `'pglite'` | `@electric-sql/pglite` (optional peer) | Postgres in WebAssembly. Browser-safe via `@happyvertical/sql/pglite`; persists to IndexedDB, OPFS, or a directory; single connection |
 | DuckDB | `'duckdb'` | `@duckdb/node-api` | JSON file auto-registration, write-back strategies |
 | JSON | `'json'` | DuckDB in-memory | Queries JSON files as tables, connection caching |
 
