@@ -482,6 +482,32 @@ describe('abort and timeout', () => {
     expect(first.signal.aborted).toBe(false);
   });
 
+  it('keeps the queue closed until an abandoned generation has really stopped', async () => {
+    const ai = provider({ engine: mockEngine() });
+    let finishFirst: () => void = () => {};
+    h.create.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFirst = () => resolve(completion());
+        }),
+    );
+    // The engine ignores the interrupt for a while: the first call still
+    // rejects at its timeout, but its generation is still running.
+    await expect(
+      ai.chat([{ role: 'user', content: '1' }], { timeout: 20 }),
+    ).rejects.toMatchObject({ code: 'AI_TIMEOUT' });
+    expect(h.interrupt).toHaveBeenCalledTimes(1);
+
+    const next = ai.chat([{ role: 'user', content: '2' }]);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(h.create).toHaveBeenCalledTimes(1); // not admitted yet
+
+    finishFirst();
+    await expect(next).resolves.toMatchObject({ content: 'hello' });
+    expect(h.create).toHaveBeenCalledTimes(2);
+    expect(h.interrupt).toHaveBeenCalledTimes(1); // second call never interrupted the first
+  });
+
   it('does not report an engine-side interruption as a normal stop', async () => {
     h.create.mockResolvedValue(
       completion({

@@ -531,6 +531,8 @@ export class WebLLMProvider implements AIInterface {
     let controls: PreparedRequestControls | undefined;
     let detach: (() => void) | undefined;
     let release: (() => void) | undefined;
+    let pending: Promise<any> | undefined;
+    let holdRelease: (() => Promise<unknown> | undefined) | undefined;
     const model =
       options.model || this.options.defaultModel || DEFAULT_WEBLLM_MODEL;
     try {
@@ -542,18 +544,23 @@ export class WebLLMProvider implements AIInterface {
       release = await this.lockEngine(engine, controls.signal);
       detach = this.bindInterrupt(engine, controls.signal);
 
-      const response = await abortable(
-        engine.chat.completions.create(
-          this.buildRequest(
-            messages,
-            options as ChatOptions & { maxTokens: number },
-            this.requestModel(model, options),
-            false,
-            true,
-          ),
+      pending = engine.chat.completions.create(
+        this.buildRequest(
+          messages,
+          options as ChatOptions & { maxTokens: number },
+          this.requestModel(model, options),
+          false,
+          true,
         ),
-        controls.signal,
       );
+      const started: Promise<unknown> = pending;
+      let settled = false;
+      const markSettled = () => {
+        settled = true;
+      };
+      started.then(markSettled, markSettled);
+      holdRelease = () => (settled ? undefined : started);
+      const response = await abortable(pending, controls.signal);
       if (controls.signal.aborted) {
         throw (
           this.abortError(controls, options, model) ?? controls.signal.reason
@@ -606,7 +613,7 @@ export class WebLLMProvider implements AIInterface {
       );
     } finally {
       detach?.();
-      release?.();
+      releaseWhenIdle(release, holdRelease?.());
       controls?.cleanup();
     }
   }
@@ -677,6 +684,7 @@ export class WebLLMProvider implements AIInterface {
     let release: (() => void) | undefined;
     let iterator: AsyncIterator<WebLLMChunk> | undefined;
     let iteratorDone = false;
+    let holdRelease: Promise<unknown> | undefined;
     const model =
       options.model || this.options.defaultModel || DEFAULT_WEBLLM_MODEL;
     try {
@@ -700,10 +708,11 @@ export class WebLLMProvider implements AIInterface {
       try {
         chunks = await abortable(pending, controls.signal);
       } catch (error) {
-        // If the engine hands the stream over after we gave up, finish it so
-        // WebLLM's own per-model lock is released.
-        void pending.then(
-          (late) => drainIterator(late[Symbol.asyncIterator]()),
+        // The caller is gone but the engine may still start this request.
+        // Keep our queue closed until it has been interrupted and drained, or
+        // the next request would wait behind it and could interrupt it.
+        holdRelease = pending.then(
+          (late) => abandonStream(late[Symbol.asyncIterator](), engine),
           () => {},
         );
         throw error;
@@ -763,7 +772,7 @@ export class WebLLMProvider implements AIInterface {
         await drainIterator(iterator);
       }
       detach?.();
-      release?.();
+      releaseWhenIdle(release, holdRelease);
       controls?.cleanup();
     }
   }
@@ -927,6 +936,34 @@ async function drainIterator(
   } catch {
     // The engine already stopped; nothing more to release.
   }
+}
+
+/** Releases an engine queue slot now, or once `idle` has settled. */
+function releaseWhenIdle(
+  release: (() => void) | undefined,
+  idle?: Promise<unknown>,
+): void {
+  if (!release) return;
+  if (idle) void idle.then(release, release);
+  else release();
+}
+
+/**
+ * Finishes a stream nobody is reading. WebLLM resets its interrupt flag on the
+ * first `next()`, so interrupt only after pulling one chunk, then drain it so
+ * the engine's lock is released.
+ */
+async function abandonStream(
+  iterator: AsyncIterator<WebLLMChunk>,
+  engine: WebLLMEngineLike | undefined,
+): Promise<void> {
+  try {
+    if ((await iterator.next()).done) return;
+    await Promise.resolve(engine?.interruptGenerate());
+  } catch {
+    return;
+  }
+  await drainIterator(iterator);
 }
 
 /** Rejects with the signal's reason if it fires first; the underlying work continues. */
