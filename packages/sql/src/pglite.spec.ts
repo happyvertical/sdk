@@ -295,6 +295,36 @@ describe('pglite adapter', () => {
       expect(await db.tableExists(u)).toBe(false);
     });
 
+    it('does not remember a catalog probe that failed inside an aborted transaction', async () => {
+      const u = tableName('probe');
+      await db.query(
+        `CREATE TABLE ${u} (id int PRIMARY KEY, tenant text, slug text NOT NULL, UNIQUE (tenant, slug))`,
+      );
+      const fresh = await getDatabase({ type: 'pglite' });
+      try {
+        await fresh.query(
+          `CREATE TABLE ${u} (id serial PRIMARY KEY, tenant text, slug text NOT NULL, UNIQUE (tenant, slug))`,
+        );
+        // The first null-aware upsert on this database runs inside a
+        // transaction a swallowed failure has already aborted.
+        await expect(
+          txOf(fresh)(async (tx) => {
+            await tx.query('SELECT * FROM missing_table').catch(() => {});
+            await tx.upsert(u, ['tenant', 'slug'], { tenant: null, slug: 'a' });
+          }),
+        ).rejects.toThrow();
+
+        // A healthy transaction afterwards must not inherit that failure.
+        await txOf(fresh)(async (tx) => {
+          await tx.upsert(u, ['tenant', 'slug'], { tenant: null, slug: 'a' });
+          await tx.upsert(u, ['tenant', 'slug'], { tenant: null, slug: 'a' });
+        });
+        expect(await fresh.count(u)).toBe(1);
+      } finally {
+        await fresh.close?.();
+      }
+    });
+
     it('surfaces a deferred constraint failure raised at COMMIT', async () => {
       const d = tableName('deferred');
       await db.query(

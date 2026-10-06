@@ -747,7 +747,13 @@ export function createPostgresDialect(host: PostgresDialectHost) {
   ): Promise<number> => {
     serverVersionNumPromise ??= executor
       .query('SHOW server_version_num')
-      .then((result) => Number(result.rows[0]?.server_version_num) || 0);
+      .then((result) => Number(result.rows[0]?.server_version_num) || 0)
+      .catch((error) => {
+        // A probe that failed because of the caller's transaction state or a
+        // lock wait says nothing about the server; do not remember it.
+        serverVersionNumPromise = undefined;
+        throw error;
+      });
     return serverVersionNumPromise;
   };
 
@@ -783,7 +789,11 @@ export function createPostgresDialect(host: PostgresDialectHost) {
           [table, conflictColumns],
         )
         .then((result) => result.rows.length > 0)
-        .catch(() => false);
+        .catch(() => {
+          // Same reason: only a successful probe is worth remembering.
+          nullsNotDistinctIndexCache.delete(cacheKey);
+          return false;
+        });
       nullsNotDistinctIndexCache.set(cacheKey, cached);
     }
 
