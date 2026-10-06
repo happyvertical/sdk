@@ -27,6 +27,7 @@ import type {
   Qwen3TTSOptions,
   SeevioOptions,
   TypeSafeOptions,
+  WebLLMOptions,
 } from './types';
 import { AI_PROVIDER_TYPES } from './types';
 
@@ -180,6 +181,13 @@ function isTypeSafeOptions(
   return options.type === 'typesafe';
 }
 
+/** Checks if options select the in-browser WebLLM provider. */
+function isWebLLMOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is WebLLMOptions {
+  return options.type === 'webllm';
+}
+
 /**
  * Creates an AI provider instance based on the provided options.
  * Universal version that works in both browser and Node.js environments.
@@ -310,6 +318,11 @@ export async function getAI(
   } else if (isTypeSafeOptions(options)) {
     const { TypeSafeProvider } = await import('./providers/typesafe.js');
     client = new TypeSafeProvider(options);
+  } else if (isWebLLMOptions(options)) {
+    // Lazy: the provider imports its optional peer (@mlc-ai/web-llm) only on
+    // first request, so the root entry never loads it.
+    const { WebLLMProvider } = await import('./providers/webllm.js');
+    client = new WebLLMProvider(options);
   } else {
     throw new ValidationError('Unsupported AI provider type', {
       supportedTypes: [...AI_PROVIDER_TYPES],

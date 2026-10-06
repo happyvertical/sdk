@@ -1,6 +1,6 @@
 # @happyvertical/ai
 
-Unified interface for AI model interactions across multiple providers. Supports OpenAI, LiteLLM, Bifrost, Ollama, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, Qwen3-TTS, and video-generation providers (Gemini Veo, BytePlus ModelArk/Seedance, Seevio/Seedance 2.5, OpenAI-compatible `/v1/videos` gateways) with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, asynchronous video generation, text-to-speech, and gateway admin provisioning where available.
+Unified interface for AI model interactions across multiple providers. Supports OpenAI, LiteLLM, Bifrost, Ollama, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, in-browser WebLLM (WebGPU), Qwen3-TTS, and video-generation providers (Gemini Veo, BytePlus ModelArk/Seedance, Seevio/Seedance 2.5, OpenAI-compatible `/v1/videos` gateways) with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, asynchronous video generation, text-to-speech, and gateway admin provisioning where available.
 
 ## Installation
 
@@ -136,7 +136,123 @@ const typesafe = await getAI({
   apiKey: process.env.TYPESAFE_API_KEY!,
   defaultModel: 'jev-latest',
 });
+
+// WebLLM (in-browser, WebGPU, no server or API key; see "In-Browser Chat")
+const local = await getAI({ type: 'webllm', model: 'Llama-3.2-1B-Instruct-q4f16_1-MLC' });
 ```
+
+## In-Browser Chat
+
+`type: 'webllm'` runs a chat model entirely on the visitor's GPU through
+[`@mlc-ai/web-llm`](https://github.com/mlc-ai/web-llm) (WebGPU). A static site
+can use `getAI()` with no server and no API key.
+
+```bash
+pnpm add @happyvertical/ai @mlc-ai/web-llm   # web-llm is an optional peer
+```
+
+`@mlc-ai/web-llm` is imported lazily on the first request, so the root entry and
+every other provider never load it. `getAI({ type: 'webllm' })` and the
+`@happyvertical/ai/local` subpath reach the same provider; the subpath also
+exports `WebLLMProvider`, `isWebGPUAvailable()`, `disposeWebLLMEngines()`, and the
+error classes.
+
+### Structured output
+
+`responseSchema` takes a JSON Schema (object or string) and maps to WebLLM's
+grammar-constrained `response_format`. Decoding is masked to the schema, so a
+1-2B model cannot emit a value outside an enum:
+
+```typescript
+import { getAI, WebGPUUnavailableError } from '@happyvertical/ai';
+
+try {
+  const ai = await getAI({
+    type: 'webllm',
+    model: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', // default
+    onLoadProgress: ({ progress, text }) => {
+      progressBar.value = progress; // 0..1 while the model downloads and compiles
+      status.textContent = text;
+    },
+  });
+
+  const controller = new AbortController(); // stop button -> controller.abort()
+  const reply = await ai.message('I want to run a small bakery with online orders.', {
+    signal: controller.signal,
+    temperature: 0,
+    history: [
+      {
+        role: 'system',
+        content: 'Choose the one package that fits. Reply as JSON.',
+      },
+    ],
+    responseSchema: {
+      type: 'object',
+      properties: {
+        package: { enum: ['smrt-commerce', 'smrt-content', 'smrt-events'] },
+        reason: { type: 'string' },
+      },
+      required: ['package', 'reason'],
+    },
+  });
+  const { package: chosen } = JSON.parse(reply); // always one of the three
+} catch (error) {
+  if (error instanceof WebGPUUnavailableError) showFallback(); // no navigator.gpu
+  else throw error;
+}
+```
+
+`responseSchema` is honored only by providers that constrain decoding with a
+grammar (today, `webllm`); other providers ignore it. It implies JSON output and
+turns off `continueOnLength`. Pass `responseFormat: { type: 'json_object' }` for
+unconstrained JSON mode.
+
+### Model lifecycle
+
+- **Progress**: `onLoadProgress` receives `{ progress, text, timeElapsed }` while
+  the engine downloads and compiles the model. Loading happens before the
+  request timeout starts, so a multi-GB download does not eat the generation
+  budget.
+- **Reuse**: one engine is cached per model id and shared by every provider
+  instance, including loads still in flight. A failed load is retried on the
+  next call. `disposeWebLLMEngines()` unloads them.
+- **Bring your own engine**: pass `engine` (an instance, or an async factory) to
+  keep inference off the UI thread, for example with a Web Worker:
+
+  ```typescript
+  import { CreateWebWorkerMLCEngine } from '@mlc-ai/web-llm';
+
+  const ai = await getAI({
+    type: 'webllm',
+    engine: () =>
+      CreateWebWorkerMLCEngine(
+        new Worker(new URL('./llm-worker.ts', import.meta.url), { type: 'module' }),
+        'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+      ),
+  });
+  ```
+
+  A supplied engine is never loaded, cached, or unloaded by this package and the
+  WebGPU check is skipped; `model` is sent only when you set it.
+- **Cancel**: `signal` and `timeout` call `engine.interruptGenerate()` and throw
+  `AIError` with code `AI_ABORTED` / `AI_TIMEOUT`. Interruption is engine-wide,
+  so do not run two generations on one engine at once.
+
+### Capabilities and limits
+
+`chat`, `stream`, `complete`, `message`, tool calls (only on models WebLLM lists
+for function calling, e.g. Hermes; see `getModels()` and `supportsFunctions`),
+usage events through `onUsage`, and the shared request controls are supported.
+`getModels()` returns WebLLM's prebuilt chat model list without network calls.
+Embeddings, image embedding/description/generation, video, and TTS/voice methods
+throw `AIError` with code `NOT_SUPPORTED`, and `getCapabilities()` reports them as
+`false`. Without WebGPU, requests throw `WebGPUUnavailableError`
+(`code: 'WEBGPU_UNAVAILABLE'`); a missing peer throws `WebLLMPeerMissingError`
+(`code: 'WEBLLM_PEER_MISSING'`).
+
+The root entry still statically imports Node-oriented providers (for example the
+Gemini and Claude CLI modules), so bundling it for a browser may need those
+excluded; a browser-safe root entry is tracked separately.
 
 ## Typed Decisions
 
@@ -585,7 +701,7 @@ All providers implement `AIInterface`:
 
 ### Error Types
 
-All extend `AIError`: `AuthenticationError`, `RateLimitError`, `ModelNotFoundError`, `ContextLengthError`, `ContentFilterError`.
+All extend `AIError`: `AuthenticationError`, `RateLimitError`, `ModelNotFoundError`, `ContextLengthError`, `ContentFilterError`, `WebGPUUnavailableError`, `WebLLMPeerMissingError`.
 
 - `AIError.retryable` distinguishes retryable failures from terminal ones
 - `RateLimitError.retryAfter` exposes provider retry hints in seconds when available

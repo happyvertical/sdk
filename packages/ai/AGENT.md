@@ -27,6 +27,6 @@ pnpm --filter @happyvertical/ai clean
 ## Ecosystem Relationships
 - Provides: Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev typed decisions
 - Implements: none
-- Requires: @happyvertical/utils, @anthropic-ai/sdk, @aws-sdk/client-bedrock-runtime, @google/genai, openai
+- Requires: @happyvertical/utils, @anthropic-ai/sdk, @aws-sdk/client-bedrock-runtime, @google/genai, @mlc-ai/web-llm, openai
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->

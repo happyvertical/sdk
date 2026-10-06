@@ -142,6 +142,7 @@ export const AI_PROVIDER_TYPES = [
   'byteplus-modelark',
   'seevio',
   'typesafe',
+  'webllm',
 ] as const;
 
 /**
@@ -378,6 +379,14 @@ export interface ChatOptions extends AIRequestControls {
    * Response format specification
    */
   responseFormat?: { type: 'text' | 'json_object' };
+
+  /**
+   * JSON Schema the reply must satisfy, as an object or a serialized string.
+   * Implies JSON output. Honored only by providers that constrain decoding
+   * with a grammar (`webllm`), where the model cannot emit a value outside
+   * the schema (e.g. an enum); other providers ignore it, so still validate.
+   */
+  responseSchema?: Record<string, unknown> | string;
 
   /**
    * Random seed for deterministic results
@@ -706,6 +715,14 @@ export interface MessageOptions extends AIRequestControls {
    * Response format specification
    */
   responseFormat?: { type: 'text' | 'json_object' };
+
+  /**
+   * JSON Schema the reply must satisfy, as an object or a serialized string.
+   * Implies JSON output. Honored only by providers that constrain decoding
+   * with a grammar (`webllm`), where the model cannot emit a value outside
+   * the schema (e.g. an enum); other providers ignore it, so still validate.
+   */
+  responseSchema?: Record<string, unknown> | string;
 
   /**
    * Random seed for deterministic results
@@ -2303,6 +2320,52 @@ export interface TypeSafeOptions extends BaseAIOptions {
   baseUrl?: string;
 }
 
+/** Subset of a WebLLM `InitProgressReport` surfaced to model-load callbacks. */
+export interface WebLLMLoadProgress {
+  /** Fraction complete, 0 to 1. */
+  progress: number;
+  /** Human-readable status, e.g. the shard being fetched. */
+  text: string;
+  /** Seconds since loading started. */
+  timeElapsed: number;
+}
+
+/**
+ * Structural view of a WebLLM engine (`MLCEngine`, `WebWorkerMLCEngine`,
+ * `ServiceWorkerMLCEngine`). Declared here so consumers need not have
+ * `@mlc-ai/web-llm` installed to typecheck against this package.
+ */
+export interface WebLLMEngineLike {
+  chat: {
+    completions: {
+      create(request: Record<string, any>): Promise<any>;
+    };
+  };
+  interruptGenerate(): void | Promise<void>;
+  unload?(): Promise<void>;
+}
+
+/**
+ * In-browser provider backed by WebLLM (WebGPU). Needs the optional peer
+ * dependency `@mlc-ai/web-llm`; no server and no API key. `defaultModel`
+ * selects a WebLLM model id (default `Llama-3.2-1B-Instruct-q4f16_1-MLC`).
+ */
+export interface WebLLMOptions extends BaseAIOptions {
+  type: 'webllm';
+  /** Alias for `defaultModel`. */
+  model?: string;
+  /**
+   * A pre-created engine, or a factory for one, e.g. `CreateWebWorkerMLCEngine`
+   * so inference stays off the UI thread. When set, the provider never loads
+   * or caches an engine itself and skips the WebGPU check.
+   */
+  engine?: WebLLMEngineLike | (() => Promise<WebLLMEngineLike>);
+  /** Reports model download and compile progress while the engine loads. */
+  onLoadProgress?: (report: WebLLMLoadProgress) => void;
+  /** WebLLM `AppConfig` (custom `model_list`, cache backend). Defaults to the prebuilt list. */
+  appConfig?: Record<string, any>;
+}
+
 /**
  * Union type for all provider options
  */
@@ -2320,7 +2383,8 @@ export type GetAIOptions =
   | OpenAICompatVideoOptions
   | ByteplusModelArkOptions
   | SeevioOptions
-  | TypeSafeOptions;
+  | TypeSafeOptions
+  | WebLLMOptions;
 
 /**
  * Base error class for all AI operations.
@@ -2506,6 +2570,42 @@ export class ContextLengthError extends AIError {
       false,
     );
     this.name = 'ContextLengthError';
+  }
+}
+
+/**
+ * Thrown by the `webllm` provider when the browser exposes no WebGPU
+ * (`navigator.gpu` is absent). Catch it to show a fallback.
+ */
+export class WebGPUUnavailableError extends AIError {
+  constructor(provider = 'webllm', detail?: string) {
+    super(
+      detail ??
+        'WebGPU is not available in this environment (navigator.gpu is missing); on-device inference cannot run.',
+      'WEBGPU_UNAVAILABLE',
+      provider,
+      undefined,
+      false,
+    );
+    this.name = 'WebGPUUnavailableError';
+  }
+}
+
+/**
+ * Thrown by the `webllm` provider when the optional peer dependency
+ * `@mlc-ai/web-llm` cannot be imported.
+ */
+export class WebLLMPeerMissingError extends AIError {
+  constructor(cause?: unknown) {
+    super(
+      'The webllm provider needs the optional peer dependency @mlc-ai/web-llm. Install it with `pnpm add @mlc-ai/web-llm` (or the npm/yarn equivalent).',
+      'WEBLLM_PEER_MISSING',
+      'webllm',
+      undefined,
+      false,
+    );
+    this.name = 'WebLLMPeerMissingError';
+    if (cause !== undefined) this.cause = cause;
   }
 }
 

@@ -13,6 +13,10 @@
     "./node": {
       "import": "./dist/node.js",
       "types": "./dist/node.d.ts"
+    },
+    "./local": {
+      "import": "./dist/local.js",
+      "types": "./dist/local.d.ts"
     }
   },
   "bin": {
@@ -57,10 +61,19 @@
     "openai": "6.34.0"
   },
   "devDependencies": {
+    "@mlc-ai/web-llm": "^0.2.85",
     "@types/node": "25.0.10",
     "typescript": "5.9.3",
     "vite": "8.1.4",
     "vite-plugin-dts": "4.5.4",
     "vitest": "4.1.10"
+  },
+  "peerDependencies": {
+    "@mlc-ai/web-llm": ">=0.2.80"
+  },
+  "peerDependenciesMeta": {
+    "@mlc-ai/web-llm": {
+      "optional": true
+    }
   }
 }
