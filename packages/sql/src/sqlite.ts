@@ -974,7 +974,63 @@ async function createLibSQLClient(
     // Use explicit external import to avoid bundling
     const libsqlClient = '@libsql/client';
     const { createClient } = await import(/* @vite-ignore */ libsqlClient);
-    return createClient({ url: libsqlUrl, authToken, encryptionKey }) as Client;
+    const client = createClient({
+      url: libsqlUrl,
+      authToken,
+      encryptionKey,
+    }) as Client;
+    if (!hasRemoteScheme && url !== ':memory:') {
+      // libsql 0.5.x can leave a failed SQLITE_BUSY statement active even
+      // after ROLLBACK. Never reuse that connection or silently reconnect it:
+      // reconnecting would lose the caller's TEMP tables and PRAGMA state.
+      // Dispose it and require explicit acquisition/reinitialization instead.
+      const dispose = client.close.bind(client);
+      let invalidated: Error | undefined;
+      const guard = async <T>(operation: () => Promise<T>): Promise<T> => {
+        if (invalidated) throw invalidated;
+        try {
+          return await operation();
+        } catch (error) {
+          if ((error as { code?: string })?.code?.startsWith('SQLITE_BUSY')) {
+            dispose();
+            invalidated = Object.assign(
+              new Error(
+                'SQLite connection closed and invalidated after SQLITE_BUSY; acquire a new database, restore connection-local settings, and retry the entire transaction.',
+                { cause: error },
+              ),
+              { code: 'SQLITE_BUSY', connectionInvalidated: true },
+            );
+            throw invalidated;
+          }
+          throw error;
+        }
+      };
+      const execute = client.execute.bind(client);
+      client.execute = (...args: Parameters<Client['execute']>) =>
+        guard(() => execute(...args));
+      const transaction = client.transaction.bind(client);
+      client.transaction = async (
+        ...args: Parameters<Client['transaction']>
+      ) => {
+        const tx = await guard(() => transaction(...args));
+        const execute = tx.execute.bind(tx);
+        const commit = tx.commit.bind(tx);
+        const close = tx.close.bind(tx);
+        const prototype = Object.getPrototypeOf(tx);
+        Object.defineProperty(tx, 'closed', {
+          get: () =>
+            Boolean(invalidated) || Reflect.get(prototype, 'closed', tx),
+        });
+        tx.close = () => {
+          if (!invalidated) close();
+        };
+        tx.execute = (...args: Parameters<typeof tx.execute>) =>
+          guard(() => execute(...args));
+        tx.commit = () => guard(commit);
+        return tx;
+      };
+    }
+    return client;
   } catch (error) {
     const errorMessage = redactDatabaseUrl(
       error instanceof Error ? error.message : String(error),

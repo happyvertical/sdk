@@ -741,3 +741,17 @@ shipping it beyond development or test environments.
 ## License
 
 ISC
+
+### SQLite lock contention and recovery
+
+The local file-backed libsql driver can retain a failed statement after
+`SQLITE_BUSY`. The adapter closes that poisoned connection instead of silently
+reconnecting and losing connection-local state. The error (possibly nested in
+`DatabaseError.cause`) has `code: 'SQLITE_BUSY'` and
+`connectionInvalidated: true`; later queries on that instance fail likewise.
+Reacquire with `getDatabase` (the same `dbid` evicts the closed cached instance),
+restore any PRAGMAs or temporary tables, and retry the **entire transaction**
+with bounded backoff. No partial statements are replayed automatically. This
+recovery applies to local file libsql, not remote, native-capability, secure,
+or in-memory adapters. Applications should use an explicit connection factory
+when automating recovery so initialization is repeated deliberately.
