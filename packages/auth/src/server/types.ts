@@ -43,6 +43,7 @@ export interface OAuthConsentContext {
   readonly tenantId?: string;
   /** Additional JSON-safe access-token claims supplied by the application. */
   readonly claims?: Readonly<Record<string, string | number | boolean>>;
+  readonly scopes?: readonly string[];
 }
 
 /** Request parsed from an OAuth authorization endpoint request. */
@@ -143,6 +144,11 @@ export interface OAuthAuthorizationStorage {
 
 /** Application-owned authorization checks. The server never authenticates browser sessions itself. */
 export interface OAuthIdentityProvider {
+  /** Called before every token issue; return null when live authorization is inactive. */
+  revalidateConsent?(
+    context: OAuthConsentContext,
+    grant: OAuthAuthorizationCodeGrant | OAuthRefreshGrant,
+  ): Promise<OAuthConsentContext | null>;
   /** Called before issuing a refreshed token; return null when the identity, tenant, or permissions are no longer active. */
   refreshConsent(
     context: OAuthConsentContext,

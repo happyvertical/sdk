@@ -346,28 +346,34 @@ export class OAuthAuthorizationServer {
     try {
       const url = new URL(request.url);
       const path = url.pathname;
+      const prefix = this.issuerUrl.pathname.replace(/\/$/u, '');
+      const route = path.startsWith(`${prefix}/`)
+        ? path.slice(prefix.length)
+        : path;
       if (
         request.method === 'GET' &&
-        path === '/.well-known/oauth-authorization-server'
+        (path === `/.well-known/oauth-authorization-server${prefix}` ||
+          route === '/.well-known/oauth-authorization-server')
       )
         return json(this.discovery());
       if (
         request.method === 'GET' &&
-        path === '/.well-known/openid-configuration'
+        (path === `/.well-known/openid-configuration${prefix}` ||
+          route === '/.well-known/openid-configuration')
       )
         return json(this.discovery());
-      if (request.method === 'GET' && path === '/jwks')
+      if (request.method === 'GET' && route === '/jwks')
         return json(this.jwks());
-      if (request.method === 'POST' && path === '/token')
+      if (request.method === 'POST' && route === '/token')
         return json(await this.token(await form(request)));
-      if (request.method === 'POST' && path === '/revoke') {
+      if (request.method === 'POST' && route === '/revoke') {
         await this.revoke(await form(request));
         return new Response(null, {
           status: 200,
           headers: { 'cache-control': 'no-store' },
         });
       }
-      if (request.method === 'POST' && path === '/register')
+      if (request.method === 'POST' && route === '/register')
         return json(await this.register(await request.json()), 201);
       return new Response(null, { status: 404 });
     } catch (error) {
@@ -406,7 +412,8 @@ export class OAuthAuthorizationServer {
         'invalid_grant',
         'Invalid authorization code.',
       );
-    return this.issue(result.grant, true);
+    const consent = await this.revalidate(result.grant);
+    return this.issue(this.applyConsent(result.grant, consent), true);
   }
   private async refresh(input: URLSearchParams): Promise<OAuthTokenResponse> {
     const client = await this.client(input);
@@ -433,14 +440,7 @@ export class OAuthAuthorizationServer {
     });
     if (result.status !== 'rotated')
       throw new OAuthServerError('invalid_grant', 'Invalid refresh token.');
-    const consent = await this.options.identity.refreshConsent(
-      {
-        subject: result.grant.subject,
-        ...(result.grant.tenantId ? { tenantId: result.grant.tenantId } : {}),
-        ...(result.grant.claims ? { claims: result.grant.claims } : {}),
-      },
-      result.grant,
-    );
+    const consent = await this.revalidate(result.grant);
     if (!consent) {
       await this.options.storage.revokeRefreshGrant({
         id: raw.id,
@@ -473,11 +473,25 @@ export class OAuthAuthorizationServer {
   ): Promise<OAuthTokenResponse> {
     const now = Math.floor(Date.now() / 1000);
     const jti = randomUUID();
+    const claims = grant.claims ?? {};
+    for (const reserved of [
+      'scope',
+      'client_id',
+      'tenant_id',
+      'aud',
+      'iss',
+      'sub',
+      'jti',
+      'exp',
+      'iat',
+    ])
+      if (reserved in claims)
+        throw new OAuthServerError('invalid_request', 'Reserved token claim.');
     const token = await new SignJWT({
       scope: grant.scopes.join(' '),
       client_id: grant.clientId,
       ...(grant.tenantId ? { tenant_id: grant.tenantId } : {}),
-      ...grant.claims,
+      ...claims,
     })
       .setProtectedHeader({
         alg: this.options.signingKey.algorithm,
@@ -579,6 +593,44 @@ export class OAuthAuthorizationServer {
         'issuer must be an HTTPS origin or path without query, fragment, or credentials.',
       );
     return url;
+  }
+  private async revalidate(
+    grant: OAuthAuthorizationCodeGrant | OAuthRefreshGrant,
+  ): Promise<OAuthConsentContext> {
+    const context = {
+      subject: grant.subject,
+      ...(grant.tenantId ? { tenantId: grant.tenantId } : {}),
+      ...(grant.claims ? { claims: grant.claims } : {}),
+    };
+    const result = this.options.identity.revalidateConsent
+      ? await this.options.identity.revalidateConsent(context, grant)
+      : await this.options.identity.refreshConsent(
+          context,
+          grant as OAuthRefreshGrant,
+        );
+    if (!result)
+      throw new OAuthServerError(
+        'invalid_grant',
+        'Authorization is no longer active.',
+      );
+    return result;
+  }
+  private applyConsent<
+    T extends OAuthAuthorizationCodeGrant | OAuthRefreshGrant,
+  >(grant: T, consent: OAuthConsentContext): T {
+    const scopes = consent.scopes ?? grant.scopes;
+    if (scopes.some((scope) => !grant.scopes.includes(scope)))
+      throw new OAuthServerError(
+        'invalid_scope',
+        'Live authorization expanded scope.',
+      );
+    return {
+      ...grant,
+      subject: consent.subject,
+      ...(consent.tenantId ? { tenantId: consent.tenantId } : {}),
+      ...(consent.claims ? { claims: consent.claims } : {}),
+      scopes,
+    };
   }
   private assertPublicRedirect(uri: string) {
     const url = new URL(uri);
