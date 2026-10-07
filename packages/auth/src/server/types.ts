@@ -117,6 +117,12 @@ export interface OAuthAuthorizationStorage {
     readonly now: Date;
   }): Promise<OAuthCodeConsumeResult>;
   createRefreshGrant(grant: OAuthRefreshGrant): Promise<void>;
+  /** Atomically persist a subset of a replacement grant's scopes before exposing its token. Reject missing or mismatched grants and any expansion. Required to support live narrowing. */
+  narrowRefreshGrant?(input: {
+    readonly id: string;
+    readonly tokenHash: string;
+    readonly scopes: readonly string[];
+  }): Promise<void>;
   /** Atomically consumes a refresh token, creates replacement, and revokes its family on replay. */
   rotateRefreshGrant(input: {
     readonly id: string;
@@ -150,7 +156,7 @@ export interface OAuthIdentityProvider {
     grant: OAuthAuthorizationCodeGrant | OAuthRefreshGrant,
   ): Promise<OAuthConsentContext | null>;
   /** Called before issuing a refreshed token; return null when the identity, tenant, or permissions are no longer active. */
-  refreshConsent(
+  refreshConsent?(
     context: OAuthConsentContext,
     grant: OAuthRefreshGrant,
   ): Promise<OAuthConsentContext | null>;

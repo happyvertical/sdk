@@ -92,7 +92,31 @@ Supply a durable `OAuthAuthorizationStorage` implementation. Its
 database transactions (or compare-and-swap operations); the exported in-memory
 store is for tests only. The server enforces S256 PKCE, exact redirect URI and
 resource binding, JWT signing/JWKS, refresh-token rotation with family replay
-revocation, and live refresh authorization through `OAuthIdentityProvider`.
+revocation, and live authorization checks at both code exchange and refresh
+through `OAuthIdentityProvider.revalidateConsent` (the legacy `refreshConsent`
+hook is a fallback for both). Return the unchanged subject and tenant, optional
+replacement application claims, and optional scopes that are a subset of the
+grant. Return null to deny; changing identity, tenant, or expanding scope fails
+closed. Omitting claims removes previous application claims. JWT protocol claims
+are reserved. Consent supplied to `approve` may also narrow the requested scopes.
+
+Stores supporting live narrowing implement `narrowRefreshGrant`: atomically
+validate the replacement token hash and active grant, then persist only a subset
+of its current scopes. Throw on any failure. The server revokes the family on
+failed live checks or narrowing persistence; it never returns the replacement.
+Older stores without this optional method fail closed if narrowing is requested.
+Storage failures must reject; never return success before durable commit. A
+connection failure after commit can leave an unreachable hash-only grant, but
+must not expose any token. Concrete SQL adapters and dialect tests belong to the
+host application.
+
+Path issuers such as `https://host/oauth` advertise endpoints under `/oauth` and
+RFC 8414 discovery at `/.well-known/oauth-authorization-server/oauth`. Public
+DCR accepts only code responses, authorization-code/refresh grants, allowed
+scopes, and safe HTTPS or loopback redirects. Unknown extension metadata is
+ignored. CIMD is not implemented. The signing API supports one active key;
+overlapping signing-key rotation is not implemented. Hosts must supply a public
+JWK matching the private signing key and keep private material out of JWKS.
 
 ## License
 

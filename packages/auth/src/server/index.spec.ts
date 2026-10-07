@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { exportJWK, generateKeyPair } from 'jose';
-import { describe, expect, it } from 'vitest';
+import { createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } from 'jose';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createAuthorizationServer,
   InMemoryOAuthAuthorizationStorage,
 } from './index.js';
+import type { OAuthConsentContext } from './types.js';
 
 const issuer = 'https://issuer.example';
 const redirectUri = 'https://app.example/callback';
@@ -12,9 +13,9 @@ const verifier = 'v'.repeat(64);
 const challenge = createHash('sha256').update(verifier).digest('base64url');
 
 async function setup(
-  revalidate?: (context: {
-    subject: string;
-  }) => Promise<{ subject: string; scopes?: readonly string[] } | null>,
+  revalidate?: (
+    context: OAuthConsentContext,
+  ) => Promise<OAuthConsentContext | null>,
   serverIssuer = issuer,
 ) {
   const keys = await generateKeyPair('RS256');
@@ -83,6 +84,20 @@ async function exchange(
       code_verifier: verifier,
       resource: 'https://resource.example/mcp',
       ...patch,
+    }),
+  );
+}
+
+function refresh(
+  server: Awaited<ReturnType<typeof setup>>['server'],
+  token: string,
+) {
+  return server.token(
+    new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: 'client',
+      refresh_token: token,
+      resource: 'https://resource.example/mcp',
     }),
   );
 }
@@ -235,7 +250,7 @@ describe('OAuthAuthorizationServer', () => {
       exchange(denied.server, await code(denied.server)),
     ).rejects.toMatchObject({ error: 'invalid_grant' });
     const narrowed = await setup(async (context) => ({
-      subject: context.subject,
+      ...context,
       scopes: [],
     }));
     const first = await exchange(narrowed.server, await code(narrowed.server));
@@ -255,5 +270,223 @@ describe('OAuthAuthorizationServer', () => {
         }),
       ),
     ).rejects.toMatchObject({ error: 'invalid_grant' });
+  });
+  it('persists refresh-time narrowing and never restores removed permissions', async () => {
+    let narrow = false;
+    const { server, storage } = await setup(async (context) =>
+      narrow ? { ...context, scopes: [] } : context,
+    );
+    const first = await exchange(server, await code(server));
+    expect(first.scope).toBe('mcp.read');
+    narrow = true;
+    const second = await refresh(server, first.refresh_token!);
+    expect(second.scope).toBe('');
+    expect((await server.verifyAccessToken(second.access_token)).scope).toBe(
+      '',
+    );
+    expect(
+      storage.refreshes.get(second.refresh_token!.split('.')[0])?.scopes,
+    ).toEqual([]);
+    narrow = false;
+    expect((await refresh(server, second.refresh_token!)).scope).toBe('');
+  });
+
+  it.each([
+    'deny',
+    'subject',
+    'tenant',
+    'scope',
+  ] as const)('fails closed on live %s changes during code and refresh exchange', async (change) => {
+    let changed = false;
+    const { server, storage } = await setup(async (context) => {
+      if (!changed) return context;
+      if (change === 'deny') return null;
+      if (change === 'subject') return { ...context, subject: 'mallory' };
+      if (change === 'tenant') return { ...context, tenantId: 'tenant-b' };
+      return { ...context, scopes: ['admin'] };
+    });
+    const initial = await exchange(server, await code(server));
+    const pending = await code(server);
+    changed = true;
+    await expect(exchange(server, pending)).rejects.toMatchObject({
+      error: change === 'scope' ? 'invalid_scope' : 'invalid_grant',
+    });
+    await expect(refresh(server, initial.refresh_token!)).rejects.toThrow();
+    expect(storage.revokedFamilies.size).toBe(1);
+    changed = false;
+    await expect(exchange(server, pending)).rejects.toThrow();
+    await expect(refresh(server, initial.refresh_token!)).rejects.toThrow();
+  });
+
+  it.each([
+    null,
+    [],
+    {},
+    { redirect_uris: [] },
+    { redirect_uris: [1] },
+    { redirect_uris: ['garbage'] },
+    { redirect_uris: [redirectUri], grant_types: ['client_credentials'] },
+    { redirect_uris: [redirectUri], response_types: ['token'] },
+    {
+      redirect_uris: [redirectUri],
+      token_endpoint_auth_method: 'client_secret_basic',
+    },
+    { redirect_uris: [redirectUri], scope: 'admin' },
+    { redirect_uris: [redirectUri], scope: [] },
+  ])('rejects malformed DCR metadata %j without registering', async (metadata) => {
+    const { server, storage } = await setup();
+    await expect(server.register(metadata)).rejects.toThrow();
+    expect(storage.clients.size).toBe(1);
+  });
+
+  it.each([
+    'iss',
+    'sub',
+    'aud',
+    'exp',
+    'iat',
+    'jti',
+    'scope',
+    'client_id',
+    'tenant_id',
+    'nbf',
+  ])('rejects reserved JWT claim %s', async (claim) => {
+    const { server } = await setup();
+    const redirect = await server.approve(
+      await server.parseAuthorizationRequest(authorization()),
+      { subject: 'alice', claims: { [claim]: 'forged' } },
+    );
+    await expect(
+      exchange(server, new URL(redirect.redirectUri).searchParams.get('code')!),
+    ).rejects.toMatchObject({ error: 'invalid_request' });
+  });
+
+  it('round-trips a signed token through advertised path issuer discovery and JWKS', async () => {
+    const { server } = await setup(undefined, `${issuer}/oauth`);
+    const metadata = await (
+      await server.handle(
+        new Request(`${issuer}/.well-known/oauth-authorization-server/oauth`),
+      )
+    ).json();
+    expect(metadata.issuer).toBe(`${issuer}/oauth`);
+    expect(metadata.token_endpoint).toBe(`${issuer}/oauth/token`);
+    const jwks = await (
+      await server.handle(new Request(metadata.jwks_uri))
+    ).json();
+    expect(jwks.keys[0].d).toBeUndefined();
+    const token = await exchange(server, await code(server));
+    const verified = await jwtVerify(
+      token.access_token,
+      createLocalJWKSet(jwks),
+      {
+        issuer: metadata.issuer,
+        audience: 'https://resource.example/mcp',
+        algorithms: ['RS256'],
+      },
+    );
+    expect(verified.protectedHeader.kid).toBe('test');
+    expect(verified.payload.sub).toBe('alice');
+    const revoked = await server.handle(
+      new Request(`${issuer}/oauth/revoke`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token: token.refresh_token! }),
+      }),
+    );
+    expect(revoked.status).toBe(200);
+    await expect(refresh(server, token.refresh_token!)).rejects.toThrow();
+  });
+
+  it('does not expose tokens when durable writes or reads fail, including after mutation', async () => {
+    const { server, storage } = await setup();
+    const createCode = vi
+      .spyOn(storage, 'createAuthorizationCode')
+      .mockRejectedValueOnce(new Error('database unavailable'));
+    await expect(code(server)).rejects.toThrow('database unavailable');
+    expect(storage.codes.size).toBe(0);
+    createCode.mockRestore();
+    const value = await code(server);
+    const createRefresh = vi
+      .spyOn(storage, 'createRefreshGrant')
+      .mockImplementationOnce(async (grant) => {
+        storage.refreshes.set(grant.id, grant);
+        throw new Error('connection lost after write');
+      });
+    await expect(exchange(server, value)).rejects.toThrow('connection lost');
+    await expect(exchange(server, value)).rejects.toThrow();
+    // The orphaned grant contains hashes only: its opaque secret was never returned.
+    expect([...storage.refreshes.values()][0]).not.toHaveProperty('token');
+    createRefresh.mockRestore();
+    const first = await exchange(server, await code(server));
+    const rotate = storage.rotateRefreshGrant.bind(storage);
+    vi.spyOn(storage, 'rotateRefreshGrant').mockImplementationOnce(
+      async (input) => {
+        await rotate(input);
+        throw new Error('connection lost after rotation');
+      },
+    );
+    await expect(refresh(server, first.refresh_token!)).rejects.toThrow(
+      'connection lost',
+    );
+    await expect(refresh(server, first.refresh_token!)).rejects.toThrow();
+    vi.spyOn(storage, 'isAccessTokenRevoked').mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
+    await expect(server.verifyAccessToken(first.access_token)).rejects.toThrow(
+      'database unavailable',
+    );
+  });
+
+  it('fails closed if persisting narrowed scopes fails', async () => {
+    let narrow = false;
+    const { server, storage } = await setup(async (context) =>
+      narrow ? { ...context, scopes: [] } : context,
+    );
+    const first = await exchange(server, await code(server));
+    narrow = true;
+    vi.spyOn(storage, 'narrowRefreshGrant').mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
+    await expect(refresh(server, first.refresh_token!)).rejects.toThrow(
+      'database unavailable',
+    );
+    expect(storage.revokedFamilies.size).toBe(1);
+    await expect(refresh(server, first.refresh_token!)).rejects.toThrow();
+  });
+  it('honors approval scope narrowing and rejects approval expansion', async () => {
+    const { server } = await setup();
+    const request = await server.parseAuthorizationRequest(authorization());
+    const approved = await server.approve(request, {
+      subject: 'alice',
+      scopes: [],
+    });
+    expect(
+      (
+        await exchange(
+          server,
+          new URL(approved.redirectUri).searchParams.get('code')!,
+        )
+      ).scope,
+    ).toBe('');
+    await expect(
+      server.approve(request, { subject: 'alice', scopes: ['admin'] }),
+    ).rejects.toMatchObject({ error: 'invalid_scope' });
+  });
+
+  it('concurrent refresh permits one exchange and revokes its family after replay', async () => {
+    const { server } = await setup();
+    const first = await exchange(server, await code(server));
+    const results = await Promise.allSettled([
+      refresh(server, first.refresh_token!),
+      refresh(server, first.refresh_token!),
+    ]);
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    for (const result of results)
+      if (result.status === 'fulfilled')
+        await expect(
+          refresh(server, result.value.refresh_token!),
+        ).rejects.toMatchObject({ error: 'invalid_grant' });
   });
 });

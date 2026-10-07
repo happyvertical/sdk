@@ -190,7 +190,9 @@ export class OAuthAuthorizationServer {
         now.getTime() + this.options.authorizationCodeLifetimeSeconds * 1000,
       ),
     };
-    await this.options.storage.createAuthorizationCode(grant);
+    await this.options.storage.createAuthorizationCode(
+      this.applyConsent(grant, consent),
+    );
     const redirect = new URL(request.redirectUri);
     redirect.searchParams.set('code', code.value);
     if (request.state) redirect.searchParams.set('state', request.state);
@@ -307,7 +309,46 @@ export class OAuthAuthorizationServer {
         'Dynamic client registration is disabled.',
         404,
       );
+    if (!input || typeof input !== 'object' || Array.isArray(input))
+      throw new OAuthServerError(
+        'invalid_request',
+        'Client metadata must be an object.',
+      );
     const value = input as Record<string, unknown>;
+    for (const [field, allowed] of [
+      [
+        'grant_types',
+        [
+          'authorization_code',
+          ...(this.options.issueRefreshTokens ? ['refresh_token'] : []),
+        ],
+      ],
+      ['response_types', ['code']],
+    ] as const) {
+      const values = value[field];
+      if (
+        values !== undefined &&
+        (!Array.isArray(values) ||
+          !values.length ||
+          values.some(
+            (entry) =>
+              typeof entry !== 'string' ||
+              !(allowed as readonly string[]).includes(entry),
+          ))
+      )
+        throw new OAuthServerError(
+          'invalid_request',
+          'Unsupported client metadata.',
+        );
+    }
+    if (
+      value.scope !== undefined &&
+      (typeof value.scope !== 'string' ||
+        scopeList(value.scope).some(
+          (scope) => !this.options.scopes.includes(scope),
+        ))
+    )
+      throw new OAuthServerError('invalid_scope', 'Unsupported client scope.');
     if (
       !Array.isArray(value.redirect_uris) ||
       !value.redirect_uris.length ||
@@ -330,7 +371,10 @@ export class OAuthAuthorizationServer {
       redirectUris: value.redirect_uris.map((uri) =>
         this.assertPublicRedirect(uri),
       ),
-      allowedScopes: this.options.scopes,
+      allowedScopes:
+        typeof value.scope === 'string'
+          ? scopeList(value.scope)
+          : this.options.scopes,
       tokenEndpointAuthMethod: 'none',
       createdAt: new Date(),
     };
@@ -440,29 +484,32 @@ export class OAuthAuthorizationServer {
     });
     if (result.status !== 'rotated')
       throw new OAuthServerError('invalid_grant', 'Invalid refresh token.');
-    const consent = await this.revalidate(result.grant);
-    if (!consent) {
+    try {
+      const consent = await this.revalidate(result.grant);
+      const grant = this.applyConsent(result.grant, consent);
+      if (grant.scopes.length !== result.grant.scopes.length) {
+        if (!this.options.storage.narrowRefreshGrant)
+          throw new OAuthServerError(
+            'invalid_grant',
+            'Storage cannot persist narrowed consent.',
+          );
+        await this.options.storage.narrowRefreshGrant({
+          id: candidate.id,
+          tokenHash: candidate.hash,
+          scopes: grant.scopes,
+        });
+      }
+      return await this.issue(grant, false, candidate.value);
+    } catch (error) {
       await this.options.storage.revokeRefreshGrant({
         id: raw.id,
         tokenHash: raw.hash,
         now,
       });
-      throw new OAuthServerError(
-        'invalid_grant',
-        'Authorization is no longer active.',
-      );
+      throw error;
     }
-    return this.issue(
-      {
-        ...result.grant,
-        subject: consent.subject,
-        ...(consent.tenantId ? { tenantId: consent.tenantId } : {}),
-        ...(consent.claims ? { claims: consent.claims } : {}),
-      },
-      false,
-      candidate.value,
-    );
   }
+
   private async issue(
     grant: Pick<
       OAuthAuthorizationCodeGrant,
@@ -484,6 +531,7 @@ export class OAuthAuthorizationServer {
       'jti',
       'exp',
       'iat',
+      'nbf',
     ])
       if (reserved in claims)
         throw new OAuthServerError('invalid_request', 'Reserved token claim.');
@@ -604,7 +652,7 @@ export class OAuthAuthorizationServer {
     };
     const result = this.options.identity.revalidateConsent
       ? await this.options.identity.revalidateConsent(context, grant)
-      : await this.options.identity.refreshConsent(
+      : await this.options.identity.refreshConsent?.(
           context,
           grant as OAuthRefreshGrant,
         );
@@ -618,7 +666,16 @@ export class OAuthAuthorizationServer {
   private applyConsent<
     T extends OAuthAuthorizationCodeGrant | OAuthRefreshGrant,
   >(grant: T, consent: OAuthConsentContext): T {
-    const scopes = consent.scopes ?? grant.scopes;
+    if (
+      !consent.subject ||
+      consent.subject !== grant.subject ||
+      consent.tenantId !== grant.tenantId
+    )
+      throw new OAuthServerError(
+        'invalid_grant',
+        'Live authorization changed identity or tenant.',
+      );
+    const scopes = [...new Set(consent.scopes ?? grant.scopes)];
     if (scopes.some((scope) => !grant.scopes.includes(scope)))
       throw new OAuthServerError(
         'invalid_scope',
@@ -628,12 +685,17 @@ export class OAuthAuthorizationServer {
       ...grant,
       subject: consent.subject,
       ...(consent.tenantId ? { tenantId: consent.tenantId } : {}),
-      ...(consent.claims ? { claims: consent.claims } : {}),
+      claims: consent.claims,
       scopes,
     };
   }
   private assertPublicRedirect(uri: string) {
-    const url = new URL(uri);
+    let url: URL;
+    try {
+      url = new URL(uri);
+    } catch {
+      throw new OAuthServerError('invalid_request', 'Invalid redirect URI.');
+    }
     if (
       !['https:', 'http:'].includes(url.protocol) ||
       url.username ||
