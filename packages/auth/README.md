@@ -68,6 +68,32 @@ if (await auth.hasRole(token, 'admin')) {
 
 See [AGENT.md](./AGENT.md) for complete API documentation.
 
+## Authorization server
+
+`@happyvertical/auth/server` provides a framework-independent OAuth 2.0
+authorization-code issuer. It intentionally does not authenticate browser
+sessions or render consent: an application validates its current session and
+permissions, then calls `parseAuthorizationRequest()` and `approve()` with an
+application-owned `OAuthConsentContext`.
+
+```typescript
+import { createAuthorizationServer } from '@happyvertical/auth/server';
+
+const request = await server.parseAuthorizationRequest(url.searchParams);
+const approved = await server.approve(request, {
+  subject: session.userId,
+  tenantId: session.activeTenantId,
+});
+return Response.redirect(approved.redirectUri, 302);
+```
+
+Supply a durable `OAuthAuthorizationStorage` implementation. Its
+`consumeAuthorizationCode` and `rotateRefreshGrant` operations must be atomic
+database transactions (or compare-and-swap operations); the exported in-memory
+store is for tests only. The server enforces S256 PKCE, exact redirect URI and
+resource binding, JWT signing/JWKS, refresh-token rotation with family replay
+revocation, and live refresh authorization through `OAuthIdentityProvider`.
+
 ## License
 
 MIT
