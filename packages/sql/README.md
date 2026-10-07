@@ -106,6 +106,32 @@ await db.transaction(async (tx) => {
 In Node (or anywhere the root entry is fine), `getDatabase({ type: 'pglite' })`
 from `@happyvertical/sql` reaches the same adapter.
 
+### Browser-safe query helpers: `@happyvertical/sql/query`
+
+Code that only builds SQL, or works on a database it was handed, should import
+`@happyvertical/sql/query` rather than the root. Its import graph has no `node:`
+built-ins and no driver packages (`pg`, libsql, DuckDB), so it bundles for a
+page. The root keeps re-exporting everything.
+
+```typescript
+import {
+  bucketExpr,
+  buildAggregate,
+  buildWhere,
+  raw,
+  syncSchema,
+  tableExists,
+  validateColumnName,
+} from '@happyvertical/sql/query';
+```
+
+It exports `validateColumnName`, `escapeSqlValue`, `buildWhere`, `raw`,
+`formatDbError`, `buildAggregate`, `bucketExpr`, `tableExists`, `syncSchema`,
+`DatabaseSchemaManager`, `convertUniqueIndexesToInlineConstraints`, and all the
+shared types and error classes (`NestedTransactionError`, `DatabaseInterface`, ...).
+`getDatabase`, the doctor framework, and the Postgres CLI helpers stay root-only
+because they reach drivers or Node built-ins.
+
 #### Persistence: `dataDir`
 
 | `dataDir` | Storage | Where |
