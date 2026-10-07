@@ -4,7 +4,12 @@ import {
   randomUUID,
   timingSafeEqual,
 } from 'node:crypto';
-import { type JWTPayload, jwtVerify, SignJWT } from 'jose';
+import {
+  type JWTPayload,
+  errors as joseErrors,
+  jwtVerify,
+  SignJWT,
+} from 'jose';
 import {
   type OAuthAuthorizationCodeGrant,
   type OAuthAuthorizationRedirect,
@@ -19,6 +24,11 @@ import {
 
 export { InMemoryOAuthAuthorizationStorage } from './memory.js';
 export * from './types.js';
+
+const maxRegistrationBodyBytes = 16 * 1024;
+const maxRedirectUris = 10;
+const maxMetadataStringLength = 2048;
+const maxClientNameLength = 256;
 
 const maxLifetime = 60 * 60 * 24 * 90;
 const scopePattern = /^[\x21\x23-\x5b\x5d-\x7e]+$/u;
@@ -72,7 +82,11 @@ function errorResponse(error: unknown) {
   const value =
     error instanceof OAuthServerError
       ? error
-      : new OAuthServerError('invalid_request', 'Invalid request.');
+      : new OAuthServerError(
+          'server_error',
+          'The authorization server could not complete the request.',
+          500,
+        );
   return json(
     { error: value.error, error_description: value.description },
     value.status,
@@ -225,8 +239,23 @@ export class OAuthAuthorizationServer {
     }
     try {
       await this.revokeAccessToken(token);
-    } catch {
-      // RFC 7009 requires a successful response for an unknown token.
+    } catch (error) {
+      // Unknown token success must never conceal a failed durable read/write.
+      if (error instanceof OAuthServerError && error.error === 'invalid_token')
+        return;
+      if (
+        [
+          joseErrors.JWTExpired,
+          joseErrors.JWTClaimValidationFailed,
+          joseErrors.JWTInvalid,
+          joseErrors.JWSInvalid,
+          joseErrors.JWSSignatureVerificationFailed,
+          joseErrors.JOSEAlgNotAllowed,
+          joseErrors.JOSENotSupported,
+        ].some((ErrorType) => error instanceof ErrorType)
+      )
+        return;
+      throw error;
     }
   }
 
@@ -340,6 +369,17 @@ export class OAuthAuthorizationServer {
         'Client metadata must be an object.',
       );
     const value = input as Record<string, unknown>;
+    if (
+      (value.client_name !== undefined &&
+        (typeof value.client_name !== 'string' ||
+          value.client_name.length > maxClientNameLength)) ||
+      (typeof value.scope === 'string' &&
+        value.scope.length > maxMetadataStringLength)
+    )
+      throw new OAuthServerError(
+        'invalid_request',
+        'Client metadata exceeds supported bounds.',
+      );
     for (const [field, allowed] of [
       [
         'grant_types',
@@ -355,6 +395,7 @@ export class OAuthAuthorizationServer {
         values !== undefined &&
         (!Array.isArray(values) ||
           !values.length ||
+          values.length > allowed.length ||
           values.some(
             (entry) =>
               typeof entry !== 'string' ||
@@ -377,7 +418,11 @@ export class OAuthAuthorizationServer {
     if (
       !Array.isArray(value.redirect_uris) ||
       !value.redirect_uris.length ||
-      value.redirect_uris.some((uri) => typeof uri !== 'string')
+      value.redirect_uris.length > maxRedirectUris ||
+      value.redirect_uris.some(
+        (uri) =>
+          typeof uri !== 'string' || uri.length > maxMetadataStringLength,
+      )
     )
       throw new OAuthServerError(
         'invalid_request',
@@ -443,7 +488,7 @@ export class OAuthAuthorizationServer {
         });
       }
       if (request.method === 'POST' && route === '/register')
-        return json(await this.register(await request.json()), 201);
+        return json(await this.register(await registrationBody(request)), 201);
       return new Response(null, { status: 404 });
     } catch (error) {
       return errorResponse(error);
@@ -756,4 +801,58 @@ async function form(request: Request) {
       'Form-encoded request required.',
     );
   return new URLSearchParams(await request.text());
+}
+
+/** Bound bytes while streaming, before JSON parsing or metadata persistence. */
+async function registrationBody(request: Request): Promise<unknown> {
+  const tooLarge = () =>
+    new OAuthServerError(
+      'invalid_request',
+      'Registration body exceeds 16384 bytes.',
+      413,
+    );
+  const declaredLength = request.headers.get('content-length');
+  if (
+    declaredLength !== null &&
+    Number(declaredLength) > maxRegistrationBodyBytes
+  ) {
+    await request.body?.cancel().catch(() => {});
+    throw tooLarge();
+  }
+  const reader = request.body?.getReader();
+  if (!reader)
+    throw new OAuthServerError(
+      'invalid_request',
+      'Client metadata is required.',
+    );
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      length += next.value.byteLength;
+      if (length > maxRegistrationBodyBytes) {
+        await reader.cancel().catch(() => {});
+        throw tooLarge();
+      }
+      chunks.push(next.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch {
+    throw new OAuthServerError(
+      'invalid_request',
+      'Client metadata must be valid JSON.',
+    );
+  }
 }

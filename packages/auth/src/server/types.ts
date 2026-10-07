@@ -14,6 +14,7 @@ export class OAuthServerError extends Error {
 
 /** Errors defined by OAuth 2.0 endpoints supported by this server. */
 export type OAuthErrorCode =
+  | 'server_error'
   | 'access_denied'
   | 'invalid_client'
   | 'invalid_grant'

@@ -546,4 +546,144 @@ describe('OAuthAuthorizationServer', () => {
       server.verifyAccessToken(token, 'https://resource.example/mcp'),
     ).rejects.toThrow();
   });
+  it.each([
+    'isAccessTokenRevoked',
+    'revokeAccessToken',
+  ] as const)('reports revocation storage failure from %s and permits recovery', async (operation) => {
+    const { server, storage } = await setup();
+    const tokens = await exchange(server, await code(server));
+    const revoke = () =>
+      server.handle(
+        new Request(`${issuer}/revoke`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ token: tokens.access_token }),
+        }),
+      );
+    vi.spyOn(storage, operation).mockRejectedValueOnce(
+      new Error('private database outage'),
+    );
+    const failed = await revoke();
+    expect(failed.status).toBe(500);
+    expect(await failed.json()).toEqual({
+      error: 'server_error',
+      error_description:
+        'The authorization server could not complete the request.',
+    });
+    await expect(
+      server.verifyAccessToken(tokens.access_token),
+    ).resolves.toHaveProperty('sub', 'alice');
+    expect((await revoke()).status).toBe(200);
+    await expect(
+      server.verifyAccessToken(tokens.access_token),
+    ).rejects.toMatchObject({ error: 'invalid_token' });
+    expect((await revoke()).status).toBe(200);
+  });
+
+  it('treats malformed, expired and signature-invalid revocation tokens as unknown', async () => {
+    const { server, keys } = await setup();
+    const now = Math.floor(Date.now() / 1000);
+    const expired = await new SignJWT({
+      scope: 'mcp.read',
+      client_id: 'client',
+    })
+      .setProtectedHeader({ alg: 'RS256', typ: 'at+jwt' })
+      .setIssuer(issuer)
+      .setSubject('alice')
+      .setAudience(issuer)
+      .setJti('expired')
+      .setIssuedAt(now - 600)
+      .setExpirationTime(now - 300)
+      .sign(keys.privateKey);
+    const alien = await setup();
+    const foreign = await exchange(alien.server, await code(alien.server));
+    for (const token of ['malformed', expired, foreign.access_token]) {
+      const response = await server.handle(
+        new Request(`${issuer}/revoke`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ token }),
+        }),
+      );
+      expect(response.status).toBe(200);
+    }
+  });
+
+  it.each([
+    { redirect_uris: Array(11).fill(redirectUri) },
+    { redirect_uris: [`https://app.example/${'x'.repeat(2048)}`] },
+    { redirect_uris: [redirectUri], client_name: 'x'.repeat(257) },
+    { redirect_uris: [redirectUri], client_name: [] },
+    { redirect_uris: [redirectUri], scope: ' '.repeat(2049) },
+    {
+      redirect_uris: [redirectUri],
+      grant_types: Array(3).fill('authorization_code'),
+    },
+    { redirect_uris: [redirectUri], response_types: Array(2).fill('code') },
+  ])('bounds direct registration metadata before persistence %j', async (metadata) => {
+    const { server, storage } = await setup();
+    await expect(server.register(metadata)).rejects.toMatchObject({
+      error: 'invalid_request',
+    });
+    expect(storage.clients.size).toBe(1);
+  });
+
+  it.each([
+    'absent',
+    'understated',
+    'excessive',
+  ] as const)('bounds streamed registration body with %s content length', async (length) => {
+    const { server, storage } = await setup();
+    const cancelled = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            `{"redirect_uris":["${redirectUri}"],"extension":"`,
+          ),
+        );
+      },
+      pull(controller) {
+        controller.enqueue(new Uint8Array(8192).fill(120));
+      },
+      cancel: cancelled,
+    });
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+    };
+    if (length !== 'absent')
+      headers['content-length'] = length === 'understated' ? '1' : '20000';
+    const response = await server.handle(
+      new Request(`${issuer}/register`, {
+        method: 'POST',
+        headers,
+        body: stream,
+        duplex: 'half',
+      } as RequestInit),
+    );
+    expect(response.status).toBe(413);
+    expect(cancelled).toHaveBeenCalledOnce();
+    expect(storage.clients.size).toBe(1);
+  });
+
+  it('accepts registration limits and ignores bounded extension metadata', async () => {
+    const { server, storage } = await setup();
+    const response = await server.handle(
+      new Request(`${issuer}/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          redirect_uris: Array(10).fill(redirectUri),
+          client_name: 'x'.repeat(256),
+          extension: { ignored: true },
+        }),
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect(storage.clients.size).toBe(2);
+    const malformed = await server.handle(
+      new Request(`${issuer}/register`, { method: 'POST', body: '{' }),
+    );
+    expect(malformed.status).toBe(400);
+  });
 });

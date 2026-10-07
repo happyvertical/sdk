@@ -116,8 +116,15 @@ DCR accepts only code responses, authorization-code/refresh grants, allowed
 scopes, and HTTPS redirects. HTTP loopback redirects require explicit
 `allowLoopbackRedirects: true` for native/development clients. Access-token
 verification requires `typ: at+jwt`, expiry, issued-at, subject, audience, token
-ID, client ID and scope with valid claim types. Unknown extension metadata is
-ignored. CIMD is not implemented. The signing API supports one active key;
+ID, client ID and scope with valid claim types. Registration bodies are limited to 16 KiB while streaming, including when
+Content-Length is absent or understated. Metadata permits at most 10 redirect
+URIs of 2,048 characters each, a 256-character client name, a 2,048-character
+scope string, two grant types and one response type. Direct `register()` calls
+apply the same field bounds. Oversized bodies return 413 before persistence;
+invalid metadata returns 400. Unknown extension metadata is ignored within the
+body limit. Revocation returns success for unknown or invalid tokens, but
+storage outages return a generic 500 server_error so callers can retry after
+recovery. CIMD is not implemented. The signing API supports one active key;
 overlapping signing-key rotation is not implemented. Hosts must supply a public
 JWK matching the private signing key and keep private material out of JWKS.
 
