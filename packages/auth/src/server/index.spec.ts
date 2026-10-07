@@ -11,7 +11,12 @@ const redirectUri = 'https://app.example/callback';
 const verifier = 'v'.repeat(64);
 const challenge = createHash('sha256').update(verifier).digest('base64url');
 
-async function setup() {
+async function setup(
+  revalidate?: (context: {
+    subject: string;
+  }) => Promise<{ subject: string; scopes?: readonly string[] } | null>,
+  serverIssuer = issuer,
+) {
   const keys = await generateKeyPair('RS256');
   const storage = new InMemoryOAuthAuthorizationStorage();
   await storage.registerClient({
@@ -23,7 +28,7 @@ async function setup() {
     createdAt: new Date(),
   });
   const server = createAuthorizationServer({
-    issuer,
+    issuer: serverIssuer,
     signingKey: {
       privateKey: keys.privateKey,
       publicKey: keys.publicKey,
@@ -35,7 +40,10 @@ async function setup() {
     scopes: ['mcp.read'],
     resources: ['https://resource.example/mcp'],
     dynamicClientRegistration: true,
-    identity: { refreshConsent: async (context) => context },
+    identity: {
+      revalidateConsent: async (context) =>
+        revalidate ? revalidate(context) : context,
+    },
   });
   return { server, storage };
 }
@@ -185,5 +193,67 @@ describe('OAuthAuthorizationServer', () => {
     expect(result.filter((entry) => entry.status === 'rejected')).toHaveLength(
       1,
     );
+  });
+
+  it('uses issuer-relative endpoints and denies wrong audience, empty consent, and reserved claims', async () => {
+    const { server } = await setup(undefined, 'https://issuer.example/oauth');
+    const nested = await (
+      await server.handle(
+        new Request('https://issuer.example/oauth/token', {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ grant_type: 'invalid' }),
+        }),
+      )
+    ).json();
+    expect(nested.error).toBe('unsupported_grant_type');
+    await expect(
+      server.approve(await server.parseAuthorizationRequest(authorization()), {
+        subject: '',
+      }),
+    ).rejects.toMatchObject({ error: 'access_denied' });
+    const tokens = await exchange(server, await code(server));
+    await expect(
+      server.verifyAccessToken(tokens.access_token, 'https://other.example'),
+    ).rejects.toThrow();
+    const request = await server.parseAuthorizationRequest(authorization());
+    await expect(
+      server
+        .approve(request, { subject: 'alice', claims: { scope: 'admin' } })
+        .then((result) =>
+          exchange(
+            server,
+            new URL(result.redirectUri).searchParams.get('code')!,
+          ),
+        ),
+    ).rejects.toMatchObject({ error: 'invalid_request' });
+  });
+
+  it('revalidates code and refresh grants, narrows scopes, and revokes refreshes', async () => {
+    const denied = await setup(async () => null);
+    await expect(
+      exchange(denied.server, await code(denied.server)),
+    ).rejects.toMatchObject({ error: 'invalid_grant' });
+    const narrowed = await setup(async (context) => ({
+      subject: context.subject,
+      scopes: [],
+    }));
+    const first = await exchange(narrowed.server, await code(narrowed.server));
+    expect(
+      (await narrowed.server.verifyAccessToken(first.access_token)).scope,
+    ).toBe('');
+    await narrowed.server.revoke(
+      new URLSearchParams({ token: first.refresh_token! }),
+    );
+    await expect(
+      narrowed.server.token(
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: 'client',
+          refresh_token: first.refresh_token!,
+          resource: 'https://resource.example/mcp',
+        }),
+      ),
+    ).rejects.toMatchObject({ error: 'invalid_grant' });
   });
 });
