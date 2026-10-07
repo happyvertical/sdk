@@ -1,5 +1,11 @@
 import { createHash } from 'node:crypto';
-import { createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } from 'jose';
+import {
+  createLocalJWKSet,
+  exportJWK,
+  generateKeyPair,
+  jwtVerify,
+  SignJWT,
+} from 'jose';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createAuthorizationServer,
@@ -17,6 +23,7 @@ async function setup(
     context: OAuthConsentContext,
   ) => Promise<OAuthConsentContext | null>,
   serverIssuer = issuer,
+  allowLoopbackRedirects = true,
 ) {
   const keys = await generateKeyPair('RS256');
   const storage = new InMemoryOAuthAuthorizationStorage();
@@ -41,12 +48,13 @@ async function setup(
     scopes: ['mcp.read'],
     resources: ['https://resource.example/mcp'],
     dynamicClientRegistration: true,
+    allowLoopbackRedirects,
     identity: {
       revalidateConsent: async (context) =>
         revalidate ? revalidate(context) : context,
     },
   });
-  return { server, storage };
+  return { server, storage, keys };
 }
 function authorization() {
   return new URLSearchParams({
@@ -488,5 +496,54 @@ describe('OAuthAuthorizationServer', () => {
         await expect(
           refresh(server, result.value.refresh_token!),
         ).rejects.toMatchObject({ error: 'invalid_grant' });
+  });
+  it('requires explicit opt-in for HTTP loopback registration', async () => {
+    const { server } = await setup(undefined, issuer, false);
+    await expect(
+      server.register({ redirect_uris: ['http://localhost/callback'] }),
+    ).rejects.toMatchObject({ error: 'invalid_request' });
+    await expect(
+      server.register({ redirect_uris: [redirectUri] }),
+    ).resolves.toHaveProperty('client_id');
+  });
+
+  it.each([
+    'exp',
+    'iat',
+    'sub',
+    'client_id',
+    'scope',
+    'aud',
+    'jti',
+    'typ',
+    'scope-type',
+    'client-type',
+    'tenant-type',
+  ])('rejects signed access JWT with invalid %s', async (field) => {
+    const { server, keys } = await setup();
+    const now = Math.floor(Date.now() / 1000);
+    const payload: Record<string, unknown> = {
+      iss: issuer,
+      sub: 'alice',
+      client_id: 'client',
+      scope: 'mcp.read',
+      aud: 'https://resource.example/mcp',
+      jti: 'test',
+      iat: now,
+      exp: now + 300,
+    };
+    if (field === 'scope-type') payload.scope = ['mcp.read'];
+    else if (field === 'client-type') payload.client_id = 1;
+    else if (field === 'tenant-type') payload.tenant_id = [];
+    else delete payload[field];
+    const token = await new SignJWT(payload)
+      .setProtectedHeader({
+        alg: 'RS256',
+        typ: field === 'typ' ? 'JWT' : 'at+jwt',
+      })
+      .sign(keys.privateKey);
+    await expect(
+      server.verifyAccessToken(token, 'https://resource.example/mcp'),
+    ).rejects.toThrow();
   });
 });

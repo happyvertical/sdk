@@ -186,6 +186,8 @@ export interface OAuthAuthorizationServerOptions {
   readonly issueRefreshTokens?: boolean;
   /** Enables RFC 7591 public-client registration. It is disabled by default. */
   readonly dynamicClientRegistration?: boolean;
+  /** Explicit opt-in for HTTP loopback redirects used by native/development clients. HTTPS is the default. */
+  readonly allowLoopbackRedirects?: boolean;
 }
 
 /** Tokens returned by successful token endpoint grants. */

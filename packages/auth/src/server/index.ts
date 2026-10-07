@@ -251,12 +251,37 @@ export class OAuthAuthorizationServer {
       this.options.signingKey.publicKey,
       {
         issuer: this.issuer,
+        typ: 'at+jwt',
+        requiredClaims: [
+          'exp',
+          'iat',
+          'sub',
+          'client_id',
+          'scope',
+          'aud',
+          'jti',
+        ],
         ...(audience ? { audience } : {}),
         algorithms: [this.options.signingKey.algorithm],
       },
     );
     if (
+      typeof payload.jti !== 'string' ||
       !payload.jti ||
+      typeof payload.sub !== 'string' ||
+      !payload.sub ||
+      typeof payload.client_id !== 'string' ||
+      !payload.client_id ||
+      typeof payload.scope !== 'string' ||
+      typeof payload.aud !== 'string' ||
+      !payload.aud ||
+      typeof payload.iat !== 'number' ||
+      !Number.isInteger(payload.iat) ||
+      typeof payload.exp !== 'number' ||
+      !Number.isInteger(payload.exp) ||
+      payload.exp <= payload.iat ||
+      (payload.tenant_id !== undefined &&
+        (typeof payload.tenant_id !== 'string' || !payload.tenant_id)) ||
       (await this.options.storage.isAccessTokenRevoked(payload.jti, new Date()))
     )
       throw new OAuthServerError('invalid_token', 'Invalid access token.', 401);
@@ -703,7 +728,8 @@ export class OAuthAuthorizationServer {
       url.hash ||
       url.search ||
       (url.protocol === 'http:' &&
-        !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+        (!this.options.allowLoopbackRedirects ||
+          !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
     )
       throw new OAuthServerError('invalid_request', 'Invalid redirect URI.');
     return url.href;

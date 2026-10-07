@@ -113,7 +113,10 @@ host application.
 Path issuers such as `https://host/oauth` advertise endpoints under `/oauth` and
 RFC 8414 discovery at `/.well-known/oauth-authorization-server/oauth`. Public
 DCR accepts only code responses, authorization-code/refresh grants, allowed
-scopes, and safe HTTPS or loopback redirects. Unknown extension metadata is
+scopes, and HTTPS redirects. HTTP loopback redirects require explicit
+`allowLoopbackRedirects: true` for native/development clients. Access-token
+verification requires `typ: at+jwt`, expiry, issued-at, subject, audience, token
+ID, client ID and scope with valid claim types. Unknown extension metadata is
 ignored. CIMD is not implemented. The signing API supports one active key;
 overlapping signing-key rotation is not implemented. Hosts must supply a public
 JWK matching the private signing key and keep private material out of JWKS.
