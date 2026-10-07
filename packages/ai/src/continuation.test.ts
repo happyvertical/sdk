@@ -170,6 +170,18 @@ describe('continueOnLength (OpenAI-compatible)', () => {
       responseFormat: { type: 'json_object' },
     });
     expect(json.truncated).toBe(true);
+    const schema = await ai.chat([{ role: 'user', content: 'go' }], {
+      continueOnLength: true,
+      responseFormat: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'result',
+          schema: { type: 'object' },
+          strict: true,
+        },
+      },
+    });
+    expect(schema.truncated).toBe(true);
     const tools = await ai.chat([{ role: 'user', content: 'go' }], {
       continueOnLength: true,
       tools: [
@@ -177,7 +189,7 @@ describe('continueOnLength (OpenAI-compatible)', () => {
       ] as any,
     });
     expect(tools.truncated).toBe(true);
-    expect(create).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenCalledTimes(3);
   });
 
   it('streams one continuous stream across continuations', async () => {

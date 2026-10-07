@@ -3,7 +3,11 @@ import OpenAI from 'openai';
 
 import type { AIMessageOptions } from './message';
 import { buildTokenLimitRequestFields } from './providers/openai';
-import type { AIProviderType, AIRateLimitOptions } from './types';
+import type {
+  AIProviderType,
+  AIRateLimitOptions,
+  AIResponseFormat,
+} from './types';
 import { AI_PROVIDER_TYPES } from './types';
 
 /**
@@ -188,7 +192,7 @@ export interface AITextCompletionOptions {
   /**
    * Format for the response
    */
-  responseFormat?: { type: 'text' | 'json_object' };
+  responseFormat?: AIResponseFormat;
 
   /**
    * Random seed for deterministic results
@@ -421,7 +425,7 @@ export interface OpenAITextCompletionOptions {
   /**
    * Format for the response
    */
-  responseFormat?: { type: 'text' | 'json_object' };
+  responseFormat?: AIResponseFormat;
 
   /**
    * Random seed for deterministic results
