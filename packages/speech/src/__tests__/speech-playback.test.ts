@@ -128,6 +128,50 @@ describe('browser speech playback', () => {
     expect(playback.playing).toBe(false);
   });
 
+  it('settles immediately when stop or destroy interrupts an unresolved audio unlock', async () => {
+    browserFakes();
+    FakeContext.resumeImpl = () => new Promise<void>(() => {});
+    const stopped = createSpeechPlayback();
+    const stopPending = stopped.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    stopped.stop();
+    await expect(stopPending).resolves.toBeUndefined();
+
+    const destroyed = createSpeechPlayback();
+    const destroyPending = destroyed.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    destroyed.destroy();
+    await expect(destroyPending).resolves.toBeUndefined();
+  });
+
+  it('settles a replaced operation even when its native audio promise never resolves', async () => {
+    browserFakes();
+    let release: (() => void) | undefined;
+    FakeAudio.playImpl = () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    const playback = createSpeechPlayback();
+    const first = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+    FakeAudio.playImpl = async () => undefined;
+    const second = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    await expect(first).resolves.toBeUndefined();
+    lastAudio?.onended?.();
+    await expect(second).resolves.toBeUndefined();
+    release?.();
+  });
+
   it('uses the AudioContext unlocked by prepare after delayed audio arrives', async () => {
     browserFakes();
     const playback = createSpeechPlayback();
@@ -171,5 +215,53 @@ describe('browser speech playback', () => {
     expect(playback.playing).toBe(false);
     expect(start).not.toHaveBeenCalled();
     expect(end).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    'stop',
+    'destroy',
+  ] as const)('settles when onStart calls %s without scheduling a frame', async (action) => {
+    browserFakes();
+    let playback: ReturnType<typeof createSpeechPlayback>;
+    playback = createSpeechPlayback({ onStart: () => playback[action]() });
+    const pending = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    await expect(pending).resolves.toBeUndefined();
+    expect(requestAnimationFrame).not.toHaveBeenCalled();
+    expect(playback.playing).toBe(false);
+  });
+
+  it('reports a current native playback failure exactly once', async () => {
+    browserFakes();
+    const onError = vi.fn();
+    FakeAudio.playImpl = async () => {
+      throw new Error('autoplay denied');
+    };
+    const playback = createSpeechPlayback({ onError });
+    await expect(
+      playback.play({ audio: new ArrayBuffer(3), contentType: 'audio/wav' }),
+    ).rejects.toThrow('autoplay denied');
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'autoplay denied' }),
+    );
+  });
+
+  it('reports a current audio-unlock failure exactly once', async () => {
+    browserFakes();
+    const onError = vi.fn();
+    FakeContext.resumeImpl = async () => {
+      throw new Error('unlock denied');
+    };
+    const playback = createSpeechPlayback({ onError });
+    await expect(
+      playback.play({ audio: new ArrayBuffer(3), contentType: 'audio/wav' }),
+    ).rejects.toThrow('unlock denied');
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'unlock denied' }),
+    );
   });
 });
