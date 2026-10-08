@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   encodeRgbaPng,
+  faceLandmarksFromMesh,
   readBoundedModel,
   segmentationAlpha,
   segmentImage,
@@ -41,6 +42,23 @@ describe('bounded segmentation model downloads', () => {
     await expect(
       readBoundedModel(new Response(new Uint8Array(1)), Number.NaN),
     ).rejects.toThrow();
+  });
+});
+
+describe('face landmark mapping', () => {
+  it('maps lip corners and chin from the face mesh into normalized image coordinates', () => {
+    const mesh = Array.from({ length: 292 }, () => ({ x: 0, y: 0 }));
+    mesh[61] = { x: 0.7, y: 0.8 };
+    mesh[291] = { x: 0.3, y: 0.79 };
+    mesh[152] = { x: 0.5, y: 0.94 };
+    expect(faceLandmarksFromMesh(mesh)).toEqual({
+      mouthLeft: { x: 300, y: 790 },
+      mouthRight: { x: 700, y: 800 },
+      chin: { x: 500, y: 940 },
+    });
+  });
+  it('fails closed when MediaPipe does not return a complete face mesh', () => {
+    expect(() => faceLandmarksFromMesh([])).toThrow('incomplete');
   });
 });
 

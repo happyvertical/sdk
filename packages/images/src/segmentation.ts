@@ -6,8 +6,17 @@ export const SELFIE_MULTICLASS_MODEL = {
   license: 'Apache-2.0',
 } as const;
 
+/** Pinned MediaPipe face mesh used to locate lips and chin on-device. */
+export const FACE_LANDMARKER_MODEL = {
+  file: 'face_landmarker.task',
+  url: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
+  sha256: '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff',
+  license: 'Apache-2.0',
+} as const;
+
 /** Pinned model is 16,371,837 bytes; leave bounded room for an upstream repack. */
 export const MAX_SEGMENTATION_MODEL_BYTES = 17_500_000;
+export const MAX_FACE_LANDMARKER_MODEL_BYTES = 4_000_000;
 
 /** Reads a response incrementally and cancels before an oversized body is retained. */
 export async function readBoundedModel(
@@ -248,6 +257,85 @@ export async function segmentImage(
     }
   } finally {
     segmenter.close();
+  }
+}
+
+export interface FaceLandmarks {
+  mouthLeft: { x: number; y: number };
+  mouthRight: { x: number; y: number };
+  chin: { x: number; y: number };
+}
+
+/** Maps MediaPipe's face-mesh lip-corner and chin indices into UI coordinates. */
+export function faceLandmarksFromMesh(
+  landmarks: ReadonlyArray<{ x: number; y: number }>,
+): FaceLandmarks {
+  const mouth = [landmarks[61], landmarks[291]];
+  const chin = landmarks[152];
+  if (!mouth[0] || !mouth[1] || !chin)
+    throw new Error('Face landmarks are incomplete. Try a clearer photo.');
+  const point = ({ x, y }: { x: number; y: number }) => ({
+    x: x * 1000,
+    y: y * 1000,
+  });
+  const [first, second] = mouth.map(point).sort((a, b) => a.x - b.x);
+  return { mouthLeft: first, mouthRight: second, chin: point(chin) };
+}
+
+/**
+ * Detects exactly one face locally and returns the visible lip corners and
+ * chin in the caller image's 0..1000 coordinate system. Source pixels remain
+ * in the browser and the MediaPipe task is always closed after inference.
+ */
+export async function detectFaceLandmarks(
+  image: HTMLImageElement,
+  options: SegmentImageOptions,
+): Promise<FaceLandmarks> {
+  const { signal, onProgress } = options;
+  signal?.throwIfAborted();
+  onProgress?.('loading');
+  const base = options.assetBaseUrl.replace(/\/$/, '');
+  const response = await fetch(`${base}/${FACE_LANDMARKER_MODEL.file}`, {
+    signal,
+    cache: 'force-cache',
+  });
+  if (!response.ok)
+    throw new Error(`Could not load face landmark model (${response.status}).`);
+  const bytes = await readBoundedModel(
+    response,
+    MAX_FACE_LANDMARKER_MODEL_BYTES,
+  );
+  const digest = Array.from(
+    new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
+    (value) => value.toString(16).padStart(2, '0'),
+  ).join('');
+  if (digest !== FACE_LANDMARKER_MODEL.sha256)
+    throw new Error('Face landmark model integrity check failed.');
+  signal?.throwIfAborted();
+  const { FaceLandmarker, FilesetResolver } = await import(
+    '@mediapipe/tasks-vision'
+  );
+  const files = await FilesetResolver.forVisionTasks(base);
+  signal?.throwIfAborted();
+  const landmarker = await FaceLandmarker.createFromOptions(files, {
+    baseOptions: { modelAssetBuffer: new Uint8Array(bytes), delegate: 'CPU' },
+    runningMode: 'IMAGE',
+    numFaces: 2,
+  });
+  try {
+    onProgress?.('segmenting');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    signal?.throwIfAborted();
+    const faces = landmarker.detect(image).faceLandmarks;
+    if (faces.length !== 1)
+      throw new Error(
+        faces.length
+          ? 'Use a photo with one clear face.'
+          : 'No clear face found. Try a closer, front-facing photo.',
+      );
+    return faceLandmarksFromMesh(faces[0]);
+  } finally {
+    landmarker.close();
   }
 }
 
