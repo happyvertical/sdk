@@ -63,14 +63,16 @@ describe('browser speech playback', () => {
       onStart: start,
       onEnd: end,
     });
-    await playback.play({
+    const pending = playback.play({
       audio: new ArrayBuffer(3),
       contentType: 'audio/wav',
     });
+    await new Promise((resolve) => setTimeout(resolve));
     expect(playback.playing).toBe(true);
     expect(start).toHaveBeenCalledOnce();
     expect(levels.some((value) => value > 0)).toBe(true);
     lastAudio?.onended?.();
+    await pending;
     expect(playback.playing).toBe(false);
     expect(levels.at(-1)).toBe(0);
     expect(end).toHaveBeenCalledOnce();
@@ -80,11 +82,13 @@ describe('browser speech playback', () => {
     browserFakes();
     const end = vi.fn();
     const playback = createSpeechPlayback({ onEnd: end });
-    await playback.play({
+    const pending = playback.play({
       audio: new ArrayBuffer(3),
       contentType: 'audio/wav',
     });
+    await new Promise((resolve) => setTimeout(resolve));
     playback.stop();
+    await pending;
     expect(lastAudio?.pause).toHaveBeenCalled();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:audio');
     expect(end).not.toHaveBeenCalled();
