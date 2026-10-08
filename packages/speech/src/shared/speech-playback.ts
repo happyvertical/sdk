@@ -47,13 +47,28 @@ export function createSpeechPlayback(
   let disposed = false;
   let active = 0;
   let playing = false;
-  let settled:
-    | { token: number; resolve: () => void; reject: (error: Error) => void }
+  let operation:
+    | {
+        token: number;
+        resolve: () => void;
+        reject: (error: Error) => void;
+      }
     | undefined;
 
   const emitLevel = (level: number) =>
     options.onLevel?.(Math.min(1, Math.max(0, level)));
-  const cleanup = (token: number, ended: boolean, closeContext = false) => {
+  const finish = (
+    token: number,
+    {
+      ended = false,
+      failure,
+      closeContext = false,
+    }: {
+      ended?: boolean;
+      failure?: Error;
+      closeContext?: boolean;
+    } = {},
+  ) => {
     if (token !== active) return;
     if (frame !== undefined) cancelAnimationFrame(frame);
     frame = undefined;
@@ -72,12 +87,13 @@ export function createSpeechPlayback(
     }
     if (playing) emitLevel(0);
     playing = false;
-    if (settled?.token === token) {
-      settled.resolve();
-      settled = undefined;
+    if (operation?.token === token) {
+      if (failure) operation.reject(failure);
+      else operation.resolve();
+      operation = undefined;
     }
-    if (ended) options.onEnd?.();
     ++active;
+    if (ended) options.onEnd?.();
   };
 
   return {
@@ -97,6 +113,20 @@ export function createSpeechPlayback(
         throw new Error('Browser audio playback is unavailable');
       this.stop();
       const token = ++active;
+      let resolveCompletion!: () => void;
+      let rejectCompletion!: (error: Error) => void;
+      const completion = new Promise<void>((resolve, reject) => {
+        resolveCompletion = resolve;
+        rejectCompletion = reject;
+      });
+      // A native resume/play promise cannot be cancelled. Keep a rejection
+      // observer attached while cancellation settles this public operation.
+      void completion.catch(() => {});
+      operation = {
+        token,
+        resolve: resolveCompletion,
+        reject: rejectCompletion,
+      };
       try {
         url = URL.createObjectURL(
           new Blob([speech.audio], { type: speech.contentType }),
@@ -127,44 +157,41 @@ export function createSpeechPlayback(
           frame = requestAnimationFrame(sample);
         };
         audio = nextAudio;
-        nextAudio.onended = () => cleanup(token, true);
+        nextAudio.onended = () => finish(token, { ended: true });
         nextAudio.onerror = () => {
           if (token !== active) return;
           const error = new Error('Browser speech audio playback failed');
-          if (settled?.token === token) {
-            settled.reject(error);
-            settled = undefined;
-          }
-          cleanup(token, false);
+          finish(token, { failure: error });
           options.onError?.(error);
         };
-        await nextContext.resume();
+        await Promise.race([nextContext.resume(), completion]);
         if (token !== active || disposed) return;
-        await nextAudio.play();
+        await Promise.race([nextAudio.play(), completion]);
         if (token !== active || disposed) return;
         playing = true;
         options.onStart?.();
+        if (token !== active || disposed) return;
         sample();
-        await new Promise<void>((resolve, reject) => {
-          settled = { token, resolve, reject };
-        });
+        await completion;
       } catch (cause) {
-        cleanup(token, false);
         const error =
           cause instanceof Error
             ? cause
             : new Error('Browser speech audio playback failed');
-        if (token === active) options.onError?.(error);
+        if (token === active) {
+          finish(token, { failure: error });
+          options.onError?.(error);
+        }
         throw error;
       }
     },
     stop() {
-      cleanup(active, false);
+      finish(active);
     },
     destroy() {
       if (!disposed) {
         disposed = true;
-        cleanup(active, false, true);
+        finish(active, { closeContext: true });
       }
     },
   };
