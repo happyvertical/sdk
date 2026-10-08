@@ -15,3 +15,10 @@ export {
   type PcmCaptureResult,
   pcmCaptureSupported,
 } from './shared/pcm-capture.js';
+export {
+  createSpeechPlayback,
+  type SpeechPlayback,
+  type SpeechPlaybackEvents,
+  type SpeechPlaybackOptions,
+  speechPlaybackSupported,
+} from './shared/speech-playback.js';
