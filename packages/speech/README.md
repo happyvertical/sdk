@@ -56,6 +56,10 @@ const spoken = await speech.synthesize({
 
 The OpenAI-compatible TTS base URL resolves like the transcriber's: a server root (`http://gateway:8080`) gets `/v1/audio/speech`, a base ending in a version segment (`http://gateway/tts/v1`) gets `/audio/speech`, and a URL already ending in `/audio/speech` is used as-is. The query string is preserved and a fragment is dropped. An explicit `speechPath` skips this: it resolves relative to the base URL, or is used as-is when absolute.
 
+## Browser playback and levels
+
+`@happyvertical/speech/browser` plays server-synthesized bytes and reports a smoothed 0..1 RMS level from the audio element's Web Audio analyser. It never synthesizes speech or handles credentials. Start it from a user action, then use `onLevel` for a character jaw, visualizer, or caption timing surface.
+
 Studio Server and Qwen3 accept pre-extracted provider voice prompts through `SpeechVoice.prompt`; the adapters forward these as the multipart `voice_prompt` field.
 
 ## OpenAI-compatible Transcription

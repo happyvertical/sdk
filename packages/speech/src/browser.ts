@@ -16,6 +16,13 @@ export {
   pcmCaptureSupported,
 } from './shared/pcm-capture.js';
 export {
+  createSpeechPlayback,
+  type SpeechPlayback,
+  type SpeechPlaybackEvents,
+  type SpeechPlaybackOptions,
+  speechPlaybackSupported,
+} from './shared/speech-playback.js';
+export {
   createVadCapture,
   VAD_CAPTURE_SAMPLE_RATE,
   type VadCapture,
