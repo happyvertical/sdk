@@ -45,6 +45,9 @@ export function createSpeechPlayback(
   let disposed = false;
   let active = 0;
   let playing = false;
+  let settled:
+    | { token: number; resolve: () => void; reject: (error: Error) => void }
+    | undefined;
 
   const emitLevel = (level: number) =>
     options.onLevel?.(Math.min(1, Math.max(0, level)));
@@ -61,6 +64,10 @@ export function createSpeechPlayback(
     if (closing && closing.state !== 'closed') void closing.close();
     if (playing) emitLevel(0);
     playing = false;
+    if (settled?.token === token) {
+      settled.resolve();
+      settled = undefined;
+    }
     if (ended) options.onEnd?.();
   };
 
@@ -113,6 +120,10 @@ export function createSpeechPlayback(
         nextAudio.onerror = () => {
           if (token !== active) return;
           const error = new Error('Browser speech audio playback failed');
+          if (settled?.token === token) {
+            settled.reject(error);
+            settled = undefined;
+          }
           cleanup(token, false);
           options.onError?.(error);
         };
@@ -123,6 +134,9 @@ export function createSpeechPlayback(
         playing = true;
         options.onStart?.();
         sample();
+        await new Promise<void>((resolve, reject) => {
+          settled = { token, resolve, reject };
+        });
       } catch (cause) {
         cleanup(token, false);
         const error =
