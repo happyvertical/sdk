@@ -71,6 +71,27 @@ describe('face landmark mapping', () => {
   it('fails closed when MediaPipe does not return a complete face mesh', () => {
     expect(() => faceLandmarksFromMesh([])).toThrow('incomplete');
   });
+  it('accepts image boundaries but rejects invalid landmark coordinates', () => {
+    const mesh = Array.from({ length: 292 }, () => ({ x: 0.5, y: 0.5 }));
+    mesh[61] = { x: 0, y: 0 };
+    mesh[291] = { x: 1, y: 1 };
+    mesh[152] = { x: 0, y: 1 };
+    expect(faceLandmarksFromMesh(mesh)).toEqual({
+      mouthLeft: { x: 0, y: 0 },
+      mouthRight: { x: 1000, y: 1000 },
+      chin: { x: 0, y: 1000 },
+    });
+
+    for (const point of [
+      { x: -0.01, y: 0.5 },
+      { x: 1.01, y: 0.5 },
+      { x: Number.NaN, y: 0.5 },
+      { x: 0.5, y: Number.POSITIVE_INFINITY },
+    ]) {
+      mesh[61] = point;
+      expect(() => faceLandmarksFromMesh(mesh)).toThrow('outside the image');
+    }
+  });
 });
 
 describe('local face landmark inference lifecycle', () => {

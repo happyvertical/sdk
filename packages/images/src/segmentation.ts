@@ -274,10 +274,20 @@ export function faceLandmarksFromMesh(
   const chin = landmarks[152];
   if (!mouth[0] || !mouth[1] || !chin)
     throw new Error('Face landmarks are incomplete. Try a clearer photo.');
-  const point = ({ x, y }: { x: number; y: number }) => ({
-    x: x * 1000,
-    y: y * 1000,
-  });
+  const point = ({ x, y }: { x: number; y: number }) => {
+    if (
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      x < 0 ||
+      x > 1 ||
+      y < 0 ||
+      y > 1
+    )
+      throw new Error(
+        'Face landmarks fall outside the image. Try a clearer photo.',
+      );
+    return { x: x * 1000, y: y * 1000 };
+  };
   const [first, second] = mouth.map(point).sort((a, b) => a.x - b.x);
   return { mouthLeft: first, mouthRight: second, chin: point(chin) };
 }
