@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+const detect = vi.fn();
+const close = vi.fn();
+const createFromOptions = vi.fn(async () => ({ detect, close }));
+const forVisionTasks = vi.fn(async () => ({}));
+vi.mock('@mediapipe/tasks-vision', () => ({
+  FaceLandmarker: { createFromOptions },
+  FilesetResolver: { forVisionTasks },
+}));
+
 import {
+  detectFaceLandmarks,
   encodeRgbaPng,
   faceLandmarksFromMesh,
   readBoundedModel,
@@ -59,6 +70,107 @@ describe('face landmark mapping', () => {
   });
   it('fails closed when MediaPipe does not return a complete face mesh', () => {
     expect(() => faceLandmarksFromMesh([])).toThrow('incomplete');
+  });
+});
+
+describe('local face landmark inference lifecycle', () => {
+  const assetBaseUrl = '/segmentation-assets';
+  const image = {} as HTMLImageElement;
+  const model = new Uint8Array([42]);
+  const verifiedDigest = Uint8Array.from(
+    '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff'.match(
+      /../g,
+    )!,
+    (byte) => Number.parseInt(byte, 16),
+  );
+  const digest = vi.spyOn(crypto.subtle, 'digest');
+  const mesh = () => {
+    const points = Array.from({ length: 292 }, () => ({ x: 0, y: 0 }));
+    points[61] = { x: 0.3, y: 0.8 };
+    points[291] = { x: 0.7, y: 0.8 };
+    points[152] = { x: 0.5, y: 0.94 };
+    return points;
+  };
+  const originalFetch = globalThis.fetch;
+
+  function resetWithModel() {
+    detect.mockReset();
+    close.mockReset();
+    createFromOptions.mockReset();
+    createFromOptions.mockResolvedValue({ detect, close });
+    forVisionTasks.mockReset();
+    forVisionTasks.mockResolvedValue({});
+    digest.mockResolvedValue(verifiedDigest.buffer as ArrayBuffer);
+  }
+
+  it('refuses a bad face model before initializing MediaPipe', async () => {
+    resetWithModel();
+    digest.mockResolvedValue(new ArrayBuffer(32));
+    globalThis.fetch = vi.fn(async () => new Response(model));
+    try {
+      await expect(
+        detectFaceLandmarks(image, { assetBaseUrl }),
+      ).rejects.toThrow(/integrity/);
+      expect(createFromOptions).not.toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('rejects no detected face and closes the task', async () => {
+    resetWithModel();
+    globalThis.fetch = vi.fn(async () => new Response(model));
+    detect.mockReturnValue({ faceLandmarks: [] });
+    try {
+      await expect(
+        detectFaceLandmarks(image, { assetBaseUrl }),
+      ).rejects.toThrow('No clear face');
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('rejects multiple detected faces and closes the task', async () => {
+    resetWithModel();
+    globalThis.fetch = vi.fn(async () => new Response(model));
+    detect.mockReturnValue({ faceLandmarks: [mesh(), mesh()] });
+    try {
+      await expect(
+        detectFaceLandmarks(image, { assetBaseUrl }),
+      ).rejects.toThrow('one clear face');
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('closes the task when detection throws and honors cancellation after initialization', async () => {
+    resetWithModel();
+    globalThis.fetch = vi.fn(async () => new Response(model));
+    detect.mockImplementation(() => {
+      throw new Error('detector failed');
+    });
+    try {
+      await expect(
+        detectFaceLandmarks(image, { assetBaseUrl }),
+      ).rejects.toThrow('detector failed');
+      expect(close).toHaveBeenCalledOnce();
+
+      resetWithModel();
+      const controller = new AbortController();
+      createFromOptions.mockImplementationOnce(async () => {
+        controller.abort();
+        return { detect, close };
+      });
+      await expect(
+        detectFaceLandmarks(image, { assetBaseUrl, signal: controller.signal }),
+      ).rejects.toThrow(/abort/i);
+      expect(detect).not.toHaveBeenCalled();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 
