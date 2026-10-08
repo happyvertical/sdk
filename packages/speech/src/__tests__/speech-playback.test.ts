@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSpeechPlayback, speechPlaybackSupported } from '../browser.js';
 
 let lastAudio: FakeAudio | undefined;
+let contexts: FakeContext[] = [];
 class FakeAudio {
+  static playImpl: () => Promise<void> = async () => undefined;
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
   pause = vi.fn();
-  play = vi.fn(async () => undefined);
+  play = vi.fn(() => FakeAudio.playImpl());
   constructor(_url: string) {
     lastAudio = this;
   }
@@ -19,6 +21,7 @@ class FakeAnalyser {
   connect() {
     return this;
   }
+  disconnect = vi.fn();
 }
 class FakeContext {
   static resumeImpl: () => Promise<void> = async () => undefined;
@@ -28,14 +31,22 @@ class FakeContext {
   close = vi.fn(async () => {
     this.state = 'closed';
   });
-  createMediaElementSource = vi.fn(() => ({ connect: vi.fn() }));
+  createMediaElementSource = vi.fn(() => ({
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  }));
   createAnalyser = vi.fn(() => new FakeAnalyser());
+  constructor() {
+    contexts.push(this);
+  }
 }
 
 afterEach(() => {
   vi.unstubAllGlobals();
   lastAudio = undefined;
+  contexts = [];
   FakeContext.resumeImpl = async () => undefined;
+  FakeAudio.playImpl = async () => undefined;
 });
 
 function browserFakes() {
@@ -115,5 +126,50 @@ describe('browser speech playback', () => {
     await pending;
     expect(lastAudio?.play).not.toHaveBeenCalled();
     expect(playback.playing).toBe(false);
+  });
+
+  it('uses the AudioContext unlocked by prepare after delayed audio arrives', async () => {
+    browserFakes();
+    const playback = createSpeechPlayback();
+    await playback.prepare();
+    const prepared = contexts[0];
+    expect(prepared).toBeDefined();
+
+    await new Promise((resolve) => setTimeout(resolve));
+    const pending = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(contexts).toEqual([prepared]);
+    expect(lastAudio?.play).toHaveBeenCalledOnce();
+    lastAudio?.onended?.();
+    await pending;
+    playback.destroy();
+    expect(prepared.close).toHaveBeenCalledOnce();
+  });
+
+  it('does not start playback after audio ends while play is still pending', async () => {
+    browserFakes();
+    let release: (() => void) | undefined;
+    FakeAudio.playImpl = () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    const start = vi.fn();
+    const end = vi.fn();
+    const playback = createSpeechPlayback({ onStart: start, onEnd: end });
+    const pending = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+    lastAudio?.onended?.();
+    release?.();
+    await pending;
+    expect(playback.playing).toBe(false);
+    expect(start).not.toHaveBeenCalled();
+    expect(end).toHaveBeenCalledOnce();
   });
 });
