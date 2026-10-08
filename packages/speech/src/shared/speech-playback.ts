@@ -85,7 +85,7 @@ export function createSpeechPlayback(
       context = undefined;
       if (closing && closing.state !== 'closed') void closing.close();
     }
-    if (playing) emitLevel(0);
+    const emittedAudioLevel = playing;
     playing = false;
     if (operation?.token === token) {
       if (failure) operation.reject(failure);
@@ -93,6 +93,7 @@ export function createSpeechPlayback(
       operation = undefined;
     }
     ++active;
+    if (emittedAudioLevel) emitLevel(0);
     if (ended) options.onEnd?.();
   };
 

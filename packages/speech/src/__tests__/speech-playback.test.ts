@@ -233,6 +233,27 @@ describe('browser speech playback', () => {
     expect(playback.playing).toBe(false);
   });
 
+  it.each([
+    'stop',
+    'destroy',
+  ] as const)('settles when terminal onLevel calls %s without recursion', async (action) => {
+    browserFakes();
+    let playback: ReturnType<typeof createSpeechPlayback>;
+    playback = createSpeechPlayback({
+      onLevel: (level) => {
+        if (level === 0) playback[action]();
+      },
+    });
+    const pending = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+    lastAudio?.onended?.();
+    await expect(pending).resolves.toBeUndefined();
+    expect(playback.playing).toBe(false);
+  });
+
   it('reports a current native playback failure exactly once', async () => {
     browserFakes();
     const onError = vi.fn();
