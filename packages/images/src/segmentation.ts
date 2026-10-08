@@ -6,6 +6,51 @@ export const SELFIE_MULTICLASS_MODEL = {
   license: 'Apache-2.0',
 } as const;
 
+/** Pinned model is 16,371,837 bytes; leave bounded room for an upstream repack. */
+export const MAX_SEGMENTATION_MODEL_BYTES = 17_500_000;
+
+/** Reads a response incrementally and cancels before an oversized body is retained. */
+export async function readBoundedModel(
+  response: Response,
+  limit = MAX_SEGMENTATION_MODEL_BYTES,
+): Promise<ArrayBuffer> {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > limit) {
+    await response.body?.cancel();
+    throw new Error(
+      'Segmentation model exceeds the download limit. Please retry.',
+    );
+  }
+  if (!response.body)
+    throw new Error('Segmentation model response has no body. Please retry.');
+  const reader = response.body.getReader(),
+    chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      total += next.value.byteLength;
+      if (total > limit) {
+        await reader.cancel();
+        throw new Error(
+          'Segmentation model exceeds the download limit. Please retry.',
+        );
+      }
+      chunks.push(next.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.buffer;
+}
+
 /** Semantic per-class confidence masks returned by local inference. */
 export interface SegmentationMask {
   /** Width shared by every confidence mask, in pixels. */
@@ -158,7 +203,7 @@ export async function segmentImage(
   });
   if (!response.ok)
     throw new Error(`Could not load segmentation model (${response.status}).`);
-  const bytes = await response.arrayBuffer();
+  const bytes = await readBoundedModel(response);
   const digest = Array.from(
     new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
     (value) => value.toString(16).padStart(2, '0'),
