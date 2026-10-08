@@ -788,6 +788,7 @@
         "workspace": [],
         "externalHappyVertical": [],
         "external": [
+          "@mediapipe/tasks-vision",
           "@resvg/resvg-js",
           "jimp",
           "satori",

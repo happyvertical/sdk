@@ -27,6 +27,6 @@ pnpm --filter @happyvertical/images clean
 ## Ecosystem Relationships
 - Provides: Image processing utilities with adapter pattern for scaling from static to enterprise
 - Implements: none
-- Requires: @resvg/resvg-js, jimp, satori, sharp
+- Requires: @mediapipe/tasks-vision, @resvg/resvg-js, jimp, satori, sharp
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
