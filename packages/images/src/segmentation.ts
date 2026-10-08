@@ -14,6 +14,8 @@ export async function readBoundedModel(
   response: Response,
   limit = MAX_SEGMENTATION_MODEL_BYTES,
 ): Promise<ArrayBuffer> {
+  if (!Number.isSafeInteger(limit) || limit < 1)
+    throw new Error('Segmentation model download limit is invalid.');
   const declared = Number(response.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > limit) {
     await response.body?.cancel();

@@ -1,9 +1,49 @@
 import { describe, expect, it } from 'vitest';
 import {
   encodeRgbaPng,
+  readBoundedModel,
   segmentationAlpha,
   segmentImage,
 } from './segmentation.js';
+
+describe('bounded segmentation model downloads', () => {
+  it('cancels declared and streamed overflow without retaining bytes, then accepts a retry', async () => {
+    let cancelled = 0;
+    const declared = new Response(
+      new ReadableStream({
+        cancel: () => {
+          cancelled++;
+        },
+      }),
+      { headers: { 'content-length': '17' } },
+    );
+    await expect(readBoundedModel(declared, 16)).rejects.toThrow(/exceeds/);
+    expect(cancelled).toBe(1);
+    let streamedCancelled = 0;
+    const streamed = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(8));
+          controller.enqueue(new Uint8Array(9));
+        },
+        cancel: () => {
+          streamedCancelled++;
+        },
+      }),
+    );
+    await expect(readBoundedModel(streamed, 16)).rejects.toThrow(/exceeds/);
+    expect(streamedCancelled).toBe(1);
+    await expect(
+      readBoundedModel(new Response(new Uint8Array(16)), 16),
+    ).resolves.toHaveProperty('byteLength', 16);
+  });
+  it('rejects invalid limits rather than bypassing the bound', async () => {
+    await expect(
+      readBoundedModel(new Response(new Uint8Array(1)), Number.NaN),
+    ).rejects.toThrow();
+  });
+});
+
 import { segmentationAssetPath } from './segmentation-assets.js';
 
 describe('semantic alpha mask', () => {
