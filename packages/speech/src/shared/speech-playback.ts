@@ -40,6 +40,8 @@ export function createSpeechPlayback(
   const smoothing = Math.min(1, Math.max(0.01, requestedSmoothing));
   let audio: HTMLAudioElement | undefined;
   let context: AudioContext | undefined;
+  let source: MediaElementAudioSourceNode | undefined;
+  let analyser: AnalyserNode | undefined;
   let frame: number | undefined;
   let url: string | undefined;
   let disposed = false;
@@ -51,17 +53,23 @@ export function createSpeechPlayback(
 
   const emitLevel = (level: number) =>
     options.onLevel?.(Math.min(1, Math.max(0, level)));
-  const cleanup = (token: number, ended: boolean) => {
+  const cleanup = (token: number, ended: boolean, closeContext = false) => {
     if (token !== active) return;
     if (frame !== undefined) cancelAnimationFrame(frame);
     frame = undefined;
     audio?.pause();
     audio = undefined;
+    source?.disconnect();
+    source = undefined;
+    analyser?.disconnect();
+    analyser = undefined;
     if (url) URL.revokeObjectURL(url);
     url = undefined;
-    const closing = context;
-    context = undefined;
-    if (closing && closing.state !== 'closed') void closing.close();
+    if (closeContext) {
+      const closing = context;
+      context = undefined;
+      if (closing && closing.state !== 'closed') void closing.close();
+    }
     if (playing) emitLevel(0);
     playing = false;
     if (settled?.token === token) {
@@ -69,6 +77,7 @@ export function createSpeechPlayback(
       settled = undefined;
     }
     if (ended) options.onEnd?.();
+    ++active;
   };
 
   return {
@@ -95,16 +104,18 @@ export function createSpeechPlayback(
         const nextAudio = new Audio(url);
         const nextContext = context ?? new AudioContext();
         context = nextContext;
-        const source = nextContext.createMediaElementSource(nextAudio);
-        const analyser = nextContext.createAnalyser();
-        analyser.fftSize = 512;
-        source.connect(analyser);
-        analyser.connect(nextContext.destination);
-        const samples = new Uint8Array(analyser.fftSize);
+        const nextSource = nextContext.createMediaElementSource(nextAudio);
+        const nextAnalyser = nextContext.createAnalyser();
+        nextAnalyser.fftSize = 512;
+        nextSource.connect(nextAnalyser);
+        nextAnalyser.connect(nextContext.destination);
+        source = nextSource;
+        analyser = nextAnalyser;
+        const samples = new Uint8Array(nextAnalyser.fftSize);
         let level = 0;
         const sample = () => {
           if (token !== active || !playing) return;
-          analyser.getByteTimeDomainData(samples);
+          nextAnalyser.getByteTimeDomainData(samples);
           let sum = 0;
           for (const value of samples) {
             const normalized = (value - 128) / 128;
@@ -149,12 +160,11 @@ export function createSpeechPlayback(
     },
     stop() {
       cleanup(active, false);
-      ++active;
     },
     destroy() {
       if (!disposed) {
         disposed = true;
-        this.stop();
+        cleanup(active, false, true);
       }
     },
   };
