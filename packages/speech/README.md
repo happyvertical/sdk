@@ -368,7 +368,7 @@ const result = await transcriber.transcribe({
 result.usage; // { operation, provider: 'local', model, audioSeconds, bytes }
 ```
 
-You can also call `createLocalTranscriber(options)` from the subpath directly. It returns a `LocalTranscriber` with `preload()` and `dispose()`. `getAvailableSpeechAdapters()` lists `local` once the subpath has been imported. `isLocalTranscriberAvailable()` checks whether the peer can be imported.
+You can also call `createLocalTranscriber(options)` from the subpath directly. It returns a `LocalTranscriber` with `preload()`, `isCached()` (are the model files already in Cache Storage, so a download is not needed?) and `dispose()`. `LocalTranscriberWorkerClient` offers the same `preload()` and `isCached()` over the worker. `getAvailableSpeechAdapters()` lists `local` once the subpath has been imported. `isLocalTranscriberAvailable()` checks whether the peer can be imported.
 
 - **Models.** Any transformers.js `automatic-speech-recognition` model id works. The default is `onnx-community/whisper-base` (multilingual, about 80 MB at `q8`). Recommended English choices for live dictation, with approximate `q8` download sizes:
 

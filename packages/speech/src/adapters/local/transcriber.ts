@@ -75,6 +75,32 @@ export class LocalTranscriber implements Transcriber {
     await raceAbort(this.loadPipeline(model?.trim() || this.model), signal);
   }
 
+  /**
+   * Whether every file `model` needs is already in the model cache (Cache
+   * Storage in browsers), so a `preload()` would download nothing. Resolves
+   * `false` when the runtime cannot tell. Does not load the model.
+   */
+  async isCached(model?: string): Promise<boolean> {
+    try {
+      const transformers = await this.loadRuntime();
+      if (!transformers.ModelRegistry) {
+        return false;
+      }
+      const { dtype, revision, cacheDir } = this.options;
+      return await transformers.ModelRegistry.is_pipeline_cached(
+        'automatic-speech-recognition',
+        model?.trim() || this.model,
+        {
+          ...(dtype ? { dtype } : {}),
+          ...(revision ? { revision } : {}),
+          ...(cacheDir ? { cache_dir: cacheDir } : {}),
+        },
+      );
+    } catch {
+      return false;
+    }
+  }
+
   async transcribe(request: TranscriptionRequest): Promise<TranscriptResult> {
     const { signal } = request;
     const audio = await normalizeAudioInput(request.audio, {

@@ -38,6 +38,8 @@ interface FakePipelineCall {
 interface FakeTransformersOptions {
   output?: unknown;
   modelType?: string;
+  /** What `ModelRegistry.is_pipeline_cached` answers (absent: no registry). */
+  cached?: boolean;
   /** `generation_config.is_multilingual` reported by the model. */
   multilingual?: boolean;
   /** Throw from `pipeline()` for these devices. */
@@ -97,9 +99,18 @@ function fakeTransformers(options: FakeTransformersOptions = {}) {
     },
   );
 
+  const is_pipeline_cached = vi.fn(async () => options.cached === true);
   return {
-    module: { pipeline, env, InterruptableStoppingCriteria },
+    module: {
+      pipeline,
+      env,
+      InterruptableStoppingCriteria,
+      ...(options.cached === undefined
+        ? {}
+        : { ModelRegistry: { is_pipeline_cached } }),
+    },
     pipeline,
+    is_pipeline_cached,
     calls,
     interrupts,
     env,
@@ -341,6 +352,30 @@ describe('local transcriber: model loading', () => {
         progress_callback: onProgress,
       },
     );
+  });
+
+  it('reports whether the model is cached without loading it', async () => {
+    const cached = fakeTransformers({ cached: true });
+    const transcriber = localTranscriber(cached, { dtype: 'q8' });
+    expect(await transcriber.isCached()).toBe(true);
+    expect(cached.is_pipeline_cached).toHaveBeenCalledWith(
+      'automatic-speech-recognition',
+      MODEL,
+      { dtype: 'q8' },
+    );
+    expect(await transcriber.isCached('org/other')).toBe(true);
+    expect(cached.is_pipeline_cached).toHaveBeenLastCalledWith(
+      'automatic-speech-recognition',
+      'org/other',
+      { dtype: 'q8' },
+    );
+    expect(cached.pipeline).not.toHaveBeenCalled();
+
+    expect(
+      await localTranscriber(fakeTransformers({ cached: false })).isCached(),
+    ).toBe(false);
+    // An older runtime without a registry cannot tell.
+    expect(await localTranscriber(fakeTransformers()).isCached()).toBe(false);
   });
 
   it('resolves device auto to cpu in Node', async () => {
@@ -1220,6 +1255,15 @@ describe('local transcriber: web worker', () => {
       }),
     );
     await close();
+  });
+
+  it('asks the worker whether the model is cached', async () => {
+    const { client, close } = connect(fakeTransformers({ cached: true }));
+    expect(await client.isCached()).toBe(true);
+    await close();
+    const none = connect(fakeTransformers({ cached: false }));
+    expect(await none.client.isCached()).toBe(false);
+    await none.close();
   });
 
   it('cancels a worker call on abort', async () => {
