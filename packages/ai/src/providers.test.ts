@@ -114,12 +114,14 @@ describe('OpenAI Provider', () => {
   });
 
   describe('usesCompletionTokenLimit', () => {
-    it('matches gpt-5 family models', () => {
+    it('matches gpt-5 and gpt-6 family models', () => {
       expect(usesCompletionTokenLimit('gpt-5')).toBe(true);
       expect(usesCompletionTokenLimit('gpt-5-mini')).toBe(true);
       expect(usesCompletionTokenLimit('gpt-5-nano')).toBe(true);
       expect(usesCompletionTokenLimit('gpt-5.1-preview')).toBe(true);
       expect(usesCompletionTokenLimit('GPT-5-MINI')).toBe(true);
+      expect(usesCompletionTokenLimit('gpt-6-astra')).toBe(true);
+      expect(usesCompletionTokenLimit('gpt-6.1-preview')).toBe(true);
     });
 
     it('matches o1/o3/o4 reasoning families', () => {
@@ -140,6 +142,7 @@ describe('OpenAI Provider', () => {
 
     it('matches vendor-prefixed gateway model ids by their final path segment', () => {
       expect(usesCompletionTokenLimit('openai/gpt-5-mini')).toBe(true);
+      expect(usesCompletionTokenLimit('openai/gpt-6-astra')).toBe(true);
       expect(usesCompletionTokenLimit('openai/o3-mini')).toBe(true);
       expect(usesCompletionTokenLimit('openai/gpt-4o-mini')).toBe(false);
       expect(usesCompletionTokenLimit('openai/gpt-4.1-mini')).toBe(false);
@@ -149,6 +152,12 @@ describe('OpenAI Provider', () => {
   describe('buildTokenLimitRequestFields', () => {
     it('sends max_completion_tokens and omits temperature for gpt-5 models', () => {
       expect(buildTokenLimitRequestFields('gpt-5-mini', 500, 0.9)).toEqual({
+        max_completion_tokens: 500,
+      });
+    });
+
+    it('sends max_completion_tokens and omits temperature for gpt-6 models', () => {
+      expect(buildTokenLimitRequestFields('gpt-6-astra', 500, 0.9)).toEqual({
         max_completion_tokens: 500,
       });
     });
@@ -182,6 +191,28 @@ describe('OpenAI Provider', () => {
 
     await provider.chat([{ role: 'user', content: 'Hello' }], {
       model: 'gpt-5-mini',
+      maxTokens: 500,
+      temperature: 0.9,
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
+  });
+
+  it('should send max_completion_tokens and no temperature for a gpt-6-astra chat request', async () => {
+    const createChatCompletion = vi
+      .fn()
+      .mockResolvedValue(chatCompletionResponse({ model: 'gpt-6-astra' }));
+
+    const provider = new OpenAIProvider({ apiKey: 'test-key' });
+    (provider as any).client = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await provider.chat([{ role: 'user', content: 'Hello' }], {
+      model: 'gpt-6-astra',
       maxTokens: 500,
       temperature: 0.9,
     });
