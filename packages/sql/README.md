@@ -417,6 +417,9 @@ values so nullable composite keys update the existing row instead of inserting a
 duplicate. Pass `{ nullsDistinct: true }` as the fourth argument to preserve the
 database-native behavior where `NULL` conflict values are distinct.
 
+On DuckDB, conflict columns identify the existing row and are not reassigned by
+the update arm. A key-only upsert therefore preserves the existing row.
+
 For PostgreSQL 15+, a matching `UNIQUE (...) NULLS NOT DISTINCT` index lets
 nullable upserts use one native `ON CONFLICT` statement. An ordinary `UNIQUE`
 constraint still treats `NULL` values as distinct, so the adapter retains its
