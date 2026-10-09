@@ -1,5 +1,12 @@
 # @happyvertical/documents
 
+## 0.102.6
+
+### Patch Changes
+
+- @happyvertical/files@0.102.6
+- @happyvertical/utils@0.102.6
+
 ## 0.102.5
 
 ### Patch Changes

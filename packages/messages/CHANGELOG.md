@@ -1,5 +1,13 @@
 # @happyvertical/messages
 
+## 0.102.6
+
+### Patch Changes
+
+- @happyvertical/email@0.102.6
+- @happyvertical/logger@0.102.6
+- @happyvertical/utils@0.102.6
+
 ## 0.102.5
 
 ### Patch Changes

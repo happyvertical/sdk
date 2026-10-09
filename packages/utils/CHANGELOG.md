@@ -1,5 +1,7 @@
 # @happyvertical/utils
 
+## 0.102.6
+
 ## 0.102.5
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @happyvertical/ai
 
+## 0.102.6
+
+### Patch Changes
+
+- 2675b53: Shape OpenAI GPT-6 Chat Completions output limits with `max_completion_tokens` and omit unsupported temperature parameters.
+  - @happyvertical/utils@0.102.6
+
 ## 0.102.5
 
 ### Patch Changes
