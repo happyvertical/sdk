@@ -1,5 +1,12 @@
 # @happyvertical/weather
 
+## 0.102.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.102.5
+
 ## 0.102.4
 
 ### Patch Changes

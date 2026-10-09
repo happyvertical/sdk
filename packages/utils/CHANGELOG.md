@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.102.5
+
+### Patch Changes
+
+- ### Features
+
+  - browser-safe ./query subpath; on-device speech VAD + half-duplex (#1366) (sql,speech)
+
 ## 0.102.4
 
 ### Patch Changes
