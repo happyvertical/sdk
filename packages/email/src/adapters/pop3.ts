@@ -437,6 +437,12 @@ export class POP3Adapter extends BaseEmailClient {
           contentId: att.contentId,
           contentDisposition: att.contentDisposition as 'attachment' | 'inline',
         })),
+        inReplyTo: parsed.inReplyTo,
+        references: Array.isArray(parsed.references)
+          ? parsed.references
+          : parsed.references
+            ? [parsed.references]
+            : undefined,
         headers: parsed.headers as unknown as Record<string, string | string[]>,
         size: messageData.length,
         raw: messageData,

@@ -156,13 +156,17 @@ export class IMAPAdapter extends BaseEmailClient {
 
       // Fetch message data
       const messages: EmailMessage[] = [];
-      for await (const msg of this.client!.fetch(targetUids, {
-        source: true,
-        flags: true,
-        uid: true,
-        envelope: true,
-        bodyStructure: true,
-      })) {
+      for await (const msg of this.client!.fetch(
+        targetUids,
+        {
+          source: true,
+          flags: true,
+          uid: true,
+          envelope: true,
+          bodyStructure: true,
+        },
+        { uid: true },
+      )) {
         try {
           if (!msg.source) {
             this.debug('Message has no source', { uid: msg.uid });
@@ -212,11 +216,15 @@ export class IMAPAdapter extends BaseEmailClient {
 
       // Fetch the message
       const messages: EmailMessage[] = [];
-      for await (const msg of this.client!.fetch(uids[0], {
-        source: true,
-        flags: true,
-        uid: true,
-      })) {
+      for await (const msg of this.client!.fetch(
+        uids[0],
+        {
+          source: true,
+          flags: true,
+          uid: true,
+        },
+        { uid: true },
+      )) {
         if (!msg.source) {
           continue;
         }
@@ -486,11 +494,15 @@ export class IMAPAdapter extends BaseEmailClient {
 
       // Fetch matching messages
       const messages: EmailMessage[] = [];
-      for await (const msg of this.client!.fetch(uids, {
-        source: true,
-        flags: true,
-        uid: true,
-      })) {
+      for await (const msg of this.client!.fetch(
+        uids,
+        {
+          source: true,
+          flags: true,
+          uid: true,
+        },
+        { uid: true },
+      )) {
         if (!msg.source) {
           continue;
         }
