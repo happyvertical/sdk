@@ -168,16 +168,20 @@ describe.skipIf(!baseUrl)('live laya-serve', () => {
     ).rejects.toMatchObject({ code: 'API_ERROR', retryable: false });
   }, 60_000);
 
-  it('rejects a missing or wrong key when the server requires one', async () => {
-    // Only meaningful against a server started with LAYA_API_KEY.
-    if (!process.env.LAYA_EXPECT_AUTH) return;
-    const wrong = await getAI({
-      type: 'laya',
-      baseUrl,
-      apiKey: 'definitely-wrong',
-    });
-    await expect(wrong.decide!(request)).rejects.toMatchObject({
-      code: 'AUTH_ERROR',
-    });
-  }, 60_000);
+  // Only meaningful against a server started with LAYA_API_KEY, so it is
+  // reported as skipped (not passed) unless LAYA_EXPECT_AUTH=1.
+  it.skipIf(!process.env.LAYA_EXPECT_AUTH)(
+    'rejects a wrong key when the server requires one',
+    async () => {
+      const wrong = await getAI({
+        type: 'laya',
+        baseUrl,
+        apiKey: 'definitely-wrong',
+      });
+      await expect(wrong.decide!(request)).rejects.toMatchObject({
+        code: 'AUTH_ERROR',
+      });
+    },
+    60_000,
+  );
 });
