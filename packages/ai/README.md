@@ -471,6 +471,21 @@ instances created directly instead of through `getAI()`:
 Reasoning is opt-in. The 1,024-token default is a ceiling for explicitly
 requested reasoning, not an automatically enabled thinking budget.
 
+Explicit `reasoning.effort` is forwarded as top-level `reasoning_effort` for
+direct OpenAI and LiteLLM Chat Completions, including streaming and `none`.
+Bifrost retains its nested `reasoning` envelope and budget/thoughts fields.
+Omitted effort stays omitted; the upstream provider validates model support.
+
+LiteLLM rejects caller-supplied `reasoning.maxTokens`,
+`reasoning.includeThoughts`, and legacy `includeThoughts` before model discovery
+or transport. Its Chat Completions protocol has no generic separate reasoning
+budget/thoughts envelope: forwarding it as `reasoning` can reach an OpenAI route
+as an unsupported parameter. Use effort plus `maxTokens` (the combined completion
+limit on OpenAI routes); this is not a separately enforced reasoning-token cap.
+The SDK's inferred local normalization budget does not trigger this rejection.
+See [LiteLLM's Chat Completions examples](https://docs.litellm.ai/blog/gpt_6_sol_luna).
+
+
 An approved workload can raise a client-level ceiling explicitly. Prefer a
 workload-specific client so the wider limit is not shared accidentally.
 

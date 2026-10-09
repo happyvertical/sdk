@@ -330,9 +330,16 @@ export class OpenAIProvider implements AIInterface {
         };
       };
       if (
-        (this.profile.providerName === 'bifrost' ||
+        (this.profile.providerName === 'openai' ||
           this.profile.providerName === 'litellm') &&
-        (options.reasoning?.maxTokens || 0) > 0
+        options.reasoning?.effort !== undefined
+      ) {
+        request.reasoning_effort = options.reasoning.effort;
+      }
+      if (
+        this.profile.providerName === 'bifrost' &&
+        (options.reasoning?.effort !== undefined ||
+          (options.reasoning?.maxTokens || 0) > 0)
       ) {
         request.reasoning = {
           effort: options.reasoning?.effort,
@@ -899,9 +906,16 @@ export class OpenAIProvider implements AIInterface {
         };
       };
       if (
-        (this.profile.providerName === 'bifrost' ||
+        (this.profile.providerName === 'openai' ||
           this.profile.providerName === 'litellm') &&
-        (options.reasoning?.maxTokens || 0) > 0
+        options.reasoning?.effort !== undefined
+      ) {
+        request.reasoning_effort = options.reasoning.effort;
+      }
+      if (
+        this.profile.providerName === 'bifrost' &&
+        (options.reasoning?.effort !== undefined ||
+          (options.reasoning?.maxTokens || 0) > 0)
       ) {
         request.reasoning = {
           effort: options.reasoning?.effort,
