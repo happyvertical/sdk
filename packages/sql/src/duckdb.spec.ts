@@ -647,6 +647,11 @@ describe('DuckDB Adapter', () => {
         title: 'Updated title',
       });
 
+      await db.upsert('test_nullable_conflict', ['slug', 'tenant_id'], {
+        slug: 'shared-post',
+        tenant_id: null,
+      });
+
       const records = await db.many`
         SELECT * FROM test_nullable_conflict WHERE slug = ${'shared-post'}
       `;
@@ -801,10 +806,25 @@ describe('DuckDB Adapter', () => {
         });
       });
 
+      await expect(
+        db.transaction(async (tx) => {
+          await tx.upsert('upsert_parent', ['id'], {
+            id: 'parent-1',
+            enabled: false,
+            name: 'Rolled back update',
+          });
+          throw new Error('Rollback referenced parent upsert');
+        }),
+      ).rejects.toThrow('Rollback referenced parent upsert');
+
       expect(await db.get('upsert_parent', { id: 'parent-1' })).toEqual({
         id: 'parent-1',
         enabled: true,
         name: 'Updated in transaction',
+      });
+      expect(await db.get('upsert_child', { id: 'child-1' })).toEqual({
+        id: 'child-1',
+        parent_id: 'parent-1',
       });
       await expect(
         db.insert('upsert_child', {
