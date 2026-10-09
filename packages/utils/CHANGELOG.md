@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.102.4
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - preserve UID retrieval and POP3 reply provenance (#1380) (email)
+
 ## 0.102.3
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @happyvertical/logger
 
+## 0.102.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.102.4
+
 ## 0.102.3
 
 ### Patch Changes
