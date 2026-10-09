@@ -102,7 +102,7 @@ export class LocalTranscriber implements Transcriber {
     // The queue tracks the real inference; the caller stops waiting on abort.
     const output = await raceAbort(
       this.enqueue(() =>
-        this.run(loaded.pipeline, samples, audioSeconds, request),
+        this.run(loaded.pipeline, samples, audioSeconds, request, model),
       ),
       signal,
     );
@@ -149,6 +149,7 @@ export class LocalTranscriber implements Transcriber {
     samples: Float32Array,
     audioSeconds: number,
     request: TranscriptionRequest,
+    model: string,
   ): Promise<AsrOutput> {
     const { signal } = request;
     signal?.throwIfAborted();
@@ -171,7 +172,8 @@ export class LocalTranscriber implements Transcriber {
       if (chunkLength > 0 && audioSeconds > WHISPER_WINDOW_SECONDS) {
         options.chunk_length_s = chunkLength;
       }
-      if (request.language) {
+      // English-only Whisper (`*.en`) rejects `language` and `task` outright.
+      if (request.language && !isEnglishOnly(pipeline, model)) {
         options.language = request.language;
         options.task = 'transcribe';
       }
@@ -303,6 +305,15 @@ export function mapAsrOutput(
     );
   }
   return result;
+}
+
+/** Whether this Whisper only transcribes English (it rejects `language`/`task`). */
+function isEnglishOnly(pipeline: AsrPipeline, model: string): boolean {
+  const multilingual = pipeline.model?.generation_config?.is_multilingual;
+  if (typeof multilingual === 'boolean') {
+    return !multilingual;
+  }
+  return /\.en(?:$|[-_])/i.test(model);
 }
 
 function pcmFormat(audio: AudioInput | AudioSource): {

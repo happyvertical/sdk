@@ -43,6 +43,18 @@ export interface PcmCaptureOptions {
   maxDurationMs: number;
   /** Called once, when the cap is reached; the capture keeps running until stopped. */
   onLimit?: () => void;
+  /**
+   * Streams every mono block as it arrives, at the audio context's own rate
+   * (`contextSampleRate`), before any cap or resampling. The block is yours to
+   * keep. Used by `createVadCapture` for live analysis.
+   */
+  onSamples?: (samples: Float32Array, contextSampleRate: number) => void;
+  /**
+   * Keep the audio for `stop()`. Default true. `false` only streams to
+   * `onSamples`: memory stays flat for open-ended listening, `maxDurationMs`
+   * never trims, and `stop()` resolves with empty samples.
+   */
+  retain?: boolean;
 }
 
 export interface PcmCaptureResult {
@@ -111,6 +123,8 @@ export function createPcmCapture(
   const onFrame = (event: MessageEvent<Float32Array>): void => {
     if (finished) return;
     let frame = event.data;
+    options.onSamples?.(frame, context.sampleRate);
+    if (options.retain === false) return;
     const room = capSamples - captured;
     if (frame.length > room) {
       frame = frame.subarray(0, Math.max(0, room));

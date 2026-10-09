@@ -38,6 +38,8 @@ interface FakePipelineCall {
 interface FakeTransformersOptions {
   output?: unknown;
   modelType?: string;
+  /** `generation_config.is_multilingual` reported by the model. */
+  multilingual?: boolean;
   /** Throw from `pipeline()` for these devices. */
   failDevices?: string[];
   /** Delay inference until this promise settles. */
@@ -79,7 +81,13 @@ function fakeTransformers(options: FakeTransformersOptions = {}) {
           return options.output ?? { text: ' Hello world. ' };
         },
         {
-          model: { config: { model_type: options.modelType ?? 'whisper' } },
+          model: {
+            config: { model_type: options.modelType ?? 'whisper' },
+            generation_config:
+              options.multilingual === undefined
+                ? undefined
+                : { is_multilingual: options.multilingual },
+          },
           dispose: vi.fn(async () => {
             disposed.push(model);
           }),
@@ -524,7 +532,9 @@ describe('local transcriber: results and usage', () => {
 
   it('sends whisper language and chunking only when needed', async () => {
     const fake = fakeTransformers();
-    const transcriber = localTranscriber(fake);
+    const transcriber = localTranscriber(fake, {
+      model: 'onnx-community/whisper-base',
+    });
 
     await transcriber.transcribe({ audio: wav([tone(1, 16_000)], 16_000) });
     expect(fake.calls[0]?.options).toEqual({});
@@ -542,6 +552,22 @@ describe('local transcriber: results and usage', () => {
     const unchunked = localTranscriber(fake, { chunkLengthSeconds: 0 });
     await unchunked.transcribe({ audio: wav([tone(31, 8_000)], 8_000) });
     expect(fake.calls[2]?.options).toEqual({});
+  });
+
+  it('sends no language or task to English-only Whisper', async () => {
+    const fake = fakeTransformers();
+    await localTranscriber(fake).transcribe({
+      audio: wav([tone(1, 16_000)], 16_000),
+      language: 'en',
+    });
+    expect(fake.calls[0]?.options).toEqual({});
+
+    // The model config wins over the id.
+    const flagged = fakeTransformers({ multilingual: false });
+    await localTranscriber(flagged, { model: 'org/custom-english' }).transcribe(
+      { audio: wav([tone(1, 16_000)], 16_000), language: 'en' },
+    );
+    expect(flagged.calls[0]?.options).toEqual({});
   });
 
   it('does not send whisper-only options to Moonshine', async () => {
@@ -971,7 +997,7 @@ describe('local transcriber: web worker', () => {
   }
 
   it('decodes on the client, transcribes in the worker, and reports source bytes', async () => {
-    const fake = fakeTransformers();
+    const fake = fakeTransformers({ multilingual: true });
     const onUsage = vi.fn();
     const { client, close } = connect(fake, { onUsage });
     const audio = wav([tone(1, 48_000)], 48_000);

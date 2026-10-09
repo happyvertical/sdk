@@ -34,7 +34,10 @@ export interface AsrPipeline {
     options?: Record<string, unknown>,
   ): Promise<AsrOutput | AsrOutput[]>;
   dispose?: () => Promise<void>;
-  model?: { config?: { model_type?: string } };
+  model?: {
+    config?: { model_type?: string };
+    generation_config?: { is_multilingual?: boolean };
+  };
 }
 
 /** The parts of the transformers.js module this adapter uses. */
