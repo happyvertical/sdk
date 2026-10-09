@@ -1,5 +1,14 @@
 # @happyvertical/sdk-mcp
 
+## 0.102.7
+
+### Patch Changes
+
+- Updated dependencies [4feff0a]
+  - @happyvertical/ai@0.102.7
+  - @happyvertical/files@0.102.7
+  - @happyvertical/utils@0.102.7
+
 ## 0.102.6
 
 ### Patch Changes

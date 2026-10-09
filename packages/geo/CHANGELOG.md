@@ -1,5 +1,12 @@
 # @happyvertical/geo
 
+## 0.102.7
+
+### Patch Changes
+
+- @happyvertical/cache@0.102.7
+- @happyvertical/utils@0.102.7
+
 ## 0.102.6
 
 ### Patch Changes

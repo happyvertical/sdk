@@ -1,5 +1,7 @@
 # @happyvertical/signatures
 
+## 0.102.7
+
 ## 0.102.6
 
 ## 0.102.5

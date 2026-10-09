@@ -1,5 +1,11 @@
 # @happyvertical/cache
 
+## 0.102.7
+
+### Patch Changes
+
+- @happyvertical/utils@0.102.7
+
 ## 0.102.6
 
 ### Patch Changes
