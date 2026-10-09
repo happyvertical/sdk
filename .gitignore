@@ -165,3 +165,6 @@ bin/
 # not expressible in gitignore. Better to let the trap re-bite a
 # careful committer than to silently hide legitimate authoring.
 docs/docs/build-*
+
+# Downloaded optional, checksum-verified browser segmentation runtime assets
+packages/images/segmentation-assets/

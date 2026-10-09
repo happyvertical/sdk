@@ -1,0 +1,15 @@
+Optional semantic image segmentation assets
+
+MediaPipe Tasks Vision 1.1.0
+Copyright The MediaPipe Authors, Google LLC.
+https://github.com/google-ai-edge/mediapipe
+Apache License, Version 2.0 (Apache-2.0.txt)
+
+Selfie Multiclass 256x256 float32 model, version 1
+Author: Adel Ahmadyan, Google; model date May 10, 2023.
+SHA256: c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0
+Model card: https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Multiclass%20Segmentation.pdf
+Licensed under Apache License, Version 2.0 (Apache-2.0.txt).
+
+SDK mask processing and PNG encoding are independently authored SDK code.
+No changes have been made to the downloaded model or WASM assets.
