@@ -172,6 +172,35 @@ describe('browser speech playback', () => {
     release?.();
   });
 
+  it('settles a replacement when its terminal level callback destroys playback', async () => {
+    browserFakes();
+    let playback: ReturnType<typeof createSpeechPlayback>;
+    playback = createSpeechPlayback({
+      onLevel: (level) => {
+        if (level === 0) playback.destroy();
+      },
+    });
+    const first = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+
+    FakeContext.resumeImpl = () => new Promise<void>(() => {});
+    const replacement = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+
+    await expect(first).resolves.toBeUndefined();
+    await expect(replacement).rejects.toThrow(
+      'Speech playback has been destroyed',
+    );
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].resume).toHaveBeenCalledOnce();
+    expect(URL.createObjectURL).toHaveBeenCalledOnce();
+  });
+
   it('uses the AudioContext unlocked by prepare after delayed audio arrives', async () => {
     browserFakes();
     const playback = createSpeechPlayback();

@@ -113,6 +113,7 @@ export function createSpeechPlayback(
       if (!speechPlaybackSupported())
         throw new Error('Browser audio playback is unavailable');
       this.stop();
+      if (disposed) throw new Error('Speech playback has been destroyed');
       const token = ++active;
       let resolveCompletion!: () => void;
       let rejectCompletion!: (error: Error) => void;
