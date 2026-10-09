@@ -7,6 +7,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const assets = new Set([
+  'face_landmarker.task',
   'selfie_multiclass_256x256.tflite',
   'vision_wasm_internal.js',
   'vision_wasm_internal.wasm',
