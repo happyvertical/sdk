@@ -112,8 +112,12 @@ export function createSpeechPlayback(
       if (disposed) throw new Error('Speech playback has been destroyed');
       if (!speechPlaybackSupported())
         throw new Error('Browser audio playback is unavailable');
+      const activeBeforeStop = active;
       this.stop();
       if (disposed) throw new Error('Speech playback has been destroyed');
+      // `finish()` advances active once. A terminal callback may reenter
+      // `play()` and claim a newer operation; that newest call owns playback.
+      if (active !== activeBeforeStop + 1) return;
       const token = ++active;
       let resolveCompletion!: () => void;
       let rejectCompletion!: (error: Error) => void;

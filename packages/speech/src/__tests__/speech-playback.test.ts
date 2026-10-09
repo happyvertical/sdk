@@ -201,6 +201,43 @@ describe('browser speech playback', () => {
     expect(URL.createObjectURL).toHaveBeenCalledOnce();
   });
 
+  it('lets a terminal callback replacement own playback without stranding it', async () => {
+    browserFakes();
+    let playback: ReturnType<typeof createSpeechPlayback>;
+    let callbackReplacement: Promise<void> | undefined;
+    playback = createSpeechPlayback({
+      onLevel: (level) => {
+        if (level === 0)
+          callbackReplacement = playback.play({
+            audio: new ArrayBuffer(3),
+            contentType: 'audio/wav',
+          });
+      },
+    });
+    const first = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+
+    FakeContext.resumeImpl = () => new Promise<void>(() => {});
+    const outerReplacement = playback.play({
+      audio: new ArrayBuffer(3),
+      contentType: 'audio/wav',
+    });
+
+    await expect(first).resolves.toBeUndefined();
+    await expect(outerReplacement).resolves.toBeUndefined();
+    expect(callbackReplacement).toBeDefined();
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].resume).toHaveBeenCalledTimes(2);
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(2);
+
+    playback.stop();
+    await expect(callbackReplacement).resolves.toBeUndefined();
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+  });
+
   it('uses the AudioContext unlocked by prepare after delayed audio arrives', async () => {
     browserFakes();
     const playback = createSpeechPlayback();
