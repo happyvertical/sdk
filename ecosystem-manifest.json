@@ -103,10 +103,11 @@
         "index": 2,
         "count": 33
       },
-      "description": "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev typed decisions",
+      "description": "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev and Laya typed decisions",
       "commands": {
         "build": "pnpm --filter @happyvertical/ai build",
         "test": "pnpm --filter @happyvertical/ai test",
+        "typecheck": "pnpm --filter @happyvertical/ai typecheck",
         "clean": "pnpm --filter @happyvertical/ai clean"
       },
       "correctionLoops": [
@@ -115,7 +116,7 @@
         "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
       ],
       "provides": [
-        "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev typed decisions"
+        "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev and Laya typed decisions"
       ],
       "implements": [],
       "requires": {
@@ -1654,7 +1655,7 @@
     {
       "type": "provides",
       "from": "@happyvertical/ai",
-      "to": "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev typed decisions"
+      "to": "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev and Laya typed decisions"
     },
     {
       "type": "requires",

@@ -20,6 +20,7 @@ import type {
   GeminiOptions,
   GetAIOptions,
   HuggingFaceOptions,
+  LayaOptions,
   LiteLLMOptions,
   OllamaOptions,
   OpenAICompatVideoOptions,
@@ -188,6 +189,13 @@ function isWebLLMOptions(
   return options.type === 'webllm';
 }
 
+/** Checks if options select a Laya (`laya-serve`) decision server. */
+function isLayaOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is LayaOptions {
+  return options.type === 'laya';
+}
+
 /**
  * Creates an AI provider instance based on the provided options.
  * Universal version that works in both browser and Node.js environments.
@@ -318,6 +326,9 @@ export async function getAI(
   } else if (isTypeSafeOptions(options)) {
     const { TypeSafeProvider } = await import('./providers/typesafe.js');
     client = new TypeSafeProvider(options);
+  } else if (isLayaOptions(options)) {
+    const { LayaProvider } = await import('./providers/laya.js');
+    client = new LayaProvider(options);
   } else if (isWebLLMOptions(options)) {
     // Lazy: the provider imports its optional peer (@mlc-ai/web-llm) only on
     // first request, so the root entry never loads it.
