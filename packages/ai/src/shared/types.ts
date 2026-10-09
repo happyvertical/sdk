@@ -142,6 +142,7 @@ export const AI_PROVIDER_TYPES = [
   'byteplus-modelark',
   'seevio',
   'typesafe',
+  'laya',
   'webllm',
 ] as const;
 
@@ -1365,8 +1366,18 @@ export interface DecisionResult {
   /** Actual model returned by the provider. */
   model: string;
   usage?: TokenUsage;
-  /** Provider/model provenance. Probabilities are not cross-provider calibrated. */
-  provenance: { provider: string; model: string };
+  /**
+   * Provider/model provenance. Probabilities are not cross-provider calibrated.
+   *
+   * `details` carries provider-specific JSON facts (for example the requested
+   * model, truncation, or raw values replaced during normalization). Callers
+   * must not depend on keys that a provider does not document.
+   */
+  provenance: {
+    provider: string;
+    model: string;
+    details?: Record<string, DecisionValue>;
+  };
   answers: Record<string, DecisionAnswer>;
 }
 
@@ -2367,6 +2378,35 @@ export interface WebLLMOptions extends BaseAIOptions {
 }
 
 /**
+ * Laya decision provider (`laya-serve`, the Jev-compatible `/v1/systemone`
+ * server). `defaultModel` selects a Laya checkpoint (`typed-decisions`,
+ * `english`, `multilingual`, or a name the server registered); omit it to let
+ * the server route by language and question IDs.
+ */
+export interface LayaOptions extends BaseAIOptions {
+  type: 'laya';
+  /**
+   * Server root, for example `http://localhost:8000`. Required: there is no
+   * hosted Laya service. A trailing `/v1` or `/v1/systemone` is accepted.
+   */
+  baseUrl?: string;
+  /** Sent as a Bearer token. Needed only when the server sets `LAYA_API_KEY`. */
+  apiKey?: string;
+  /**
+   * Default total token window (`max_len`) for each request. Omitted means the
+   * checkpoint's own window. The server rejects values above its
+   * `LAYA_MAX_TOKEN_BUDGET`.
+   */
+  maxLen?: number;
+}
+
+/** Per-request controls for {@link LayaOptions} providers. */
+export interface LayaDecisionOptions extends DecisionOptions {
+  /** Overrides `maxLen` for this request. */
+  maxLen?: number;
+}
+
+/**
  * Union type for all provider options
  */
 export type GetAIOptions =
@@ -2384,6 +2424,7 @@ export type GetAIOptions =
   | ByteplusModelArkOptions
   | SeevioOptions
   | TypeSafeOptions
+  | LayaOptions
   | WebLLMOptions;
 
 /**

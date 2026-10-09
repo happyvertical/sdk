@@ -137,6 +137,14 @@ const typesafe = await getAI({
   defaultModel: 'jev-latest',
 });
 
+// Laya (self-hosted typed decisions only; baseUrl is the laya-serve root)
+const laya = await getAI({
+  type: 'laya',
+  baseUrl: process.env.LAYA_BASE_URL!, // e.g. http://localhost:8000
+  apiKey: process.env.LAYA_API_KEY,    // only if the server sets LAYA_API_KEY
+  defaultModel: 'typed-decisions',     // checkpoint; omit to let the server route
+});
+
 // WebLLM (in-browser, WebGPU, no server or API key; see "In-Browser Chat")
 const local = await getAI({ type: 'webllm', model: 'Llama-3.2-1B-Instruct-q4f16_1-MLC' });
 ```
@@ -261,9 +269,11 @@ excluded; a browser-safe root entry is tracked separately.
 
 ## Typed Decisions
 
-TypeSafe's optional decision provider evaluates a shared state against a batch
-of typed predicates, choices, and ordered scores. It does not provide chat or
-text generation. Check both optional contracts before routing a request:
+The optional decision providers (`typesafe`, for TypeSafe's hosted Jev, and
+`laya`, for a self-hosted Laya server; see [Laya](#laya-self-hosted)) evaluate a
+shared state against a batch of typed predicates, choices, and ordered scores.
+They do not provide chat or text generation. Check both optional contracts before
+routing a request:
 
 ```typescript
 const ai = await getAI({ type: 'typesafe', apiKey: process.env.TYPESAFE_API_KEY! });
@@ -284,7 +294,7 @@ if (capabilities.decisions === true && ai.decide) {
 `defaultModel` and request `model` select a Jev model. Results preserve the
 actual provider model, token usage, complete distributions, and provenance.
 Probabilities are provider output and are not calibrated for comparison with
-another provider. The optional capability and method preserve compatibility
+another provider (Laya and Jev in particular are not interchangeable). The optional capability and method preserve compatibility
 with existing provider implementations.
 
 TypeSafe documents normalized choice and score distributions. For measured
@@ -292,6 +302,114 @@ wire responses that are demonstrably rounded to hundredths, the adapter also
 accepts a positive distribution within one percentage point of unit mass and
 normalizes it by its actual sum. It continues to reject non-finite,
 out-of-range, missing, extra, all-zero, and non-hundredth distributions.
+
+### Laya (self-hosted)
+
+`type: 'laya'` is a second decision provider, for a [Laya](https://github.com/NandhaKishorM/laya)
+server (`pip install "laya[serve]"`, then `laya-serve`; Apache-2.0 code and
+weights at [convaiinnovations/laya](https://huggingface.co/convaiinnovations/laya)).
+State and questions are sent to the configured server, which you can host inside
+your network; there is no hosted dependency. HTTP redirects are rejected to
+prevent forwarding state or credentials to another endpoint. Configure the final
+server URL directly. It implements the
+same `decide()` contract and, like TypeSafe, is decision-only: `chat()`,
+`complete()`, `embed()`, streaming and every other operation throw an `AIError`
+with code `NOT_IMPLEMENTED`.
+
+`laya-serve` answers the Jev `POST /v1/systemone` wire shape, but the TypeSafe
+adapter is not a drop-in client for it: Laya rounds each probability to four
+decimals independently, picks its checkpoint with its own router, takes a
+`max_len` token window, and reports truncation. The Laya adapter handles those
+directly.
+
+```typescript
+const ai = await getAI({
+  type: 'laya',
+  baseUrl: 'http://localhost:8000',
+  defaultModel: 'typed-decisions',
+  maxLen: 1024,
+  timeout: 10_000,
+});
+
+const result = await ai.decide!({
+  state: { message: 'Please refund my duplicate charge.' },
+  questions: {
+    route: { type: 'choice', instructions: 'Which team?', criteria: { billing: 'Payments', support: 'General help' } },
+  },
+});
+result.model;                      // the checkpoint that answered, e.g. 'typed-decisions'
+result.provenance.details;         // requested model, repo, token and truncation facts, raw values
+
+// Per-request checkpoint and token window. maxLen is Laya-only, so type the
+// options as LayaDecisionOptions (a subtype of DecisionOptions).
+const options: LayaDecisionOptions = { model: 'english', maxLen: 512 }; // import type from '@happyvertical/ai'
+await ai.decide!(request, options);
+```
+
+| Option | Meaning |
+| --- | --- |
+| `baseUrl` | Required. The server root, e.g. `http://localhost:8000`. A trailing `/v1` or `/v1/systemone` is accepted, so a Jev-style base URL works. A path prefix behind a reverse proxy is kept. Env (Node): `LAYA_BASE_URL`. |
+| `apiKey` | Optional. Sent as `Authorization: Bearer ...`; needed only when the server sets `LAYA_API_KEY`. A 401 becomes an `AuthenticationError`. Env (Node): `LAYA_API_KEY`. |
+| `defaultModel` | A checkpoint: `typed-decisions`, `english`, `multilingual`, an alias, or a name the server registered. Omit it and nothing is sent, so the server routes by language and question IDs. A request `model` overrides it. |
+| `maxLen` | The total token window (`max_len`) sent with each request. Omit it for the checkpoint's own window (512 for `english`, 1024 for `typed-decisions` and `multilingual`). The server rejects values above its `LAYA_MAX_TOKEN_BUDGET` (8192 by default). A request `maxLen` overrides it. |
+| `timeout`, `rateLimit`, `onUsage`, `onRequest`, `headers` | The shared conventions, as for every provider. The adapter does not retry by itself; configure `rateLimit` to retry a busy server. |
+
+**How requests map.** One `decide()` call is one `POST {baseUrl}/v1/systemone`
+carrying every question, so Laya answers them in one pass over the shared state.
+`predicate` is sent as Laya's `noul`; `choice` and `score` keep their shape. Only
+`state`, `questions`, `model` and `max_len` are sent: generation controls
+(`maxTokens`, `temperature`, `reasoning`) and unknown properties on a question are
+never forwarded. Laya limits a request to 64 questions, 100 options per choice,
+32 levels per score, 512 options in total and 50,000 characters of state; the
+server answers anything larger with an HTTP 413 and the adapter reports it as a
+non-retryable `API_ERROR` (it never splits a request, because Laya's routing and
+usage depend on the whole question set). `/v1/systemone/batch`, which answers
+one question set over many states, is not used: `decide()` takes one state.
+
+**Results and provenance.** `result.model` and `provenance.model` are the
+checkpoint that answered, read from the response's `routing.model`. The
+response's own `model` field is the constant `laya-rl-agent` (Laya's decision
+head), kept as `provenance.details.serverModel`. A server running with
+`LAYA_JEV_STRICT=1` omits `routing`; the adapter then reports `laya-rl-agent` and
+leaves `details.checkpoint` unset rather than guess. `provenance.details` is a
+JSON map with `serverModel`, and where known `requestedModel`, `checkpoint`,
+`checkpointRepo`, `routeReason`, `maxLen`, `stateTokens`, `stateTokensDropped`,
+`truncated` and `truncatedQuestions`. **Check `truncated`**: a state longer than
+the window is cut, Laya still answers, and nothing else in the result says so.
+`usage` is the input token count (`completionTokens` is always 0).
+
+**Rounded distributions.** `laya-serve` rounds each probability to four decimals
+on its own, so a choice or score distribution routinely sums to 1.0001 or 0.9999
+(about half the responses in our tests). The adapter accepts a distribution whose
+mass is within `n * 0.00005` of 1 (n values, capped at 0.01), divides it by its
+actual sum, and records the values as received in
+`provenance.details.rawProbabilities` (keyed by question ID, with the IDs in
+`details.renormalized`). Ranking and the chosen option are unchanged. Anything
+else is rejected as `INVALID_RESPONSE`: values that are missing, extra, not
+finite, outside [0, 1], summing to zero, or off by more than the rounding bound;
+a `choice` that is not a requested option; a `score` outside the rubric or whose
+`legend` does not match the requested levels (a non-string level may come back as
+Python-style JSON text and is compared as parsed JSON); answers whose IDs or
+types differ from the request; and a malformed `usage` or `routing`.
+
+**Errors.** 401 is `AUTH_ERROR`. 503 (Laya's `LAYA_MAX_CONCURRENT` admission
+limit, with `Retry-After`) and 429 are `RateLimitError`s, which the shared
+`rateLimit` option retries. Other HTTP failures are `API_ERROR` carrying the
+server's detail, retryable only for 5xx. A timeout is `REQUEST_TIMEOUT`, a caller
+abort `REQUEST_ABORTED`, and a connection failure `NETWORK_ERROR`. The first
+request for a checkpoint the server has not preloaded can take a minute while it
+loads (Laya preloads only `LAYA_MODELS`), so size `timeout` for a cold start or
+preload what you use. Run the stock `laya-serve`; no wrapper is needed.
+
+**Not interchangeable with Jev.** Laya's probabilities and its `confidence` are
+not Jev's. The `confidence` on a choice or score answer is normalized entropy
+(`1 - H(p)/log k`), not Jev's `(n*p_max - 1)/(n - 1)`, so a threshold tuned for
+one gates differently on the other. Laya's `typed-decisions` checkpoint was found
+under-confident in a small shop evaluation (59 hand-written items, so wide
+error bars): its numbers rank answers usefully but are not literal
+probabilities. Measure a cut-off on your own data and do not swap providers
+behind one threshold. Laya's abstention gate (`min_confidence`) and its `task`
+and `lang` routing hints are not exposed.
 
 ## Video Generation
 
@@ -682,6 +800,7 @@ for (const site of sites) {
 - `MODELARK_API_KEY` / `ARK_API_KEY`, `MODELARK_BASE_URL`
 - `OPENAI_COMPAT_VIDEO_BASE_URL`, `OPENAI_COMPAT_VIDEO_API_KEY`
 - `TYPESAFE_API_KEY`, `TYPESAFE_BASE_URL` (last-resort decision-only auto-detection)
+- `LAYA_BASE_URL`, `LAYA_API_KEY` (decision-only; `LAYA_BASE_URL` alone selects Laya as the last resort, after TypeSafe)
 
 ## API Overview
 

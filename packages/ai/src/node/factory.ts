@@ -16,6 +16,7 @@ import type {
   GeminiOptions,
   GetAIOptions,
   HuggingFaceOptions,
+  LayaOptions,
   LiteLLMOptions,
   OllamaOptions,
   OpenAICompatVideoOptions,
@@ -139,6 +140,14 @@ export async function getAIAuto(
         apiKey: config.apiKey || process.env.TYPESAFE_API_KEY,
         baseUrl: config.baseUrl || process.env.TYPESAFE_BASE_URL,
       } as TypeSafeOptions);
+    }
+
+    if (config.type === 'laya') {
+      return getAIUniversal({
+        ...config,
+        apiKey: config.apiKey || process.env.LAYA_API_KEY,
+        baseUrl: config.baseUrl || process.env.LAYA_BASE_URL,
+      } as LayaOptions);
     }
 
     if (config.type === 'bifrost') {
@@ -317,6 +326,7 @@ export async function getAIAuto(
   const hasTypeSafeSignal = Boolean(
     process.env.TYPESAFE_API_KEY || process.env.TYPESAFE_BASE_URL,
   );
+  const hasLayaSignal = Boolean(process.env.LAYA_BASE_URL);
 
   if (hasModelArkSignal && !config.type) {
     return getAIUniversal({
@@ -357,6 +367,15 @@ export async function getAIAuto(
     } as TypeSafeOptions);
   }
 
+  if (hasLayaSignal && !config.type) {
+    return getAIUniversal({
+      ...config,
+      type: 'laya',
+      apiKey: config.apiKey || process.env.LAYA_API_KEY,
+      baseUrl: config.baseUrl || process.env.LAYA_BASE_URL,
+    } as LayaOptions);
+  }
+
   throw new ValidationError(
     'Could not auto-detect AI provider from options or environment',
     {
@@ -381,6 +400,7 @@ export async function getAIAuto(
         'AWS_DEFAULT_REGION',
         'TYPESAFE_API_KEY',
         'TYPESAFE_BASE_URL',
+        'LAYA_BASE_URL',
         'OPENAI_COMPAT_VIDEO_BASE_URL',
         'OPENAI_COMPAT_VIDEO_API_KEY',
         'MODELARK_API_KEY',

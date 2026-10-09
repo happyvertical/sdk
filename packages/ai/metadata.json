@@ -5,9 +5,9 @@
     "index": 2,
     "count": 33
   },
-  "description": "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev typed decisions",
+  "description": "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev and Laya typed decisions",
   "provides": [
-    "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev typed decisions"
+    "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev and Laya typed decisions"
   ],
   "implements": [],
   "requires": {
