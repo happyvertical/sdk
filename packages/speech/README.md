@@ -374,8 +374,8 @@ You can also call `createLocalTranscriber(options)` from the subpath directly. I
 
   | Model id | Family | Size | Notes |
   | --- | --- | --- | --- |
-  | `onnx-community/moonshine-tiny-ONNX` | Moonshine | ~27 MB | English, fastest, best for live use |
-  | `onnx-community/moonshine-base-ONNX` | Moonshine | ~62 MB | English, more accurate |
+  | `onnx-community/moonshine-tiny-ONNX` | Moonshine | ~32 MB | English, fastest, best for live use |
+  | `onnx-community/moonshine-base-ONNX` | Moonshine | ~67 MB | English, more accurate |
   | `onnx-community/whisper-tiny.en` | Whisper | ~40 MB | English only |
 
   Moonshine and `*.en` Whisper models are English-only: a request `language` is accepted and ignored (their decoders reject `language` and `task`). For other languages use a multilingual Whisper such as `onnx-community/whisper-base`, or for better accuracy `onnx-community/whisper-small` or `onnx-community/whisper-large-v3-turbo`. The first use downloads the weights; after that they load from cache. Call `preload()` with `onProgress` to show a download bar before the user records.
