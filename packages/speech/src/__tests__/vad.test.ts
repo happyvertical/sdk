@@ -95,6 +95,29 @@ describe('createVadSegmenter', () => {
     expect(segmenter.threshold).toBeGreaterThan(hum * 0.99);
   });
 
+  it('detects speech that starts at t=0, during calibration', () => {
+    const segmenter = createVadSegmenter();
+    const events = feed(segmenter, LOUD, 400);
+    expect(events.map((e) => e.type)).toEqual(['start']);
+  });
+
+  it('does not learn the noise floor from speech', () => {
+    const segmenter = createVadSegmenter();
+    feed(segmenter, LOUD, 600);
+    expect(segmenter.noiseFloor).toBeLessThanOrEqual(0.006);
+    // Still hears speech afterwards, after a pause and a new utterance.
+    feed(segmenter, QUIET, 1000);
+    expect(segmenter.speaking).toBe(false);
+    expect(feed(segmenter, LOUD, 300).map((e) => e.type)).toEqual(['start']);
+  });
+
+  it('calibrates on the quiet frames when speech starts mid-window', () => {
+    const segmenter = createVadSegmenter({ calibrateMs: 500 });
+    feed(segmenter, QUIET, 100);
+    feed(segmenter, LOUD, 400);
+    expect(segmenter.noiseFloor).toBeLessThan(0.006);
+  });
+
   it('is more eager at higher sensitivity', () => {
     const low = calibrated({ sensitivity: 0 });
     const high = calibrated({ sensitivity: 1 });
@@ -173,6 +196,24 @@ describe('createUtteranceCollector', () => {
     // Starts with the pre-roll (quiet), not the speech.
     expect(Math.abs(u.pcm[0])).toBeLessThan(0.01);
     expect(u.pcm.some((v) => v > 0.2)).toBe(true);
+  });
+
+  it('keeps the first frames of speech that starts at t=0, with lead-in', () => {
+    const utterances: VadUtterance[] = [];
+    const collector = createUtteranceCollector({
+      sampleRate: RATE,
+      onUtterance: (u) => utterances.push(u),
+    });
+    collector.push(block(20, 0.9)); // marker frame: the very first 20 ms
+    collector.push(block(580, 0.3));
+    collector.push(block(1000, 0.002));
+    expect(utterances).toHaveLength(1);
+    const pcm = utterances[0].pcm;
+    const at = pcm.findIndex((v) => v > 0.8);
+    expect(at).toBeGreaterThanOrEqual(0); // first frame survived
+    // Padded with silence so the transcriber gets ~preRollMs of lead-in.
+    expect(at).toBeGreaterThanOrEqual(Math.round((RATE * 300) / 1000) - 400);
+    expect(pcm[0]).toBe(0);
   });
 
   it('emits nothing for a click', () => {

@@ -31,7 +31,12 @@ export interface VadOptions {
    * noise). Default 0.5.
    */
   sensitivity?: number;
-  /** How long the room is listened to before the first utterance, in ms. Default 300. */
+  /**
+   * How long the room is listened to before the floor is settled, in ms.
+   * Default 300. Speech is still detected during this window (with a
+   * conservative floor), and calibration only uses a low percentile of the
+   * energies, so speaking from the first frame does not poison the floor.
+   */
   calibrateMs?: number;
 }
 
@@ -49,6 +54,18 @@ export const VAD_FRAME_MS = 20;
 
 /** The quietest noise floor assumed (digital silence must not make everything "speech"). */
 const MIN_FLOOR = 0.0015;
+/** Floor assumed before the room has been heard (a conservative, quiet-room value). */
+const DEFAULT_FLOOR = 0.003;
+/**
+ * Highest floor calibration may settle on. If the opening frames are louder
+ * than this they are taken to be speech (or a very noisy room) and the floor
+ * stays conservative instead of climbing to speech level.
+ */
+const CALIBRATION_FLOOR_CAP = 0.006;
+/** Calibration uses this low percentile of the opening energies, not the mean. */
+const CALIBRATION_PERCENTILE = 0.2;
+/** Highest floor slow tracking may reach between utterances. */
+const MAX_FLOOR = 0.02;
 /** Time constant of the slow noise-floor tracking, in ms. */
 const FLOOR_TRACK_MS = 2000;
 /** Silence kept at the end of an utterance when it is trimmed, in ms. */
@@ -135,10 +152,9 @@ export function createVadSegmenter(options: VadOptions = {}): VadSegmenter {
   const ratio = 6 - 4 * o.sensitivity;
   const absMin = 0.02 - 0.015 * o.sensitivity;
 
-  let floor = MIN_FLOOR;
+  let floor = DEFAULT_FLOOR;
   let calibratedMs = 0;
-  let calibrationSum = 0;
-  let calibrationFrames = 0;
+  const calibrationEnergies: number[] = [];
   let speaking = false;
   let candidateMs = 0;
   let silenceMs = 0;
@@ -171,17 +187,24 @@ export function createVadSegmenter(options: VadOptions = {}): VadSegmenter {
       const e = Number.isFinite(energy) ? Math.max(0, energy) : 0;
       const level = clamp(e / (onThreshold() * 3), 0, 1);
 
-      // Learn the room first: the opening frames are assumed to be quiet.
-      if (calibratedMs < o.calibrateMs) {
+      // Learn the room from the quietest frames of the opening window. Frames
+      // inside an utterance never count, and the estimate is capped so speech
+      // at t=0 cannot raise the floor to speech level. Detection stays live.
+      const calibrating = calibratedMs < o.calibrateMs;
+      if (calibrating) {
         calibratedMs += frameMs;
-        calibrationSum += e;
-        calibrationFrames += 1;
-        floor = Math.max(MIN_FLOOR, calibrationSum / calibrationFrames);
-        return {
-          events,
-          level: clamp(e / (onThreshold() * 3), 0, 1),
-          speaking,
-        };
+        if (!speaking) {
+          calibrationEnergies.push(e);
+          const sorted = [...calibrationEnergies].sort((a, b) => a - b);
+          const p =
+            sorted[
+              Math.min(
+                sorted.length - 1,
+                Math.floor(sorted.length * CALIBRATION_PERCENTILE),
+              )
+            ] ?? DEFAULT_FLOOR;
+          floor = clamp(p, MIN_FLOOR, CALIBRATION_FLOOR_CAP);
+        }
       }
 
       if (!speaking) {
@@ -197,12 +220,18 @@ export function createVadSegmenter(options: VadOptions = {}): VadSegmenter {
             });
             candidateMs = 0;
           }
-        } else {
+        } else if (!calibrating) {
           candidateMs = 0;
           // Track the room slowly: down faster than up, so a hum that fades
           // is forgotten sooner than a noise that creeps in is accepted.
           const alpha = (frameMs / FLOOR_TRACK_MS) * (e < floor ? 4 : 1);
-          floor = Math.max(MIN_FLOOR, floor + (e - floor) * Math.min(1, alpha));
+          floor = clamp(
+            floor + (e - floor) * Math.min(1, alpha),
+            MIN_FLOOR,
+            MAX_FLOOR,
+          );
+        } else {
+          candidateMs = 0;
         }
         return { events, level, speaking };
       }
@@ -329,8 +358,20 @@ export function createUtteranceCollector(
     if (utterance) utterance.push(frame);
     for (const event of step.events) {
       if (event.type === 'start') {
-        // The ring already holds this frame; the utterance starts with it.
+        // The ring already holds this frame; the utterance starts with it, and
+        // it is buffered from the very first frame of capture, so an utterance
+        // that begins during calibration keeps its first syllables.
         utterance = [...ring];
+        // Near capture start there is less past than the pre-roll asks for.
+        // Transcribers do better with a little lead-in, so pad with silence.
+        const wantLead = Math.ceil(o.preRollMs / frameMs);
+        const haveLead = Math.max(
+          0,
+          ring.length - Math.ceil(o.minSpeechMs / frameMs),
+        );
+        for (let i = haveLead; i < wantLead; i++) {
+          utterance.unshift(new Float32Array(frameSize));
+        }
       } else if (event.type === 'end') {
         const frames = utterance ?? [];
         utterance = null;
