@@ -1,5 +1,31 @@
 # Incomplete SDK release recovery
 
+## Occupied 0.103.0 (SDK #1391)
+
+[Run 37977913268](https://github.com/happyvertical/sdk/actions/runs/37977913268)
+attempt 2 published all 33 SDK family packages at `0.103.0`, then failed its
+release-commit push non-fast-forward after the DuckDB conflict-key repair
+[#1390](https://github.com/happyvertical/sdk/pull/1390) merged as
+`a6b5141b06d41387f71d3f8fc72fcb23af7903a0`. There is no `v0.103.0`
+repository release. Registry SQL `0.103.0` SHA-1
+`5b7c2c71255ff30e629365ebadf90ff18fbed815` is the old artifact, while the
+fixed candidate is `828fdab43c743558046933cf826a996440ff5552`; the other 32
+family artifacts agree. Immutable publication therefore cannot repair
+`0.103.0` by retrying it.
+
+The explicit reservation applies only when ordinary Changesets preparation
+selects `0.103.0`. It rechecks each of the 33 publishable family targets at
+`0.103.1`; only an explicit E404 permits the ordinary recovery patch pass.
+The recovery retains pending Laya and DuckDB notes, uses Changesets to update
+fixed-family dependencies, and then continues normal verification, immutable
+publication, commit, and tag steps. The 2026-10-09 registry receipt recorded
+all 33 `0.103.1` endpoints as absent; the workflow repeats that check to avoid
+relying on the receipt during a race.
+
+Do not manually version, tag, republish, or overwrite `0.103.0`. If any
+`0.103.1` target is occupied or cannot be looked up, stop for a newly reviewed
+reservation. Historical reservations remain bounded and unchanged.
+
 ## Occupied 0.101.2 (SDK #1350)
 
 [Run 37264164839](https://github.com/happyvertical/sdk/actions/runs/37264164839)
@@ -65,7 +91,7 @@ remains unused. If `0.101.1` becomes partially occupied before the release commi
 lands, preparation stops: investigate the artifacts and obtain another reviewed
 recovery rather than changing the reservation or forcing publication ad hoc.
 
-## Validation for the 0.101.2 reservation
+## Validation for the 0.103.0 reservation
 
 The actor is the normal release workflow operating on its local candidate tree;
 there is no database transaction or production authentication change. The
@@ -74,9 +100,9 @@ Node runtime and the installed Changesets CLI, with registry responses injected.
 
 | Trigger / invariant | Positive and failure evidence |
 | --- | --- |
-| Normal preparation selects occupied `0.101.2` | Real Changesets second pass yields `0.101.3`, retains both fix notes and exact internal dependency versions; the base helper fails the regression. |
+| Normal preparation selects occupied `0.103.0` | Real Changesets second pass yields `0.103.1`, retains Laya and DuckDB repair notes and exact internal dependency versions; the base helper cannot reserve this candidate. |
 | Target must be absent before local mutation | Every family member is checked; occupied or failed lookups produce no recovery note or version mutation. Wrong registry and inconsistent family versions are rejected. |
-| Reservation stays bounded | Historical `0.101.0` recovery remains covered; completed targets and unrelated candidates perform no lookup or versioning. |
+| Reservation stays bounded | Historical `0.101.0` and `0.101.2` recoveries remain covered; completed targets and unrelated candidates perform no lookup or versioning. |
 | Mutation and retries fail closed | Existing tests cover failed Changesets execution, unexpected target, and a pre-existing recovery note; ordinary immutable publication still rejects different occupied artifacts. |
 
 Focused command: `node --test scripts/recover-partial-release.test.mjs scripts/release-registry.test.mjs scripts/publish-validated-artifacts.test.mjs`.

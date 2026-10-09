@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
-import { recoverPartialRelease, recovery, versionExists } from './recover-partial-release.mjs';
+import { recoverPartialRelease, recoveries, recovery, versionExists } from './recover-partial-release.mjs';
 
 function fixture(t, candidate = recovery.occupied) {
   const root = mkdtempSync(join(tmpdir(), 'sdk-release-recovery-'));
@@ -142,4 +142,41 @@ test('0.101.2 reservation denies an occupied or unknown target before changing f
   assert.throws(() => recoverPartialRelease(root, { registry: 'https://registry.npmjs.org/' }), /recorded primary/);
   put('packages/speech/package.json', { name: '@happyvertical/speech', version: '0.101.1', publishConfig: {} });
   assert.throws(() => recoverPartialRelease(root, { exists: () => assert.fail('lookup') }), /Inconsistent/);
+});
+
+const release103Recovery = recoveries.find(({ occupied }) => occupied === '0.103.0');
+assert.ok(release103Recovery, '0.103.0 recovery reservation must remain explicit');
+
+test('recovers occupied 0.103.0 through real Changesets with the SQL fix retained', (t) => {
+  const { root, put, read } = fixture(t, '0.102.7');
+  put('.changeset/laya-and-sql-fixes.md', '---\n"@happyvertical/speech": minor\n---\n\nRetain the Laya feature and DuckDB conflict-key repair.\n');
+  const version = () => {
+    const result = spawnSync(process.execPath, [resolve('node_modules/@changesets/cli/bin.js'), 'version'], { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  };
+  // Regression baseline: normal preparation alone reselects the immutable 0.103.0.
+  version();
+  assert.equal(JSON.parse(read('packages/utils/package.json')).version, '0.103.0');
+  const lookups = [];
+  assert.equal(recoverPartialRelease(root, { exists: (name, target, registry) => {
+    lookups.push([name, target, registry]); return false;
+  }, version }), true);
+  assert.deepEqual(lookups, ['@happyvertical/speech', '@happyvertical/utils']
+    .map((name) => [name, '0.103.1', release103Recovery.registry]));
+  for (const name of ['utils', 'speech']) {
+    assert.equal(JSON.parse(read(`packages/${name}/package.json`)).version, '0.103.1');
+    assert.match(read(`packages/${name}/CHANGELOG.md`), /37977913268/);
+  }
+  assert.match(read('packages/speech/CHANGELOG.md'), /DuckDB conflict-key repair/);
+  assert.equal(JSON.parse(read('packages/speech/package.json')).dependencies['@happyvertical/utils'], '0.103.1');
+  assert.equal(recoverPartialRelease(root, { exists: () => assert.fail('retry lookup'), version }), false);
+});
+
+test('0.103.0 reservation fails closed before mutation for occupied or unknown targets', (t) => {
+  const { root, read } = fixture(t, '0.103.0');
+  for (const exists of [() => true, () => { throw new Error('offline'); }]) {
+    assert.throws(() => recoverPartialRelease(root, { exists, version: () => assert.fail('version') }), /occupied|offline/);
+    assert.throws(() => read('.changeset/partial-release-recovery.md'), /ENOENT/);
+    assert.equal(JSON.parse(read('packages/utils/package.json')).version, '0.103.0');
+  }
 });

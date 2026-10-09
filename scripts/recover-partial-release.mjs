@@ -25,6 +25,12 @@ export const recoveries = Object.freeze([
     registry: OWN_REGISTRY,
     evidence: 'https://github.com/happyvertical/sdk/actions/runs/37264164839',
   }),
+  Object.freeze({
+    occupied: '0.103.0',
+    target: '0.103.1',
+    registry: OWN_REGISTRY,
+    evidence: 'https://github.com/happyvertical/sdk/actions/runs/37977913268',
+  }),
 ]);
 
 export function versionExists(name, version, registry, run = spawnSync) {
