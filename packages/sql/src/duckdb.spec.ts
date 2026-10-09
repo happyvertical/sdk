@@ -647,6 +647,11 @@ describe('DuckDB Adapter', () => {
         title: 'Updated title',
       });
 
+      await db.upsert('test_nullable_conflict', ['slug', 'tenant_id'], {
+        slug: 'shared-post',
+        tenant_id: null,
+      });
+
       const records = await db.many`
         SELECT * FROM test_nullable_conflict WHERE slug = ${'shared-post'}
       `;
@@ -762,6 +767,71 @@ describe('DuckDB Adapter', () => {
         await db.single`SELECT * FROM test_upsert WHERE email = ${'tx@example.com'}`;
       expect(result?.name).toBe('Updated in TX');
       expect(result?.count).toBe(2);
+    });
+
+    it('preserves referenced conflict keys while updating parent data', async () => {
+      await db.execute`
+        CREATE TABLE upsert_parent (
+          id VARCHAR PRIMARY KEY,
+          enabled BOOLEAN NOT NULL,
+          name VARCHAR
+        )
+      `;
+      await db.execute`
+        CREATE TABLE upsert_child (
+          id VARCHAR PRIMARY KEY,
+          parent_id VARCHAR NOT NULL REFERENCES upsert_parent(id)
+        )
+      `;
+
+      await db.insert('upsert_parent', {
+        id: 'parent-1',
+        enabled: true,
+        name: 'Original parent',
+      });
+      await db.insert('upsert_child', { id: 'child-1', parent_id: 'parent-1' });
+
+      await db.upsert('upsert_parent', ['id'], {
+        id: 'parent-1',
+        enabled: false,
+        name: 'Updated parent',
+      });
+      await db.upsert('upsert_parent', ['id'], { id: 'parent-1' });
+
+      await db.transaction(async (tx) => {
+        await tx.upsert('upsert_parent', ['id'], {
+          id: 'parent-1',
+          enabled: true,
+          name: 'Updated in transaction',
+        });
+      });
+
+      await expect(
+        db.transaction(async (tx) => {
+          await tx.upsert('upsert_parent', ['id'], {
+            id: 'parent-1',
+            enabled: false,
+            name: 'Rolled back update',
+          });
+          throw new Error('Rollback referenced parent upsert');
+        }),
+      ).rejects.toThrow('Rollback referenced parent upsert');
+
+      expect(await db.get('upsert_parent', { id: 'parent-1' })).toEqual({
+        id: 'parent-1',
+        enabled: true,
+        name: 'Updated in transaction',
+      });
+      expect(await db.get('upsert_child', { id: 'child-1' })).toEqual({
+        id: 'child-1',
+        parent_id: 'parent-1',
+      });
+      await expect(
+        db.insert('upsert_child', {
+          id: 'orphan',
+          parent_id: 'missing-parent',
+        }),
+      ).rejects.toThrow();
     });
 
     it('should handle upsert with quoted column names (issue #418)', async () => {
