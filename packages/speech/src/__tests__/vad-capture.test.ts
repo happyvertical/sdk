@@ -123,6 +123,101 @@ describe('createVadCapture', () => {
     }
   });
 
+  it('suspend() drops audio, discards an utterance, and keeps the mic open', async () => {
+    const h = harness();
+    const vad = await createVadCapture({
+      stream: h.stream,
+      createCapture: h.createCapture,
+    });
+    const starts: number[] = [];
+    const ends: string[] = [];
+    vad.on('speechstart', () => starts.push(1));
+    vad.on('speechend', (e) => ends.push(e.reason));
+    h.feed(block(400, 0.002));
+    h.feed(block(600, 0.3));
+    expect(vad.speaking).toBe(true);
+    vad.suspend();
+    expect(vad.suspended).toBe(true);
+    expect(vad.speaking).toBe(false);
+    h.feed(block(1000, 0.3));
+    h.feed(block(1000, 0.002));
+    expect(ends).toEqual([]);
+    expect(starts).toHaveLength(1);
+    expect(h.cancel).not.toHaveBeenCalled();
+    expect(h.trackStop).not.toHaveBeenCalled();
+    vad.suspend(); // idempotent
+    expect(vad.suspended).toBe(true);
+  });
+
+  it('resume() ignores audio for resumeGuardMs, then detects again', async () => {
+    const h = harness();
+    const vad = await createVadCapture({
+      stream: h.stream,
+      createCapture: h.createCapture,
+      resumeGuardMs: 350,
+    });
+    const starts: number[] = [];
+    const ends: number[] = [];
+    vad.on('speechstart', () => starts.push(1));
+    vad.on('speechend', (e) => ends.push(e.durationMs));
+    h.feed(block(400, 0.002));
+    vad.suspend();
+    vad.resume();
+    expect(vad.suspended).toBe(false);
+    // Residual echo inside the guard is not heard as speech.
+    h.feed(block(300, 0.3));
+    expect(vad.speaking).toBe(false);
+    expect(starts).toEqual([]);
+    // Guard is over after a further 100 ms; real speech is then detected.
+    h.feed(block(100, 0.002));
+    h.feed(block(600, 0.3));
+    expect(vad.speaking).toBe(true);
+    h.feed(block(1000, 0.002));
+    expect(starts).toHaveLength(1);
+    expect(ends).toHaveLength(1);
+  });
+
+  it('resume() without suspend() is a no-op and the guard can be disabled', async () => {
+    const h = harness();
+    const vad = await createVadCapture({
+      stream: h.stream,
+      createCapture: h.createCapture,
+      resumeGuardMs: 0,
+    });
+    h.feed(block(400, 0.002));
+    vad.resume();
+    h.feed(block(600, 0.3));
+    expect(vad.speaking).toBe(true);
+    vad.suspend();
+    vad.resume();
+    h.feed(block(600, 0.3));
+    expect(vad.speaking).toBe(true);
+  });
+
+  it('requests echo cancellation, noise suppression and AGC by default', async () => {
+    const h = harness();
+    const getUserMedia = vi.fn(async (_c?: MediaStreamConstraints) => h.stream);
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
+    try {
+      await createVadCapture({ createCapture: h.createCapture });
+      expect(getUserMedia).toHaveBeenCalledWith({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      const custom = { audio: { echoCancellation: false } };
+      await createVadCapture({
+        createCapture: h.createCapture,
+        constraints: custom,
+      });
+      expect(getUserMedia).toHaveBeenLastCalledWith(custom);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('a throwing listener does not break capture; unsubscribe works', async () => {
     const h = harness();
     const vad = await createVadCapture({

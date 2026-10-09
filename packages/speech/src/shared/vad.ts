@@ -296,6 +296,11 @@ export interface UtteranceCollector {
   push(samples: Float32Array): void;
   /** Hand over an utterance in progress and reset. */
   flush(): void;
+  /**
+   * Drop an utterance in progress and all buffered audio (pre-roll included)
+   * without emitting it. The learned noise floor is kept.
+   */
+  discard(): void;
   readonly speaking: boolean;
   readonly segmenter: VadSegmenter;
 }
@@ -414,6 +419,14 @@ export function createUtteranceCollector(
           emit(utterance, 'flush', event.trailingSilenceMs);
         }
       }
+      utterance = null;
+      ring.length = 0;
+      carry = new Float32Array(0);
+      setSpeaking(false);
+      options.onLevel?.(0);
+    },
+    discard() {
+      segmenter.flush();
       utterance = null;
       ring.length = 0;
       carry = new Float32Array(0);

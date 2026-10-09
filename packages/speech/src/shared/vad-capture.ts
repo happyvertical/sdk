@@ -49,8 +49,18 @@ export interface VadCaptureOptions extends VadOptions {
    * ownership: `stop()` does not stop its tracks.
    */
   stream?: MediaStream;
-  /** Constraints for the microphone when no `stream` is given. */
+  /**
+   * Constraints for the microphone when no `stream` is given. Default:
+   * `{ audio: { echoCancellation, noiseSuppression, autoGainControl: true } }`,
+   * a secondary defence against hearing the page's own playback. Browsers do
+   * not reliably cancel `speechSynthesis`; use `suspend()` while it plays.
+   */
   constraints?: MediaStreamConstraints;
+  /**
+   * After `resume()`, audio of this length is still ignored so the tail of the
+   * playback and its room reverb are not heard as speech. Default 350.
+   */
+  resumeGuardMs?: number;
   /** Test seam: replaces `createPcmCapture`. */
   createCapture?: (
     stream: MediaStream,
@@ -66,6 +76,20 @@ export interface VadCapture {
   ): () => void;
   /** Currently inside an utterance. */
   readonly speaking: boolean;
+  /** Half-duplex gate is closed (between `suspend()` and `resume()`). */
+  readonly suspended: boolean;
+  /**
+   * Half-duplex gate: stops listening while the page itself is playing audio
+   * (for example `speechSynthesis`). Frames are dropped, an utterance in
+   * progress is discarded (no `speechend`), the noise floor does not adapt to
+   * the played audio, and the microphone stays open. Idempotent.
+   */
+  suspend(): void;
+  /**
+   * Reopens the gate after `resumeGuardMs` of further audio has been ignored.
+   * No-op when not suspended.
+   */
+  resume(): void;
   /**
    * Ends an utterance in progress (a final `speechend` with reason `flush`),
    * then releases the microphone. Idempotent.
@@ -109,7 +133,11 @@ export async function createVadCapture(
     options.stream ??
     (await navigator.mediaDevices.getUserMedia(
       options.constraints ?? {
-        audio: { echoCancellation: true, noiseSuppression: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       },
     ));
 
@@ -131,6 +159,10 @@ export async function createVadCapture(
 
   let collector: UtteranceCollector | undefined;
   let closed = false;
+  let suspended = false;
+  // Milliseconds of audio still to drop after `resume()`.
+  let guardMsLeft = 0;
+  const resumeGuardMs = Math.max(0, options.resumeGuardMs ?? 350);
   const releaseStream = (): void => {
     if (!ownsStream) return;
     for (const track of stream.getTracks()) track.stop();
@@ -144,6 +176,11 @@ export async function createVadCapture(
       retain: false,
       onSamples: (samples, contextRate) => {
         if (closed) return;
+        if (suspended) return;
+        if (guardMsLeft > 0) {
+          guardMsLeft -= (samples.length / contextRate) * 1000;
+          return;
+        }
         collector ??= createUtteranceCollector({
           ...options,
           sampleRate: contextRate,
@@ -192,6 +229,21 @@ export async function createVadCapture(
     },
     get speaking() {
       return collector?.speaking ?? false;
+    },
+    get suspended() {
+      return suspended;
+    },
+    suspend() {
+      if (closed || suspended) return;
+      suspended = true;
+      guardMsLeft = 0;
+      collector?.discard();
+      emit('level', { level: 0 });
+    },
+    resume() {
+      if (closed || !suspended) return;
+      suspended = false;
+      guardMsLeft = resumeGuardMs;
     },
     stop: () => finish(true),
     cancel: () => {
