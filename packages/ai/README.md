@@ -308,7 +308,10 @@ out-of-range, missing, extra, all-zero, and non-hundredth distributions.
 `type: 'laya'` is a second decision provider, for a [Laya](https://github.com/NandhaKishorM/laya)
 server (`pip install "laya[serve]"`, then `laya-serve`; Apache-2.0 code and
 weights at [convaiinnovations/laya](https://huggingface.co/convaiinnovations/laya)).
-Nothing leaves your network and there is no hosted dependency. It implements the
+State and questions are sent to the configured server, which you can host inside
+your network; there is no hosted dependency. HTTP redirects are rejected to
+prevent forwarding state or credentials to another endpoint. Configure the final
+server URL directly. It implements the
 same `decide()` contract and, like TypeSafe, is decision-only: `chat()`,
 `complete()`, `embed()`, streaming and every other operation throw an `AIError`
 with code `NOT_IMPLEMENTED`.

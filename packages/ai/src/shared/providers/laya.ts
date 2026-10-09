@@ -455,6 +455,7 @@ export class LayaProvider implements AIInterface {
     try {
       const response = await fetch(`${this.root}/v1/systemone`, {
         method: 'POST',
+        redirect: 'error',
         headers: {
           ...(this.options.apiKey
             ? { Authorization: `Bearer ${this.options.apiKey}` }

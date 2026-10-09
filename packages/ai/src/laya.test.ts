@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getAIAuto as getNodeAIAuto } from './node/factory';
 import { getAI } from './shared/factory';
@@ -218,6 +219,52 @@ describe('LayaProvider translation', () => {
       'Content-Type': 'application/json',
       'X-Trace': 't1',
     });
+  });
+
+  it.each([
+    307, 308,
+  ])('rejects an HTTP %i redirect without forwarding state or credentials', async (status) => {
+    let forwarded = 0;
+    const destination = createServer((incoming, outgoing) => {
+      forwarded++;
+      incoming.resume();
+      outgoing.writeHead(200, { 'content-type': 'application/json' });
+      outgoing.end(JSON.stringify(validResponse()));
+    });
+    let destinationUrl: string;
+    const origin = createServer((incoming, outgoing) => {
+      incoming.resume();
+      outgoing.writeHead(status, { Location: destinationUrl });
+      outgoing.end();
+    });
+    const listen = async (server: Server) => {
+      await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve),
+      );
+      const address = server.address();
+      if (!address || typeof address === 'string')
+        throw new Error('Expected local TCP server');
+      return `http://127.0.0.1:${address.port}`;
+    };
+    try {
+      destinationUrl = await listen(destination);
+      const baseUrl = await listen(origin);
+      await expect(
+        provider({
+          baseUrl,
+          apiKey: 'synthetic-key',
+          headers: { 'X-Private-Token': 'synthetic-token' },
+        }).decide(request),
+      ).rejects.toMatchObject({ code: 'NETWORK_ERROR', provider: 'laya' });
+      expect(forwarded).toBe(0);
+    } finally {
+      await Promise.all(
+        [origin, destination].map(async (server) => {
+          server.closeAllConnections();
+          await new Promise<void>((resolve) => server.close(() => resolve()));
+        }),
+      );
+    }
   });
 
   it('accepts the server root, the /v1 base used for Jev, and a proxy prefix', async () => {
