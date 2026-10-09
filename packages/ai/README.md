@@ -471,6 +471,13 @@ instances created directly instead of through `getAI()`:
 Reasoning is opt-in. The 1,024-token default is a ceiling for explicitly
 requested reasoning, not an automatically enabled thinking budget.
 
+Explicit `reasoning.effort` is forwarded as `reasoning_effort` for direct OpenAI
+chat and streaming calls, including `none`. LiteLLM and Bifrost forward it in
+their `reasoning` envelope even when the reasoning token budget is zero. Omitted
+effort stays omitted; the upstream provider validates model-specific support.
+OpenAI does not accept a separate reasoning-token cap; the completion-token
+limit bounds its combined output.
+
 An approved workload can raise a client-level ceiling explicitly. Prefer a
 workload-specific client so the wider limit is not shared accidentally.
 
