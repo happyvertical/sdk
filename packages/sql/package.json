@@ -37,6 +37,10 @@
       "import": "./dist/backup/index.js",
       "types": "./dist/backup/index.d.ts"
     },
+    "./query": {
+      "import": "./dist/query.js",
+      "types": "./dist/query.d.ts"
+    },
     "./pglite": {
       "import": "./dist/pglite.js",
       "types": "./dist/pglite.d.ts"

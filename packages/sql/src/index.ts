@@ -137,101 +137,8 @@ function _isValidTableName(name: string): boolean {
   return /^[a-zA-Z0-9_]+$/.test(name);
 }
 
-/**
- * Synchronizes a SQL schema definition with a database
- * Creates tables if they don't exist and adds missing columns to existing tables
- *
- * @param options - Object containing database and schema
- * @param options.db - Database interface to use
- * @param options.schema - SQL schema definition
- * @throws Error if db or schema are missing or if the database doesn't support syncSchema
- */
-export async function syncSchema(options: {
-  db: DatabaseInterface;
-  schema: string;
-}) {
-  const { db, schema } = options;
-  if (!db || !schema) {
-    throw new Error('db and schema are required');
-  }
-
-  // Delegate to the database adapter's syncSchema implementation
-  if (db.syncSchema) {
-    await db.syncSchema(schema);
-  } else {
-    throw new Error('Database adapter does not support schema synchronization');
-  }
-}
-
-/**
- * Checks if a table exists in the database
- *
- * @param db - Database interface to use
- * @param tableName - Name of the table to check
- * @returns Promise resolving to boolean indicating if the table exists
- */
-export async function tableExists(db: DatabaseInterface, tableName: string) {
-  return db.tableExists(tableName);
-}
-
-/**
- * Escapes and formats a value for use in SQL queries
- *
- * @param value - Value to escape
- * @returns String representation of the value safe for SQL use
- */
-export function escapeSqlValue(value: any): string {
-  if (value === null) {
-    return 'NULL';
-  }
-  if (value instanceof Date) {
-    return `'${value.toISOString()}'`;
-  }
-  if (typeof value === 'number') {
-    return value.toString();
-  }
-  if (typeof value === 'boolean') {
-    return value ? '1' : '0';
-  }
-  // Escape single quotes and wrap in quotes
-  return `'${String(value).replace(/'/g, "''")}'`;
-}
-
-/**
- * Validates a column name for use in SQL queries
- *
- * @param column - Column name to validate
- * @returns The validated column name
- * @throws Error if the column name contains invalid characters
- */
-export function validateColumnName(column: string): string {
-  // Reject non-strings before the regex. `test` coerces via `toString`, so an
-  // object whose `toString` differs between this read and a later interpolation
-  // read would pass validation and then reach SQL as a different identifier.
-  // Only allow alphanumeric characters, underscores, and dots (for table.column notation)
-  if (typeof column !== 'string' || !/^[a-zA-Z0-9_.]+$/.test(column)) {
-    throw new Error(`Invalid column name: ${column}`);
-  }
-  return column;
-}
-
-// Import utilities from shared utils
-import { buildWhere, formatDbError, raw } from './shared/utils';
-
-export {
-  type AggregateBuildResult,
-  type AggregateFunction,
-  type AggregateSelectExpr,
-  type AggregateSpec,
-  type AggregateTimeBucketUnit,
-  bucketExpr,
-  buildAggregate,
-} from './aggregate.js';
-export type { RawSqlKey, SqlAdapterType } from './shared/utils';
-export { buildWhere, formatDbError, raw };
-
-// Import DuckDB schema transformation utilities
-import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+// Driver-independent helpers live in ./query (also `@happyvertical/sql/query`).
+import { buildWhere, raw, syncSchema, tableExists } from './query.js';
 
 // Generic database integrity-check framework
 export {
@@ -248,7 +155,6 @@ export {
   runDoctor,
   type UniqueColumnSpec,
 } from './doctor';
-
 // Export adapter cache utilities (for testing)
 export { clearConnectionCache } from './json.js';
 // PGlite (browser-capable Postgres). Types only: the adapter and its
@@ -274,12 +180,29 @@ export {
   redactDatabaseUrl,
   restorePostgresDatabase,
 } from './postgres-cli';
-export type { SchemaInitializationResult } from './schema-manager';
-// Export schema management
-export { DatabaseSchemaManager } from './schema-manager';
+export {
+  type AggregateBuildResult,
+  type AggregateFunction,
+  type AggregateSelectExpr,
+  type AggregateSpec,
+  type AggregateTimeBucketUnit,
+  bucketExpr,
+  buildAggregate,
+  buildWhere,
+  convertUniqueIndexesToInlineConstraints,
+  DatabaseSchemaManager,
+  escapeSqlValue,
+  formatDbError,
+  type RawSqlKey,
+  raw,
+  type SchemaInitializationResult,
+  type SqlAdapterType,
+  syncSchema,
+  tableExists,
+  validateColumnName,
+} from './query.js';
 export * from './shared/types';
 export type { SecureSqliteFileOptions, SqliteOptions } from './sqlite.js';
-export { convertUniqueIndexesToInlineConstraints };
 
 export default {
   getDatabase,

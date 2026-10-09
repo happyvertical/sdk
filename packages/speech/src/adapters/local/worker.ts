@@ -87,17 +87,29 @@ export type LocalWorkerRequest =
       timestampGranularities?: TimestampGranularity[];
     }
   | { kind: 'preload'; id: number; model?: string }
+  | { kind: 'isCached'; id: number; model?: string }
   | { kind: 'abort'; id: number };
 
 /** Messages from the worker to the client. */
 export type LocalWorkerResponse =
-  | { kind: 'result'; id: number; result?: TranscriptResult }
+  | {
+      kind: 'result';
+      id: number;
+      result?: TranscriptResult;
+      /** Answer to an `isCached` request. */
+      cached?: boolean;
+    }
   | {
       kind: 'error';
       id: number;
       error: { name: string; message: string; code?: string };
     }
   | { kind: 'progress'; progress: LocalTranscriberProgress };
+
+interface WorkerReply {
+  result?: TranscriptResult;
+  cached?: boolean;
+}
 
 const PCM_MIME_TYPE = `audio/pcm;rate=${LOCAL_SAMPLE_RATE};encoding=f32le`;
 
@@ -147,23 +159,27 @@ export function serveLocalTranscriber(
     const controller = new AbortController();
     pending.set(message.id, controller);
     const work =
-      message.kind === 'preload'
-        ? transcriber.preload(message.model, controller.signal).then(() => {
-            reply({ kind: 'result', id: message.id });
+      message.kind === 'isCached'
+        ? transcriber.isCached(message.model).then((cached) => {
+            reply({ kind: 'result', id: message.id, cached });
           })
-        : Promise.resolve()
-            .then(() =>
-              transcriber.transcribe({
-                audio: toAudioInput(message.audio),
-                model: message.model,
-                language: message.language,
-                timestampGranularities: message.timestampGranularities,
-                signal: controller.signal,
-              }),
-            )
-            .then((result) => {
-              reply({ kind: 'result', id: message.id, result });
-            });
+        : message.kind === 'preload'
+          ? transcriber.preload(message.model, controller.signal).then(() => {
+              reply({ kind: 'result', id: message.id });
+            })
+          : Promise.resolve()
+              .then(() =>
+                transcriber.transcribe({
+                  audio: toAudioInput(message.audio),
+                  model: message.model,
+                  language: message.language,
+                  timestampGranularities: message.timestampGranularities,
+                  signal: controller.signal,
+                }),
+              )
+              .then((result) => {
+                reply({ kind: 'result', id: message.id, result });
+              });
 
     work
       .catch((error: unknown) => {
@@ -214,7 +230,7 @@ export class LocalTranscriberWorkerClient implements Transcriber {
   private readonly calls = new Map<
     number,
     {
-      resolve: (result: TranscriptResult | undefined) => void;
+      resolve: (response: WorkerReply) => void;
       reject: (error: unknown) => void;
     }
   >();
@@ -234,6 +250,20 @@ export class LocalTranscriberWorkerClient implements Transcriber {
     endpoint.addEventListener('message', this.listener);
   }
 
+  /** Whether the worker finds every file for `model` in the model cache. */
+  async isCached(model?: string): Promise<boolean> {
+    try {
+      const { cached } = await this.call(
+        { kind: 'isCached', model },
+        undefined,
+      );
+      return cached === true;
+    } catch {
+      // Same contract as LocalTranscriber.isCached: unknown means false.
+      return false;
+    }
+  }
+
   /** Loads the model in the worker ahead of the first transcription. */
   async preload(model?: string, signal?: AbortSignal): Promise<void> {
     await this.call({ kind: 'preload', model }, signal);
@@ -248,7 +278,7 @@ export class LocalTranscriberWorkerClient implements Transcriber {
       this.closing.signal,
     );
 
-    const result = await this.call(
+    const { result } = await this.call(
       {
         kind: 'transcribe',
         audio,
@@ -359,10 +389,11 @@ export class LocalTranscriberWorkerClient implements Transcriber {
   private call(
     message:
       | Omit<Extract<LocalWorkerRequest, { kind: 'transcribe' }>, 'id'>
-      | Omit<Extract<LocalWorkerRequest, { kind: 'preload' }>, 'id'>,
+      | Omit<Extract<LocalWorkerRequest, { kind: 'preload' }>, 'id'>
+      | Omit<Extract<LocalWorkerRequest, { kind: 'isCached' }>, 'id'>,
     signal: AbortSignal | undefined,
     transfer: Transferable[] = [],
-  ): Promise<TranscriptResult | undefined> {
+  ): Promise<WorkerReply> {
     this.assertOpen();
     signal?.throwIfAborted();
     const id = this.nextId++;
@@ -375,9 +406,9 @@ export class LocalTranscriberWorkerClient implements Transcriber {
       };
       const settle = () => signal?.removeEventListener('abort', onAbort);
       this.calls.set(id, {
-        resolve: (result) => {
+        resolve: (response) => {
           settle();
-          resolve(result);
+          resolve(response);
         },
         reject: (error) => {
           settle();
@@ -404,7 +435,7 @@ export class LocalTranscriberWorkerClient implements Transcriber {
     }
     this.calls.delete(message.id);
     if (message.kind === 'result') {
-      call.resolve(message.result);
+      call.resolve({ result: message.result, cached: message.cached });
     } else {
       call.reject(deserializeError(message.error));
     }

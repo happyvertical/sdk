@@ -177,6 +177,29 @@ describe('createPcmCapture', () => {
     expect(result.samples.length).toBe(8000);
   });
 
+  it('streams blocks to onSamples and, with retain false, keeps nothing', async () => {
+    const seen: Array<[number, number]> = [];
+    const onLimit = vi.fn();
+    const capture = createPcmCapture(stream, {
+      sampleRate: 16000,
+      maxDurationMs: 100,
+      retain: false,
+      onLimit,
+      onSamples: (samples, rate) => seen.push([samples.length, rate]),
+    });
+    await settle();
+    push(new Float32Array(20000).fill(0.1));
+    push(new Float32Array(20000).fill(0.1));
+    expect(seen).toEqual([
+      [20000, 48000],
+      [20000, 48000],
+    ]);
+    expect(onLimit).not.toHaveBeenCalled();
+    const result = await capture.stop();
+    expect(result.samples.length).toBe(0);
+    expect(result.truncated).toBe(false);
+  });
+
   it('cancel tears down and makes stop reject', async () => {
     const capture = createPcmCapture(stream, {
       sampleRate: 16000,

@@ -9,6 +9,22 @@ export {
   resampleMono,
 } from './shared/resample.js';
 export {
+  createUtteranceCollector,
+  createVadSegmenter,
+  frameEnergy,
+  resolveVadOptions,
+  type UtteranceCollector,
+  type UtteranceCollectorOptions,
+  VAD_DEFAULTS,
+  VAD_FRAME_MS,
+  type VadEndReason,
+  type VadEvent,
+  type VadOptions,
+  type VadSegmenter,
+  type VadStep,
+  type VadUtterance,
+} from './shared/vad.js';
+export {
   encodeWavPcm16,
   float32ToPcm16,
   type ParsedWavPcm16,
