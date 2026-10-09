@@ -330,14 +330,14 @@ export class OpenAIProvider implements AIInterface {
         };
       };
       if (
-        this.profile.providerName === 'openai' &&
+        (this.profile.providerName === 'openai' ||
+          this.profile.providerName === 'litellm') &&
         options.reasoning?.effort !== undefined
       ) {
         request.reasoning_effort = options.reasoning.effort;
       }
       if (
-        (this.profile.providerName === 'bifrost' ||
-          this.profile.providerName === 'litellm') &&
+        this.profile.providerName === 'bifrost' &&
         (options.reasoning?.effort !== undefined ||
           (options.reasoning?.maxTokens || 0) > 0)
       ) {
@@ -906,14 +906,14 @@ export class OpenAIProvider implements AIInterface {
         };
       };
       if (
-        this.profile.providerName === 'openai' &&
+        (this.profile.providerName === 'openai' ||
+          this.profile.providerName === 'litellm') &&
         options.reasoning?.effort !== undefined
       ) {
         request.reasoning_effort = options.reasoning.effort;
       }
       if (
-        (this.profile.providerName === 'bifrost' ||
-          this.profile.providerName === 'litellm') &&
+        this.profile.providerName === 'bifrost' &&
         (options.reasoning?.effort !== undefined ||
           (options.reasoning?.maxTokens || 0) > 0)
       ) {

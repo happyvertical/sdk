@@ -490,7 +490,7 @@ describe('LiteLLM Provider', () => {
     );
   });
 
-  it('should map reasoning.maxTokens onto the gateway reasoning field while still shaping the request for a gpt-5 model', async () => {
+  it('should reject an unsupported LiteLLM reasoning cap before transport', async () => {
     const createChatCompletion = vi.fn().mockResolvedValue({
       choices: [
         {
@@ -521,21 +521,15 @@ describe('LiteLLM Provider', () => {
       },
     };
 
-    await provider.chat([{ role: 'user', content: 'Hello' }], {
-      model: 'gpt-5-mini',
-      maxTokens: 500,
-      temperature: 0.9,
-      reasoning: { maxTokens: 200, effort: 'high' },
-    });
-
-    const body = createChatCompletion.mock.calls[0][0];
-    expect(body.model).toBe('gpt-5-mini');
-    expect(body.max_completion_tokens).toBe(500);
-    expect(body).not.toHaveProperty('max_tokens');
-    expect(body).not.toHaveProperty('temperature');
-    expect(body.reasoning).toEqual(
-      expect.objectContaining({ effort: 'high', max_tokens: 200 }),
-    );
+    await expect(
+      provider.chat([{ role: 'user', content: 'Hello' }], {
+        model: 'gpt-5-mini',
+        maxTokens: 500,
+        temperature: 0.9,
+        reasoning: { maxTokens: 200, effort: 'high' },
+      }),
+    ).rejects.toThrow('LiteLLM Chat Completions does not support');
+    expect(createChatCompletion).not.toHaveBeenCalled();
   });
 
   it('should auto-resolve an embedding model from the gateway when none is provided', async () => {

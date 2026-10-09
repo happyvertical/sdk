@@ -26,6 +26,22 @@ import {
 } from './gateway-audio-models';
 import { type OpenAICompatibleProfile, OpenAIProvider } from './openai';
 
+/** Chat Completions has effort, not a generic reasoning budget/thoughts envelope. */
+function assertChatReasoningControls(
+  options: Pick<ChatOptions, 'reasoning' | 'includeThoughts'>,
+): void {
+  if (
+    options.reasoning?.maxTokens !== undefined ||
+    options.reasoning?.includeThoughts !== undefined ||
+    options.includeThoughts !== undefined
+  ) {
+    throw new ValidationError(
+      'LiteLLM Chat Completions does not support generic reasoning.maxTokens or includeThoughts controls; use reasoning.effort and an output token limit',
+      { provider: 'litellm' },
+    );
+  }
+}
+
 const LITELLM_CAPABILITIES: AICapabilities = {
   chat: true,
   completion: true,
@@ -277,6 +293,7 @@ export class LiteLLMProvider extends OpenAIProvider {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    assertChatReasoningControls(options);
     const safe = normalizeChatOptions(
       this.options,
       options,
@@ -293,6 +310,7 @@ export class LiteLLMProvider extends OpenAIProvider {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): AsyncIterable<string> {
+    assertChatReasoningControls(options);
     const safe = normalizeChatOptions(
       this.options,
       options,
@@ -310,6 +328,7 @@ export class LiteLLMProvider extends OpenAIProvider {
     prompt?: string,
     options: ImageDescriptionOptions = {},
   ): Promise<string> {
+    assertChatReasoningControls(options);
     const safe = normalizeChatOptions(
       this.options,
       options,
@@ -318,6 +337,9 @@ export class LiteLLMProvider extends OpenAIProvider {
     );
     return super.describeImage(image, prompt, {
       ...safe,
+      // The inherited image path calls this.chat(); do not reclassify the
+      // normalization-inferred budget as an explicit caller control.
+      reasoning: options.reasoning,
       model: await this.resolveModel('vision', safe.model),
     });
   }
