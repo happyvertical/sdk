@@ -67,6 +67,8 @@ export interface PcmCaptureResult {
 }
 
 export interface PcmCapture {
+  /** Settles once the audio graph is running; rejects if setup failed. Optional for custom capture factories. */
+  readonly ready?: Promise<void>;
   /** Ends capture, tears everything down, and resolves with the audio. Idempotent. */
   stop(): Promise<PcmCaptureResult>;
   /** Discards the audio and tears everything down. Idempotent; a pending `stop()` rejects. */
@@ -201,6 +203,7 @@ export function createPcmCapture(
   let result: Promise<PcmCaptureResult> | undefined;
 
   return {
+    ready,
     stop(): Promise<PcmCaptureResult> {
       result ??= (async () => {
         try {

@@ -210,6 +210,23 @@ export async function createVadCapture(
     throw error;
   }
 
+  // A worklet that fails to load (CSP, blocked autoplay) must not look like a
+  // working microphone: release the stream and surface the failure.
+  if (capture.ready) {
+    try {
+      await capture.ready;
+    } catch (error) {
+      closed = true;
+      capture.cancel();
+      releaseStream();
+      throw new PcmCaptureError(
+        'setup_failed',
+        'Hands-free capture could not start',
+        error,
+      );
+    }
+  }
+
   const finish = async (flush: boolean): Promise<void> => {
     if (closed) return;
     // Flush before `closed` so the final utterance is still delivered.

@@ -252,8 +252,16 @@ export class LocalTranscriberWorkerClient implements Transcriber {
 
   /** Whether the worker finds every file for `model` in the model cache. */
   async isCached(model?: string): Promise<boolean> {
-    const { cached } = await this.call({ kind: 'isCached', model }, undefined);
-    return cached === true;
+    try {
+      const { cached } = await this.call(
+        { kind: 'isCached', model },
+        undefined,
+      );
+      return cached === true;
+    } catch {
+      // Same contract as LocalTranscriber.isCached: unknown means false.
+      return false;
+    }
   }
 
   /** Loads the model in the worker ahead of the first transcription. */

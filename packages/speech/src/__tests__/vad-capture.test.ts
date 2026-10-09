@@ -262,4 +262,24 @@ describe('createVadCapture', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('rejects with setup_failed and releases the stream when capture setup fails', async () => {
+    const h = harness();
+    const cancel = vi.fn();
+    await expect(
+      createVadCapture({
+        stream: h.stream,
+        createCapture: () => ({
+          ready: Promise.reject(new Error('worklet blocked')),
+          stop: async () => ({
+            samples: new Float32Array(),
+            wav: new Uint8Array(),
+            truncated: false,
+          }),
+          cancel,
+        }),
+      }),
+    ).rejects.toMatchObject({ reason: 'setup_failed' });
+    expect(cancel).toHaveBeenCalled();
+  });
 });

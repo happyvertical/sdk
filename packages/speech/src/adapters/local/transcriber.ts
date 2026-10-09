@@ -26,6 +26,7 @@ import {
   type AsrOutput,
   type AsrPipeline,
   createAsrPipeline,
+  detectAutoDevice,
   loadTransformers,
   type TransformersModule,
 } from './runtime.js';
@@ -87,10 +88,16 @@ export class LocalTranscriber implements Transcriber {
         return false;
       }
       const { dtype, revision, cacheDir } = this.options;
+      // Cached files depend on the device (transformers.js picks per-device
+      // dtypes), so resolve it exactly as loadPipeline does.
+      const requested = this.options.device ?? 'auto';
+      const device =
+        requested === 'auto' ? await detectAutoDevice() : requested;
       return await transformers.ModelRegistry.is_pipeline_cached(
         'automatic-speech-recognition',
         model?.trim() || this.model,
         {
+          device,
           ...(dtype ? { dtype } : {}),
           ...(revision ? { revision } : {}),
           ...(cacheDir ? { cache_dir: cacheDir } : {}),

@@ -361,13 +361,13 @@ describe('local transcriber: model loading', () => {
     expect(cached.is_pipeline_cached).toHaveBeenCalledWith(
       'automatic-speech-recognition',
       MODEL,
-      { dtype: 'q8' },
+      { device: 'cpu', dtype: 'q8' },
     );
     expect(await transcriber.isCached('org/other')).toBe(true);
     expect(cached.is_pipeline_cached).toHaveBeenLastCalledWith(
       'automatic-speech-recognition',
       'org/other',
-      { dtype: 'q8' },
+      { device: 'cpu', dtype: 'q8' },
     );
     expect(cached.pipeline).not.toHaveBeenCalled();
 
