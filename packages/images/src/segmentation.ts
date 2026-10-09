@@ -9,7 +9,7 @@ export const SELFIE_MULTICLASS_MODEL = {
 /** Pinned MediaPipe face mesh used to locate lips and chin on-device. */
 export const FACE_LANDMARKER_MODEL = {
   file: 'face_landmarker.task',
-  url: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
+  url: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
   sha256: '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff',
   license: 'Apache-2.0',
 } as const;

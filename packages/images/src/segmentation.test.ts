@@ -12,6 +12,7 @@ vi.mock('@mediapipe/tasks-vision', () => ({
 import {
   detectFaceLandmarks,
   encodeRgbaPng,
+  FACE_LANDMARKER_MODEL,
   faceLandmarksFromMesh,
   readBoundedModel,
   segmentationAlpha,
@@ -57,6 +58,13 @@ describe('bounded segmentation model downloads', () => {
 });
 
 describe('face landmark mapping', () => {
+  it('pins the face model to its versioned, integrity-checked artifact', () => {
+    expect(FACE_LANDMARKER_MODEL.url).toContain(
+      '/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+    );
+    expect(FACE_LANDMARKER_MODEL.url).not.toContain('/latest/');
+  });
+
   it('maps lip corners and chin from the face mesh into normalized image coordinates', () => {
     const mesh = Array.from({ length: 292 }, () => ({ x: 0, y: 0 }));
     mesh[61] = { x: 0.7, y: 0.8 };

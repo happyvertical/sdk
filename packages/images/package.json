@@ -28,7 +28,9 @@
     "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
     "clean": "rm -rf dist docs",
     "dev": "npm run build:watch & npm run test:watch",
-    "prepare:segmentation": "node scripts/prepare-segmentation-assets.mjs"
+    "prepare:segmentation": "node scripts/prepare-segmentation-assets.mjs",
+    "prepack": "node scripts/prepare-segmentation-assets.mjs",
+    "test:segmentation-pack": "node scripts/verify-segmentation-pack.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.1.0",
@@ -67,6 +69,7 @@
     "AGENT.md",
     "metadata.json",
     "scripts/prepare-segmentation-assets.mjs",
+    "scripts/verify-segmentation-pack.mjs",
     "segmentation-assets",
     "SEGMENTATION.md",
     "licenses"

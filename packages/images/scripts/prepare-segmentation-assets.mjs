@@ -8,7 +8,7 @@ const destination = resolve(root, 'segmentation-assets');
 await mkdir(destination, { recursive: true });
 const models = [
   { name: 'selfie_multiclass_256x256.tflite', expected: 'c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0', maxBytes: 17_500_000, url: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite' },
-  { name: 'face_landmarker.task', expected: '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff', maxBytes: 4_000_000, url: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task' },
+  { name: 'face_landmarker.task', expected: '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff', maxBytes: 4_000_000, url: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task' },
 ];
 async function readBounded(response, maxBytes) {
   const declared = Number(response.headers.get('content-length'));
@@ -32,4 +32,4 @@ const runtime = dirname(fileURLToPath(import.meta.resolve('@mediapipe/tasks-visi
 for (const asset of ['vision_wasm_internal.js', 'vision_wasm_internal.wasm', 'vision_wasm_nosimd_internal.js', 'vision_wasm_nosimd_internal.wasm']) {
   await copyFile(resolve(runtime, 'wasm', asset), resolve(destination, asset));
 }
-console.log('Prepared pinned Apache-2.0 segmentation model and MediaPipe WASM assets.');
+console.error('Prepared pinned Apache-2.0 segmentation model and MediaPipe WASM assets.');
