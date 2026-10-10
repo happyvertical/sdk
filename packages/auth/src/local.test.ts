@@ -73,6 +73,49 @@ describe('LocalChatGPTSessionManager', () => {
     });
     expect(await manager.sessions()).toEqual([]);
   });
+  it('keeps registrations isolated and rejects an unknown selected account', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+    const manager = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: vi.fn(),
+    });
+    await expect(manager.accessToken('other-client')).rejects.toMatchObject({
+      code: 'unknown_account',
+    });
+    await expect(manager.begin('other-client')).rejects.toMatchObject({
+      code: 'unknown_account',
+    });
+    expect(await manager.sessions()).toHaveLength(1);
+  });
+  it('clears local credentials whether remote revocation succeeds or fails', async () => {
+    for (const status of [200, 503]) {
+      const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+      const path = join(dir, 'session.json');
+      await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              revocation_endpoint: 'https://issuer.test/revoke',
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(new Response('', { status }));
+      const manager = new LocalChatGPTSessionManager({
+        appName: 'test',
+        path,
+        fetch: fetcher,
+      });
+      await expect(manager.logout('oaiapp_test')).resolves.toEqual({
+        remoteRevocationConfirmed: status === 200,
+      });
+      expect(await manager.sessions()).toEqual([]);
+    }
+  });
   it('completes only a state-bound loopback callback with a verified identity', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
     const path = join(dir, 'session.json');
@@ -134,6 +177,7 @@ describe('LocalChatGPTSessionManager', () => {
         },
       });
       const attempt = await manager.begin();
+      const rejected = attempt.callback.catch((error) => error);
       const callback = new URL(authorization);
       const redirect = new URL(callback.searchParams.get('redirect_uri')!);
       redirect.searchParams.set('state', callback.searchParams.get('state')!);
@@ -147,6 +191,39 @@ describe('LocalChatGPTSessionManager', () => {
       });
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+  it('rejects callback replay, state substitution, missing code, and declined consent before token exchange', async () => {
+    for (const mutation of [
+      (url: URL) => url.searchParams.set('state', 'attacker-state'),
+      (url: URL) => url.searchParams.delete('code'),
+      (url: URL) => url.searchParams.set('error', 'access_denied'),
+    ]) {
+      const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+      const path = join(dir, 'session.json');
+      let authorization = '';
+      const exchange = vi.fn();
+      const manager = new LocalChatGPTSessionManager({
+        appName: 'test',
+        path,
+        fetch: exchange,
+        openBrowser: (url) => {
+          authorization = url;
+        },
+      });
+      const attempt = await manager.begin();
+      const rejected = attempt.callback.catch((error) => error);
+      const auth = new URL(authorization);
+      const callback = new URL(auth.searchParams.get('redirect_uri')!);
+      callback.searchParams.set('state', auth.searchParams.get('state')!);
+      callback.searchParams.set('code', 'single-use');
+      callback.searchParams.set('client_id', 'oaiapp_test');
+      mutation(callback);
+      const response = await fetch(callback);
+      expect(response.status).toBe(400);
+      await expect(rejected).resolves.toBeInstanceOf(Error);
+      expect(exchange).not.toHaveBeenCalled();
+      expect(await manager.sessions()).toEqual([]);
     }
   });
 });
