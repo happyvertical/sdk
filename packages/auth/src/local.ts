@@ -1,6 +1,13 @@
 /** Node-only local Sign in with ChatGPT session runtime. */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  readFile,
+  rename,
+  rmdir,
+  writeFile,
+} from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -95,6 +102,7 @@ export class LocalChatGPTSessionManager {
   private pending = new Map<string, Pending>();
   private refreshing = new Map<string, Promise<ChatGPTSession>>();
   private readonly file: string;
+  private hostId?: string;
   private readonly fetcher: typeof fetch;
   private readonly now: () => number;
   constructor(private readonly options: LocalChatGPTOptions) {
@@ -104,11 +112,40 @@ export class LocalChatGPTSessionManager {
   }
   private async disk(): Promise<Disk> {
     try {
-      return JSON.parse(await readFile(this.file, 'utf8')) as Disk;
+      const disk = JSON.parse(await readFile(this.file, 'utf8')) as Disk;
+      this.hostId = disk.hostId;
+      return disk;
     } catch (e: any) {
-      if (e?.code === 'ENOENT')
-        return { hostId: `urn:uuid:${randomUUID()}`, sessions: [] };
+      if (e?.code === 'ENOENT') {
+        if (!this.hostId) this.hostId = `urn:uuid:${randomUUID()}`;
+        return {
+          hostId: this.hostId,
+          sessions: [],
+        };
+      }
       throw e;
+    }
+  }
+  private async locked<T>(operation: () => Promise<T>): Promise<T> {
+    const lock = `${this.file}.lock`;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      try {
+        await mkdir(lock, { mode: 0o700 });
+        break;
+      } catch (error: any) {
+        if (error?.code !== 'EEXIST') throw error;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        if (attempt === 199)
+          throw new ChatGPTSessionError(
+            'storage_busy',
+            'Credential storage is busy',
+          );
+      }
+    }
+    try {
+      return await operation();
+    } finally {
+      await rmdir(lock).catch(() => undefined);
     }
   }
   private async save(disk: Disk) {
@@ -223,6 +260,7 @@ export class LocalChatGPTSessionManager {
         'consent_declined',
         'ChatGPT authorization was declined',
       );
+    this.pending.delete(expectedState);
     const code = required(url.searchParams.get('code'), 'code');
     const callbackClientId = url.searchParams.get('client_id');
     const clientId = pending.selected
@@ -287,12 +325,14 @@ export class LocalChatGPTSessionManager {
         'account_mismatch',
         'OAuth identity did not match the selected account',
       );
-    const disk = await this.disk();
-    disk.sessions = [
-      ...disk.sessions.filter((s) => s.clientId !== clientId),
-      session,
-    ];
-    await this.save(disk);
+    await this.locked(async () => {
+      const disk = await this.disk();
+      disk.sessions = [
+        ...disk.sessions.filter((s) => s.clientId !== clientId),
+        session,
+      ];
+      await this.save(disk);
+    });
     return session;
   }
   private async verify(
@@ -320,7 +360,9 @@ export class LocalChatGPTSessionManager {
     );
     if (
       result.payload.nonce !== nonce ||
-      typeof result.payload.sub !== 'string'
+      typeof result.payload.sub !== 'string' ||
+      typeof result.payload.exp !== 'number' ||
+      typeof result.payload.iat !== 'number'
     )
       throw new ChatGPTSessionError(
         'invalid_identity',
@@ -357,88 +399,104 @@ export class LocalChatGPTSessionManager {
     return refresh;
   }
   private async doRefresh(clientId: string): Promise<ChatGPTSession> {
-    const disk = await this.disk();
-    const current = disk.sessions.find((s) => s.clientId === clientId);
-    if (!current)
-      throw new ChatGPTSessionError(
-        'unknown_account',
-        'Selected ChatGPT account is not stored locally',
-      );
-    const body = new URLSearchParams({
-      grant_type: 'refresh_token',
-      client_id: current.clientId,
-      refresh_token: current.refreshToken,
-      resource: RESOURCE,
-    });
-    const response = await this.fetcher(TOKEN, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body,
-    });
-    if (!response.ok) {
-      if (response.status === 400 || response.status === 401) {
+    return this.locked(async () => {
+      const disk = await this.disk();
+      const current = disk.sessions.find((s) => s.clientId === clientId);
+      if (!current)
+        throw new ChatGPTSessionError(
+          'unknown_account',
+          'Selected ChatGPT account is not stored locally',
+        );
+      const body = new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: current.clientId,
+        refresh_token: current.refreshToken,
+        resource: RESOURCE,
+      });
+      const response = await this.fetcher(TOKEN, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      if (!response.ok) {
+        if (response.status === 400 || response.status === 401) {
+          disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
+          await this.save(disk);
+          throw new ChatGPTSessionError(
+            'refresh_invalid',
+            'Saved ChatGPT session is no longer renewable; sign in again',
+          );
+        }
+        throw new ChatGPTSessionError(
+          'refresh_failed',
+          'ChatGPT session refresh failed; credentials were retained',
+        );
+      }
+      const token: any = await response.json();
+      if (!token.access_token || !token.refresh_token)
+        throw new ChatGPTSessionError(
+          'invalid_refresh_response',
+          'Refresh response omitted replacement credentials',
+        );
+      const scopes = String(token.scope ?? current.scopes.join(' '))
+        .split(' ')
+        .filter(Boolean);
+      if (!scopes.includes(PLAN_SCOPE)) {
         disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
         await this.save(disk);
         throw new ChatGPTSessionError(
-          'refresh_invalid',
-          'Saved ChatGPT session is no longer renewable; sign in again',
+          'plan_permission_missing',
+          'ChatGPT plan usage permission was not granted',
         );
       }
-      throw new ChatGPTSessionError(
-        'refresh_failed',
-        'ChatGPT session refresh failed; credentials were retained',
+      const updated: ChatGPTSession = {
+        ...current,
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        idToken: token.id_token ?? current.idToken,
+        scopes,
+        expiresAt: this.now() + Number(token.expires_in ?? 0) * 1000,
+      };
+      disk.sessions = disk.sessions.map((s) =>
+        s.clientId === clientId ? updated : s,
       );
-    }
-    const token: any = await response.json();
-    if (!token.access_token || !token.refresh_token)
-      throw new ChatGPTSessionError(
-        'invalid_refresh_response',
-        'Refresh response omitted replacement credentials',
-      );
-    const updated: ChatGPTSession = {
-      ...current,
-      accessToken: token.access_token,
-      refreshToken: token.refresh_token,
-      idToken: token.id_token ?? current.idToken,
-      scopes: String(token.scope ?? current.scopes.join(' '))
-        .split(' ')
-        .filter(Boolean),
-      expiresAt: this.now() + Number(token.expires_in ?? 0) * 1000,
-    };
-    disk.sessions = disk.sessions.map((s) =>
-      s.clientId === clientId ? updated : s,
-    );
-    await this.save(disk);
-    return updated;
+      await this.save(disk);
+      return updated;
+    });
   }
   /** Clear local credentials after attempting remote refresh-token revocation. */
   async logout(
     clientId: string,
   ): Promise<{ remoteRevocationConfirmed: boolean }> {
-    const disk = await this.disk();
-    const current = disk.sessions.find((s) => s.clientId === clientId);
-    if (!current) return { remoteRevocationConfirmed: true };
-    let confirmed = false;
-    try {
-      const discovery = (await (await this.fetcher(DISCOVERY)).json()) as {
-        revocation_endpoint?: string;
-      };
-      if (!discovery.revocation_endpoint) throw new Error('missing endpoint');
-      const body = new URLSearchParams({
-        token: current.refreshToken,
-        token_type_hint: 'refresh_token',
-        client_id: current.clientId,
-      });
-      const response = await this.fetcher(discovery.revocation_endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body,
-      });
-      confirmed = response.ok;
-    } finally {
-      disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
-      await this.save(disk);
-    }
-    return { remoteRevocationConfirmed: confirmed };
+    return this.locked(async () => {
+      const disk = await this.disk();
+      const current = disk.sessions.find((s) => s.clientId === clientId);
+      if (!current) return { remoteRevocationConfirmed: true };
+      let confirmed = false;
+      try {
+        const discovery = (await (await this.fetcher(DISCOVERY)).json()) as {
+          revocation_endpoint?: string;
+        };
+        if (!discovery.revocation_endpoint)
+          return { remoteRevocationConfirmed: false };
+        const body = new URLSearchParams({
+          token: current.refreshToken,
+          token_type_hint: 'refresh_token',
+          client_id: current.clientId,
+        });
+        const response = await this.fetcher(discovery.revocation_endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body,
+        });
+        confirmed = response.ok;
+      } catch {
+        confirmed = false;
+      } finally {
+        disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
+        await this.save(disk);
+      }
+      return { remoteRevocationConfirmed: confirmed };
+    });
   }
 }

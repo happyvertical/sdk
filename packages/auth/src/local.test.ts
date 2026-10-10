@@ -146,6 +146,7 @@ describe('LocalChatGPTSessionManager', () => {
           .setProtectedHeader({ alg: 'RS256', kid: 'test' })
           .setIssuer('https://auth.openai.com')
           .setAudience(clientId)
+          .setIssuedAt()
           .setExpirationTime('1h')
           .sign(privateKey);
         return new Response(
@@ -258,6 +259,7 @@ describe('LocalChatGPTSessionManager', () => {
           .setProtectedHeader({ alg: 'RS256', kid: 'claims' })
           .setIssuer(issuer)
           .setAudience(audience)
+          .setIssuedAt()
           .setExpirationTime(expiration)
           .sign(privateKey);
         await expect(
@@ -292,6 +294,7 @@ describe('LocalChatGPTSessionManager', () => {
         .setProtectedHeader({ alg: 'RS256', kid: 'scope' })
         .setIssuer('https://auth.openai.com')
         .setAudience('oaiapp_test')
+        .setIssuedAt()
         .setExpirationTime('1h')
         .sign(privateKey);
       return new Response(
