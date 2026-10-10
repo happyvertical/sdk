@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/sql",
-  "version": "0.102.3",
+  "version": "0.103.1",
   "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
   "type": "module",
   "main": "./dist/index.js",
@@ -36,6 +36,10 @@
     "./backup": {
       "import": "./dist/backup/index.js",
       "types": "./dist/backup/index.d.ts"
+    },
+    "./query": {
+      "import": "./dist/query.js",
+      "types": "./dist/query.d.ts"
     },
     "./pglite": {
       "import": "./dist/pglite.js",

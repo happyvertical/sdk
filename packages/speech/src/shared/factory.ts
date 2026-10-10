@@ -21,6 +21,11 @@ import {
 } from './errors.js';
 import { compactJson } from './http.js';
 import {
+  getOptionalTranscriberFactory,
+  optionalTranscriberEntry,
+  registeredOptionalTranscribers,
+} from './registry.js';
+import {
   getStreamingTranscriber,
   isStreamingTranscriberType,
   STREAMING_TRANSCRIBER_TYPES,
@@ -30,11 +35,6 @@ import type {
   GetStreamingTranscriberOptions,
   StreamingTranscriberType,
 } from './streaming-types.js';
-import {
-  getOptionalTranscriberFactory,
-  optionalTranscriberEntry,
-  registeredOptionalTranscribers,
-} from './registry.js';
 import type {
   GetSpeechOptions,
   GetSpeechSynthesizerOptions,

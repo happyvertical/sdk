@@ -1,5 +1,33 @@
 # @happyvertical/utils
 
+## 0.103.1
+
+### Patch Changes
+
+- SDK 0.103.0 was published to the registry but its repository release never completed. Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. Preserve the DuckDB upsert conflict-key repair for referenced parent rows. Recovery evidence: https://github.com/happyvertical/sdk/actions/runs/37977913268.
+
+## 0.103.0
+
+## 0.102.7
+
+## 0.102.6
+
+## 0.102.5
+
+### Patch Changes
+
+- ### Features
+
+  - browser-safe ./query subpath; on-device speech VAD + half-duplex (#1366) (sql,speech)
+
+## 0.102.4
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - preserve UID retrieval and POP3 reply provenance (#1380) (email)
+
 ## 0.102.3
 
 ### Patch Changes

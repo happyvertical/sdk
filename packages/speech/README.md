@@ -56,6 +56,10 @@ const spoken = await speech.synthesize({
 
 The OpenAI-compatible TTS base URL resolves like the transcriber's: a server root (`http://gateway:8080`) gets `/v1/audio/speech`, a base ending in a version segment (`http://gateway/tts/v1`) gets `/audio/speech`, and a URL already ending in `/audio/speech` is used as-is. The query string is preserved and a fragment is dropped. An explicit `speechPath` skips this: it resolves relative to the base URL, or is used as-is when absolute.
 
+## Browser playback and levels
+
+`@happyvertical/speech/browser` plays server-synthesized bytes and reports a smoothed 0..1 RMS level from the audio element's Web Audio analyser. It never synthesizes speech or handles credentials. Start it from a user action, then use `onLevel` for a character jaw, visualizer, or caption timing surface.
+
 Studio Server and Qwen3 accept pre-extracted provider voice prompts through `SpeechVoice.prompt`; the adapters forward these as the multipart `voice_prompt` field.
 
 ## OpenAI-compatible Transcription
@@ -287,8 +291,8 @@ A base URL may be `ws(s)://` or `http(s)://`: a server root gets `/v1/realtime`,
 Three entry points, none of which loads Node-only code:
 
 - `@happyvertical/speech` exports `transcriberInputFormat` and `TranscriberInputFormat`.
-- `@happyvertical/speech/pcm` (browser, workers, Node): `encodeWavPcm16(samples, sampleRate)`, `parseWavPcm16(bytes, { sampleRate?, channels? })`, `resampleMono(samples, fromRate, toRate)`, `float32ToPcm16`, `pcm16ToFloat32`, and `WavFormatError` (stable `reason`).
-- `@happyvertical/speech/browser` (SSR-safe to import): `createPcmCapture(stream, { sampleRate, maxDurationMs })`, `pcmCaptureSupported()`, and `PcmCaptureError`.
+- `@happyvertical/speech/pcm` (browser, workers, Node): the pure voice activity detector (`createVadSegmenter`, `createUtteranceCollector`), `encodeWavPcm16(samples, sampleRate)`, `parseWavPcm16(bytes, { sampleRate?, channels? })`, `resampleMono(samples, fromRate, toRate)`, `float32ToPcm16`, `pcm16ToFloat32`, and `WavFormatError` (stable `reason`).
+- `@happyvertical/speech/browser` (SSR-safe to import): `createPcmCapture(stream, { sampleRate, maxDurationMs })`, `pcmCaptureSupported()`, `PcmCaptureError`, and the hands-free `createVadCapture` (see [Hands-free capture](#hands-free-capture-voice-activity-detection)).
 
 `parseWavPcm16` is strict because it reads untrusted bytes. It rejects, with `WavFormatError`, anything that is not a well-formed RIFF/WAVE with `fmt ` before `data`, format tag 1 (or `WAVE_FORMAT_EXTENSIBLE` whose subtype GUID is PCM), 16 bits, a consistent block align and byte rate, a non-empty data chunk that is a whole number of frames, and any declared size (RIFF, chunk or data) that exceeds the buffer. Nothing is clamped, nothing is allocated from a declared size, and work is linear in the input. It returns `{ sampleRate, channels, frames, durationMs, samples, data }`.
 
@@ -309,6 +313,34 @@ const { wav } = await capture.stop(); // mono 16-bit WAV at format.sampleRate
 for (const track of mic.getTracks()) track.stop();
 await fetch('/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
 ```
+
+### Hands-free capture (voice activity detection)
+
+`createVadCapture` opens the microphone and cuts it into utterances on the device, with no model and no download. It compares the loudness (RMS) of 20 ms frames with a noise floor learned from the room, so a fan or hum is absorbed instead of heard as speech. Each utterance is handed over as 16 kHz mono Float32 PCM, ready for `LocalTranscriber` or a WAV upload. Audio stays in memory and the microphone is released by `stop()`.
+
+```typescript
+import { createVadCapture } from '@happyvertical/speech/browser';
+import { createLocalTranscriber } from '@happyvertical/speech/local';
+import { encodeWavPcm16 } from '@happyvertical/speech/pcm';
+
+const transcriber = createLocalTranscriber({ model: 'onnx-community/moonshine-tiny-ONNX' });
+const vad = await createVadCapture({ silenceMs: 800, sensitivity: 0.5 });
+vad.on('speechstart', () => showSpeaking());
+vad.on('level', ({ level }) => drawMeter(level)); // 0..1
+vad.on('speechend', async ({ samples, sampleRate, reason }) => {
+  const wav = encodeWavPcm16(samples, sampleRate);
+  const { text } = await transcriber.transcribe({ audio: wav, mimeType: 'audio/wav' });
+  insert(text);
+});
+// ...when the person turns it off: delivers a final 'speechend' (reason 'flush'), releases the mic
+await vad.stop();
+```
+
+Options (all optional): `silenceMs` (pause that ends an utterance, default 800), `minSpeechMs` (shorter bursts such as clicks are ignored, 150), `preRollMs` (audio kept from before the onset so the first syllable is not clipped, and the lead-in the transcriber hears, 300; it is buffered from the first frame of capture and padded with silence when speech starts sooner, because Moonshine and Whisper do better with 200 to 300 ms of lead-in), `maxUtteranceMs` (longer speech is split and the next utterance starts at once, 30000), `sensitivity` (0 needs loud close speech, 1 hears quiet speech and more noise, 0.5), `calibrateMs` (the opening window in which the noise floor is learned from a low percentile of the energies, capped so speech at t=0 never becomes the floor; speech is still detected during it, 300), `stream` (use your own `MediaStream`; you keep ownership of its tracks) and `constraints` (for `getUserMedia`). Events: `speechstart`, `speechend` (`{ samples, sampleRate, durationMs, reason: 'silence' | 'max' | 'flush' }`) and `level`. `on()` returns an unsubscribe function; a listener that throws does not stop capture. `cancel()` releases the microphone and discards an utterance in progress. `createVadCapture` rejects with `PcmCaptureError` (`unsupported`) when Web Audio or the microphone API is missing, and with the browser's own error when permission is denied. `vadCaptureSupported()` reports the first case.
+
+**Half-duplex gating (your own playback).** Browsers do not reliably cancel `speechSynthesis` or page audio from the microphone, so a hands-free app that speaks replies will transcribe its own voice. Call `vad.suspend()` when playback starts and `vad.resume()` when it ends: while suspended, frames are dropped, an utterance in progress is discarded (no `speechend`), the noise floor does not adapt to the played audio, and the microphone stays open (no new permission prompt). After `resume()`, a guard (`resumeGuardMs`, default 350) still ignores audio so the tail and reverb of the playback are not heard. `vad.suspended` reports the gate. By default `getUserMedia` also asks for `echoCancellation`, `noiseSuppression` and `autoGainControl` (override with `constraints`) as a secondary defence.
+
+The detector is also available without a microphone from `@happyvertical/speech/pcm`: `createVadSegmenter` takes one frame energy at a time (`frameEnergy(samples)`) and returns `start` / `end` / `split` events plus a level; `createUtteranceCollector` takes raw mono PCM and returns finished utterances with their pre-roll. Both are DOM-free, so they also run in workers and Node.
 
 ## On-device Transcription
 
@@ -342,9 +374,17 @@ const result = await transcriber.transcribe({
 result.usage; // { operation, provider: 'local', model, audioSeconds, bytes }
 ```
 
-You can also call `createLocalTranscriber(options)` from the subpath directly. It returns a `LocalTranscriber` with `preload()` and `dispose()`. `getAvailableSpeechAdapters()` lists `local` once the subpath has been imported. `isLocalTranscriberAvailable()` checks whether the peer can be imported.
+You can also call `createLocalTranscriber(options)` from the subpath directly. It returns a `LocalTranscriber` with `preload()`, `isCached()` (are the model files already in Cache Storage, so a download is not needed?) and `dispose()`. `LocalTranscriberWorkerClient` offers the same `preload()` and `isCached()` over the worker. `getAvailableSpeechAdapters()` lists `local` once the subpath has been imported. `isLocalTranscriberAvailable()` checks whether the peer can be imported.
 
-- **Models.** Any transformers.js `automatic-speech-recognition` model id works. The default is `onnx-community/whisper-base` (multilingual, about 80 MB at `q8`). Smaller and faster choices are `onnx-community/whisper-tiny.en` (English), `onnx-community/moonshine-tiny-ONNX`, and `onnx-community/moonshine-base-ONNX`. For better accuracy, use `onnx-community/whisper-small` or `onnx-community/whisper-large-v3-turbo`. The first use downloads the weights; after that they load from cache. Call `preload()` with `onProgress` to show a download bar before the user records.
+- **Models.** Any transformers.js `automatic-speech-recognition` model id works. The default is `onnx-community/whisper-base` (multilingual, about 80 MB at `q8`). Recommended English choices for live dictation, with approximate `q8` download sizes:
+
+  | Model id | Family | Size | Notes |
+  | --- | --- | --- | --- |
+  | `onnx-community/moonshine-tiny-ONNX` | Moonshine | ~32 MB | English, fastest, best for live use |
+  | `onnx-community/moonshine-base-ONNX` | Moonshine | ~67 MB | English, more accurate |
+  | `onnx-community/whisper-tiny.en` | Whisper | ~40 MB | English only |
+
+  Moonshine and `*.en` Whisper models are English-only: a request `language` is accepted and ignored (their decoders reject `language` and `task`). For other languages use a multilingual Whisper such as `onnx-community/whisper-base`, or for better accuracy `onnx-community/whisper-small` or `onnx-community/whisper-large-v3-turbo`. The first use downloads the weights; after that they load from cache. Call `preload()` with `onProgress` to show a download bar before the user records.
 - **Devices.** With `device: 'auto'` (the default), a browser uses WebGPU when `navigator.gpu` returns an adapter and retries on WASM if WebGPU fails to initialise; Node uses `cpu`. WebGPU is available in current Chromium-based browsers, and in Safari and Firefox depending on version and platform. Without it, WASM still works, only more slowly. An explicit device never falls back. In Node, `cuda`/`dml`/`coreml` need the matching onnxruntime-node build.
 - **Timestamps.** `timestampGranularities: ['segment']` maps Whisper chunks onto `segments`. `['word']` maps word timings onto `words`, and needs a model exported with cross attentions, such as `onnx-community/whisper-base_timestamped`. Moonshine returns text only. Audio longer than 30 s is chunked (`chunkLengthSeconds`, default 30, `0` disables chunking).
 - **Audio decoding.** Input is decoded and resampled to 16 kHz mono Float32. WAV (PCM 8/16/24/32-bit, float, extensible) and raw `audio/pcm` (`audio/pcm;rate=24000;channels=1;encoding=s16le|f32le`, or `AudioInput.sampleRate`/`channels`) decode everywhere. Browsers decode other formats with `OfflineAudioContext.decodeAudioData`: MediaRecorder `audio/webm;codecs=opus`, Safari `audio/mp4`, MP3, and so on. Node has no `AudioContext`, so compressed formats need a `decodeAudio` hook, for example with ffmpeg:

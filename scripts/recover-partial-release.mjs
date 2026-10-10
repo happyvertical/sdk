@@ -25,6 +25,13 @@ export const recoveries = Object.freeze([
     registry: OWN_REGISTRY,
     evidence: 'https://github.com/happyvertical/sdk/actions/runs/37264164839',
   }),
+  Object.freeze({
+    occupied: '0.103.0',
+    target: '0.103.1',
+    registry: OWN_REGISTRY,
+    evidence: 'https://github.com/happyvertical/sdk/actions/runs/37977913268',
+    releaseNote: 'Preserve the DuckDB upsert conflict-key repair for referenced parent rows.',
+  }),
 ]);
 
 export function versionExists(name, version, registry, run = spawnSync) {
@@ -72,6 +79,7 @@ export function recoverPartialRelease(root = process.cwd(), {
   // updates fixed-family dependencies/lockfile with the same supported tooling.
   const note = `SDK ${reservation.occupied} was published to the registry but its repository release never completed. `
     + `Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. `
+    + `${reservation.releaseNote ? `${reservation.releaseNote} ` : ''}`
     + `Recovery evidence: ${reservation.evidence}.`;
   writeFileSync(join(root, '.changeset/partial-release-recovery.md'),
     `---\n${names.map((name) => `${JSON.stringify(name)}: patch`).join("\n")}\n---\n\n${note}\n`, { flag: 'wx' });

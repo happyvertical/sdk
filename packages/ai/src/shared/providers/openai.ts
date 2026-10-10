@@ -60,16 +60,18 @@ import { emitUsage } from './usage';
  * `temperature` parameter at all (a non-default `temperature` is rejected
  * with a 400 error).
  *
- * This applies to the `gpt-5` family (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`,
- * and future `gpt-5*` variants) and the `o`-series reasoning models (`o1`,
+ * This applies to the `gpt-5` and `gpt-6` families (`gpt-5`, `gpt-5-mini`,
+ * `gpt-6-astra`, and future `gpt-5*` / `gpt-6*` variants) and the o-series
+ * reasoning models (`o1`,
  * `o3`, `o4`, and their variants such as `o1-mini`, `o3-mini`, `o4-mini`).
  * See OpenAI's reasoning models guide and the Chat Completions API
  * reference for `max_completion_tokens`:
  * https://platform.openai.com/docs/guides/reasoning
  * https://platform.openai.com/docs/api-reference/chat/create
  *
- * The match is a conservative prefix/family check so future `gpt-5*` and
- * `o1`/`o3`/`o4` variants are covered without needing an allowlist update.
+ * The match is a conservative prefix/family check so future `gpt-5*`,
+ * `gpt-6*`, and `o1`/`o3`/`o4` variants are covered without needing an
+ * allowlist update.
  * Models outside these families (`gpt-4.x`, `gpt-3.5`, etc.) are unaffected
  * and keep sending `max_tokens` and `temperature` as before.
  *
@@ -77,21 +79,21 @@ import { emitUsage } from './usage';
  * route with a vendor-prefixed model id, e.g. `openai/gpt-5-mini` — see
  * `BifrostProvider`'s own `defaultModel: 'openai/gpt-4o-mini'` convention in
  * `bifrost.ts`. Only the final path segment is matched against the family
- * checks so those gateway-routed ids are recognized the same as a bare
- * `gpt-5-mini`.
+ * checks so those gateway-routed ids are recognized the same as bare
+ * `gpt-5-mini` or `gpt-6-astra` IDs.
  *
  * Internal request-shaping helper: exported at module level only so it can
  * be unit-tested directly. It is not re-exported from the package entry
  * point (`src/index.ts`) and is not part of the package's public API.
  *
- * @param model - The model identifier (e.g. `gpt-5-mini`, `openai/gpt-5-mini`, `gpt-4.1-mini`)
+ * @param model - The model identifier (e.g. `gpt-6-astra`, `openai/gpt-5-mini`, `gpt-4.1-mini`)
  * @returns `true` when the model requires `max_completion_tokens` and rejects `temperature`
  */
 export function usesCompletionTokenLimit(model: string | undefined): boolean {
   if (!model) return false;
   const normalized = model.toLowerCase();
   const lastSegment = normalized.slice(normalized.lastIndexOf('/') + 1);
-  return lastSegment.startsWith('gpt-5') || /^o[134](-|$)/.test(lastSegment);
+  return /^gpt-[56]/.test(lastSegment) || /^o[134](-|$)/.test(lastSegment);
 }
 
 /**
@@ -328,9 +330,16 @@ export class OpenAIProvider implements AIInterface {
         };
       };
       if (
-        (this.profile.providerName === 'bifrost' ||
+        (this.profile.providerName === 'openai' ||
           this.profile.providerName === 'litellm') &&
-        (options.reasoning?.maxTokens || 0) > 0
+        options.reasoning?.effort !== undefined
+      ) {
+        request.reasoning_effort = options.reasoning.effort;
+      }
+      if (
+        this.profile.providerName === 'bifrost' &&
+        (options.reasoning?.effort !== undefined ||
+          (options.reasoning?.maxTokens || 0) > 0)
       ) {
         request.reasoning = {
           effort: options.reasoning?.effort,
@@ -897,9 +906,16 @@ export class OpenAIProvider implements AIInterface {
         };
       };
       if (
-        (this.profile.providerName === 'bifrost' ||
+        (this.profile.providerName === 'openai' ||
           this.profile.providerName === 'litellm') &&
-        (options.reasoning?.maxTokens || 0) > 0
+        options.reasoning?.effort !== undefined
+      ) {
+        request.reasoning_effort = options.reasoning.effort;
+      }
+      if (
+        this.profile.providerName === 'bifrost' &&
+        (options.reasoning?.effort !== undefined ||
+          (options.reasoning?.maxTokens || 0) > 0)
       ) {
         request.reasoning = {
           effort: options.reasoning?.effort,

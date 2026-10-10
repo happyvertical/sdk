@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/images",
-  "version": "0.102.3",
+  "version": "0.103.1",
   "description": "Image processing utilities with adapter pattern for scaling from static to enterprise",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,6 +9,14 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./segmentation": {
+      "types": "./dist/segmentation.d.ts",
+      "import": "./dist/segmentation.js"
+    },
+    "./segmentation-assets": {
+      "types": "./dist/segmentation-assets.d.ts",
+      "import": "./dist/segmentation-assets.js"
     }
   },
   "scripts": {
@@ -19,9 +27,13 @@
     "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
     "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
     "clean": "rm -rf dist docs",
-    "dev": "npm run build:watch & npm run test:watch"
+    "dev": "npm run build:watch & npm run test:watch",
+    "prepare:segmentation": "node scripts/prepare-segmentation-assets.mjs",
+    "prepack": "node scripts/prepare-segmentation-assets.mjs",
+    "test:segmentation-pack": "node scripts/verify-segmentation-pack.mjs"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "1.1.0",
     "@resvg/resvg-js": "^2.6.2",
     "satori": "^0.26.0"
   },
@@ -39,6 +51,7 @@
   },
   "devDependencies": {
     "@types/node": "25.0.10",
+    "@types/pngjs": "^6.0.5",
     "jimp": "^1.6.1",
     "sharp": "^0.35.3",
     "typescript": "5.9.3",
@@ -54,7 +67,12 @@
     "README.md",
     "LICENSE",
     "AGENT.md",
-    "metadata.json"
+    "metadata.json",
+    "scripts/prepare-segmentation-assets.mjs",
+    "scripts/verify-segmentation-pack.mjs",
+    "segmentation-assets",
+    "SEGMENTATION.md",
+    "licenses"
   ],
   "publishConfig": {
     "registry": "https://registry.npmjs.org",

@@ -561,9 +561,13 @@ export async function getDatabase(
     }
 
     const keys = Object.keys(data);
+    const updateKeys = keys.filter((key) => !conflictColumns.includes(key));
+    if (updateKeys.length === 0) {
+      return { operation: 'upsert', affected: 1 };
+    }
     const values: any[] = [];
     const paramIdx = { value: 1 };
-    const assignments = keys.map((key) => {
+    const assignments = updateKeys.map((key) => {
       const valueExpr = buildDuckDBValueExpression(data[key], values, paramIdx);
       return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
     });
@@ -651,6 +655,7 @@ export async function getDatabase(
 
     const keys = Object.keys(record);
     const dataValues = Object.values(record);
+    const updateKeys = keys.filter((key) => !conflictCols.includes(key));
 
     // Build placeholders and values with proper type handling for DuckDB
     // DuckDB cannot infer types from empty strings or certain values, so we need explicit CAST
@@ -700,9 +705,8 @@ export async function getDatabase(
     // DO NOT reset paramIdx - parameters must be unique across entire query
     const updateSetParts: string[] = [];
 
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
-      const value = dataValues[i];
+    for (const key of updateKeys) {
+      const value = record[key];
 
       if (value === null || value === undefined) {
         // DuckDB requires explicit NULL for null/undefined values
@@ -747,13 +751,17 @@ export async function getDatabase(
 
     // Quote column names in UPDATE SET clause to match schema and ON CONFLICT
     // Extract the value expression from each updateSetPart (everything after '=')
-    const quotedUpdateSetParts = keys.map((key, i) => {
+    const quotedUpdateSetParts = updateKeys.map((key, i) => {
       const part = updateSetParts[i];
       const valueExpr = part.substring(part.indexOf('=') + 1).trim();
       return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
     });
 
-    const sql = `INSERT INTO ${table} (${quotedKeys}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${quotedUpdateSetParts.join(', ')}`;
+    const conflictAction =
+      quotedUpdateSetParts.length > 0
+        ? `DO UPDATE SET ${quotedUpdateSetParts.join(', ')}`
+        : 'DO NOTHING';
+    const sql = `INSERT INTO ${table} (${quotedKeys}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) ${conflictAction}`;
 
     try {
       await connection.run(sql, values);

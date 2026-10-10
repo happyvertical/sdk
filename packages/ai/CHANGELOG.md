@@ -1,5 +1,61 @@
 # @happyvertical/ai
 
+## 0.103.1
+
+### Patch Changes
+
+- SDK 0.103.0 was published to the registry but its repository release never completed. Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. Preserve the DuckDB upsert conflict-key repair for referenced parent rows. Recovery evidence: https://github.com/happyvertical/sdk/actions/runs/37977913268.
+- Updated dependencies
+  - @happyvertical/utils@0.103.1
+
+## 0.103.0
+
+### Minor Changes
+
+- ed15f26: Add a native `type: 'laya'` typed-decision provider for self-hosted `laya-serve`
+  servers, beside the TypeSafe/Jev provider. It maps predicate, choice and score
+  questions to Laya's `/v1/systemone`, sends `max_len` and a per-request
+  checkpoint, reports the checkpoint that answered and truncation in
+  `provenance.details`, and renormalizes Laya's four-decimal-rounded
+  distributions while keeping the raw values. `DecisionResult.provenance` gains an
+  optional `details` map; existing providers and capability literals are
+  unaffected.
+
+### Patch Changes
+
+- @happyvertical/utils@0.103.0
+
+## 0.102.7
+
+### Patch Changes
+
+- 4feff0a: Preserve explicit reasoning effort, including none, in direct OpenAI and compatible gateway chat and streaming requests.
+
+  Use LiteLLM's top-level Chat Completions reasoning_effort field. Reject unsupported explicit generic reasoning token caps and thoughts controls before transport instead of forwarding an ineffective nested envelope; Bifrost's envelope remains supported.
+
+  - @happyvertical/utils@0.102.7
+
+## 0.102.6
+
+### Patch Changes
+
+- 2675b53: Shape OpenAI GPT-6 Chat Completions output limits with `max_completion_tokens` and omit unsupported temperature parameters.
+  - @happyvertical/utils@0.102.6
+
+## 0.102.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.102.5
+
+## 0.102.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.102.4
+
 ## 0.102.3
 
 ### Patch Changes

@@ -106,6 +106,32 @@ await db.transaction(async (tx) => {
 In Node (or anywhere the root entry is fine), `getDatabase({ type: 'pglite' })`
 from `@happyvertical/sql` reaches the same adapter.
 
+### Browser-safe query helpers: `@happyvertical/sql/query`
+
+Code that only builds SQL, or works on a database it was handed, should import
+`@happyvertical/sql/query` rather than the root. Its import graph has no `node:`
+built-ins and no driver packages (`pg`, libsql, DuckDB), so it bundles for a
+page. The root keeps re-exporting everything.
+
+```typescript
+import {
+  bucketExpr,
+  buildAggregate,
+  buildWhere,
+  raw,
+  syncSchema,
+  tableExists,
+  validateColumnName,
+} from '@happyvertical/sql/query';
+```
+
+It exports `validateColumnName`, `escapeSqlValue`, `buildWhere`, `raw`,
+`formatDbError`, `buildAggregate`, `bucketExpr`, `tableExists`, `syncSchema`,
+`DatabaseSchemaManager`, `convertUniqueIndexesToInlineConstraints`, and all the
+shared types and error classes (`NestedTransactionError`, `DatabaseInterface`, ...).
+`getDatabase`, the doctor framework, and the Postgres CLI helpers stay root-only
+because they reach drivers or Node built-ins.
+
 #### Persistence: `dataDir`
 
 | `dataDir` | Storage | Where |
@@ -390,6 +416,9 @@ explicit `null`.
 values so nullable composite keys update the existing row instead of inserting a
 duplicate. Pass `{ nullsDistinct: true }` as the fourth argument to preserve the
 database-native behavior where `NULL` conflict values are distinct.
+
+On DuckDB, conflict columns identify the existing row and are not reassigned by
+the update arm. A key-only upsert therefore preserves the existing row.
 
 For PostgreSQL 15+, a matching `UNIQUE (...) NULLS NOT DISTINCT` index lets
 nullable upserts use one native `ON CONFLICT` statement. An ordinary `UNIQUE`

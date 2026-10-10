@@ -34,7 +34,10 @@ export interface AsrPipeline {
     options?: Record<string, unknown>,
   ): Promise<AsrOutput | AsrOutput[]>;
   dispose?: () => Promise<void>;
-  model?: { config?: { model_type?: string } };
+  model?: {
+    config?: { model_type?: string };
+    generation_config?: { is_multilingual?: boolean };
+  };
 }
 
 /** The parts of the transformers.js module this adapter uses. */
@@ -45,6 +48,14 @@ export interface TransformersModule {
     options: Record<string, unknown>,
   ) => Promise<AsrPipeline>;
   env?: Record<string, unknown>;
+  /** transformers.js v4 cache inspection; absent on older builds. */
+  ModelRegistry?: {
+    is_pipeline_cached(
+      task: 'automatic-speech-recognition',
+      model: string,
+      options?: Record<string, unknown>,
+    ): Promise<boolean>;
+  };
   InterruptableStoppingCriteria?: new () => { interrupt(): void };
 }
 

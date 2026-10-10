@@ -15,3 +15,21 @@ export {
   type PcmCaptureResult,
   pcmCaptureSupported,
 } from './shared/pcm-capture.js';
+export {
+  createSpeechPlayback,
+  type SpeechPlayback,
+  type SpeechPlaybackEvents,
+  type SpeechPlaybackOptions,
+  speechPlaybackSupported,
+} from './shared/speech-playback.js';
+export {
+  createVadCapture,
+  VAD_CAPTURE_SAMPLE_RATE,
+  type VadCapture,
+  type VadCaptureEventMap,
+  type VadCaptureEventType,
+  type VadCaptureOptions,
+  type VadEndReason,
+  type VadOptions,
+  vadCaptureSupported,
+} from './shared/vad-capture.js';

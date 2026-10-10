@@ -1,5 +1,57 @@
 # @happyvertical/messages
 
+## 0.103.1
+
+### Patch Changes
+
+- SDK 0.103.0 was published to the registry but its repository release never completed. Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. Preserve the DuckDB upsert conflict-key repair for referenced parent rows. Recovery evidence: https://github.com/happyvertical/sdk/actions/runs/37977913268.
+- Updated dependencies
+  - @happyvertical/email@0.103.1
+  - @happyvertical/logger@0.103.1
+  - @happyvertical/utils@0.103.1
+
+## 0.103.0
+
+### Patch Changes
+
+- @happyvertical/email@0.103.0
+- @happyvertical/logger@0.103.0
+- @happyvertical/utils@0.103.0
+
+## 0.102.7
+
+### Patch Changes
+
+- @happyvertical/email@0.102.7
+- @happyvertical/logger@0.102.7
+- @happyvertical/utils@0.102.7
+
+## 0.102.6
+
+### Patch Changes
+
+- @happyvertical/email@0.102.6
+- @happyvertical/logger@0.102.6
+- @happyvertical/utils@0.102.6
+
+## 0.102.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.102.5
+  - @happyvertical/email@0.102.5
+  - @happyvertical/logger@0.102.5
+
+## 0.102.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.102.4
+  - @happyvertical/email@0.102.4
+  - @happyvertical/logger@0.102.4
+
 ## 0.102.3
 
 ### Patch Changes

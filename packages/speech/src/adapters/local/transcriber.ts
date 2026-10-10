@@ -26,6 +26,7 @@ import {
   type AsrOutput,
   type AsrPipeline,
   createAsrPipeline,
+  detectAutoDevice,
   loadTransformers,
   type TransformersModule,
 } from './runtime.js';
@@ -75,6 +76,38 @@ export class LocalTranscriber implements Transcriber {
     await raceAbort(this.loadPipeline(model?.trim() || this.model), signal);
   }
 
+  /**
+   * Whether every file `model` needs is already in the model cache (Cache
+   * Storage in browsers), so a `preload()` would download nothing. Resolves
+   * `false` when the runtime cannot tell. Does not load the model.
+   */
+  async isCached(model?: string): Promise<boolean> {
+    try {
+      const transformers = await this.loadRuntime();
+      if (!transformers.ModelRegistry) {
+        return false;
+      }
+      const { dtype, revision, cacheDir } = this.options;
+      // Cached files depend on the device (transformers.js picks per-device
+      // dtypes), so resolve it exactly as loadPipeline does.
+      const requested = this.options.device ?? 'auto';
+      const device =
+        requested === 'auto' ? await detectAutoDevice() : requested;
+      return await transformers.ModelRegistry.is_pipeline_cached(
+        'automatic-speech-recognition',
+        model?.trim() || this.model,
+        {
+          device,
+          ...(dtype ? { dtype } : {}),
+          ...(revision ? { revision } : {}),
+          ...(cacheDir ? { cache_dir: cacheDir } : {}),
+        },
+      );
+    } catch {
+      return false;
+    }
+  }
+
   async transcribe(request: TranscriptionRequest): Promise<TranscriptResult> {
     const { signal } = request;
     const audio = await normalizeAudioInput(request.audio, {
@@ -102,7 +135,7 @@ export class LocalTranscriber implements Transcriber {
     // The queue tracks the real inference; the caller stops waiting on abort.
     const output = await raceAbort(
       this.enqueue(() =>
-        this.run(loaded.pipeline, samples, audioSeconds, request),
+        this.run(loaded.pipeline, samples, audioSeconds, request, model),
       ),
       signal,
     );
@@ -149,6 +182,7 @@ export class LocalTranscriber implements Transcriber {
     samples: Float32Array,
     audioSeconds: number,
     request: TranscriptionRequest,
+    model: string,
   ): Promise<AsrOutput> {
     const { signal } = request;
     signal?.throwIfAborted();
@@ -171,7 +205,8 @@ export class LocalTranscriber implements Transcriber {
       if (chunkLength > 0 && audioSeconds > WHISPER_WINDOW_SECONDS) {
         options.chunk_length_s = chunkLength;
       }
-      if (request.language) {
+      // English-only Whisper (`*.en`) rejects `language` and `task` outright.
+      if (request.language && !isEnglishOnly(pipeline, model)) {
         options.language = request.language;
         options.task = 'transcribe';
       }
@@ -303,6 +338,15 @@ export function mapAsrOutput(
     );
   }
   return result;
+}
+
+/** Whether this Whisper only transcribes English (it rejects `language`/`task`). */
+function isEnglishOnly(pipeline: AsrPipeline, model: string): boolean {
+  const multilingual = pipeline.model?.generation_config?.is_multilingual;
+  if (typeof multilingual === 'boolean') {
+    return !multilingual;
+  }
+  return /\.en(?:$|[-_])/i.test(model);
 }
 
 function pcmFormat(audio: AudioInput | AudioSource): {

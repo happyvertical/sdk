@@ -38,6 +38,10 @@ interface FakePipelineCall {
 interface FakeTransformersOptions {
   output?: unknown;
   modelType?: string;
+  /** What `ModelRegistry.is_pipeline_cached` answers (absent: no registry). */
+  cached?: boolean;
+  /** `generation_config.is_multilingual` reported by the model. */
+  multilingual?: boolean;
   /** Throw from `pipeline()` for these devices. */
   failDevices?: string[];
   /** Delay inference until this promise settles. */
@@ -79,7 +83,13 @@ function fakeTransformers(options: FakeTransformersOptions = {}) {
           return options.output ?? { text: ' Hello world. ' };
         },
         {
-          model: { config: { model_type: options.modelType ?? 'whisper' } },
+          model: {
+            config: { model_type: options.modelType ?? 'whisper' },
+            generation_config:
+              options.multilingual === undefined
+                ? undefined
+                : { is_multilingual: options.multilingual },
+          },
           dispose: vi.fn(async () => {
             disposed.push(model);
           }),
@@ -89,9 +99,18 @@ function fakeTransformers(options: FakeTransformersOptions = {}) {
     },
   );
 
+  const is_pipeline_cached = vi.fn(async () => options.cached === true);
   return {
-    module: { pipeline, env, InterruptableStoppingCriteria },
+    module: {
+      pipeline,
+      env,
+      InterruptableStoppingCriteria,
+      ...(options.cached === undefined
+        ? {}
+        : { ModelRegistry: { is_pipeline_cached } }),
+    },
     pipeline,
+    is_pipeline_cached,
     calls,
     interrupts,
     env,
@@ -335,6 +354,30 @@ describe('local transcriber: model loading', () => {
     );
   });
 
+  it('reports whether the model is cached without loading it', async () => {
+    const cached = fakeTransformers({ cached: true });
+    const transcriber = localTranscriber(cached, { dtype: 'q8' });
+    expect(await transcriber.isCached()).toBe(true);
+    expect(cached.is_pipeline_cached).toHaveBeenCalledWith(
+      'automatic-speech-recognition',
+      MODEL,
+      { device: 'cpu', dtype: 'q8' },
+    );
+    expect(await transcriber.isCached('org/other')).toBe(true);
+    expect(cached.is_pipeline_cached).toHaveBeenLastCalledWith(
+      'automatic-speech-recognition',
+      'org/other',
+      { device: 'cpu', dtype: 'q8' },
+    );
+    expect(cached.pipeline).not.toHaveBeenCalled();
+
+    expect(
+      await localTranscriber(fakeTransformers({ cached: false })).isCached(),
+    ).toBe(false);
+    // An older runtime without a registry cannot tell.
+    expect(await localTranscriber(fakeTransformers()).isCached()).toBe(false);
+  });
+
   it('resolves device auto to cpu in Node', async () => {
     const fake = fakeTransformers();
     await localTranscriber(fake).preload();
@@ -524,7 +567,9 @@ describe('local transcriber: results and usage', () => {
 
   it('sends whisper language and chunking only when needed', async () => {
     const fake = fakeTransformers();
-    const transcriber = localTranscriber(fake);
+    const transcriber = localTranscriber(fake, {
+      model: 'onnx-community/whisper-base',
+    });
 
     await transcriber.transcribe({ audio: wav([tone(1, 16_000)], 16_000) });
     expect(fake.calls[0]?.options).toEqual({});
@@ -542,6 +587,22 @@ describe('local transcriber: results and usage', () => {
     const unchunked = localTranscriber(fake, { chunkLengthSeconds: 0 });
     await unchunked.transcribe({ audio: wav([tone(31, 8_000)], 8_000) });
     expect(fake.calls[2]?.options).toEqual({});
+  });
+
+  it('sends no language or task to English-only Whisper', async () => {
+    const fake = fakeTransformers();
+    await localTranscriber(fake).transcribe({
+      audio: wav([tone(1, 16_000)], 16_000),
+      language: 'en',
+    });
+    expect(fake.calls[0]?.options).toEqual({});
+
+    // The model config wins over the id.
+    const flagged = fakeTransformers({ multilingual: false });
+    await localTranscriber(flagged, { model: 'org/custom-english' }).transcribe(
+      { audio: wav([tone(1, 16_000)], 16_000), language: 'en' },
+    );
+    expect(flagged.calls[0]?.options).toEqual({});
   });
 
   it('does not send whisper-only options to Moonshine', async () => {
@@ -971,7 +1032,7 @@ describe('local transcriber: web worker', () => {
   }
 
   it('decodes on the client, transcribes in the worker, and reports source bytes', async () => {
-    const fake = fakeTransformers();
+    const fake = fakeTransformers({ multilingual: true });
     const onUsage = vi.fn();
     const { client, close } = connect(fake, { onUsage });
     const audio = wav([tone(1, 48_000)], 48_000);
@@ -1194,6 +1255,15 @@ describe('local transcriber: web worker', () => {
       }),
     );
     await close();
+  });
+
+  it('asks the worker whether the model is cached', async () => {
+    const { client, close } = connect(fakeTransformers({ cached: true }));
+    expect(await client.isCached()).toBe(true);
+    await close();
+    const none = connect(fakeTransformers({ cached: false }));
+    expect(await none.client.isCached()).toBe(false);
+    await none.close();
   });
 
   it('cancels a worker call on abort', async () => {
