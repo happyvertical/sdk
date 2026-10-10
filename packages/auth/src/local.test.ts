@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
@@ -189,6 +189,13 @@ describe('LocalChatGPTSessionManager', () => {
         subject: 'subject',
         clientId: 'oaiapp_test',
       });
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+      await expect(originalFetch(redirect)).rejects.toThrow();
+      expect(
+        fetcher.mock.calls.filter(([input]) =>
+          String(input).includes('/oauth/token'),
+        ),
+      ).toHaveLength(1);
     } finally {
       vi.unstubAllGlobals();
     }
