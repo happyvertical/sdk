@@ -9,6 +9,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./local": {
+      "import": "./dist/local.js",
+      "types": "./dist/local.d.ts"
     }
   },
   "bin": {
