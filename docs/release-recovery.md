@@ -16,7 +16,8 @@ family artifacts agree. Immutable publication therefore cannot repair
 The explicit reservation applies only when ordinary Changesets preparation
 selects `0.103.0`. It rechecks each of the 33 publishable family targets at
 `0.103.1`; only an explicit E404 permits the ordinary recovery patch pass.
-The recovery retains pending Laya and DuckDB notes, uses Changesets to update
+The recovery retains the pending Laya note and adds its reviewed DuckDB repair
+note through the generated recovery changeset, uses Changesets to update
 fixed-family dependencies, and then continues normal verification, immutable
 publication, commit, and tag steps. The 2026-10-09 registry receipt recorded
 all 33 `0.103.1` endpoints as absent; the workflow repeats that check to avoid
@@ -100,7 +101,7 @@ Node runtime and the installed Changesets CLI, with registry responses injected.
 
 | Trigger / invariant | Positive and failure evidence |
 | --- | --- |
-| Normal preparation selects occupied `0.103.0` | Real Changesets second pass yields `0.103.1`, retains Laya and DuckDB repair notes and exact internal dependency versions; the base helper cannot reserve this candidate. |
+| Normal preparation selects occupied `0.103.0` | Real Changesets second pass yields `0.103.1`, retains the Laya note, adds the reviewed DuckDB repair note to SQL, and preserves exact internal dependency versions; the base helper cannot reserve this candidate. |
 | Target must be absent before local mutation | Every family member is checked; occupied or failed lookups produce no recovery note or version mutation. Wrong registry and inconsistent family versions are rejected. |
 | Reservation stays bounded | Historical `0.101.0` and `0.101.2` recoveries remain covered; completed targets and unrelated candidates perform no lookup or versioning. |
 | Mutation and retries fail closed | Existing tests cover failed Changesets execution, unexpected target, and a pre-existing recovery note; ordinary immutable publication still rejects different occupied artifacts. |

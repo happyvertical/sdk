@@ -146,10 +146,17 @@ test('0.101.2 reservation denies an occupied or unknown target before changing f
 
 const release103Recovery = recoveries.find(({ occupied }) => occupied === '0.103.0');
 assert.ok(release103Recovery, '0.103.0 recovery reservation must remain explicit');
+assert.equal(release103Recovery.releaseNote, 'Preserve the DuckDB upsert conflict-key repair for referenced parent rows.');
 
 test('recovers occupied 0.103.0 through real Changesets with the SQL fix retained', (t) => {
   const { root, put, read } = fixture(t, '0.102.7');
-  put('.changeset/laya-and-sql-fixes.md', '---\n"@happyvertical/speech": minor\n---\n\nRetain the Laya feature and DuckDB conflict-key repair.\n');
+  for (const name of ['ai', 'sql']) {
+    mkdirSync(join(root, 'packages', name));
+    put(`packages/${name}/package.json`, {
+      name: `@happyvertical/${name}`, version: '0.102.7', publishConfig: { access: 'public' },
+    });
+  }
+  put('.changeset/laya-decision-provider.md', '---\n"@happyvertical/ai": minor\n---\n\nAdd the native Laya typed-decision provider.\n');
   const version = () => {
     const result = spawnSync(process.execPath, [resolve('node_modules/@changesets/cli/bin.js'), 'version'], { cwd: root, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -161,13 +168,14 @@ test('recovers occupied 0.103.0 through real Changesets with the SQL fix retaine
   assert.equal(recoverPartialRelease(root, { exists: (name, target, registry) => {
     lookups.push([name, target, registry]); return false;
   }, version }), true);
-  assert.deepEqual(lookups, ['@happyvertical/speech', '@happyvertical/utils']
+  assert.deepEqual(lookups, ['@happyvertical/ai', '@happyvertical/speech', '@happyvertical/sql', '@happyvertical/utils']
     .map((name) => [name, '0.103.1', release103Recovery.registry]));
-  for (const name of ['utils', 'speech']) {
+  for (const name of ['ai', 'sql', 'utils', 'speech']) {
     assert.equal(JSON.parse(read(`packages/${name}/package.json`)).version, '0.103.1');
     assert.match(read(`packages/${name}/CHANGELOG.md`), /37977913268/);
   }
-  assert.match(read('packages/speech/CHANGELOG.md'), /DuckDB conflict-key repair/);
+  assert.match(read('packages/ai/CHANGELOG.md'), /native Laya typed-decision provider/);
+  assert.match(read('packages/sql/CHANGELOG.md'), /DuckDB upsert conflict-key repair for referenced parent rows/);
   assert.equal(JSON.parse(read('packages/speech/package.json')).dependencies['@happyvertical/utils'], '0.103.1');
   assert.equal(recoverPartialRelease(root, { exists: () => assert.fail('retry lookup'), version }), false);
 });
