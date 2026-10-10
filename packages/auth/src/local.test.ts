@@ -226,4 +226,105 @@ describe('LocalChatGPTSessionManager', () => {
       expect(await manager.sessions()).toEqual([]);
     }
   });
+  it('rejects bad issuer, audience, nonce, and expiry on signed ID tokens', async () => {
+    const { publicKey, privateKey } = await generateKeyPair('RS256');
+    const jwk = await exportJWK(publicKey);
+    (jwk as { kid?: string }).kid = 'claims';
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      async () => new Response(JSON.stringify({ keys: [jwk] })),
+    );
+    const manager = new LocalChatGPTSessionManager({
+      appName: 'test',
+      fetch: async () =>
+        new Response(JSON.stringify({ jwks_uri: 'https://issuer.test/jwks' })),
+    });
+    try {
+      for (const [issuer, audience, nonce, expiration] of [
+        ['https://wrong.test', 'oaiapp_test', 'nonce', '1h'],
+        ['https://auth.openai.com', 'wrong-client', 'nonce', '1h'],
+        ['https://auth.openai.com', 'oaiapp_test', 'wrong-nonce', '1h'],
+        ['https://auth.openai.com', 'oaiapp_test', 'nonce', '-1s'],
+      ]) {
+        const token = await new SignJWT({ sub: 'subject', nonce })
+          .setProtectedHeader({ alg: 'RS256', kid: 'claims' })
+          .setIssuer(issuer)
+          .setAudience(audience)
+          .setExpirationTime(expiration)
+          .sign(privateKey);
+        await expect(
+          (manager as any).verify(token, 'oaiapp_test', 'nonce'),
+        ).rejects.toBeInstanceOf(Error);
+      }
+    } finally {
+      vi.stubGlobal('fetch', originalFetch);
+    }
+  });
+  it('never persists identity-only consent as a plan-usage session', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    let auth = '';
+    const { publicKey, privateKey } = await generateKeyPair('RS256');
+    const jwk = await exportJWK(publicKey);
+    (jwk as any).kid = 'scope';
+    const originalFetch = globalThis.fetch;
+    const fetcher = vi.fn(async (input: any) => {
+      const url = String(input);
+      if (url.includes('openid-configuration'))
+        return new Response(
+          JSON.stringify({ jwks_uri: 'https://issuer.test/jwks' }),
+        );
+      if (url.includes('/jwks'))
+        return new Response(JSON.stringify({ keys: [jwk] }));
+      const params = new URL(auth).searchParams;
+      const id = await new SignJWT({
+        sub: 'subject',
+        nonce: params.get('nonce'),
+      })
+        .setProtectedHeader({ alg: 'RS256', kid: 'scope' })
+        .setIssuer('https://auth.openai.com')
+        .setAudience('oaiapp_test')
+        .setExpirationTime('1h')
+        .sign(privateKey);
+      return new Response(
+        JSON.stringify({
+          id_token: id,
+          access_token: 'access',
+          refresh_token: 'refresh',
+          scope: 'openid profile email offline_access',
+          expires_in: 3600,
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', async (input: any, init?: any) =>
+      String(input).includes('issuer.test')
+        ? fetcher(input, init)
+        : originalFetch(input, init),
+    );
+    try {
+      const manager = new LocalChatGPTSessionManager({
+        appName: 'test',
+        path,
+        fetch: fetcher as any,
+        openBrowser: (url) => {
+          auth = url;
+        },
+      });
+      const attempt = await manager.begin();
+      const rejected = attempt.callback.catch((e) => e);
+      const request = new URL(auth);
+      const callback = new URL(request.searchParams.get('redirect_uri')!);
+      callback.searchParams.set('state', request.searchParams.get('state')!);
+      callback.searchParams.set('code', 'code');
+      callback.searchParams.set('client_id', 'oaiapp_test');
+      await originalFetch(callback);
+      await expect(rejected).resolves.toMatchObject({
+        code: 'plan_permission_missing',
+      });
+      expect(await manager.sessions()).toEqual([]);
+    } finally {
+      vi.stubGlobal('fetch', originalFetch);
+    }
+  });
 });
