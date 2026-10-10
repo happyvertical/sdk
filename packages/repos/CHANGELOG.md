@@ -1,5 +1,19 @@
 # @happyvertical/repos
 
+## 0.103.1
+
+### Patch Changes
+
+- SDK 0.103.0 was published to the registry but its repository release never completed. Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. Preserve the DuckDB upsert conflict-key repair for referenced parent rows. Recovery evidence: https://github.com/happyvertical/sdk/actions/runs/37977913268.
+- Updated dependencies
+  - @happyvertical/graphql@0.103.1
+
+## 0.103.0
+
+### Patch Changes
+
+- @happyvertical/graphql@0.103.0
+
 ## 0.102.7
 
 ### Patch Changes

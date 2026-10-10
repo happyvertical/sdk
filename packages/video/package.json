@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/video",
-  "version": "0.102.7",
+  "version": "0.103.1",
   "description": "Video processing utilities with adapter pattern for composition and transcoding",
   "type": "module",
   "main": "./dist/index.js",

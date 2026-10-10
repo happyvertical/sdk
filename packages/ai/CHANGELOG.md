@@ -1,5 +1,30 @@
 # @happyvertical/ai
 
+## 0.103.1
+
+### Patch Changes
+
+- SDK 0.103.0 was published to the registry but its repository release never completed. Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. Preserve the DuckDB upsert conflict-key repair for referenced parent rows. Recovery evidence: https://github.com/happyvertical/sdk/actions/runs/37977913268.
+- Updated dependencies
+  - @happyvertical/utils@0.103.1
+
+## 0.103.0
+
+### Minor Changes
+
+- ed15f26: Add a native `type: 'laya'` typed-decision provider for self-hosted `laya-serve`
+  servers, beside the TypeSafe/Jev provider. It maps predicate, choice and score
+  questions to Laya's `/v1/systemone`, sends `max_len` and a per-request
+  checkpoint, reports the checkpoint that answered and truncation in
+  `provenance.details`, and renormalizes Laya's four-decimal-rounded
+  distributions while keeping the raw values. `DecisionResult.provenance` gains an
+  optional `details` map; existing providers and capability literals are
+  unaffected.
+
+### Patch Changes
+
+- @happyvertical/utils@0.103.0
+
 ## 0.102.7
 
 ### Patch Changes
