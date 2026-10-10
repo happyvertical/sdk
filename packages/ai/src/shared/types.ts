@@ -309,6 +309,19 @@ export type AIThinkingBlock =
   | { type: 'thinking'; thinking: string; signature: string }
   | { type: 'redacted_thinking'; data: string };
 
+/** OpenAI-compatible response formats; support depends on the selected provider. */
+export type AIResponseFormat =
+  | { type: 'text' | 'json_object' }
+  | {
+      type: 'json_schema';
+      json_schema: {
+        name: string;
+        description?: string;
+        schema: Record<string, unknown>;
+        strict?: boolean;
+      };
+    };
+
 /**
  * Options for chat completion requests
  */
@@ -379,7 +392,7 @@ export interface ChatOptions extends AIRequestControls {
   /**
    * Response format specification
    */
-  responseFormat?: { type: 'text' | 'json_object' };
+  responseFormat?: AIResponseFormat;
 
   /**
    * JSON Schema the reply must satisfy, as an object or a serialized string.
@@ -715,7 +728,7 @@ export interface MessageOptions extends AIRequestControls {
   /**
    * Response format specification
    */
-  responseFormat?: { type: 'text' | 'json_object' };
+  responseFormat?: AIResponseFormat;
 
   /**
    * JSON Schema the reply must satisfy, as an object or a serialized string.

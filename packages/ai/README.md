@@ -1002,3 +1002,13 @@ npx have-ai-context
 ## License
 
 MIT
+
+## JSON schema response formats
+
+`AIResponseFormat` is exported for chat, completion, legacy OpenAI completion,
+and message options. OpenAI-compatible providers pass `responseFormat: {
+  type: 'json_schema', json_schema: { name, schema, description?, strict? }
+}` to the API unchanged. Schema enforcement depends on the selected provider;
+this type does not add support to providers that do not implement that format.
+Automatic length continuation is disabled for JSON schema output, as it is for
+JSON-object output, so truncated structured responses are never concatenated.

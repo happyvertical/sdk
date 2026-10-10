@@ -41,6 +41,7 @@ export function resolveContinuation(
   if (
     options.tools?.length ||
     options.responseFormat?.type === 'json_object' ||
+    options.responseFormat?.type === 'json_schema' ||
     options.responseSchema
   ) {
     return undefined;

@@ -1,4 +1,5 @@
 import type { AIThread } from './thread';
+import type { AIResponseFormat } from './types';
 
 /**
  * Options for creating AI messages
@@ -12,7 +13,7 @@ export interface AIMessageOptions {
   /**
    * Format for the AI response
    */
-  responseFormat?: { type: 'text' | 'json_object' };
+  responseFormat?: AIResponseFormat;
 }
 
 /**
