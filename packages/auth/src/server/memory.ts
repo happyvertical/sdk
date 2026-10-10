@@ -52,6 +52,7 @@ export class InMemoryOAuthAuthorizationStorage
     readonly id: string;
     readonly tokenHash: string;
     readonly scopes: readonly string[];
+    readonly claims: OAuthRefreshGrant['claims'];
   }) {
     const grant = this.refreshes.get(input.id);
     if (
@@ -62,7 +63,11 @@ export class InMemoryOAuthAuthorizationStorage
       input.scopes.some((scope) => !grant.scopes.includes(scope))
     )
       throw new Error('Invalid refresh narrowing');
-    this.refreshes.set(input.id, { ...grant, scopes: [...input.scopes] });
+    this.refreshes.set(input.id, {
+      ...grant,
+      scopes: [...input.scopes],
+      claims: input.claims,
+    });
   }
   async rotateRefreshGrant(
     input: Parameters<OAuthAuthorizationStorage['rotateRefreshGrant']>[0],

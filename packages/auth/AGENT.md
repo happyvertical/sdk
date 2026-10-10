@@ -25,7 +25,7 @@ pnpm --filter @happyvertical/auth clean
 - If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands.
 
 ## Ecosystem Relationships
-- Provides: Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity
+- Provides: Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity, Framework-independent OAuth authorization server via @happyvertical/auth/server: S256 PKCE, rotating refresh tokens, durable storage and live consent adapters, discovery, JWKS, revocation and opt-in client registration
 - Implements: none
 - Requires: @happyvertical/utils, @aws-sdk/client-cognito-identity-provider, jose, nostr-tools
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)

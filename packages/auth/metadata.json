@@ -7,7 +7,8 @@
   },
   "description": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
   "provides": [
-    "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity"
+    "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
+    "Framework-independent OAuth authorization server via @happyvertical/auth/server: S256 PKCE, rotating refresh tokens, durable storage and live consent adapters, discovery, JWKS, revocation and opt-in client registration"
   ],
   "implements": [],
   "requires": {

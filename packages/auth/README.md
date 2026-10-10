@@ -131,3 +131,5 @@ JWK matching the private signing key and keep private material out of JWKS.
 ## License
 
 MIT
+
+Refresh storage adapters must implement `narrowRefreshGrant` to atomically persist both the narrowed scopes and the current `claims` on the exact replacement token before it is returned. An explicit `undefined` claims value clears previous application claims. Token and revocation form bodies share the 16 KiB streaming limit with registration. Refresh requests may request a subset of the original grant scope; expansions are rejected.

@@ -211,7 +211,8 @@
         "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
       ],
       "provides": [
-        "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity"
+        "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
+        "Framework-independent OAuth authorization server via @happyvertical/auth/server: S256 PKCE, rotating refresh tokens, durable storage and live consent adapters, discovery, JWKS, revocation and opt-in client registration"
       ],
       "implements": [],
       "requires": {
@@ -1675,6 +1676,11 @@
       "type": "provides",
       "from": "@happyvertical/auth",
       "to": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/auth",
+      "to": "Framework-independent OAuth authorization server via @happyvertical/auth/server: S256 PKCE, rotating refresh tokens, durable storage and live consent adapters, discovery, JWKS, revocation and opt-in client registration"
     },
     {
       "type": "requires",

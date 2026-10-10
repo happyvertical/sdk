@@ -507,6 +507,8 @@ export class OAuthAuthorizationServer {
       );
     const redirectUri = required(input, 'redirect_uri');
     const verifier = required(input, 'code_verifier');
+    if (!/^[A-Za-z0-9._~-]{43,128}$/u.test(verifier))
+      throw new OAuthServerError('invalid_grant', 'Invalid PKCE verifier.');
     const resource = input.get('resource') ?? undefined;
     const result = await this.options.storage.consumeAuthorizationCode({
       id: raw.id,
@@ -555,20 +557,35 @@ export class OAuthAuthorizationServer {
     if (result.status !== 'rotated')
       throw new OAuthServerError('invalid_grant', 'Invalid refresh token.');
     try {
+      const requestedScope = input.get('scope');
+      const requestedScopes =
+        requestedScope === null
+          ? result.grant.scopes
+          : [...new Set(requestedScope.split(' ').filter(Boolean))];
+      if (requestedScopes.some((scope) => !result.grant.scopes.includes(scope)))
+        throw new OAuthServerError(
+          'invalid_scope',
+          'Refresh scope expansion is not allowed.',
+        );
       const consent = await this.revalidate(result.grant);
-      const grant = this.applyConsent(result.grant, consent);
-      if (grant.scopes.length !== result.grant.scopes.length) {
-        if (!this.options.storage.narrowRefreshGrant)
-          throw new OAuthServerError(
-            'invalid_grant',
-            'Storage cannot persist narrowed consent.',
-          );
-        await this.options.storage.narrowRefreshGrant({
-          id: candidate.id,
-          tokenHash: candidate.hash,
-          scopes: grant.scopes,
-        });
-      }
+      const authorized = this.applyConsent(result.grant, consent);
+      const grant = {
+        ...authorized,
+        scopes: authorized.scopes.filter((scope) =>
+          requestedScopes.includes(scope),
+        ),
+      };
+      if (!this.options.storage.narrowRefreshGrant)
+        throw new OAuthServerError(
+          'invalid_grant',
+          'Storage cannot persist refreshed consent.',
+        );
+      await this.options.storage.narrowRefreshGrant({
+        id: candidate.id,
+        tokenHash: candidate.hash,
+        scopes: grant.scopes,
+        claims: grant.claims,
+      });
       return await this.issue(grant, false, candidate.value);
     } catch (error) {
       await this.options.storage.revokeRefreshGrant({
@@ -800,15 +817,17 @@ async function form(request: Request) {
       'invalid_request',
       'Form-encoded request required.',
     );
-  return new URLSearchParams(await request.text());
+  return new URLSearchParams(
+    new TextDecoder().decode(await boundedBody(request)),
+  );
 }
 
-/** Bound bytes while streaming, before JSON parsing or metadata persistence. */
-async function registrationBody(request: Request): Promise<unknown> {
+/** Bound bytes while streaming before endpoint parsing or persistence. */
+async function boundedBody(request: Request): Promise<Uint8Array> {
   const tooLarge = () =>
     new OAuthServerError(
       'invalid_request',
-      'Registration body exceeds 16384 bytes.',
+      'Request body exceeds 16384 bytes.',
       413,
     );
   const declaredLength = request.headers.get('content-length');
@@ -820,11 +839,7 @@ async function registrationBody(request: Request): Promise<unknown> {
     throw tooLarge();
   }
   const reader = request.body?.getReader();
-  if (!reader)
-    throw new OAuthServerError(
-      'invalid_request',
-      'Client metadata is required.',
-    );
+  if (!reader) return new Uint8Array();
   const chunks: Uint8Array[] = [];
   let length = 0;
   try {
@@ -847,6 +862,11 @@ async function registrationBody(request: Request): Promise<unknown> {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  return bytes;
+}
+
+async function registrationBody(request: Request): Promise<unknown> {
+  const bytes = await boundedBody(request);
   try {
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   } catch {

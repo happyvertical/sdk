@@ -111,6 +111,140 @@ function refresh(
 }
 
 describe('OAuthAuthorizationServer', () => {
+  it.each([
+    'x'.repeat(42),
+    'x'.repeat(129),
+    'x'.repeat(42) + '+',
+  ])('rejects malformed PKCE before code consumption: %s', async (invalid) => {
+    const { server, storage } = await setup();
+    const params = authorization();
+    params.set(
+      'code_challenge',
+      createHash('sha256').update(invalid).digest('base64url'),
+    );
+    const value = new URL(
+      (
+        await server.approve(await server.parseAuthorizationRequest(params), {
+          subject: 'alice',
+        })
+      ).redirectUri,
+    ).searchParams.get('code')!;
+    await expect(
+      exchange(server, value, { code_verifier: invalid }),
+    ).rejects.toMatchObject({ error: 'invalid_grant' });
+    expect(storage.usedCodes.size).toBe(0);
+  });
+
+  it.each([
+    43, 128,
+  ])('accepts valid PKCE boundary length %s', async (length) => {
+    const { server } = await setup();
+    const valid = 'a'.repeat(length - 4) + '._~-';
+    const params = authorization();
+    params.set(
+      'code_challenge',
+      createHash('sha256').update(valid).digest('base64url'),
+    );
+    const value = new URL(
+      (
+        await server.approve(await server.parseAuthorizationRequest(params), {
+          subject: 'alice',
+        })
+      ).redirectUri,
+    ).searchParams.get('code')!;
+    expect(
+      (await exchange(server, value, { code_verifier: valid })).access_token,
+    ).toBeTruthy();
+  });
+
+  it.each([
+    '/token',
+    '/revoke',
+  ])('bounds streaming form bodies for %s', async (path) => {
+    const { server } = await setup();
+    for (const length of [undefined, '1', '20000']) {
+      const cancelled = vi.fn();
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(new Uint8Array(8192).fill(97));
+        },
+        cancel: cancelled,
+      });
+      const response = await server.handle(
+        new Request(issuer + path, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            ...(length ? { 'content-length': length } : {}),
+          },
+          body,
+          duplex: 'half',
+        } as RequestInit),
+      );
+      expect(response.status).toBe(413);
+      expect(cancelled).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('persists requested refresh narrowing and rejects expansion', async () => {
+    const { server, storage } = await setup();
+    const initial = await exchange(server, await code(server));
+    const narrowed = await server.token(
+      new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: 'client',
+        refresh_token: initial.refresh_token!,
+        resource: 'https://resource.example/mcp',
+        scope: '',
+      }),
+    );
+    expect(narrowed.scope).toBe('');
+    expect((await refresh(server, narrowed.refresh_token!)).scope).toBe('');
+    const other = await exchange(server, await code(server));
+    await expect(
+      server.token(
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: 'client',
+          refresh_token: other.refresh_token!,
+          resource: 'https://resource.example/mcp',
+          scope: 'admin',
+        }),
+      ),
+    ).rejects.toMatchObject({ error: 'invalid_scope' });
+    expect(storage.revokedFamilies.size).toBe(1);
+  });
+
+  it('persists changed and removed claims across subsequent refreshes', async () => {
+    let mode = 'initial';
+    const observed: Array<OAuthConsentContext['claims']> = [];
+    const { server, storage } = await setup(async (context) => {
+      observed.push(context.claims);
+      if (mode === 'initial') return { ...context, claims: { role: 'old' } };
+      if (mode === 'change') return { ...context, claims: { role: 'new' } };
+      if (mode === 'remove') return { ...context, claims: undefined };
+      return context;
+    });
+    const first = await exchange(server, await code(server));
+    mode = 'change';
+    const second = await refresh(server, first.refresh_token!);
+    expect(
+      storage.refreshes.get(second.refresh_token!.split('.')[0])?.claims,
+    ).toEqual({ role: 'new' });
+    mode = 'remove';
+    const third = await refresh(server, second.refresh_token!);
+    expect(observed.at(-1)).toEqual({ role: 'new' });
+    expect(
+      storage.refreshes.get(third.refresh_token!.split('.')[0])?.claims,
+    ).toBeUndefined();
+    mode = 'preserve';
+    const fourth = await refresh(server, third.refresh_token!);
+    expect(observed.at(-1)).toBeUndefined();
+    expect(
+      (await server.verifyAccessToken(fourth.access_token)).role,
+    ).toBeUndefined();
+  });
+
   it('binds S256 PKCE, client, redirect URI, resource, scopes and one-time code use', async () => {
     const { server } = await setup();
     const value = await code(server);
@@ -481,16 +615,17 @@ describe('OAuthAuthorizationServer', () => {
     ).rejects.toMatchObject({ error: 'invalid_scope' });
   });
 
-  it('concurrent refresh permits one exchange and revokes its family after replay', async () => {
-    const { server } = await setup();
+  it('concurrent refresh permits at most one exchange and revokes its family after replay', async () => {
+    const { server, storage } = await setup();
     const first = await exchange(server, await code(server));
     const results = await Promise.allSettled([
       refresh(server, first.refresh_token!),
       refresh(server, first.refresh_token!),
     ]);
     expect(
-      results.filter((result) => result.status === 'fulfilled'),
-    ).toHaveLength(1);
+      results.filter((result) => result.status === 'fulfilled').length,
+    ).toBeLessThanOrEqual(1);
+    expect(storage.revokedFamilies.size).toBe(1);
     for (const result of results)
       if (result.status === 'fulfilled')
         await expect(

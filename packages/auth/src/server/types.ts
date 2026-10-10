@@ -118,11 +118,12 @@ export interface OAuthAuthorizationStorage {
     readonly now: Date;
   }): Promise<OAuthCodeConsumeResult>;
   createRefreshGrant(grant: OAuthRefreshGrant): Promise<void>;
-  /** Atomically persist a subset of a replacement grant's scopes before exposing its token. Reject missing or mismatched grants and any expansion. Required to support live narrowing. */
+  /** Atomically persist refreshed scopes and claims before exposing the replacement token. Undefined claims clear prior claims. Reject missing, consumed, revoked or mismatched grants and scope expansion. Required for refresh-token exchange. */
   narrowRefreshGrant?(input: {
     readonly id: string;
     readonly tokenHash: string;
     readonly scopes: readonly string[];
+    readonly claims: OAuthRefreshGrant['claims'];
   }): Promise<void>;
   /** Atomically consumes a refresh token, creates replacement, and revokes its family on replay. */
   rotateRefreshGrant(input: {
