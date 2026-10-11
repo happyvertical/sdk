@@ -59,6 +59,158 @@ describe('LocalChatGPTSessionManager', () => {
       },
     ]);
   });
+  it('serializes rotating refreshes across manager instances', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+    let releaseFirst!: () => void;
+    let firstStarted!: () => void;
+    const release = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      firstStarted = resolve;
+    });
+    const refreshTokens: string[] = [];
+    const fetcher = vi.fn(async (_input: any, init?: RequestInit) => {
+      const body = init?.body as URLSearchParams;
+      refreshTokens.push(body.get('refresh_token')!);
+      const sequence = refreshTokens.length;
+      if (sequence === 1) {
+        firstStarted();
+        await release;
+      }
+      return new Response(
+        JSON.stringify({
+          access_token: `access-${sequence}`,
+          refresh_token: `refresh-${sequence}`,
+          expires_in: 3600,
+        }),
+      );
+    });
+    const one = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: fetcher,
+    });
+    const two = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: fetcher,
+    });
+    const first = one.refresh('oaiapp_test');
+    await started;
+    const second = two.refresh('oaiapp_test');
+    releaseFirst();
+    await expect(first).resolves.toMatchObject({ refreshToken: 'refresh-1' });
+    await expect(second).resolves.toMatchObject({ refreshToken: 'refresh-2' });
+    expect(refreshTokens).toEqual(['refresh-secret', 'refresh-1']);
+  });
+  it('preserves concurrent refreshes for different registrations', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    const second = {
+      ...record.sessions[0],
+      clientId: 'oaiapp_second',
+      accessToken: 'second-access',
+      refreshToken: 'second-refresh',
+    };
+    await writeFile(
+      path,
+      JSON.stringify({ ...record, sessions: [...record.sessions, second] }),
+      { mode: 0o600 },
+    );
+    const fetcher = vi.fn(async (_input: any, init?: RequestInit) => {
+      const body = init?.body as URLSearchParams;
+      const clientId = body.get('client_id')!;
+      return new Response(
+        JSON.stringify({
+          access_token: `${clientId}-next-access`,
+          refresh_token: `${clientId}-next-refresh`,
+          expires_in: 3600,
+        }),
+      );
+    });
+    const one = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: fetcher,
+    });
+    const two = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: fetcher,
+    });
+    await Promise.all([
+      one.refresh('oaiapp_test'),
+      two.refresh('oaiapp_second'),
+    ]);
+    await expect(one.sessions()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          clientId: 'oaiapp_test',
+          expiresAt: expect.any(Number),
+        }),
+        expect.objectContaining({
+          clientId: 'oaiapp_second',
+          expiresAt: expect.any(Number),
+        }),
+      ]),
+    );
+  });
+  it('does not restore credentials when refresh overlaps logout', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+    let releaseRefresh!: () => void;
+    let refreshStarted!: () => void;
+    const release = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      refreshStarted = resolve;
+    });
+    const fetcher = vi.fn(async (input: any) => {
+      const url = String(input);
+      if (url.includes('/oauth/token')) {
+        refreshStarted();
+        await release;
+        return new Response(
+          JSON.stringify({
+            access_token: 'rotated-access',
+            refresh_token: 'rotated-refresh',
+            expires_in: 3600,
+          }),
+        );
+      }
+      if (url.includes('openid-configuration'))
+        return new Response(
+          JSON.stringify({ revocation_endpoint: 'https://issuer.test/revoke' }),
+        );
+      return new Response('', { status: 200 });
+    });
+    const refresher = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: fetcher,
+    });
+    const loggerOut = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: fetcher,
+    });
+    const refresh = refresher.refresh('oaiapp_test');
+    await started;
+    const logout = loggerOut.logout('oaiapp_test');
+    releaseRefresh();
+    await expect(refresh).resolves.toMatchObject({
+      refreshToken: 'rotated-refresh',
+    });
+    await expect(logout).resolves.toEqual({
+      remoteRevocationConfirmed: true,
+    });
+    expect(await refresher.sessions()).toEqual([]);
+  });
   it('clears an unusable refresh token', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
     const path = join(dir, 'session.json');
@@ -116,6 +268,28 @@ describe('LocalChatGPTSessionManager', () => {
       expect(await manager.sessions()).toEqual([]);
     }
   });
+  it('clears local credentials when revocation errors, is unavailable, or stalls', async () => {
+    const fetchers = [
+      vi.fn().mockRejectedValue(new Error('offline')),
+      vi.fn().mockResolvedValue(new Response('{}')),
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    ];
+    for (const fetcher of fetchers) {
+      const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+      const path = join(dir, 'session.json');
+      await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+      const manager = new LocalChatGPTSessionManager({
+        appName: 'test',
+        path,
+        fetch: fetcher,
+      });
+      (manager as any).remoteRevocationTimeoutMs = 5;
+      await expect(manager.logout('oaiapp_test')).resolves.toEqual({
+        remoteRevocationConfirmed: false,
+      });
+      expect(await manager.sessions()).toEqual([]);
+    }
+  });
   it('completes only a state-bound loopback callback with a verified identity', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
     const path = join(dir, 'session.json');
@@ -123,6 +297,14 @@ describe('LocalChatGPTSessionManager', () => {
     const { publicKey, privateKey } = await generateKeyPair('RS256');
     const jwk = await exportJWK(publicKey);
     (jwk as any).kid = 'test';
+    let releaseExchange!: () => void;
+    let exchangeStarted!: () => void;
+    const exchangeRelease = new Promise<void>((resolve) => {
+      releaseExchange = resolve;
+    });
+    const exchangeStart = new Promise<void>((resolve) => {
+      exchangeStarted = resolve;
+    });
     const fetcher = vi.fn(async (input: any) => {
       const url = String(input);
       if (url.includes('openid-configuration'))
@@ -132,6 +314,8 @@ describe('LocalChatGPTSessionManager', () => {
       if (url.includes('/jwks'))
         return new Response(JSON.stringify({ keys: [jwk] }));
       if (url.includes('/oauth/token')) {
+        exchangeStarted();
+        await exchangeRelease;
         const nonce = new URL(authorization).searchParams.get('nonce')!;
         const clientId =
           new URL(authorization).searchParams.get('client_id') ===
@@ -184,12 +368,32 @@ describe('LocalChatGPTSessionManager', () => {
       redirect.searchParams.set('state', callback.searchParams.get('state')!);
       redirect.searchParams.set('code', 'one-time-code');
       redirect.searchParams.set('client_id', 'oaiapp_test');
-      const result = await originalFetch(redirect);
+      const firstRequest = originalFetch(redirect);
+      await exchangeStart;
+      const duplicate = await originalFetch(redirect);
+      expect(duplicate.status).toBe(400);
+      let callbackSettled = false;
+      void attempt.callback.then(
+        () => {
+          callbackSettled = true;
+        },
+        () => {
+          callbackSettled = true;
+        },
+      );
+      await Promise.resolve();
+      expect(callbackSettled).toBe(false);
+      releaseExchange();
+      const result = await firstRequest;
       expect(result.status).toBe(200);
-      await expect(attempt.callback).resolves.toMatchObject({
+      const session = await attempt.callback;
+      expect(session).toMatchObject({
         subject: 'subject',
         clientId: 'oaiapp_test',
       });
+      const hostId = callback.searchParams.get('ext_agent_host_id');
+      expect(session.hostId).toBe(hostId);
+      expect((await manager.sessions())[0]?.hostId).toBe(hostId);
       expect((await stat(path)).mode & 0o777).toBe(0o600);
       await expect(originalFetch(redirect)).rejects.toThrow();
       expect(
@@ -266,6 +470,30 @@ describe('LocalChatGPTSessionManager', () => {
           (manager as any).verify(token, 'oaiapp_test', 'nonce'),
         ).rejects.toBeInstanceOf(Error);
       }
+      const missingExpiration = await new SignJWT({
+        sub: 'subject',
+        nonce: 'nonce',
+      })
+        .setProtectedHeader({ alg: 'RS256', kid: 'claims' })
+        .setIssuer('https://auth.openai.com')
+        .setAudience('oaiapp_test')
+        .setIssuedAt()
+        .sign(privateKey);
+      await expect(
+        (manager as any).verify(missingExpiration, 'oaiapp_test', 'nonce'),
+      ).rejects.toBeInstanceOf(Error);
+      const missingIssuedAt = await new SignJWT({
+        sub: 'subject',
+        nonce: 'nonce',
+      })
+        .setProtectedHeader({ alg: 'RS256', kid: 'claims' })
+        .setIssuer('https://auth.openai.com')
+        .setAudience('oaiapp_test')
+        .setExpirationTime('1h')
+        .sign(privateKey);
+      await expect(
+        (manager as any).verify(missingIssuedAt, 'oaiapp_test', 'nonce'),
+      ).rejects.toBeInstanceOf(Error);
     } finally {
       vi.stubGlobal('fetch', originalFetch);
     }
@@ -336,5 +564,28 @@ describe('LocalChatGPTSessionManager', () => {
     } finally {
       vi.stubGlobal('fetch', originalFetch);
     }
+  });
+  it('clears a refreshed session when plan permission is withdrawn', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+    const manager = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            access_token: 'next-access',
+            refresh_token: 'next-refresh',
+            scope: 'openid profile email offline_access',
+            expires_in: 3600,
+          }),
+        ),
+      ),
+    });
+    await expect(manager.refresh('oaiapp_test')).rejects.toMatchObject({
+      code: 'plan_permission_missing',
+    });
+    expect(await manager.sessions()).toEqual([]);
   });
 });

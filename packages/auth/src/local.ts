@@ -105,6 +105,7 @@ export class LocalChatGPTSessionManager {
   private hostId?: string;
   private readonly fetcher: typeof fetch;
   private readonly now: () => number;
+  private readonly remoteRevocationTimeoutMs = 5_000;
   constructor(private readonly options: LocalChatGPTOptions) {
     this.file = pathFor(options);
     this.fetcher = options.fetch ?? fetch;
@@ -128,6 +129,7 @@ export class LocalChatGPTSessionManager {
   }
   private async locked<T>(operation: () => Promise<T>): Promise<T> {
     const lock = `${this.file}.lock`;
+    await mkdir(dirname(this.file), { recursive: true, mode: 0o700 });
     for (let attempt = 0; attempt < 200; attempt++) {
       try {
         await mkdir(lock, { mode: 0o700 });
@@ -166,7 +168,11 @@ export class LocalChatGPTSessionManager {
   async begin(
     selectedClientId?: string,
   ): Promise<{ authorizationUrl: string; callback: Promise<ChatGPTSession> }> {
-    const disk = await this.disk();
+    const disk = await this.locked(async () => {
+      const current = await this.disk();
+      await this.save(current);
+      return current;
+    });
     const selected = selectedClientId
       ? disk.sessions.find((s) => s.clientId === selectedClientId)
       : undefined;
@@ -187,6 +193,11 @@ export class LocalChatGPTSessionManager {
     });
     const server = createServer((req, res) => {
       const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
+      if (!this.pending.has(state)) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Sign-in callback was already consumed.');
+        return;
+      }
       const finish = async () => {
         try {
           const result = await this.complete(url, state);
@@ -468,35 +479,50 @@ export class LocalChatGPTSessionManager {
   async logout(
     clientId: string,
   ): Promise<{ remoteRevocationConfirmed: boolean }> {
-    return this.locked(async () => {
+    const current = await this.locked(async () => {
       const disk = await this.disk();
       const current = disk.sessions.find((s) => s.clientId === clientId);
-      if (!current) return { remoteRevocationConfirmed: true };
-      let confirmed = false;
-      try {
-        const discovery = (await (await this.fetcher(DISCOVERY)).json()) as {
-          revocation_endpoint?: string;
-        };
-        if (!discovery.revocation_endpoint)
-          return { remoteRevocationConfirmed: false };
-        const body = new URLSearchParams({
-          token: current.refreshToken,
-          token_type_hint: 'refresh_token',
-          client_id: current.clientId,
-        });
-        const response = await this.fetcher(discovery.revocation_endpoint, {
-          method: 'POST',
-          headers: { 'content-type': 'application/x-www-form-urlencoded' },
-          body,
-        });
-        confirmed = response.ok;
-      } catch {
-        confirmed = false;
-      } finally {
-        disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
-        await this.save(disk);
-      }
-      return { remoteRevocationConfirmed: confirmed };
+      if (!current) return undefined;
+      disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
+      await this.save(disk);
+      return current;
     });
+    if (!current) return { remoteRevocationConfirmed: true };
+
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const confirmed = await Promise.race([
+        (async () => {
+          const discovery = (await (
+            await this.fetcher(DISCOVERY, { signal: controller.signal })
+          ).json()) as { revocation_endpoint?: string };
+          if (!discovery.revocation_endpoint) return false;
+          const body = new URLSearchParams({
+            token: current.refreshToken,
+            token_type_hint: 'refresh_token',
+            client_id: current.clientId,
+          });
+          const response = await this.fetcher(discovery.revocation_endpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body,
+            signal: controller.signal,
+          });
+          return response.ok;
+        })(),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => {
+            controller.abort();
+            resolve(false);
+          }, this.remoteRevocationTimeoutMs);
+        }),
+      ]);
+      return { remoteRevocationConfirmed: confirmed };
+    } catch {
+      return { remoteRevocationConfirmed: false };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 }
