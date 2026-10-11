@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.103.2
+
+### Patch Changes
+
+- ### Features
+
+  - add reusable local ChatGPT sign-in sessions (#1397) (auth)
+
 ## 0.103.1
 
 ### Patch Changes

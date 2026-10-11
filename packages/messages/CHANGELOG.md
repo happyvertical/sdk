@@ -1,5 +1,14 @@
 # @happyvertical/messages
 
+## 0.103.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.103.2
+  - @happyvertical/email@0.103.2
+  - @happyvertical/logger@0.103.2
+
 ## 0.103.1
 
 ### Patch Changes
