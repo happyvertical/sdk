@@ -2,12 +2,15 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   chmod,
+  link,
+  lstat,
   mkdir,
   readdir,
   readFile,
   rename,
   rmdir,
   stat,
+  unlink,
   writeFile,
 } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -145,20 +148,35 @@ export class LocalChatGPTSessionManager {
   }
   private async clearOrphanedLock(lock: string) {
     try {
-      const owners = await readdir(lock);
-      if (owners.length === 1) {
-        const match = /^owner-(\d+)-/.exec(owners[0]!);
-        if (!match) return false;
-        const pid = Number(match[1]);
-        if (this.processIsAlive(pid)) return false;
-        await rmdir(join(lock, owners[0]!));
+      const info = await lstat(lock);
+      if (info.isDirectory()) {
+        const owners = await readdir(lock);
+        if (owners.length === 1) {
+          const match = /^owner-(\d+)-/.exec(owners[0]!);
+          if (!match) return false;
+          const pid = Number(match[1]);
+          if (this.processIsAlive(pid)) return false;
+          await rmdir(join(lock, owners[0]!));
+          await rmdir(lock);
+          return true;
+        }
+        if (owners.length !== 0) return false;
+        const created = await stat(lock);
+        if (Date.now() - created.mtimeMs < 5_000) return false;
         await rmdir(lock);
         return true;
       }
-      if (owners.length !== 0) return false;
-      const created = await stat(lock);
-      if (Date.now() - created.mtimeMs < 5_000) return false;
-      await rmdir(lock);
+      const owner = JSON.parse(await readFile(lock, 'utf8')) as {
+        id?: string;
+        pid?: number;
+      };
+      if (typeof owner.pid !== 'number' || typeof owner.id !== 'string')
+        return false;
+      if (this.processIsAlive(owner.pid)) return false;
+      await unlink(lock);
+      await unlink(`${lock}.owner-${owner.pid}-${owner.id}`).catch(
+        () => undefined,
+      );
       return true;
     } catch {
       return false;
@@ -167,35 +185,47 @@ export class LocalChatGPTSessionManager {
   private async locked<T>(operation: () => Promise<T>): Promise<T> {
     const lock = `${this.file}.lock`;
     const ownerId = randomUUID();
-    const ownerPath = join(lock, `owner-${process.pid}-${ownerId}`);
+    const ownerPath = `${lock}.owner-${process.pid}-${ownerId}`;
     let acquired = false;
     await mkdir(dirname(this.file), { recursive: true, mode: 0o700 });
+    await writeFile(
+      ownerPath,
+      JSON.stringify({ id: ownerId, pid: process.pid }),
+      { flag: 'wx', mode: 0o600 },
+    );
     for (let attempt = 0; attempt < 200; attempt++) {
       try {
-        await mkdir(lock, { mode: 0o700 });
-        await mkdir(ownerPath, { mode: 0o700 });
+        await link(ownerPath, lock);
         acquired = true;
         break;
       } catch (error: any) {
-        if (error?.code !== 'EEXIST') throw error;
+        if (error?.code !== 'EEXIST') {
+          await unlink(ownerPath).catch(() => undefined);
+          throw error;
+        }
         if (await this.clearOrphanedLock(lock)) continue;
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
     }
-    if (!acquired)
+    if (!acquired) {
+      await unlink(ownerPath).catch(() => undefined);
       throw new ChatGPTSessionError(
         'storage_busy',
         'Credential storage is busy',
       );
+    }
     try {
       return await operation();
     } finally {
       try {
-        await rmdir(ownerPath);
-        await rmdir(lock);
+        const owner = JSON.parse(await readFile(lock, 'utf8')) as {
+          id?: string;
+        };
+        if (owner.id === ownerId) await unlink(lock);
       } catch {
         // A missing or replaced owner must not let this operation steal a lock.
       }
+      await unlink(ownerPath).catch(() => undefined);
     }
   }
   private async save(disk: Disk) {
@@ -399,6 +429,11 @@ export class LocalChatGPTSessionManager {
         ...disk.sessions.filter((s) => s.clientId !== clientId),
         session,
       ];
+      disk.generations = {
+        ...disk.generations,
+        [clientId]: this.generation(disk, clientId) + 1,
+      };
+      if (disk.refreshes) delete disk.refreshes[clientId];
       await this.save(disk);
     });
     return session;
@@ -525,7 +560,9 @@ export class LocalChatGPTSessionManager {
         const disk = await this.disk();
         if (
           disk.refreshes?.[clientId]?.id === leaseId &&
-          this.generation(disk, clientId) === generation
+          this.generation(disk, clientId) === generation &&
+          disk.sessions.find((session) => session.clientId === clientId)
+            ?.refreshToken === current.refreshToken
         ) {
           disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
           disk.generations = {
@@ -600,15 +637,21 @@ export class LocalChatGPTSessionManager {
     return this.locked(async () => {
       const disk = await this.disk();
       const stored = disk.sessions.find((s) => s.clientId === clientId);
+      const ownsLease = disk.refreshes?.[clientId]?.id === leaseId;
       if (
-        disk.refreshes?.[clientId]?.id !== leaseId ||
+        !ownsLease ||
         this.generation(disk, clientId) !== generation ||
         stored?.refreshToken !== current.refreshToken
-      )
+      ) {
+        if (ownsLease) {
+          delete disk.refreshes![clientId];
+          await this.save(disk);
+        }
         throw new ChatGPTSessionError(
           'session_invalidated',
           'ChatGPT session changed while refresh was in progress',
         );
+      }
       disk.sessions = disk.sessions.map((s) =>
         s.clientId === clientId ? updated : s,
       );

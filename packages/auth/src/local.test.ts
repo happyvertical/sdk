@@ -1,4 +1,12 @@
-import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
+import {
+  link,
+  mkdir,
+  mkdtemp,
+  readFile,
+  stat,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
@@ -308,6 +316,41 @@ describe('LocalChatGPTSessionManager', () => {
     });
     expect(await manager.sessions()).toEqual([]);
   });
+  it('cannot steal a live lock from an owner paused before atomic acquisition', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+    const pausedOwner = `${path}.lock.owner-${process.pid}-paused`;
+    await writeFile(
+      pausedOwner,
+      JSON.stringify({ id: 'paused', pid: process.pid }),
+      { mode: 0o600 },
+    );
+    let releaseLock!: () => void;
+    let lockEntered!: () => void;
+    const release = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const entered = new Promise<void>((resolve) => {
+      lockEntered = resolve;
+    });
+    const manager = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: vi.fn(),
+    });
+    const holder = (manager as any).locked(async () => {
+      lockEntered();
+      await release;
+    });
+    await entered;
+    await expect(link(pausedOwner, `${path}.lock`)).rejects.toMatchObject({
+      code: 'EEXIST',
+    });
+    releaseLock();
+    await holder;
+    await unlink(pausedOwner);
+  });
   it('completes only a state-bound loopback callback with a verified identity', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
     const path = join(dir, 'session.json');
@@ -552,6 +595,114 @@ describe('LocalChatGPTSessionManager', () => {
       expect(await manager.sessions()).toEqual([]);
     } finally {
       vi.stubGlobal('fetch', originalFetch);
+    }
+  });
+  it('invalidates an older refresh when reauthorization replaces credentials', async () => {
+    for (const refreshStatus of [200, 400]) {
+      const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+      const path = join(dir, 'session.json');
+      await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+      let authorization = '';
+      let releaseRefresh!: () => void;
+      let refreshStarted!: () => void;
+      const release = new Promise<void>((resolve) => {
+        releaseRefresh = resolve;
+      });
+      const started = new Promise<void>((resolve) => {
+        refreshStarted = resolve;
+      });
+      const { publicKey, privateKey } = await generateKeyPair('RS256');
+      const jwk = await exportJWK(publicKey);
+      (jwk as any).kid = 'replace';
+      const fetcher = vi.fn(async (input: any, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes('openid-configuration'))
+          return new Response(
+            JSON.stringify({ jwks_uri: 'https://issuer.test/jwks' }),
+          );
+        if (url.includes('/oauth/token')) {
+          const body = init?.body as URLSearchParams;
+          if (body.get('grant_type') === 'refresh_token') {
+            refreshStarted();
+            await release;
+            return new Response(
+              refreshStatus === 200
+                ? JSON.stringify({
+                    access_token: 'stale-access',
+                    refresh_token: 'stale-refresh',
+                    expires_in: 3600,
+                  })
+                : '{}',
+              { status: refreshStatus },
+            );
+          }
+          const nonce = new URL(authorization).searchParams.get('nonce');
+          const idToken = await new SignJWT({ sub: 'sub', nonce })
+            .setProtectedHeader({ alg: 'RS256', kid: 'replace' })
+            .setIssuer('https://auth.openai.com')
+            .setAudience('oaiapp_test')
+            .setIssuedAt()
+            .setExpirationTime('1h')
+            .sign(privateKey);
+          return new Response(
+            JSON.stringify({
+              id_token: idToken,
+              access_token: 'reauthorized-access',
+              refresh_token: 'reauthorized-refresh',
+              scope: 'openid chatgpt.tokens.use.direct',
+              expires_in: 3600,
+            }),
+          );
+        }
+        throw new Error(url);
+      });
+      const originalFetch = globalThis.fetch;
+      vi.stubGlobal('fetch', async (input: any) =>
+        String(input).includes('/jwks')
+          ? new Response(JSON.stringify({ keys: [jwk] }))
+          : originalFetch(input),
+      );
+      try {
+        const refresher = new LocalChatGPTSessionManager({
+          appName: 'test',
+          path,
+          fetch: fetcher as any,
+        });
+        const reauthorizer = new LocalChatGPTSessionManager({
+          appName: 'test',
+          path,
+          fetch: fetcher as any,
+          openBrowser: (url) => {
+            authorization = url;
+          },
+        });
+        const refresh = refresher.refresh('oaiapp_test');
+        await started;
+        const attempt = await reauthorizer.begin('oaiapp_test');
+        const auth = new URL(authorization);
+        const callback = new URL(auth.searchParams.get('redirect_uri')!);
+        callback.searchParams.set('state', auth.searchParams.get('state')!);
+        callback.searchParams.set('code', 'reauthorize');
+        await expect(originalFetch(callback)).resolves.toMatchObject({
+          status: 200,
+        });
+        await expect(attempt.callback).resolves.toMatchObject({
+          accessToken: 'reauthorized-access',
+        });
+        releaseRefresh();
+        await expect(refresh).rejects.toBeInstanceOf(Error);
+        await expect(reauthorizer.sessions()).resolves.toEqual([
+          expect.objectContaining({
+            clientId: 'oaiapp_test',
+            expiresAt: expect.any(Number),
+          }),
+        ]);
+        const disk = JSON.parse(await readFile(path, 'utf8'));
+        expect(disk.sessions[0].accessToken).toBe('reauthorized-access');
+        expect(disk.refreshes?.oaiapp_test).toBeUndefined();
+      } finally {
+        vi.stubGlobal('fetch', originalFetch);
+      }
     }
   });
   it('rejects bad issuer, audience, nonce, and expiry on signed ID tokens', async () => {
