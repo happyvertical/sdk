@@ -1,4 +1,4 @@
-import { mkdtemp, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
@@ -103,8 +103,8 @@ describe('LocalChatGPTSessionManager', () => {
     const second = two.refresh('oaiapp_test');
     releaseFirst();
     await expect(first).resolves.toMatchObject({ refreshToken: 'refresh-1' });
-    await expect(second).resolves.toMatchObject({ refreshToken: 'refresh-2' });
-    expect(refreshTokens).toEqual(['refresh-secret', 'refresh-1']);
+    await expect(second).resolves.toMatchObject({ refreshToken: 'refresh-1' });
+    expect(refreshTokens).toEqual(['refresh-secret']);
   });
   it('preserves concurrent refreshes for different registrations', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
@@ -202,12 +202,12 @@ describe('LocalChatGPTSessionManager', () => {
     const refresh = refresher.refresh('oaiapp_test');
     await started;
     const logout = loggerOut.logout('oaiapp_test');
-    releaseRefresh();
-    await expect(refresh).resolves.toMatchObject({
-      refreshToken: 'rotated-refresh',
-    });
     await expect(logout).resolves.toEqual({
       remoteRevocationConfirmed: true,
+    });
+    releaseRefresh();
+    await expect(refresh).rejects.toMatchObject({
+      code: 'session_invalidated',
     });
     expect(await refresher.sessions()).toEqual([]);
   });
@@ -289,6 +289,24 @@ describe('LocalChatGPTSessionManager', () => {
       });
       expect(await manager.sessions()).toEqual([]);
     }
+  });
+  it('recovers a credential lock whose owner process is gone', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+    await mkdir(`${path}.lock`, { mode: 0o700 });
+    await mkdir(join(`${path}.lock`, 'owner-999999999-orphan'), {
+      mode: 0o700,
+    });
+    const manager = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: vi.fn().mockRejectedValue(new Error('offline')),
+    });
+    await expect(manager.logout('oaiapp_test')).resolves.toEqual({
+      remoteRevocationConfirmed: false,
+    });
+    expect(await manager.sessions()).toEqual([]);
   });
   it('completes only a state-bound loopback callback with a verified identity', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
@@ -436,6 +454,104 @@ describe('LocalChatGPTSessionManager', () => {
       await expect(rejected).resolves.toBeInstanceOf(Error);
       expect(exchange).not.toHaveBeenCalled();
       expect(await manager.sessions()).toEqual([]);
+    }
+  });
+  it('does not restore a session when logout overlaps reauthorization', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+    let authorization = '';
+    let releaseExchange!: () => void;
+    let exchangeStarted!: () => void;
+    const release = new Promise<void>((resolve) => {
+      releaseExchange = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      exchangeStarted = resolve;
+    });
+    const { publicKey, privateKey } = await generateKeyPair('RS256');
+    const jwk = await exportJWK(publicKey);
+    (jwk as any).kid = 'reauthorize';
+    const loginFetch = vi.fn(async (input: any) => {
+      const url = String(input);
+      if (url.includes('openid-configuration'))
+        return new Response(
+          JSON.stringify({ jwks_uri: 'https://issuer.test/jwks' }),
+        );
+      if (url.includes('/oauth/token')) {
+        exchangeStarted();
+        await release;
+        const params = new URL(authorization).searchParams;
+        const idToken = await new SignJWT({
+          sub: 'sub',
+          nonce: params.get('nonce'),
+        })
+          .setProtectedHeader({ alg: 'RS256', kid: 'reauthorize' })
+          .setIssuer('https://auth.openai.com')
+          .setAudience('oaiapp_test')
+          .setIssuedAt()
+          .setExpirationTime('1h')
+          .sign(privateKey);
+        return new Response(
+          JSON.stringify({
+            id_token: idToken,
+            access_token: 'new-access',
+            refresh_token: 'new-refresh',
+            scope: 'openid chatgpt.tokens.use.direct',
+            expires_in: 3600,
+          }),
+        );
+      }
+      throw new Error(url);
+    });
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal('fetch', async (input: any) =>
+      String(input).includes('/jwks')
+        ? new Response(JSON.stringify({ keys: [jwk] }))
+        : originalFetch(input),
+    );
+    try {
+      const manager = new LocalChatGPTSessionManager({
+        appName: 'test',
+        path,
+        fetch: loginFetch as any,
+        openBrowser: (url) => {
+          authorization = url;
+        },
+      });
+      const loggerOut = new LocalChatGPTSessionManager({
+        appName: 'test',
+        path,
+        fetch: vi
+          .fn()
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                revocation_endpoint: 'https://issuer.test/revoke',
+              }),
+            ),
+          )
+          .mockResolvedValueOnce(new Response('', { status: 200 })),
+      });
+      const attempt = await manager.begin('oaiapp_test');
+      const rejected = attempt.callback.catch((error) => error);
+      const auth = new URL(authorization);
+      const callback = new URL(auth.searchParams.get('redirect_uri')!);
+      callback.searchParams.set('state', auth.searchParams.get('state')!);
+      callback.searchParams.set('code', 'reauthorize');
+      const request = originalFetch(callback);
+      await started;
+      await expect(loggerOut.logout('oaiapp_test')).resolves.toEqual({
+        remoteRevocationConfirmed: true,
+      });
+      releaseExchange();
+      await expect(request).resolves.toMatchObject({ status: 400 });
+      await expect(rejected).resolves.toMatchObject({
+        code: 'session_invalidated',
+      });
+      expect(await manager.sessions()).toEqual([]);
+    } finally {
+      vi.stubGlobal('fetch', originalFetch);
     }
   });
   it('rejects bad issuer, audience, nonce, and expiry on signed ID tokens', async () => {

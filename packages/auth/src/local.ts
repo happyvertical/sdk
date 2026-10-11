@@ -3,9 +3,11 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   chmod,
   mkdir,
+  readdir,
   readFile,
   rename,
   rmdir,
+  stat,
   writeFile,
 } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -57,6 +59,8 @@ export interface LocalChatGPTOptions {
 interface Disk {
   hostId: string;
   sessions: ChatGPTSession[];
+  generations?: Record<string, number>;
+  refreshes?: Record<string, { id: string; pid: number }>;
 }
 interface Pending {
   state: string;
@@ -65,6 +69,7 @@ interface Pending {
   redirectUri: string;
   clientId: string;
   selected?: ChatGPTSession;
+  generation: number;
   server: ReturnType<typeof createServer>;
 }
 
@@ -127,27 +132,70 @@ export class LocalChatGPTSessionManager {
       throw e;
     }
   }
+  private generation(disk: Disk, clientId: string) {
+    return disk.generations?.[clientId] ?? 0;
+  }
+  private processIsAlive(pid: number) {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error: any) {
+      return error?.code !== 'ESRCH';
+    }
+  }
+  private async clearOrphanedLock(lock: string) {
+    try {
+      const owners = await readdir(lock);
+      if (owners.length === 1) {
+        const match = /^owner-(\d+)-/.exec(owners[0]!);
+        if (!match) return false;
+        const pid = Number(match[1]);
+        if (this.processIsAlive(pid)) return false;
+        await rmdir(join(lock, owners[0]!));
+        await rmdir(lock);
+        return true;
+      }
+      if (owners.length !== 0) return false;
+      const created = await stat(lock);
+      if (Date.now() - created.mtimeMs < 5_000) return false;
+      await rmdir(lock);
+      return true;
+    } catch {
+      return false;
+    }
+  }
   private async locked<T>(operation: () => Promise<T>): Promise<T> {
     const lock = `${this.file}.lock`;
+    const ownerId = randomUUID();
+    const ownerPath = join(lock, `owner-${process.pid}-${ownerId}`);
+    let acquired = false;
     await mkdir(dirname(this.file), { recursive: true, mode: 0o700 });
     for (let attempt = 0; attempt < 200; attempt++) {
       try {
         await mkdir(lock, { mode: 0o700 });
+        await mkdir(ownerPath, { mode: 0o700 });
+        acquired = true;
         break;
       } catch (error: any) {
         if (error?.code !== 'EEXIST') throw error;
+        if (await this.clearOrphanedLock(lock)) continue;
         await new Promise((resolve) => setTimeout(resolve, 10));
-        if (attempt === 199)
-          throw new ChatGPTSessionError(
-            'storage_busy',
-            'Credential storage is busy',
-          );
       }
     }
+    if (!acquired)
+      throw new ChatGPTSessionError(
+        'storage_busy',
+        'Credential storage is busy',
+      );
     try {
       return await operation();
     } finally {
-      await rmdir(lock).catch(() => undefined);
+      try {
+        await rmdir(ownerPath);
+        await rmdir(lock);
+      } catch {
+        // A missing or replaced owner must not let this operation steal a lock.
+      }
     }
   }
   private async save(disk: Disk) {
@@ -234,6 +282,7 @@ export class LocalChatGPTSessionManager {
       redirectUri,
       clientId,
       selected,
+      generation: selected ? this.generation(disk, selected.clientId) : 0,
       server,
     });
     const params = new URLSearchParams({
@@ -338,6 +387,14 @@ export class LocalChatGPTSessionManager {
       );
     await this.locked(async () => {
       const disk = await this.disk();
+      if (
+        pending.selected &&
+        this.generation(disk, clientId) !== pending.generation
+      )
+        throw new ChatGPTSessionError(
+          'session_invalidated',
+          'ChatGPT session changed while authorization was in progress',
+        );
       disk.sessions = [
         ...disk.sessions.filter((s) => s.clientId !== clientId),
         session,
@@ -410,67 +467,152 @@ export class LocalChatGPTSessionManager {
     return refresh;
   }
   private async doRefresh(clientId: string): Promise<ChatGPTSession> {
-    return this.locked(async () => {
-      const disk = await this.disk();
-      const current = disk.sessions.find((s) => s.clientId === clientId);
-      if (!current)
-        throw new ChatGPTSessionError(
-          'unknown_account',
-          'Selected ChatGPT account is not stored locally',
-        );
-      const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: current.clientId,
-        refresh_token: current.refreshToken,
-        resource: RESOURCE,
+    const leaseId = randomUUID();
+    let observedRefreshToken: string | undefined;
+    let current: ChatGPTSession | undefined;
+    let generation = 0;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const claim = await this.locked(async () => {
+        const disk = await this.disk();
+        const session = disk.sessions.find((s) => s.clientId === clientId);
+        if (!session)
+          throw new ChatGPTSessionError(
+            'unknown_account',
+            'Selected ChatGPT account is not stored locally',
+          );
+        observedRefreshToken ??= session.refreshToken;
+        if (session.refreshToken !== observedRefreshToken)
+          return { kind: 'updated' as const, session };
+        const active = disk.refreshes?.[clientId];
+        if (active && this.processIsAlive(active.pid))
+          return { kind: 'wait' as const };
+        disk.refreshes = {
+          ...disk.refreshes,
+          [clientId]: { id: leaseId, pid: process.pid },
+        };
+        await this.save(disk);
+        return {
+          kind: 'owned' as const,
+          session,
+          generation: this.generation(disk, clientId),
+        };
       });
-      const response = await this.fetcher(TOKEN, {
+      if (claim.kind === 'updated') return claim.session;
+      if (claim.kind === 'owned') {
+        current = claim.session;
+        generation = claim.generation;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    if (!current)
+      throw new ChatGPTSessionError(
+        'storage_busy',
+        'Credential refresh is already in progress',
+      );
+
+    const releaseLease = async () => {
+      await this.locked(async () => {
+        const disk = await this.disk();
+        if (disk.refreshes?.[clientId]?.id === leaseId) {
+          delete disk.refreshes[clientId];
+          await this.save(disk);
+        }
+      });
+    };
+    const invalidate = async (code: string, message: string) => {
+      await this.locked(async () => {
+        const disk = await this.disk();
+        if (
+          disk.refreshes?.[clientId]?.id === leaseId &&
+          this.generation(disk, clientId) === generation
+        ) {
+          disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
+          disk.generations = {
+            ...disk.generations,
+            [clientId]: generation + 1,
+          };
+          delete disk.refreshes[clientId];
+          await this.save(disk);
+        }
+      });
+      throw new ChatGPTSessionError(code, message);
+    };
+
+    let response: Response;
+    try {
+      response = await this.fetcher(TOKEN, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body,
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: current.clientId,
+          refresh_token: current.refreshToken,
+          resource: RESOURCE,
+        }),
       });
-      if (!response.ok) {
-        if (response.status === 400 || response.status === 401) {
-          disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
-          await this.save(disk);
-          throw new ChatGPTSessionError(
-            'refresh_invalid',
-            'Saved ChatGPT session is no longer renewable; sign in again',
-          );
-        }
-        throw new ChatGPTSessionError(
-          'refresh_failed',
-          'ChatGPT session refresh failed; credentials were retained',
+    } catch (error) {
+      await releaseLease();
+      throw error;
+    }
+    if (!response.ok) {
+      if (response.status === 400 || response.status === 401)
+        return invalidate(
+          'refresh_invalid',
+          'Saved ChatGPT session is no longer renewable; sign in again',
         );
-      }
-      const token: any = await response.json();
-      if (!token.access_token || !token.refresh_token)
+      await releaseLease();
+      throw new ChatGPTSessionError(
+        'refresh_failed',
+        'ChatGPT session refresh failed; credentials were retained',
+      );
+    }
+    let token: any;
+    try {
+      token = await response.json();
+    } catch (error) {
+      await releaseLease();
+      throw error;
+    }
+    if (!token.access_token || !token.refresh_token) {
+      await releaseLease();
+      throw new ChatGPTSessionError(
+        'invalid_refresh_response',
+        'Refresh response omitted replacement credentials',
+      );
+    }
+    const scopes = String(token.scope ?? current.scopes.join(' '))
+      .split(' ')
+      .filter(Boolean);
+    if (!scopes.includes(PLAN_SCOPE))
+      return invalidate(
+        'plan_permission_missing',
+        'ChatGPT plan usage permission was not granted',
+      );
+    const updated: ChatGPTSession = {
+      ...current,
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token,
+      idToken: token.id_token ?? current.idToken,
+      scopes,
+      expiresAt: this.now() + Number(token.expires_in ?? 0) * 1000,
+    };
+    return this.locked(async () => {
+      const disk = await this.disk();
+      const stored = disk.sessions.find((s) => s.clientId === clientId);
+      if (
+        disk.refreshes?.[clientId]?.id !== leaseId ||
+        this.generation(disk, clientId) !== generation ||
+        stored?.refreshToken !== current.refreshToken
+      )
         throw new ChatGPTSessionError(
-          'invalid_refresh_response',
-          'Refresh response omitted replacement credentials',
+          'session_invalidated',
+          'ChatGPT session changed while refresh was in progress',
         );
-      const scopes = String(token.scope ?? current.scopes.join(' '))
-        .split(' ')
-        .filter(Boolean);
-      if (!scopes.includes(PLAN_SCOPE)) {
-        disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
-        await this.save(disk);
-        throw new ChatGPTSessionError(
-          'plan_permission_missing',
-          'ChatGPT plan usage permission was not granted',
-        );
-      }
-      const updated: ChatGPTSession = {
-        ...current,
-        accessToken: token.access_token,
-        refreshToken: token.refresh_token,
-        idToken: token.id_token ?? current.idToken,
-        scopes,
-        expiresAt: this.now() + Number(token.expires_in ?? 0) * 1000,
-      };
       disk.sessions = disk.sessions.map((s) =>
         s.clientId === clientId ? updated : s,
       );
+      delete disk.refreshes[clientId];
       await this.save(disk);
       return updated;
     });
@@ -484,6 +626,11 @@ export class LocalChatGPTSessionManager {
       const current = disk.sessions.find((s) => s.clientId === clientId);
       if (!current) return undefined;
       disk.sessions = disk.sessions.filter((s) => s.clientId !== clientId);
+      disk.generations = {
+        ...disk.generations,
+        [clientId]: this.generation(disk, clientId) + 1,
+      };
+      if (disk.refreshes) delete disk.refreshes[clientId];
       await this.save(disk);
       return current;
     });
