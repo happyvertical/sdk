@@ -124,6 +124,7 @@ function pack(name) {
 try {
   for (const name of [
     '@happyvertical/ai',
+    '@happyvertical/auth',
     '@happyvertical/files',
     '@happyvertical/sql',
   ])
@@ -205,11 +206,24 @@ try {
     writeFileSync(resolve(evidence, 'consumer-installed.json'), inventory);
   }
   writeFileSync(
+    resolve(fixture, 'consumer.mjs'),
+    `
+import { LocalChatGPTSessionManager } from '@happyvertical/auth/local';
+const manager = new LocalChatGPTSessionManager({
+  appName: 'packed-consumer',
+  path: new URL('./chatgpt.json', import.meta.url).pathname,
+});
+if ((await manager.sessions()).length !== 0) throw new Error('unexpected session');
+`,
+  );
+  run(process.execPath, ['consumer.mjs']);
+  writeFileSync(
     resolve(fixture, 'consumer.ts'),
     `
 import { makeId, pluralizeWord } from '@happyvertical/utils/browser';
 import { getAI, type AIInterface } from '@happyvertical/ai';
 import { getAIAuto } from '@happyvertical/ai/node';
+import { LocalChatGPTSessionManager } from '@happyvertical/auth/local';
 import { getFilesystem, type FilesystemInterface } from '@happyvertical/files';
 import { getDatabase, type DatabaseInterface } from '@happyvertical/sql';
 const id: string = makeId();
@@ -217,6 +231,7 @@ const plural: string = pluralizeWord('unit', 2);
 pluralizeWord.addPluralRule(/unit$/, 'units');
 const ai: Promise<AIInterface> = getAI({ type: 'openai' });
 const auto: Promise<AIInterface> = getAIAuto();
+const auth = new LocalChatGPTSessionManager({ appName: 'packed-consumer' });
 const files: Promise<FilesystemInterface> = getFilesystem({ type: 'local' });
 const sql: Promise<DatabaseInterface> = getDatabase({ type: 'sqlite', url: ':memory:' });
 type IsAny<T> = 0 extends (1 & T) ? true : false;
@@ -233,7 +248,7 @@ getAI({ type: 42 });
 pluralizeWord(42);
 // @ts-expect-error A string cannot satisfy the published filesystem interface.
 const invalid: FilesystemInterface = 'not-a-filesystem';
-void [id, plural, ai, auto, files, sql, aiAny, autoAny, filesAny, sqlAny, pluralAny, invalid];
+void [id, plural, ai, auto, auth, files, sql, aiAny, autoAny, filesAny, sqlAny, pluralAny, invalid];
 `,
   );
   const require = createRequire(resolve(fixture, 'package.json'));
@@ -259,7 +274,7 @@ void [id, plural, ai, auto, files, sql, aiAny, autoAny, filesAny, sqlAny, plural
       'tsconfig.json',
     ]);
     console.log(
-      `Packed AI root/node, files and SQL: ${mode} strict declarations passed`,
+      `Packed AI root/node, auth/local, files and SQL: ${mode} strict declarations passed`,
     );
   }
 } finally {
