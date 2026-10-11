@@ -188,3 +188,62 @@ test('0.103.0 reservation fails closed before mutation for occupied or unknown t
     assert.equal(JSON.parse(read('packages/utils/package.json')).version, '0.103.0');
   }
 });
+
+const release1033Recovery = recoveries.find(({ occupied }) => occupied === '0.103.3');
+assert.ok(release1033Recovery, '0.103.3 recovery reservation must remain explicit');
+assert.equal(
+  release1033Recovery.releaseNote,
+  'Preserve the ChatGPT plan provider and empty Matomo daily-row repair.',
+);
+
+test('recovers occupied 0.103.3 through real Changesets with pending fixes retained', (t) => {
+  const { root, put, read } = fixture(t, '0.103.2');
+  for (const name of ['ai', 'analytics', 'auth']) {
+    mkdirSync(join(root, 'packages', name));
+    put(`packages/${name}/package.json`, {
+      name: `@happyvertical/${name}`, version: '0.103.2', publishConfig: { access: 'public' },
+    });
+  }
+  put('.changeset/chatgpt-plan-provider.md',
+    '---\n"@happyvertical/ai": patch\n"@happyvertical/auth": patch\n---\n\nAdd protected ChatGPT plan inference.\n');
+  put('.changeset/matomo-empty-days.md',
+    '---\n"@happyvertical/analytics": patch\n---\n\nPreserve empty Matomo daily report rows.\n');
+  const version = () => {
+    const result = spawnSync(process.execPath, [resolve('node_modules/@changesets/cli/bin.js'), 'version'], {
+      cwd: root, encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  };
+
+  version();
+  assert.equal(JSON.parse(read('packages/utils/package.json')).version, '0.103.3');
+  const lookups = [];
+  assert.equal(recoverPartialRelease(root, { exists: (name, target, registry) => {
+    lookups.push([name, target, registry]); return false;
+  }, version }), true);
+  assert.deepEqual(
+    lookups,
+    ['@happyvertical/ai', '@happyvertical/analytics', '@happyvertical/auth', '@happyvertical/speech', '@happyvertical/utils']
+      .map((name) => [name, '0.103.4', release1033Recovery.registry]),
+  );
+  for (const name of ['ai', 'analytics', 'auth', 'speech', 'utils']) {
+    assert.equal(JSON.parse(read(`packages/${name}/package.json`)).version, '0.103.4');
+    assert.match(read(`packages/${name}/CHANGELOG.md`), /38118252085/);
+  }
+  assert.match(read('packages/ai/CHANGELOG.md'), /protected ChatGPT plan inference/);
+  assert.match(read('packages/analytics/CHANGELOG.md'), /empty Matomo daily report rows/);
+  assert.equal(JSON.parse(read('packages/speech/package.json')).dependencies['@happyvertical/utils'], '0.103.4');
+  assert.equal(recoverPartialRelease(root, { exists: () => assert.fail('retry lookup'), version }), false);
+});
+
+test('0.103.3 reservation fails closed before mutation for occupied or unknown targets', (t) => {
+  const { root, read, put } = fixture(t, '0.103.3');
+  for (const exists of [() => true, () => { throw new Error('offline'); }]) {
+    assert.throws(() => recoverPartialRelease(root, { exists, version: () => assert.fail('version') }), /occupied|offline/);
+    assert.throws(() => read('.changeset/partial-release-recovery.md'), /ENOENT/);
+    assert.equal(JSON.parse(read('packages/utils/package.json')).version, '0.103.3');
+  }
+  assert.throws(() => recoverPartialRelease(root, { registry: 'https://registry.npmjs.org/' }), /recorded primary/);
+  put('packages/speech/package.json', { name: '@happyvertical/speech', version: '0.103.2', publishConfig: {} });
+  assert.throws(() => recoverPartialRelease(root, { exists: () => assert.fail('lookup') }), /Inconsistent/);
+});

@@ -32,6 +32,13 @@ export const recoveries = Object.freeze([
     evidence: 'https://github.com/happyvertical/sdk/actions/runs/37977913268',
     releaseNote: 'Preserve the DuckDB upsert conflict-key repair for referenced parent rows.',
   }),
+  Object.freeze({
+    occupied: '0.103.3',
+    target: '0.103.4',
+    registry: OWN_REGISTRY,
+    evidence: 'https://github.com/happyvertical/sdk/actions/runs/38118252085',
+    releaseNote: 'Preserve the ChatGPT plan provider and empty Matomo daily-row repair.',
+  }),
 ]);
 
 export function versionExists(name, version, registry, run = spawnSync) {

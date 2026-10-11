@@ -1,5 +1,39 @@
 # Incomplete SDK release recovery
 
+## Occupied 0.103.3 (SDK #1399)
+
+[Run 38117837406](https://github.com/happyvertical/sdk/actions/runs/38117837406)
+published all 33 SDK family packages at `0.103.3` from analytics fix
+[#1396](https://github.com/happyvertical/sdk/pull/1396), then its release-commit
+push lost a non-fast-forward race when ChatGPT plan provider
+[#1398](https://github.com/happyvertical/sdk/pull/1398) merged. There is no
+repository `v0.103.3` tag or release. The provider retry in
+[run 38118252085](https://github.com/happyvertical/sdk/actions/runs/38118252085)
+correctly rejected the occupied AI version: registry SHA-1
+`82483749f0b41891a4708521fbae5d5902e682f5` differs from provider candidate
+SHA-1 `17039bc63b42c4da39a040b445cb77b791a9ef9d`.
+
+The explicit reservation applies only when ordinary Changesets preparation
+selects `0.103.3`. It checks every publishable family target at `0.103.4` on
+the recorded primary registry; only structured E404 responses permit the
+ordinary recovery patch pass. The 2026-10-11 point-in-time receipt found the
+AI, Auth, and Utils `0.103.4` endpoints absent; the workflow rechecks the full
+family because that receipt cannot authorize publication during a race.
+
+The second Changesets pass preserves the pending ChatGPT plan provider and
+empty Matomo daily-row notes, advances the fixed family and internal dependency
+versions coherently, and resumes normal artifact verification and immutable
+publication. Do not manually add a product changeset, version manifests, move
+a tag, or overwrite `0.103.3`. If any `0.103.4` target is occupied or cannot be
+read, stop for a newly reviewed reservation.
+
+Before dispatch, verify `main` contains the reviewed reservation and that no
+other SDK release is active; hold planned SDK merges until the release commit
+and tag land. This reduces the known main-advance race but cannot exclude an
+external concurrent merge because publish-job concurrency does not lock
+`main`; [#1400](https://github.com/happyvertical/sdk/issues/1400) tracks the
+required release-ordering redesign.
+
 ## Occupied 0.103.0 (SDK #1391)
 
 [Run 37977913268](https://github.com/happyvertical/sdk/actions/runs/37977913268)
