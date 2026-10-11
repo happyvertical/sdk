@@ -129,6 +129,7 @@ export interface AIRequestEvent {
  */
 export const AI_PROVIDER_TYPES = [
   'openai',
+  'chatgpt-plan',
   'litellm',
   'bifrost',
   'ollama',
@@ -2063,6 +2064,34 @@ export interface OpenAIOptions extends BaseAIOptions {
 }
 
 /**
+ * Protected local session surface consumed by the ChatGPT plan provider.
+ *
+ * `LocalChatGPTSessionManager` from `@happyvertical/auth/local` implements
+ * this contract. The provider asks for a fresh access token immediately before
+ * each account-scoped request and never stores or returns it.
+ */
+export interface ChatGPTPlanSessionManager {
+  accessToken(clientId: string): Promise<string>;
+}
+
+/**
+ * ChatGPT plan-usage provider for explicitly authorized local OSS apps.
+ *
+ * This is a distinct billing path from the ordinary OpenAI API-key provider.
+ * It must be selected explicitly and never participates in provider
+ * auto-detection or fallback.
+ */
+export interface ChatGPTPlanOptions extends BaseAIOptions {
+  type: 'chatgpt-plan';
+  /** Issued client registration for the selected ChatGPT account/workspace. */
+  clientId: string;
+  /** Protected session runtime that owns and refreshes bearer credentials. */
+  sessionManager: ChatGPTPlanSessionManager;
+  /** Test/host transport override. Defaults to global `fetch`. */
+  fetch?: typeof fetch;
+}
+
+/**
  * LiteLLM provider options
  *
  * LiteLLM exposes an OpenAI-compatible API surface and requires a custom
@@ -2411,6 +2440,7 @@ export interface LayaDecisionOptions extends DecisionOptions {
  */
 export type GetAIOptions =
   | OpenAIOptions
+  | ChatGPTPlanOptions
   | LiteLLMOptions
   | BifrostOptions
   | OllamaOptions
