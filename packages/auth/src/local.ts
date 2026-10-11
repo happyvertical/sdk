@@ -209,8 +209,16 @@ export class LocalChatGPTSessionManager {
       resolve = a;
       reject = b;
     });
+    let redirectUri = '';
     const server = createServer((req, res) => {
-      const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
+      let url: URL;
+      try {
+        url = new URL(req.url ?? '/', redirectUri);
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Invalid sign-in callback.');
+        return;
+      }
       if (!this.pending.has(state)) {
         res.writeHead(400, { 'Content-Type': 'text/plain' });
         res.end('Sign-in callback was already consumed.');
@@ -243,7 +251,7 @@ export class LocalChatGPTSessionManager {
         'loopback_unavailable',
         'Could not bind 127.0.0.1 loopback callback',
       );
-    const redirectUri = `http://127.0.0.1:${address.port}/auth/callback`;
+    redirectUri = `http://127.0.0.1:${address.port}/auth/callback`;
     const clientId = selected?.clientId ?? 'dynamic_agent_client';
     this.pending.set(state, {
       state,
@@ -272,7 +280,15 @@ export class LocalChatGPTSessionManager {
       if (selected.email) params.set('login_hint', selected.email);
     } else params.set('agent_name_hint', this.options.appName);
     const authorizationUrl = `${AUTHORIZE}?${params}`;
-    await this.options.openBrowser?.(authorizationUrl);
+    try {
+      await this.options.openBrowser?.(authorizationUrl);
+    } catch (error) {
+      this.pending.delete(state);
+      await new Promise<void>((resolveClose) =>
+        server.close(() => resolveClose()),
+      );
+      throw error;
+    }
     return { authorizationUrl, callback };
   }
   private async complete(
@@ -595,7 +611,7 @@ export class LocalChatGPTSessionManager {
       disk.sessions = disk.sessions.map((s) =>
         s.clientId === clientId ? updated : s,
       );
-      delete disk.refreshes[clientId];
+      delete disk.refreshes![clientId];
       await this.save(disk);
       return updated;
     });

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -520,6 +521,58 @@ describe('LocalChatGPTSessionManager', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+  it('closes the loopback listener when browser launch fails', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    let authorization = '';
+    const manager = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path: join(dir, 'session.json'),
+      openBrowser: (url) => {
+        authorization = url;
+        throw new Error('browser unavailable');
+      },
+    });
+    await expect(manager.begin()).rejects.toThrow('browser unavailable');
+    expect((manager as any).pending.size).toBe(0);
+    const callback = new URL(
+      new URL(authorization).searchParams.get('redirect_uri')!,
+    );
+    await expect(fetch(callback)).rejects.toThrow();
+  });
+  it('rejects a malformed callback Host header without crashing', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    let authorization = '';
+    const manager = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path: join(dir, 'session.json'),
+      openBrowser: (url) => {
+        authorization = url;
+      },
+    });
+    const attempt = await manager.begin();
+    const rejected = attempt.callback.catch((error) => error);
+    const callback = new URL(
+      new URL(authorization).searchParams.get('redirect_uri')!,
+    );
+    const response = await new Promise<number>((resolve, reject) => {
+      const req = request(
+        {
+          hostname: callback.hostname,
+          port: callback.port,
+          path: callback.pathname,
+          headers: { Host: ':' },
+        },
+        (res) => {
+          res.resume();
+          res.once('end', () => resolve(res.statusCode ?? 0));
+        },
+      );
+      req.once('error', reject);
+      req.end();
+    });
+    expect(response).toBe(400);
+    await expect(rejected).resolves.toMatchObject({ code: 'state_mismatch' });
   });
   it('rejects callback replay, state substitution, missing code, and declined consent before token exchange', async () => {
     for (const mutation of [
