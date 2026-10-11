@@ -5,9 +5,9 @@
     "index": 4,
     "count": 33
   },
-  "description": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
+  "description": "Unified authentication for Keycloak, Cognito, Nostr, and local ChatGPT sessions with OAuth2/OIDC and public key identity",
   "provides": [
-    "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity"
+    "Unified authentication for Keycloak, Cognito, Nostr, and local ChatGPT sessions with OAuth2/OIDC and public key identity"
   ],
   "implements": [],
   "requires": {

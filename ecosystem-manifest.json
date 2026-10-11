@@ -200,7 +200,7 @@
         "index": 4,
         "count": 33
       },
-      "description": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
+      "description": "Unified authentication for Keycloak, Cognito, Nostr, and local ChatGPT sessions with OAuth2/OIDC and public key identity",
       "commands": {
         "build": "pnpm --filter @happyvertical/auth build",
         "test": "pnpm --filter @happyvertical/auth test",
@@ -212,7 +212,7 @@
         "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
       ],
       "provides": [
-        "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity"
+        "Unified authentication for Keycloak, Cognito, Nostr, and local ChatGPT sessions with OAuth2/OIDC and public key identity"
       ],
       "implements": [],
       "requires": {
@@ -1676,7 +1676,7 @@
     {
       "type": "provides",
       "from": "@happyvertical/auth",
-      "to": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity"
+      "to": "Unified authentication for Keycloak, Cognito, Nostr, and local ChatGPT sessions with OAuth2/OIDC and public key identity"
     },
     {
       "type": "requires",
