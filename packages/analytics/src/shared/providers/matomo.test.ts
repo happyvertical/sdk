@@ -170,6 +170,114 @@ describe('MatomoProvider.runReport', () => {
     ]);
   });
 
+  it.each([
+    {
+      name: 'mixed populated and empty days',
+      response: {
+        '2026-09-26': { nb_visits: 2, nb_uniq_visitors: 1, nb_pageviews: 5 },
+        '2026-09-27': [],
+        '2026-09-28': { nb_visits: 3, nb_uniq_visitors: 2, nb_pageviews: 4 },
+      },
+      counts: [
+        ['1', '2', '5'],
+        ['0', '0', '0'],
+        ['2', '3', '4'],
+      ],
+    },
+    {
+      name: 'an entirely empty period',
+      response: { '2026-09-26': [], '2026-09-27': [], '2026-09-28': [] },
+      counts: [
+        ['0', '0', '0'],
+        ['0', '0', '0'],
+        ['0', '0', '0'],
+      ],
+    },
+    {
+      name: 'empty records and missing optional metrics',
+      response: {
+        '2026-09-26': {},
+        '2026-09-27': [],
+        '2026-09-28': { nb_visits: 2, future_metric: 'ignored' },
+      },
+      counts: [
+        ['0', '0', '0'],
+        ['0', '0', '0'],
+        ['0', '2', '0'],
+      ],
+    },
+  ])('preserves daily rows for $name', async ({ response, counts }) => {
+    const calls = setFetchMock(() => jsonResponse(response));
+
+    const result = await buildProvider().runReport('7', {
+      dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+      dimensions: [{ name: 'date' }],
+      metrics: [
+        { name: 'activeUsers' },
+        { name: 'sessions' },
+        { name: 'screenPageViews' },
+      ],
+    });
+
+    expect(calls[0].body.get('period')).toBe('day');
+    expect(calls[0].body.get('date')).toBe('last7');
+    expect(result.rowCount).toBe(3);
+    expect(result.rows).toEqual(
+      Object.keys(response).map((date, index) => ({
+        dimensionValues: [{ value: date }],
+        metricValues: counts[index].map((value) => ({ value })),
+      })),
+    );
+  });
+
+  it.each([
+    { response: { nb_visits: 4 }, expected: ['4'] },
+    { response: [{ nb_visits: 4 }, null, 'unexpected'], expected: ['4'] },
+    { response: [], expected: [] },
+    { response: null, expected: [] },
+    { response: 'unexpected', expected: [] },
+  ])('preserves flat report normalization: $response', async ({
+    response,
+    expected,
+  }) => {
+    setFetchMock(() => jsonResponse(response));
+    const result = await buildProvider().runReport('7', {
+      dateRanges: [{ startDate: 'today', endDate: 'today' }],
+      metrics: [{ name: 'sessions' }],
+    });
+
+    expect(result.rowCount).toBe(expected.length);
+    expect(result.rows.map((row) => row.metricValues[0].value)).toEqual(
+      expected,
+    );
+  });
+
+  it('does not substitute page visits for unavailable unique visitors', async () => {
+    setFetchMock(() =>
+      jsonResponse([
+        {
+          url: 'https://example.com/news?source=feed',
+          nb_visits: 6,
+          nb_hits: 9,
+        },
+      ]),
+    );
+    const result = await buildProvider().runReport('7', {
+      dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+      dimensions: [{ name: 'pagePath' }],
+      metrics: [
+        { name: 'activeUsers' },
+        { name: 'sessions' },
+        { name: 'screenPageViews' },
+      ],
+    });
+
+    expect(result.rows[0]).toEqual({
+      dimensionValues: [{ value: 'https://example.com/news?source=feed' }],
+      metricValues: [{ value: '0' }, { value: '6' }, { value: '9' }],
+    });
+  });
+
   it('maps page reports through Actions.getPageUrls', async () => {
     const calls = setFetchMock(() =>
       jsonResponse([
