@@ -426,8 +426,17 @@ function normalizeMatomoRows(value: unknown): MatomoRow[] {
     return [];
   }
   const entries = Object.entries(value);
-  if (entries.length > 0 && entries.every(([, row]) => isRecord(row))) {
-    return entries.map(([key, row]) => ({ ...(row as MatomoRow), date: key }));
+  // Matomo represents a day without visits as [], alongside populated records.
+  if (
+    entries.length > 0 &&
+    entries.every(
+      ([, row]) => isRecord(row) || (Array.isArray(row) && row.length === 0),
+    )
+  ) {
+    return entries.map(([date, row]) => ({
+      ...(isRecord(row) ? row : {}),
+      date,
+    }));
   }
   return [value];
 }
