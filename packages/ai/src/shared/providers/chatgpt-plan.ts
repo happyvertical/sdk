@@ -734,7 +734,10 @@ export class ChatGPTPlanProvider implements AIInterface {
           'ChatGPT plan model catalog omitted models',
           'INVALID_RESPONSE',
           response.status,
-          response.headers.get('x-request-id') || undefined,
+          safeDiagnostic(
+            response.headers.get('x-request-id') || undefined,
+            token,
+          ),
         );
       return body.models
         .filter(

@@ -105,14 +105,18 @@ describe('ChatGPT plan provider', () => {
       sessionManager: session(),
       fetch: vi.fn().mockResolvedValue(
         new Response(JSON.stringify({ data: [] }), {
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            'x-request-id': `req_${TOKEN}`,
+          },
         }),
       ),
     });
 
-    await expect(provider.getModels()).rejects.toMatchObject({
-      code: 'INVALID_RESPONSE',
-    });
+    const error = await provider.getModels().catch((value) => value);
+    expect(error).toMatchObject({ code: 'INVALID_RESPONSE' });
+    expect(error.requestId).not.toContain(TOKEN);
+    expect(JSON.stringify(error)).not.toContain(TOKEN);
   });
 
   it('sends the fail-closed SIWC Responses shape and waits for completed', async () => {
