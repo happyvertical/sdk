@@ -1,21 +1,10 @@
 /** Node-only local Sign in with ChatGPT session runtime. */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import {
-  chmod,
-  link,
-  lstat,
-  mkdir,
-  readdir,
-  readFile,
-  rename,
-  rmdir,
-  stat,
-  unlink,
-  writeFile,
-} from 'node:fs/promises';
+import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const AUTHORIZE = 'https://auth.openai.com/api/accounts/authorize';
@@ -146,87 +135,38 @@ export class LocalChatGPTSessionManager {
       return error?.code !== 'ESRCH';
     }
   }
-  private async clearOrphanedLock(lock: string) {
-    try {
-      const info = await lstat(lock);
-      if (info.isDirectory()) {
-        const owners = await readdir(lock);
-        if (owners.length === 1) {
-          const match = /^owner-(\d+)-/.exec(owners[0]!);
-          if (!match) return false;
-          const pid = Number(match[1]);
-          if (this.processIsAlive(pid)) return false;
-          await rmdir(join(lock, owners[0]!));
-          await rmdir(lock);
-          return true;
-        }
-        if (owners.length !== 0) return false;
-        const created = await stat(lock);
-        if (Date.now() - created.mtimeMs < 5_000) return false;
-        await rmdir(lock);
-        return true;
-      }
-      const owner = JSON.parse(await readFile(lock, 'utf8')) as {
-        id?: string;
-        pid?: number;
-      };
-      if (typeof owner.pid !== 'number' || typeof owner.id !== 'string')
-        return false;
-      if (this.processIsAlive(owner.pid)) return false;
-      await unlink(lock);
-      await unlink(`${lock}.owner-${owner.pid}-${owner.id}`).catch(
-        () => undefined,
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
   private async locked<T>(operation: () => Promise<T>): Promise<T> {
-    const lock = `${this.file}.lock`;
-    const ownerId = randomUUID();
-    const ownerPath = `${lock}.owner-${process.pid}-${ownerId}`;
-    let acquired = false;
+    const mutex = `${this.file}.mutex.sqlite`;
     await mkdir(dirname(this.file), { recursive: true, mode: 0o700 });
-    await writeFile(
-      ownerPath,
-      JSON.stringify({ id: ownerId, pid: process.pid }),
-      { flag: 'wx', mode: 0o600 },
-    );
     for (let attempt = 0; attempt < 200; attempt++) {
+      const database = new DatabaseSync(mutex, { timeout: 0 });
+      let busy = false;
       try {
-        await link(ownerPath, lock);
-        acquired = true;
-        break;
-      } catch (error: any) {
-        if (error?.code !== 'EEXIST') {
-          await unlink(ownerPath).catch(() => undefined);
-          throw error;
+        await chmod(mutex, 0o600);
+        try {
+          database.exec('BEGIN IMMEDIATE');
+        } catch (error: any) {
+          if (
+            error?.code === 'ERR_SQLITE_ERROR' &&
+            typeof error?.errcode === 'number' &&
+            (error.errcode & 0xff) === 5
+          )
+            busy = true;
+          else throw error;
         }
-        if (await this.clearOrphanedLock(lock)) continue;
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        if (!busy) {
+          try {
+            return await operation();
+          } finally {
+            database.exec('ROLLBACK');
+          }
+        }
+      } finally {
+        database.close();
       }
+      await new Promise((resolve) => setTimeout(resolve, 10));
     }
-    if (!acquired) {
-      await unlink(ownerPath).catch(() => undefined);
-      throw new ChatGPTSessionError(
-        'storage_busy',
-        'Credential storage is busy',
-      );
-    }
-    try {
-      return await operation();
-    } finally {
-      try {
-        const owner = JSON.parse(await readFile(lock, 'utf8')) as {
-          id?: string;
-        };
-        if (owner.id === ownerId) await unlink(lock);
-      } catch {
-        // A missing or replaced owner must not let this operation steal a lock.
-      }
-      await unlink(ownerPath).catch(() => undefined);
-    }
+    throw new ChatGPTSessionError('storage_busy', 'Credential storage is busy');
   }
   private async save(disk: Disk) {
     await mkdir(dirname(this.file), { recursive: true, mode: 0o700 });

@@ -1,14 +1,9 @@
-import {
-  link,
-  mkdir,
-  mkdtemp,
-  readFile,
-  stat,
-  unlink,
-  writeFile,
-} from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalChatGPTSessionManager } from './local';
@@ -298,58 +293,118 @@ describe('LocalChatGPTSessionManager', () => {
       expect(await manager.sessions()).toEqual([]);
     }
   });
-  it('recovers a credential lock whose owner process is gone', async () => {
+  it('releases the credential mutex when its process is killed', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
     const path = join(dir, 'session.json');
+    const mutex = `${path}.mutex.sqlite`;
     await writeFile(path, JSON.stringify(record), { mode: 0o600 });
-    await mkdir(`${path}.lock`, { mode: 0o700 });
-    await mkdir(join(`${path}.lock`, 'owner-999999999-orphan'), {
-      mode: 0o700,
-    });
-    const manager = new LocalChatGPTSessionManager({
-      appName: 'test',
-      path,
-      fetch: vi.fn().mockRejectedValue(new Error('offline')),
-    });
-    await expect(manager.logout('oaiapp_test')).resolves.toEqual({
-      remoteRevocationConfirmed: false,
-    });
-    expect(await manager.sessions()).toEqual([]);
-  });
-  it('cannot steal a live lock from an owner paused before atomic acquisition', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
-    const path = join(dir, 'session.json');
-    await writeFile(path, JSON.stringify(record), { mode: 0o600 });
-    const pausedOwner = `${path}.lock.owner-${process.pid}-paused`;
-    await writeFile(
-      pausedOwner,
-      JSON.stringify({ id: 'paused', pid: process.pid }),
-      { mode: 0o600 },
+    const child = spawn(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        "import { DatabaseSync } from 'node:sqlite'; const database = new DatabaseSync(process.argv[1], { timeout: 0 }); database.exec('BEGIN IMMEDIATE'); process.stdout.write('held'); setInterval(() => {}, 1000);",
+        mutex,
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
     );
-    let releaseLock!: () => void;
-    let lockEntered!: () => void;
-    const release = new Promise<void>((resolve) => {
-      releaseLock = resolve;
-    });
-    const entered = new Promise<void>((resolve) => {
-      lockEntered = resolve;
-    });
-    const manager = new LocalChatGPTSessionManager({
+    try {
+      await once(child.stdout!, 'data');
+      const probe = new DatabaseSync(mutex, { timeout: 0 });
+      let busy: any;
+      try {
+        probe.exec('BEGIN IMMEDIATE');
+      } catch (error) {
+        busy = error;
+      } finally {
+        probe.close();
+      }
+      expect(busy).toMatchObject({ code: 'ERR_SQLITE_ERROR', errcode: 5 });
+      child.kill('SIGKILL');
+      await once(child, 'exit');
+      const inode = (await stat(mutex)).ino;
+      const manager = new LocalChatGPTSessionManager({
+        appName: 'test',
+        path,
+        fetch: vi.fn().mockRejectedValue(new Error('offline')),
+      });
+      await expect(manager.logout('oaiapp_test')).resolves.toEqual({
+        remoteRevocationConfirmed: false,
+      });
+      expect(await manager.sessions()).toEqual([]);
+      expect((await stat(mutex)).ino).toBe(inode);
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill('SIGKILL');
+        await once(child, 'exit');
+      }
+    }
+  });
+  it('serializes same-process credential transactions without blocking progress', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
+    const path = join(dir, 'session.json');
+    await writeFile(path, JSON.stringify(record), { mode: 0o600 });
+    const one = new LocalChatGPTSessionManager({
       appName: 'test',
       path,
       fetch: vi.fn(),
     });
-    const holder = (manager as any).locked(async () => {
-      lockEntered();
-      await release;
+    const two = new LocalChatGPTSessionManager({
+      appName: 'test',
+      path,
+      fetch: vi.fn(),
     });
-    await entered;
-    await expect(link(pausedOwner, `${path}.lock`)).rejects.toMatchObject({
-      code: 'EEXIST',
+    let releaseOne!: () => void;
+    let enteredOne!: () => void;
+    const firstRelease = new Promise<void>((resolve) => {
+      releaseOne = resolve;
     });
-    releaseLock();
-    await holder;
-    await unlink(pausedOwner);
+    const firstEntered = new Promise<void>((resolve) => {
+      enteredOne = resolve;
+    });
+    let active = 0;
+    let maxActive = 0;
+    const first = (one as any).locked(async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      enteredOne();
+      await firstRelease;
+      active--;
+    });
+    await firstEntered;
+    const mutex = `${path}.mutex.sqlite`;
+    const inode = (await stat(mutex)).ino;
+    const probe = new DatabaseSync(mutex, { timeout: 0 });
+    expect(() => probe.exec('BEGIN IMMEDIATE')).toThrow('database is locked');
+    probe.close();
+
+    let releaseTwo!: () => void;
+    let enteredTwo!: () => void;
+    const secondRelease = new Promise<void>((resolve) => {
+      releaseTwo = resolve;
+    });
+    const secondEntered = new Promise<void>((resolve) => {
+      enteredTwo = resolve;
+    });
+    const second = (two as any).locked(async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      enteredTwo();
+      await secondRelease;
+      active--;
+    });
+    releaseOne();
+    await first;
+    await secondEntered;
+    const secondProbe = new DatabaseSync(mutex, { timeout: 0 });
+    expect(() => secondProbe.exec('BEGIN IMMEDIATE')).toThrow(
+      'database is locked',
+    );
+    secondProbe.close();
+    releaseTwo();
+    await second;
+    expect(maxActive).toBe(1);
+    expect((await stat(mutex)).ino).toBe(inode);
   });
   it('completes only a state-bound loopback callback with a verified identity', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'hv-siwc-'));
