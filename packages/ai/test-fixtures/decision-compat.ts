@@ -121,6 +121,7 @@ export const neutralWithMaxLen: DecisionOptions = {
 export function describeProvider(type: AIProviderType): string {
   switch (type) {
     case 'openai':
+    case 'chatgpt-plan':
     case 'litellm':
     case 'bifrost':
     case 'ollama':

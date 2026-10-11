@@ -16,6 +16,7 @@ import type {
   BedrockOptions,
   BifrostOptions,
   ByteplusModelArkOptions,
+  ChatGPTPlanOptions,
   ClaudeCliOptions,
   GeminiOptions,
   GetAIOptions,
@@ -45,6 +46,12 @@ function isOpenAIOptions(
   options: GetAIOptions | AIClientOptions,
 ): options is OpenAIOptions {
   return !options.type || options.type === 'openai';
+}
+
+function isChatGPTPlanOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is ChatGPTPlanOptions {
+  return options.type === 'chatgpt-plan';
 }
 
 /**
@@ -283,6 +290,9 @@ export async function getAI(
   if (isOpenAIOptions(options)) {
     const { OpenAIProvider } = await import('./providers/openai.js');
     client = new OpenAIProvider(options);
+  } else if (isChatGPTPlanOptions(options)) {
+    const { ChatGPTPlanProvider } = await import('./providers/chatgpt-plan.js');
+    client = new ChatGPTPlanProvider(options);
   } else if (isLiteLLMOptions(options)) {
     const { LiteLLMProvider } = await import('./providers/litellm.js');
     client = new LiteLLMProvider(options);

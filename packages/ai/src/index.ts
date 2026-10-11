@@ -16,6 +16,14 @@ export * from './shared/client';
 export * from './shared/factory';
 export { AIMessage as AIMessageClass } from './shared/message';
 export {
+  ChatGPTPlanError,
+  ChatGPTPlanProvider,
+  ChatGPTPlanSessionRevokedError,
+  ChatGPTPlanUsageLimitError,
+  ChatGPTPlanUsageUnavailableError,
+  ChatGPTPlanWorkspaceError,
+} from './shared/providers/chatgpt-plan';
+export {
   DEFAULT_AI_GENERATION_LIMITS,
   DEFAULT_AI_MAX_RETRIES,
   DEFAULT_AI_TIMEOUT_MS,
