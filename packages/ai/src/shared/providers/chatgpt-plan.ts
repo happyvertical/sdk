@@ -42,6 +42,9 @@ interface WireError {
 
 interface StreamEvent {
   type?: unknown;
+  code?: unknown;
+  message?: unknown;
+  param?: unknown;
   delta?: unknown;
   response?: {
     model?: unknown;
@@ -168,6 +171,13 @@ function redact(value: string, token: string): string {
   return token ? value.split(token).join('[REDACTED]') : value;
 }
 
+function safeDiagnostic(
+  value: string | undefined,
+  token: string,
+): string | undefined {
+  return value === undefined ? undefined : redact(value, token);
+}
+
 function errorMessage(error: WireError | null | undefined): string | undefined {
   return typeof error?.message === 'string' ? error.message : undefined;
 }
@@ -188,54 +198,56 @@ function mappedError(input: {
   token: string;
   model?: string;
 }): ChatGPTPlanError {
-  const code = errorCode(input.error);
+  const rawCode = errorCode(input.error);
+  const code = safeDiagnostic(rawCode, input.token);
+  const requestId = safeDiagnostic(input.requestId, input.token);
   const diagnostic = redact(
     errorMessage(input.error) ||
       input.detail ||
       `ChatGPT plan request failed${input.status ? ` (${input.status})` : ''}`,
     input.token,
   );
-  const param = errorParam(input.error);
+  const param = safeDiagnostic(errorParam(input.error), input.token);
 
-  if (code === 'subscription_sharing_usage_limit_exceeded')
+  if (rawCode === 'subscription_sharing_usage_limit_exceeded')
     return new ChatGPTPlanUsageLimitError(
       diagnostic,
       input.status,
-      input.requestId,
+      requestId,
       input.model,
     );
   if (
-    code === 'subscription_sharing_usage_unavailable' ||
-    code === 'subscription_sharing_user_unavailable' ||
+    rawCode === 'subscription_sharing_usage_unavailable' ||
+    rawCode === 'subscription_sharing_user_unavailable' ||
     input.status === 503
   )
     return new ChatGPTPlanUsageUnavailableError(
       diagnostic,
       code || 'subscription_sharing_usage_unavailable',
       input.status,
-      input.requestId,
+      requestId,
       input.model,
     );
-  if (code === 'subscription_sharing_invalid_user' || input.status === 401)
+  if (rawCode === 'subscription_sharing_invalid_user' || input.status === 401)
     return new ChatGPTPlanSessionRevokedError(
       diagnostic,
       code || 'subscription_sharing_invalid_user',
       input.status,
-      input.requestId,
+      requestId,
       input.model,
     );
   if (
-    code === 'subscription_sharing_user_not_eligible' ||
-    code === 'subscription_sharing_route_not_supported' ||
-    code === 'chatpass_v2_scope_not_authorized' ||
-    code === 'chatpass_v2_invalid_authorization_context' ||
+    rawCode === 'subscription_sharing_user_not_eligible' ||
+    rawCode === 'subscription_sharing_route_not_supported' ||
+    rawCode === 'chatpass_v2_scope_not_authorized' ||
+    rawCode === 'chatpass_v2_invalid_authorization_context' ||
     input.status === 403
   )
     return new ChatGPTPlanWorkspaceError(
       diagnostic,
       code || 'workspace_restricted',
       input.status,
-      input.requestId,
+      requestId,
       param,
       input.model,
     );
@@ -243,7 +255,7 @@ function mappedError(input: {
     diagnostic,
     code || 'CHATGPT_PLAN_REQUEST_FAILED',
     input.status,
-    input.requestId,
+    requestId,
     param,
     Boolean(input.status && input.status >= 500),
     input.model,
@@ -427,32 +439,26 @@ export class ChatGPTPlanProvider implements AIInterface {
       const code =
         isRecord(error) && typeof error.code === 'string'
           ? error.code
-          : 'session_invalidated';
+          : undefined;
       const revoked = new Set([
         'unknown_account',
         'refresh_invalid',
         'session_invalidated',
         'plan_permission_missing',
       ]);
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'The selected ChatGPT session is unavailable';
-      if (revoked.has(code))
+      if (code && revoked.has(code))
         throw new ChatGPTPlanSessionRevokedError(
-          message,
+          'The selected ChatGPT session is no longer authorized; sign in again',
           code,
           undefined,
           undefined,
           model,
         );
-      throw new ChatGPTPlanError(
-        message,
-        code,
+      throw new ChatGPTPlanUsageUnavailableError(
+        'The selected ChatGPT session is temporarily unavailable',
+        'subscription_sharing_usage_unavailable',
         undefined,
         undefined,
-        undefined,
-        true,
         model,
       );
     }
@@ -502,7 +508,10 @@ export class ChatGPTPlanProvider implements AIInterface {
           'ChatGPT plan response did not provide an event stream',
           'INVALID_RESPONSE',
           response.status,
-          response.headers.get('x-request-id') || undefined,
+          safeDiagnostic(
+            response.headers.get('x-request-id') || undefined,
+            token,
+          ),
           undefined,
           false,
           model,
@@ -519,7 +528,10 @@ export class ChatGPTPlanProvider implements AIInterface {
             'ChatGPT plan stream contained invalid JSON',
             'INVALID_RESPONSE',
             response.status,
-            response.headers.get('x-request-id') || undefined,
+            safeDiagnostic(
+              response.headers.get('x-request-id') || undefined,
+              token,
+            ),
             undefined,
             false,
             model,
@@ -549,12 +561,23 @@ export class ChatGPTPlanProvider implements AIInterface {
             requestId: response.headers.get('x-request-id') || undefined,
             model,
           });
+        } else if (event.type === 'error') {
+          throw mappedError({
+            error: event.error || event,
+            token,
+            status: response.status,
+            requestId: response.headers.get('x-request-id') || undefined,
+            model,
+          });
         } else if (event.type === 'response.incomplete') {
           throw new ChatGPTPlanError(
             'ChatGPT plan response was incomplete',
             'RESPONSE_INCOMPLETE',
             response.status,
-            response.headers.get('x-request-id') || undefined,
+            safeDiagnostic(
+              response.headers.get('x-request-id') || undefined,
+              token,
+            ),
             'incomplete_details',
             false,
             model,
@@ -566,7 +589,10 @@ export class ChatGPTPlanProvider implements AIInterface {
           'ChatGPT plan stream ended before response.completed',
           'STREAM_INTERRUPTED',
           response.status,
-          response.headers.get('x-request-id') || undefined,
+          safeDiagnostic(
+            response.headers.get('x-request-id') || undefined,
+            token,
+          ),
           undefined,
           true,
           model,

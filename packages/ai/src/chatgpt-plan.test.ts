@@ -268,6 +268,65 @@ describe('ChatGPT plan provider', () => {
     expect(error.requestId).toBe('req_admission');
   });
 
+  it('redacts every serialized response diagnostic', async () => {
+    const provider = new ChatGPTPlanProvider({
+      type: 'chatgpt-plan',
+      clientId: 'client-1',
+      sessionManager: session(),
+      defaultModel: 'gpt-test',
+      fetch: vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: `unknown_${TOKEN}`,
+              message: `failure ${TOKEN}`,
+              param: `field_${TOKEN}`,
+            },
+          }),
+          {
+            status: 400,
+            headers: { 'x-request-id': `req_${TOKEN}` },
+          },
+        ),
+      ),
+    });
+
+    const error = await provider
+      .chat([{ role: 'user', content: 'hello' }])
+      .catch((value) => value);
+    expect(error.message).not.toContain(TOKEN);
+    expect(error.code).not.toContain(TOKEN);
+    expect(error.param).not.toContain(TOKEN);
+    expect(error.requestId).not.toContain(TOKEN);
+    expect(JSON.stringify(error)).not.toContain(TOKEN);
+  });
+
+  it('maps top-level Responses error events through the typed redacted mapper', async () => {
+    const provider = new ChatGPTPlanProvider({
+      type: 'chatgpt-plan',
+      clientId: 'client-1',
+      sessionManager: session(),
+      defaultModel: 'gpt-test',
+      fetch: vi.fn().mockResolvedValue(
+        eventStream([
+          {
+            type: 'error',
+            code: 'subscription_sharing_usage_limit_exceeded',
+            message: `limit reached ${TOKEN}`,
+            param: `field_${TOKEN}`,
+          },
+        ]),
+      ),
+    });
+
+    const error = await provider
+      .chat([{ role: 'user', content: 'hello' }])
+      .catch((value) => value);
+    expect(error).toBeInstanceOf(ChatGPTPlanUsageLimitError);
+    expect(error.message).not.toContain(TOKEN);
+    expect(JSON.stringify(error)).not.toContain(TOKEN);
+  });
+
   it('maps protected-session revocation without copying credentials', async () => {
     const manager = {
       accessToken: vi.fn().mockRejectedValue(
@@ -289,6 +348,28 @@ describe('ChatGPT plan provider', () => {
       .catch((value) => value);
     expect(error).toBeInstanceOf(ChatGPTPlanSessionRevokedError);
     expect(error.code).toBe('refresh_invalid');
-    expect(error).not.toHaveProperty('token');
+    expect(error.message).not.toContain(TOKEN);
+    expect(JSON.stringify(error)).not.toContain(TOKEN);
+  });
+
+  it('maps uncoded protected-session transport failures to retryable unavailability', async () => {
+    const manager = {
+      accessToken: vi.fn().mockRejectedValue(new TypeError(`fetch ${TOKEN}`)),
+    };
+    const provider = new ChatGPTPlanProvider({
+      type: 'chatgpt-plan',
+      clientId: 'client-1',
+      sessionManager: manager,
+      defaultModel: 'gpt-test',
+      fetch: vi.fn(),
+    });
+
+    const error = await provider
+      .chat([{ role: 'user', content: 'hello' }])
+      .catch((value) => value);
+    expect(error).toBeInstanceOf(ChatGPTPlanUsageUnavailableError);
+    expect(error).toMatchObject({ retryable: true });
+    expect(error.message).not.toContain(TOKEN);
+    expect(JSON.stringify(error)).not.toContain(TOKEN);
   });
 });
