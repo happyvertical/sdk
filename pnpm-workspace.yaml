@@ -26,9 +26,9 @@ allowBuilds:
 # These are separate repos (ocr, pdf, spider) whose transitive deps pull in
 # old SDK versions. The catalog + overrides below keep everything aligned.
 catalog:
-  '@happyvertical/ocr': ^0.61.1
+  '@happyvertical/ocr': ^0.61.6
   '@happyvertical/pdf': ^0.65.9
-  '@happyvertical/spider': ^1.1
+  '@happyvertical/spider': ^1.1.13
 
 minimumReleaseAgeExclude:
   - bullmq@5.80.4
