@@ -1,5 +1,15 @@
 # @happyvertical/speech
 
+## 0.103.4
+
+### Patch Changes
+
+- SDK 0.103.3 was published to the registry but its repository release never completed. Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. Preserve the ChatGPT plan provider and empty Matomo daily-row repair. Recovery evidence: https://github.com/happyvertical/sdk/actions/runs/38118252085.
+
+## 0.103.3
+
+## 0.103.2
+
 ## 0.103.1
 
 ### Patch Changes

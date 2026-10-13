@@ -45,6 +45,22 @@ for await (const chunk of ai.stream([
 // OpenAI (default when type is omitted)
 const openai = await getAI({ apiKey: 'sk-...' });
 
+// ChatGPT plan usage for an explicitly authorized local OSS app.
+// LocalChatGPTSessionManager owns refreshable credentials; this provider asks
+// it for a usable access token immediately before each request.
+import { LocalChatGPTSessionManager } from '@happyvertical/auth/local';
+
+const sessions = new LocalChatGPTSessionManager({
+  appName: 'my-local-app',
+  path: '/user/config/my-local-app/chatgpt.json',
+});
+const chatgpt = await getAI({
+  type: 'chatgpt-plan',
+  clientId: selectedAccount.clientId,
+  sessionManager: sessions,
+  defaultModel: selectedModel.slug,
+});
+
 // LiteLLM (OpenAI-compatible gateway)
 const litellm = await getAI({
   type: 'litellm',
@@ -148,6 +164,61 @@ const laya = await getAI({
 // WebLLM (in-browser, WebGPU, no server or API key; see "In-Browser Chat")
 const local = await getAI({ type: 'webllm', model: 'Llama-3.2-1B-Instruct-q4f16_1-MLC' });
 ```
+
+## ChatGPT plan usage
+
+`type: 'chatgpt-plan'` is a separate, explicit provider for local open-source
+apps using [Sign in with ChatGPT plan usage](https://developers.openai.com/siwc/token-sharing-open-source).
+It does not use an OpenAI API key and is never selected automatically or used
+as a fallback. Pass the selected registration's `clientId` and a protected
+`sessionManager` compatible with `LocalChatGPTSessionManager` from
+`@happyvertical/auth/local`.
+
+`getModels()` reads the selected account's current model catalog. Use a
+returned model ID as `defaultModel` or the per-call `model`. Chat and stream
+requests follow the preview's
+[models and inference contract](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference):
+they always call the public Responses API with `store: false`, `stream: true`,
+and complete only after `response.completed`.
+
+The provider rejects request options that the
+[preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+do not allow, including `maxTokens`, `temperature`, `topP`, `user`, hosted
+tools, and prior-response state. System messages are sent as developer messages.
+It supports text and image input; embeddings, hosted image generation, file
+search, Code Interpreter, native computer use, hosted MCP/connectors, and audio
+are unavailable on this provider.
+
+Handle plan-specific failures without changing providers implicitly:
+
+```typescript
+import {
+  ChatGPTPlanSessionRevokedError,
+  ChatGPTPlanUsageLimitError,
+  ChatGPTPlanUsageUnavailableError,
+  ChatGPTPlanWorkspaceError,
+} from '@happyvertical/ai';
+
+try {
+  await chatgpt.message('Draft the implementation plan.');
+} catch (error) {
+  if (error instanceof ChatGPTPlanUsageLimitError) {
+    // Pause plan-backed requests and link to ChatGPT Settings → Usage.
+  } else if (error instanceof ChatGPTPlanWorkspaceError) {
+    // Explain the selected account/workspace restriction.
+  } else if (error instanceof ChatGPTPlanSessionRevokedError) {
+    // Ask the user to sign in again.
+  } else if (error instanceof ChatGPTPlanUsageUnavailableError) {
+    // Preserve the session and retry later with bounded backoff.
+  }
+}
+```
+
+The provider preserves structured status, code, parameter, and request-ID
+details where OpenAI supplies them. Bearer credentials are sent only in the
+`Authorization` header and are redacted from provider-generated diagnostics.
+Callers can still offer another configured provider, but must make that billing
+choice explicit.
 
 ## In-Browser Chat
 

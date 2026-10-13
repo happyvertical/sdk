@@ -128,6 +128,20 @@ recovery. CIMD is not implemented. The signing API supports one active key;
 overlapping signing-key rotation is not implemented. Hosts must supply a public
 JWK matching the private signing key and keep private material out of JWKS.
 
+## Local Sign in with ChatGPT
+
+Node-only local applications can import `@happyvertical/auth/local` to manage
+their Sign in with ChatGPT session. The manager uses a `127.0.0.1` loopback
+callback, PKCE and OIDC validation, and writes account-scoped renewable
+credentials atomically with owner-only permissions. Pass a configuration path
+outside the project directory and open the returned authorization URL in the
+system browser. It never exposes credentials from `sessions()`.
+
+Use `accessToken(clientId)` before an authorized request; it serializes token
+refreshes. `logout(clientId)` always clears local credentials and reports
+whether remote revocation was confirmed. This local runtime does not make any
+inference request or use browser storage.
+
 ## License
 
 MIT

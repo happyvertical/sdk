@@ -1,7 +1,7 @@
 {
   "name": "@happyvertical/auth",
-  "version": "0.103.1",
-  "description": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
+  "version": "0.103.4",
+  "description": "Unified authentication for Keycloak, Cognito, Nostr, and local ChatGPT sessions with OAuth2/OIDC and public key identity",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,6 +13,10 @@
     "./server": {
       "import": "./dist/server/index.js",
       "types": "./dist/server/index.d.ts"
+    },
+    "./local": {
+      "import": "./dist/local.js",
+      "types": "./dist/local.d.ts"
     }
   },
   "bin": {
