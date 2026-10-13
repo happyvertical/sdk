@@ -241,7 +241,12 @@ describe('OAuthAuthorizationServer', () => {
     const fourth = await refresh(server, third.refresh_token!);
     expect(observed.at(-1)).toBeUndefined();
     expect(
-      (await server.verifyAccessToken(fourth.access_token)).role,
+      (
+        await server.verifyAccessToken(
+          fourth.access_token,
+          'https://resource.example/mcp',
+        )
+      ).role,
     ).toBeUndefined();
   });
 
@@ -397,7 +402,12 @@ describe('OAuthAuthorizationServer', () => {
     }));
     const first = await exchange(narrowed.server, await code(narrowed.server));
     expect(
-      (await narrowed.server.verifyAccessToken(first.access_token)).scope,
+      (
+        await narrowed.server.verifyAccessToken(
+          first.access_token,
+          'https://resource.example/mcp',
+        )
+      ).scope,
     ).toBe('');
     await narrowed.server.revoke(
       new URLSearchParams({ token: first.refresh_token! }),
@@ -423,9 +433,14 @@ describe('OAuthAuthorizationServer', () => {
     narrow = true;
     const second = await refresh(server, first.refresh_token!);
     expect(second.scope).toBe('');
-    expect((await server.verifyAccessToken(second.access_token)).scope).toBe(
-      '',
-    );
+    expect(
+      (
+        await server.verifyAccessToken(
+          second.access_token,
+          'https://resource.example/mcp',
+        )
+      ).scope,
+    ).toBe('');
     expect(
       storage.refreshes.get(second.refresh_token!.split('.')[0])?.scopes,
     ).toEqual([]);
@@ -574,9 +589,12 @@ describe('OAuthAuthorizationServer', () => {
     vi.spyOn(storage, 'isAccessTokenRevoked').mockRejectedValueOnce(
       new Error('database unavailable'),
     );
-    await expect(server.verifyAccessToken(first.access_token)).rejects.toThrow(
-      'database unavailable',
-    );
+    await expect(
+      server.verifyAccessToken(
+        first.access_token,
+        'https://resource.example/mcp',
+      ),
+    ).rejects.toThrow('database unavailable');
   });
 
   it('fails closed if persisting narrowed scopes fails', async () => {
@@ -706,11 +724,17 @@ describe('OAuthAuthorizationServer', () => {
         'The authorization server could not complete the request.',
     });
     await expect(
-      server.verifyAccessToken(tokens.access_token),
+      server.verifyAccessToken(
+        tokens.access_token,
+        'https://resource.example/mcp',
+      ),
     ).resolves.toHaveProperty('sub', 'alice');
     expect((await revoke()).status).toBe(200);
     await expect(
-      server.verifyAccessToken(tokens.access_token),
+      server.verifyAccessToken(
+        tokens.access_token,
+        'https://resource.example/mcp',
+      ),
     ).rejects.toMatchObject({ error: 'invalid_token' });
     expect((await revoke()).status).toBe(200);
   });
@@ -820,5 +844,31 @@ describe('OAuthAuthorizationServer', () => {
       new Request(`${issuer}/register`, { method: 'POST', body: '{' }),
     );
     expect(malformed.status).toBe(400);
+  });
+
+  it('requires a caller audience and refresh-capable storage', async () => {
+    const { server, storage, keys } = await setup();
+    const tokens = await exchange(server, await code(server));
+    await expect(
+      server.verifyAccessToken(tokens.access_token, ''),
+    ).rejects.toThrow(TypeError);
+    expect(() =>
+      createAuthorizationServer({
+        issuer,
+        signingKey: {
+          privateKey: keys.privateKey,
+          publicKey: keys.publicKey,
+          publicJwk: {},
+          algorithm: 'RS256',
+          keyId: 'test',
+        },
+        storage: {
+          ...storage,
+          narrowRefreshGrant: undefined,
+        } as unknown as typeof storage,
+        scopes: ['mcp.read'],
+        identity: { revalidateConsent: async (context) => context },
+      }),
+    ).toThrow(/narrowRefreshGrant/);
   });
 });

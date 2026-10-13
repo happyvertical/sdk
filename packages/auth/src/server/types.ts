@@ -31,7 +31,7 @@ export interface OAuthClient {
   readonly redirectUris: readonly string[];
   readonly allowedScopes: readonly string[];
   readonly tokenEndpointAuthMethod: 'none' | 'client_secret_post';
-  /** Store a password hash, never a raw secret. */
+  /** Unsalted base64url SHA-256 of the client secret (compared in constant time). Use only high-entropy generated secrets; never store the raw secret or a password-hashing (bcrypt/argon2) digest. */
   readonly secretHash?: string;
   readonly allowedResources?: readonly string[];
   readonly createdAt: Date;
@@ -118,8 +118,8 @@ export interface OAuthAuthorizationStorage {
     readonly now: Date;
   }): Promise<OAuthCodeConsumeResult>;
   createRefreshGrant(grant: OAuthRefreshGrant): Promise<void>;
-  /** Atomically persist refreshed scopes and claims before exposing the replacement token. Undefined claims clear prior claims. Reject missing, consumed, revoked or mismatched grants and scope expansion. Required for refresh-token exchange. */
-  narrowRefreshGrant?(input: {
+  /** Atomically persist refreshed scopes and claims before exposing the replacement token. Undefined claims clear prior claims. Reject missing, consumed, revoked or mismatched grants and scope expansion. Required: every refresh-token exchange persists through it. */
+  narrowRefreshGrant(input: {
     readonly id: string;
     readonly tokenHash: string;
     readonly scopes: readonly string[];
@@ -157,7 +157,7 @@ export interface OAuthIdentityProvider {
     context: OAuthConsentContext,
     grant: OAuthAuthorizationCodeGrant | OAuthRefreshGrant,
   ): Promise<OAuthConsentContext | null>;
-  /** Called before issuing a refreshed token; return null when the identity, tenant, or permissions are no longer active. */
+  /** Fallback for revalidateConsent, invoked for both authorization-code exchange and refresh (the grant's familyId/tokenHash are unset for code grants); return null when the identity, tenant, or permissions are no longer active. */
   refreshConsent?(
     context: OAuthConsentContext,
     grant: OAuthRefreshGrant,

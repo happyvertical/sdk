@@ -100,11 +100,10 @@ grant. Return null to deny; changing identity, tenant, or expanding scope fails
 closed. Omitting claims removes previous application claims. JWT protocol claims
 are reserved. Consent supplied to `approve` may also narrow the requested scopes.
 
-Stores supporting live narrowing implement `narrowRefreshGrant`: atomically
+Stores must implement `narrowRefreshGrant` when refresh tokens are issued (the constructor rejects stores without it): atomically
 validate the replacement token hash and active grant, then persist only a subset
 of its current scopes. Throw on any failure. The server revokes the family on
 failed live checks or narrowing persistence; it never returns the replacement.
-Older stores without this optional method fail closed if narrowing is requested.
 Storage failures must reject; never return success before durable commit. A
 connection failure after commit can leave an unreachable hash-only grant, but
 must not expose any token. Concrete SQL adapters and dialect tests belong to the
@@ -114,7 +113,7 @@ Path issuers such as `https://host/oauth` advertise endpoints under `/oauth` and
 RFC 8414 discovery at `/.well-known/oauth-authorization-server/oauth`. Public
 DCR accepts only code responses, authorization-code/refresh grants, allowed
 scopes, and HTTPS redirects. HTTP loopback redirects require explicit
-`allowLoopbackRedirects: true` for native/development clients. Access-token
+`allowLoopbackRedirects: true` for native/development clients. Resource servers must pass their own audience to `verifyAccessToken(token, audience)`. Access-token
 verification requires `typ: at+jwt`, expiry, issued-at, subject, audience, token
 ID, client ID and scope with valid claim types. Registration bodies are limited to 16 KiB while streaming, including when
 Content-Length is absent or understated. Metadata permits at most 10 redirect

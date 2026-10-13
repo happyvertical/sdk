@@ -111,6 +111,13 @@ export class OAuthAuthorizationServer {
 
   constructor(options: OAuthAuthorizationServerOptions) {
     this.issuerUrl = this.assertIssuer(options.issuer);
+    if (
+      options.issueRefreshTokens !== false &&
+      typeof options.storage.narrowRefreshGrant !== 'function'
+    )
+      throw new TypeError(
+        'OAuth storage must implement narrowRefreshGrant when refresh tokens are issued.',
+      );
     this.issuer = this.issuerUrl.href.replace(/\/$/u, '');
     for (const lifetime of [
       options.authorizationCodeLifetimeSeconds ?? 300,
@@ -261,7 +268,7 @@ export class OAuthAuthorizationServer {
 
   /** Immediately makes a valid, unexpired access JWT inactive through the injected revocation store. */
   async revokeAccessToken(token: string): Promise<void> {
-    const payload = await this.verifyAccessToken(token);
+    const payload = await this.verifyJwt(token);
     if (typeof payload.jti !== 'string' || typeof payload.exp !== 'number')
       throw new OAuthServerError('invalid_token', 'Invalid access token.', 401);
     await this.options.storage.revokeAccessToken({
@@ -270,8 +277,22 @@ export class OAuthAuthorizationServer {
     });
   }
 
-  /** Verifies issuer, signature, expiry, audience and live server-side access-token revocation. */
+  /**
+   * Verifies issuer, signature, expiry, the caller's own resource audience and
+   * live server-side access-token revocation. Resource servers must always pass
+   * the audience (resource URI) they serve so tokens minted for another
+   * resource are rejected.
+   */
   async verifyAccessToken(
+    token: string,
+    audience: string,
+  ): Promise<JWTPayload> {
+    if (!audience)
+      throw new TypeError('verifyAccessToken requires the expected audience.');
+    return this.verifyJwt(token, audience);
+  }
+
+  private async verifyJwt(
     token: string,
     audience?: string,
   ): Promise<JWTPayload> {
@@ -575,11 +596,6 @@ export class OAuthAuthorizationServer {
           requestedScopes.includes(scope),
         ),
       };
-      if (!this.options.storage.narrowRefreshGrant)
-        throw new OAuthServerError(
-          'invalid_grant',
-          'Storage cannot persist refreshed consent.',
-        );
       await this.options.storage.narrowRefreshGrant({
         id: candidate.id,
         tokenHash: candidate.hash,
