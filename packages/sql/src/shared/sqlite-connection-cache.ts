@@ -115,5 +115,7 @@ export async function getCachedSqliteDatabase(
       return db;
     },
     closeSqliteDatabase,
+    async (db) =>
+      path !== 'libsql' || (db.client as { closed?: boolean })?.closed !== true,
   );
 }

@@ -32,6 +32,7 @@ type DriverError = {
   hint?: string;
   severity?: string;
   errno?: number;
+  connectionInvalidated?: boolean;
 };
 
 const DRIVER_ERROR_FIELDS = [
@@ -40,6 +41,7 @@ const DRIVER_ERROR_FIELDS = [
   'hint',
   'severity',
   'errno',
+  'connectionInvalidated',
 ] as const;
 
 const SENSITIVE_CONTEXT_KEY =
