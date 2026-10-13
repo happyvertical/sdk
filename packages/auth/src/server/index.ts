@@ -18,6 +18,7 @@ import {
   type OAuthClient,
   type OAuthConsentContext,
   type OAuthRefreshGrant,
+  type OAuthRegistrationResponse,
   OAuthServerError,
   type OAuthTokenResponse,
 } from './types.js';
@@ -225,7 +226,14 @@ export class OAuthAuthorizationServer {
   async token(input: URLSearchParams): Promise<OAuthTokenResponse> {
     const grantType = required(input, 'grant_type');
     if (grantType === 'authorization_code') return this.exchangeCode(input);
-    if (grantType === 'refresh_token') return this.refresh(input);
+    if (grantType === 'refresh_token') {
+      if (!this.options.issueRefreshTokens)
+        throw new OAuthServerError(
+          'unsupported_grant_type',
+          'Refresh tokens are not enabled.',
+        );
+      return this.refresh(input);
+    }
     throw new OAuthServerError(
       'unsupported_grant_type',
       'Unsupported grant_type.',
@@ -375,9 +383,7 @@ export class OAuthAuthorizationServer {
   }
 
   /** Safely registers a public authorization-code client when DCR is explicitly enabled. */
-  async register(
-    input: unknown,
-  ): Promise<{ client_id: string; client_id_issued_at: number }> {
+  async register(input: unknown): Promise<OAuthRegistrationResponse> {
     if (!this.options.dynamicClientRegistration)
       throw new OAuthServerError(
         'invalid_request',
@@ -470,9 +476,24 @@ export class OAuthAuthorizationServer {
       createdAt: new Date(),
     };
     await this.options.storage.registerClient(client);
+    // RFC 7591 section 3.2.1: echo the effective registered metadata.
+    const grantTypes = Array.isArray(value.grant_types)
+      ? [...(value.grant_types as string[])]
+      : [
+          'authorization_code',
+          ...(this.options.issueRefreshTokens ? ['refresh_token'] : []),
+        ];
     return {
       client_id: client.id,
       client_id_issued_at: Math.floor(client.createdAt.getTime() / 1000),
+      redirect_uris: [...client.redirectUris],
+      token_endpoint_auth_method: 'none',
+      grant_types: grantTypes,
+      response_types: ['code'],
+      scope: client.allowedScopes.join(' '),
+      ...(typeof value.client_name === 'string'
+        ? { client_name: value.client_name }
+        : {}),
     };
   }
 

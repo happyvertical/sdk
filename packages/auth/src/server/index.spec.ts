@@ -332,6 +332,13 @@ describe('OAuthAuthorizationServer', () => {
       }),
     );
     expect(registered.status).toBe(201);
+    expect(await registered.json()).toMatchObject({
+      redirect_uris: ['http://127.0.0.1/callback'],
+      token_endpoint_auth_method: 'none',
+      response_types: ['code'],
+      grant_types: ['authorization_code', 'refresh_token'],
+      scope: 'mcp.read',
+    });
     await expect(
       server.register({ redirect_uris: ['http://attacker.example/callback'] }),
     ).rejects.toMatchObject({ error: 'invalid_request' });
@@ -870,5 +877,32 @@ describe('OAuthAuthorizationServer', () => {
         identity: { revalidateConsent: async (context) => context },
       }),
     ).toThrow(/narrowRefreshGrant/);
+  });
+
+  it('rejects refresh grants when refresh tokens are disabled', async () => {
+    const { storage, keys } = await setup();
+    const server = createAuthorizationServer({
+      issuer,
+      signingKey: {
+        privateKey: keys.privateKey,
+        publicKey: keys.publicKey,
+        publicJwk: {},
+        algorithm: 'RS256',
+        keyId: 'test',
+      },
+      storage,
+      scopes: ['mcp.read'],
+      issueRefreshTokens: false,
+      identity: { revalidateConsent: async (context) => context },
+    });
+    await expect(
+      server.token(
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: 'client',
+          refresh_token: 'a.b',
+        }),
+      ),
+    ).rejects.toMatchObject({ error: 'unsupported_grant_type' });
   });
 });

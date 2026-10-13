@@ -200,3 +200,15 @@ export interface OAuthTokenResponse {
   readonly scope: string;
   readonly refresh_token?: string;
 }
+
+/** RFC 7591 client registration response: identifiers plus the effective registered metadata. */
+export interface OAuthRegistrationResponse {
+  readonly client_id: string;
+  readonly client_id_issued_at: number;
+  readonly redirect_uris: readonly string[];
+  readonly token_endpoint_auth_method: 'none';
+  readonly grant_types: readonly string[];
+  readonly response_types: readonly ['code'];
+  readonly scope: string;
+  readonly client_name?: string;
+}
