@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.103.5
+
+### Patch Changes
+
+- ### Features
+
+  - add reusable OAuth authorization server (#1369) (auth)
+
 ## 0.103.4
 
 ### Patch Changes

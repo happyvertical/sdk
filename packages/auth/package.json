@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/auth",
-  "version": "0.103.4",
+  "version": "0.103.5",
   "description": "Unified authentication for Keycloak, Cognito, Nostr, and local ChatGPT sessions with OAuth2/OIDC and public key identity",
   "type": "module",
   "main": "./dist/index.js",
