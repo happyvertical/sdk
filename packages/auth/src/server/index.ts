@@ -476,13 +476,13 @@ export class OAuthAuthorizationServer {
       createdAt: new Date(),
     };
     await this.options.storage.registerClient(client);
-    // RFC 7591 section 3.2.1: echo the effective registered metadata.
-    const grantTypes = Array.isArray(value.grant_types)
-      ? [...(value.grant_types as string[])]
-      : [
-          'authorization_code',
-          ...(this.options.issueRefreshTokens ? ['refresh_token'] : []),
-        ];
+    // RFC 7591 section 3.2.1: echo the effective registered metadata. Grant
+    // types are not per-client; every registered client may use every grant
+    // the server supports, regardless of the grant_types it requested.
+    const grantTypes = [
+      'authorization_code',
+      ...(this.options.issueRefreshTokens ? ['refresh_token'] : []),
+    ];
     return {
       client_id: client.id,
       client_id_issued_at: Math.floor(client.createdAt.getTime() / 1000),
