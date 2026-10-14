@@ -127,6 +127,75 @@ describe('QuickBooks frozen money snapshots', () => {
     });
   });
 
+  it('maps explicit zero-tax inclusive exempt snapshots for invoices and credit memos', () => {
+    const invoice = inclusiveInvoice({
+      subtotal: 100,
+      taxAmount: 0,
+      totalAmount: 100,
+      lineItems: [
+        {
+          description: 'Inclusive exempt service',
+          quantity: 1,
+          unitPrice: 100,
+          amount: 100,
+          taxAmount: 0,
+          taxInclusiveAmount: 100,
+          taxComponents: [],
+          quickbooksMapping: {
+            itemRef: 'item-exempt',
+            taxCodeRef: 'tax-exempt',
+          },
+        },
+      ],
+    });
+    expect(mapInvoiceToQBO(invoice)).toMatchObject({
+      GlobalTaxCalculation: 'TaxInclusive',
+      TxnTaxDetail: { TotalTax: 0 },
+      Line: [
+        {
+          Amount: 100,
+          SalesItemLineDetail: {
+            TaxCodeRef: { value: 'tax-exempt' },
+            TaxInclusiveAmt: 100,
+          },
+        },
+      ],
+    });
+    expect(
+      mapCreditMemoToQBO({
+        ...creditMemo(),
+        ...invoice,
+        creditMemoNumber: 'CM-exempt',
+        creditedInvoiceExternalId: 'qbo-invoice-1',
+      }),
+    ).toMatchObject({
+      GlobalTaxCalculation: 'TaxInclusive',
+      TxnTaxDetail: { TotalTax: 0 },
+    });
+  });
+
+  it('still rejects positive inclusive tax without frozen component detail for invoices and credit memos', () => {
+    const invoice = inclusiveInvoice({
+      lineItems: [
+        {
+          ...inclusiveInvoice().lineItems[0],
+          taxComponents: [],
+        },
+      ],
+    });
+    expect(() => mapInvoiceToQBO(invoice)).toThrow(
+      'tax components must equal the line tax amount',
+    );
+    expect(() =>
+      mapCreditMemoToQBO({
+        ...creditMemo(),
+        ...invoice,
+        creditMemoNumber: 'CM-missing-component',
+        creditedInvoiceExternalId: 'qbo-invoice-1',
+      }),
+    ).toThrow('tax components must equal the line tax amount');
+  });
+
   it.each([
     ['invoice', (input: InvoiceInput) => mapInvoiceToQBO(input)],
     [

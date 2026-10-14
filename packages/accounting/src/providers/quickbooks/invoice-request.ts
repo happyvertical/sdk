@@ -649,10 +649,10 @@ function mapLine(
     if (
       grossAmount === undefined ||
       taxAmount === undefined ||
-      !item.taxComponents?.length
+      (taxAmount > 0 && !item.taxComponents?.length)
     )
       throw new Error(
-        `QuickBooks ${label} TaxInclusive snapshots require gross amount, line tax and tax components`,
+        `QuickBooks ${label} TaxInclusive snapshots require gross amount, line tax and tax components for nonzero tax`,
       );
     validateAmount(grossAmount, `${label} tax-inclusive amount`);
     if (!close(netAmount + taxAmount, grossAmount))
