@@ -78,15 +78,18 @@ The adapter sends net `Amount` and gross
 `SalesItemLineDetail.TaxInclusiveAmt`; Intuit defines that nested field as the
 total including tax in its [SDK reference](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippphpdevkitv3/entities/files/IPPSalesOrderItemLineDetail.html).
 It emits the stored component tax exactly as `TxnTaxDetail.TaxLine[].Amount`.
-Each component therefore needs a realm `quickbooksTaxRateRef`; its frozen
+When any component detail is present, every taxed line must carry it and the
+minor-unit aggregate must equal the frozen header tax. Each component therefore
+needs a realm `quickbooksTaxRateRef`; its frozen
 `rate` is a fraction from `0` through `1` and becomes QBO's percent-form
 `TaxPercent` (for example `0.13` becomes `13`). Intuit's invoice example shows
 the writable `TaxLineDetail` fields, and its TaxLineDetail reference requires
 an international `TaxRateRef` to belong to a tax code used on a transaction
 line: [invoice API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/invoice),
 [TaxLineDetail reference](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/393902ec-f79c-bb8f-82fd-0f3bd296dd27.htm).
-It validates every component sum and the header reconciliation before any
-network request. Every mapped line must supply both realm-specific references;
+It validates every component sum, rate-to-frozen-amount allocation (each stored
+component is the exact floor or ceiling allowed by line/document rounding), and
+header reconciliation before any network request. Every mapped line must supply both realm-specific references;
 the caller must validate that those IDs belong to the configured company.
 
 Legacy untaxed invoices without `quickbooksMapping` remain supported. The

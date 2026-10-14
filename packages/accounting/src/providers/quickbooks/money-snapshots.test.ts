@@ -86,10 +86,10 @@ describe('QuickBooks frozen money snapshots', () => {
   });
 
   it.each([
-    ['CAD', 100, 13, 113],
-    ['JPY', 1000, 100, 1100],
-    ['KWD', 10.125, 0.506, 10.631],
-  ] as const)('maps tax-inclusive %s snapshots as net Amount and gross TaxInclusiveAmt', (currency, net, tax, gross) => {
+    ['CAD', 100, 13, 113, '0.13'],
+    ['JPY', 1000, 100, 1100, '0.1'],
+    ['KWD', 10.125, 0.506, 10.631, '0.05'],
+  ] as const)('maps tax-inclusive %s snapshots as net Amount and gross TaxInclusiveAmt', (currency, net, tax, gross, rate) => {
     const invoice = inclusiveInvoice({
       currency,
       subtotal: net,
@@ -106,7 +106,7 @@ describe('QuickBooks frozen money snapshots', () => {
           taxComponents: [
             {
               taxCode: 'GST',
-              rate: '0.13',
+              rate,
               quickbooksTaxRateRef: 'rate-gst',
               taxAmount: tax,
             },
@@ -222,6 +222,50 @@ describe('QuickBooks frozen money snapshots', () => {
         },
       ],
     });
+  });
+
+  it('maps the BC GST/PST 5%/7% frozen component amounts without recomputing them', () => {
+    const mapped = mapInvoiceToQBO(
+      inclusiveInvoice({
+        subtotal: 100,
+        taxAmount: 12,
+        totalAmount: 112,
+        lineItems: [
+          {
+            ...inclusiveInvoice().lineItems[0],
+            quantity: 1,
+            unitPrice: 112,
+            amount: 100,
+            taxAmount: 12,
+            taxInclusiveAmount: 112,
+            taxComponents: [
+              {
+                taxCode: 'GST',
+                rate: '0.05',
+                quickbooksTaxRateRef: 'rate-gst',
+                taxAmount: 5,
+              },
+              {
+                taxCode: 'PST',
+                rate: '0.07',
+                quickbooksTaxRateRef: 'rate-pst',
+                taxAmount: 7,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(mapped.TxnTaxDetail?.TaxLine).toEqual([
+      expect.objectContaining({
+        Amount: 5,
+        TaxLineDetail: expect.objectContaining({ TaxPercent: 5 }),
+      }),
+      expect.objectContaining({
+        Amount: 7,
+        TaxLineDetail: expect.objectContaining({ TaxPercent: 7 }),
+      }),
+    ]);
   });
 
   it('maps a flat $5 GST/PST-inclusive discount to a negative QBO line when it cannot reduce the unit price on the currency grid', () => {
@@ -427,6 +471,150 @@ describe('QuickBooks frozen money snapshots', () => {
     if (!component) throw new Error('invalid test fixture');
     component.rate = 13;
     expect(() => mapInvoiceToQBO(invoice)).toThrow(/rate from 0 through 1/);
+  });
+
+  it('refuses a materially wrong in-range component rate before mapping', () => {
+    const invoice = inclusiveInvoice();
+    const component = invoice.lineItems[0].taxComponents?.[0];
+    if (!component) throw new Error('invalid test fixture');
+    component.rate = '0.5';
+    expect(() => mapInvoiceToQBO(invoice)).toThrow(/rate is inconsistent/);
+  });
+
+  it('rejects partial component detail instead of sending a tax-line subtotal', () => {
+    const invoice = inclusiveInvoice({
+      subtotal: 200,
+      taxAmount: 10,
+      totalAmount: 210,
+      quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+      lineItems: [
+        {
+          description: 'First taxed line',
+          quantity: 1,
+          unitPrice: 100,
+          amount: 100,
+          taxAmount: 5,
+          taxComponents: [
+            {
+              taxCode: 'GST',
+              rate: '0.05',
+              quickbooksTaxRateRef: 'rate-gst',
+              taxAmount: 5,
+            },
+          ],
+          quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-gst' },
+        },
+        {
+          description: 'Second taxed line',
+          quantity: 1,
+          unitPrice: 100,
+          amount: 100,
+          taxAmount: 5,
+          quickbooksMapping: { itemRef: 'item-2', taxCodeRef: 'tax-gst' },
+        },
+      ],
+    });
+    expect(() => mapInvoiceToQBO(invoice)).toThrow(/every taxed line/);
+  });
+
+  it('rejects component detail whose exact aggregate differs from the header', () => {
+    const invoice = inclusiveInvoice({
+      subtotal: 100,
+      taxAmount: 10,
+      totalAmount: 110,
+      quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+      lineItems: [
+        {
+          description: 'Taxed line',
+          quantity: 1,
+          unitPrice: 100,
+          amount: 100,
+          taxAmount: 5,
+          taxComponents: [
+            {
+              taxCode: 'GST',
+              rate: '0.05',
+              quickbooksTaxRateRef: 'rate-gst',
+              taxAmount: 5,
+            },
+          ],
+          quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-gst' },
+        },
+      ],
+    });
+    expect(() => mapInvoiceToQBO(invoice)).toThrow(
+      /component tax detail must equal/,
+    );
+  });
+
+  it('serializes floating component rates and aggregates exact minor-unit TaxLines', () => {
+    const invoice = inclusiveInvoice({
+      subtotal: 14.29,
+      taxAmount: 3.3,
+      totalAmount: 17.59,
+      quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+      lineItems: [
+        {
+          description: 'Seven percent one',
+          quantity: 1,
+          unitPrice: 1.43,
+          amount: 1.43,
+          taxAmount: 0.1,
+          taxComponents: [
+            {
+              taxCode: 'GST',
+              rate: 0.07,
+              quickbooksTaxRateRef: 'rate-seven',
+              taxAmount: 0.1,
+            },
+          ],
+          quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-seven' },
+        },
+        {
+          description: 'Seven percent two',
+          quantity: 1,
+          unitPrice: 2.86,
+          amount: 2.86,
+          taxAmount: 0.2,
+          taxComponents: [
+            {
+              taxCode: 'GST',
+              rate: 0.07,
+              quickbooksTaxRateRef: 'rate-seven',
+              taxAmount: 0.2,
+            },
+          ],
+          quickbooksMapping: { itemRef: 'item-2', taxCodeRef: 'tax-seven' },
+        },
+        {
+          description: 'Thirty percent',
+          quantity: 1,
+          unitPrice: 10,
+          amount: 10,
+          taxAmount: 3,
+          taxComponents: [
+            {
+              taxCode: 'PST',
+              rate: 0.1 + 0.2,
+              quickbooksTaxRateRef: 'rate-thirty',
+              taxAmount: 3,
+            },
+          ],
+          quickbooksMapping: { itemRef: 'item-3', taxCodeRef: 'tax-thirty' },
+        },
+      ],
+    });
+    const mapped = mapInvoiceToQBO(invoice);
+    expect(mapped.TxnTaxDetail?.TaxLine).toEqual([
+      expect.objectContaining({
+        Amount: 0.3,
+        TaxLineDetail: expect.objectContaining({ TaxPercent: 7 }),
+      }),
+      expect.objectContaining({
+        Amount: 3,
+        TaxLineDetail: expect.objectContaining({ TaxPercent: 30 }),
+      }),
+    ]);
   });
 
   it('binds a positive credit memo payload to one request identity and retries identical bytes', async () => {

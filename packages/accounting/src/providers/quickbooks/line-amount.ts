@@ -18,6 +18,15 @@ const currencyPrecision = new Map(
   ),
 );
 
+/** ISO minor-unit factor, or undefined when the code is unknown or omitted. */
+export function currencyMinorUnitFactor(
+  currency: string | undefined,
+): number | undefined {
+  if (typeof currency !== 'string') return undefined;
+  const precision = currencyPrecision.get(currency.toUpperCase());
+  return precision === undefined ? undefined : 10 ** precision;
+}
+
 /** True only for a finite amount exactly representable on the ISO minor-unit grid. */
 export function isCurrencyMinorUnit(
   amount: number,

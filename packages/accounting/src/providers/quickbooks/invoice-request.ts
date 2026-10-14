@@ -7,6 +7,7 @@ import type {
   QuickBooksInvoiceRequest,
 } from '../../types.js';
 import {
+  currencyMinorUnitFactor,
   isCurrencyMinorUnit,
   matchesCurrencyRoundedLineAmount,
   roundCurrencyAmount,
@@ -42,8 +43,14 @@ interface QuickBooksTaxLine {
 
 interface FrozenTaxComponent {
   taxRateRef: string;
-  rate: number;
-  taxAmount: number;
+  rate: DecimalRate;
+  taxMinor: bigint;
+}
+
+interface DecimalRate {
+  numerator: bigint;
+  denominator: bigint;
+  value: number;
 }
 
 /** Prepare once, persist before sending, and reuse unchanged. Performs no I/O. */
@@ -219,24 +226,122 @@ function reference(value: string | undefined, label: string) {
   return { value };
 }
 
-function componentRate(
+function canonicalRateNumber(value: number): string {
+  // Number inputs can carry an adjacent binary representation of the exact
+  // frozen decimal (for example 0.1 + 0.2). Prefer the shortest nearby decimal
+  // through the calculator's supported precision, without changing a value
+  // whose additional digits are materially distinct.
+  for (let places = 0; places <= 12; places++) {
+    const candidate = Number(value.toFixed(places));
+    if (close(value, candidate)) return candidate.toString();
+  }
+  return value.toString();
+}
+
+function decimalRate(
   value: number | string | undefined,
   label: string,
-): number {
-  const rate =
+): DecimalRate {
+  const text =
     typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value)
-      ? Number(value)
-      : value;
-  if (
-    typeof rate !== 'number' ||
-    !Number.isFinite(rate) ||
-    rate < 0 ||
-    rate > 1
-  )
+      ? value
+      : typeof value === 'number' && Number.isFinite(value) && value >= 0
+        ? canonicalRateNumber(value)
+        : undefined;
+  if (!text || !/^\d+(?:\.\d+)?$/.test(text))
     throw new Error(
       `QuickBooks ${label} needs a frozen component rate from 0 through 1`,
     );
-  return rate;
+  const [whole, fraction = ''] = text.split('.');
+  const denominator = 10n ** BigInt(fraction.length);
+  const numerator = BigInt(`${whole}${fraction}`);
+  if (numerator > denominator)
+    throw new Error(
+      `QuickBooks ${label} needs a frozen component rate from 0 through 1`,
+    );
+  return { numerator, denominator, value: Number(text) };
+}
+
+function ratesEqual(left: DecimalRate, right: DecimalRate): boolean {
+  return (
+    left.numerator * right.denominator === right.numerator * left.denominator
+  );
+}
+
+function addRates(left: DecimalRate, right: DecimalRate): DecimalRate {
+  const numerator =
+    left.numerator * right.denominator + right.numerator * left.denominator;
+  const denominator = left.denominator * right.denominator;
+  return {
+    numerator,
+    denominator,
+    value: Number(numerator) / Number(denominator),
+  };
+}
+
+function taxPercent(rate: DecimalRate): number {
+  return Number(rate.numerator * 100n) / Number(rate.denominator);
+}
+
+function currencyMinor(
+  amount: number,
+  currency: string | undefined,
+  label: string,
+): bigint {
+  const factor = currencyMinorUnitFactor(currency);
+  if (factor === undefined || !isCurrencyMinorUnit(amount, currency))
+    throw new Error(
+      `QuickBooks ${label} must fit the explicitly supplied currency's ISO 4217 minor-unit grid`,
+    );
+  return BigInt(Math.round(amount * factor));
+}
+
+function currencyMajor(minor: bigint, currency: string | undefined): number {
+  const factor = currencyMinorUnitFactor(currency);
+  if (factor === undefined)
+    throw new Error('QuickBooks needs a known currency');
+  return Number(minor) / factor;
+}
+
+function taxMinorMatchesAllocation(
+  taxMinor: bigint,
+  numerator: bigint,
+  denominator: bigint,
+): boolean {
+  const floor = numerator / denominator;
+  const remainder = numerator % denominator;
+  return taxMinor === floor || (remainder !== 0n && taxMinor === floor + 1n);
+}
+
+function validateFrozenComponentRates(
+  components: readonly FrozenTaxComponent[],
+  taxableAmount: number,
+  currency: string | undefined,
+  inclusive: boolean,
+  label: string,
+): void {
+  const taxableMinor = currencyMinor(
+    taxableAmount,
+    currency,
+    `${label} taxable amount`,
+  );
+  const totalRate = components.reduce(
+    (sum, component) => addRates(sum, component.rate),
+    { numerator: 0n, denominator: 1n, value: 0 },
+  );
+  for (const component of components) {
+    const numerator = inclusive
+      ? taxableMinor * component.rate.numerator * totalRate.denominator
+      : taxableMinor * component.rate.numerator;
+    const denominator = inclusive
+      ? component.rate.denominator *
+        (totalRate.denominator + totalRate.numerator)
+      : component.rate.denominator;
+    if (!taxMinorMatchesAllocation(component.taxMinor, numerator, denominator))
+      throw new Error(
+        `QuickBooks ${label} tax component rate is inconsistent with its frozen tax amount`,
+      );
+  }
 }
 
 function frozenCurrencyAmount(
@@ -265,10 +370,9 @@ function hasFrozenSnapshots(
   input: Pick<InvoiceInput, 'quickbooksMapping' | 'lineItems'>,
 ): boolean {
   return (
-    input.quickbooksMapping !== undefined ||
+    input.quickbooksMapping?.globalTaxCalculation === 'TaxInclusive' ||
     input.lineItems.some(
       (item) =>
-        item.amount !== undefined ||
         item.taxAmount !== undefined ||
         item.taxComponents !== undefined ||
         item.taxInclusiveAmount !== undefined ||
@@ -321,31 +425,37 @@ function mapDocumentLines(
     );
 
   const mapped: QuickBooksSalesLine[] = [];
-  const taxLines = new Map<string, QuickBooksTaxLine>();
+  const taxLines = new Map<
+    string,
+    { rate: DecimalRate; amountMinor: bigint }
+  >();
   let snapshotTax = 0;
   let hasCompleteLineTax = true;
+  const lineTaxSnapshots: Array<{
+    taxAmount: number | undefined;
+    taxComponents: readonly FrozenTaxComponent[];
+  }> = [];
   for (const [index, item] of input.lineItems.entries()) {
     const line = mapLine(item, index, input.currency, mode, frozen);
     mapped.push(...line.lines);
+    lineTaxSnapshots.push({
+      taxAmount: line.taxAmount,
+      taxComponents: line.taxComponents,
+    });
     if (line.taxAmount === undefined) hasCompleteLineTax = false;
     else snapshotTax += line.taxAmount;
     for (const component of line.taxComponents) {
       const existing = taxLines.get(component.taxRateRef);
       if (existing) {
-        if (!close(existing.TaxLineDetail.TaxPercent, component.rate * 100))
+        if (!ratesEqual(existing.rate, component.rate))
           throw new Error(
             `QuickBooks tax rate ${component.taxRateRef} has inconsistent frozen rates`,
           );
-        existing.Amount += component.taxAmount;
+        existing.amountMinor += component.taxMinor;
       } else {
         taxLines.set(component.taxRateRef, {
-          Amount: component.taxAmount,
-          DetailType: 'TaxLineDetail',
-          TaxLineDetail: {
-            TaxRateRef: { value: component.taxRateRef },
-            TaxPercent: component.rate * 100,
-            PercentBased: true,
-          },
+          rate: component.rate,
+          amountMinor: component.taxMinor,
         });
       }
     }
@@ -360,11 +470,47 @@ function mapDocumentLines(
     throw new Error(
       'QuickBooks subtotal plus tax must equal the invoice total',
     );
+  if (taxLines.size > 0) {
+    if (
+      lineTaxSnapshots.some(
+        (line) =>
+          line.taxAmount === undefined ||
+          (line.taxAmount > 0 && line.taxComponents.length === 0),
+      )
+    )
+      throw new Error(
+        'QuickBooks component tax detail requires components on every taxed line',
+      );
+    const totalTaxMinor = currencyMinor(
+      input.taxAmount,
+      input.currency,
+      'tax amount',
+    );
+    const detailTaxMinor = [...taxLines.values()].reduce(
+      (sum, line) => sum + line.amountMinor,
+      0n,
+    );
+    if (detailTaxMinor !== totalTaxMinor)
+      throw new Error(
+        'QuickBooks component tax detail must equal the invoice tax amount',
+      );
+  }
   if (hasCompleteLineTax && !close(snapshotTax, input.taxAmount))
     throw new Error(
       'QuickBooks stored line tax must equal the invoice tax amount',
     );
-  return { lines: mapped, taxLines: [...taxLines.values()] };
+  return {
+    lines: mapped,
+    taxLines: [...taxLines.entries()].map(([taxRateRef, detail]) => ({
+      Amount: currencyMajor(detail.amountMinor, input.currency),
+      DetailType: 'TaxLineDetail',
+      TaxLineDetail: {
+        TaxRateRef: { value: taxRateRef },
+        TaxPercent: taxPercent(detail.rate),
+        PercentBased: true,
+      },
+    })),
+  };
 }
 
 function mapLine(
@@ -429,7 +575,7 @@ function mapLine(
           throw new Error(
             `QuickBooks ${label} tax component ${componentIndex + 1} needs a tax code`,
           );
-        const rate = componentRate(
+        const rate = decimalRate(
           component.rate,
           `${label} tax component ${componentIndex + 1}`,
         );
@@ -444,7 +590,11 @@ function mapLine(
         taxComponents.push({
           taxRateRef,
           rate,
-          taxAmount: componentAmount,
+          taxMinor: currencyMinor(
+            componentAmount,
+            currency,
+            `${label} tax component ${componentIndex + 1}`,
+          ),
         });
         return sum + componentAmount;
       },
@@ -489,6 +639,14 @@ function mapLine(
       `QuickBooks ${label} amount must equal quantity times unit price less discount`,
     );
   }
+  if (taxComponents.length > 0)
+    validateFrozenComponentRates(
+      taxComponents,
+      inclusive ? (grossAmount as number) : netAmount,
+      currency,
+      inclusive,
+      label,
+    );
 
   const itemRef = item.quickbooksMapping
     ? reference(item.quickbooksMapping.itemRef, `${label} itemRef`)
@@ -556,10 +714,10 @@ function mapLine(
     const rate = components.reduce(
       (sum, component, componentIndex) =>
         sum +
-        componentRate(
+        decimalRate(
           component.rate,
           `${label} tax component ${componentIndex + 1}`,
-        ),
+        ).value,
       0,
     );
     const discountNet = roundCurrencyAmount(discount / (1 + rate), currency);
