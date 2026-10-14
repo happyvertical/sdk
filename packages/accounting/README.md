@@ -74,6 +74,9 @@ The QuickBooks adapter maps these values to `SalesItemLineDetail.ItemRef`,
 `TaxInclusive` snapshots. For an inclusive line, pass the stored net amount as
 `amount`, its stored tax as `taxAmount`, the stored gross amount as
 `taxInclusiveAmount`, and stored per-component amounts as `taxComponents`.
+An explicit zero-tax inclusive snapshot may supply an empty component list when
+its net and gross facts are equal, including when an off-grid reduced unit price
+requires the generated negative discount line.
 The adapter sends net `Amount` and gross
 `SalesItemLineDetail.TaxInclusiveAmt`; Intuit defines that nested field as the
 total including tax in its [SDK reference](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippphpdevkitv3/entities/files/IPPSalesOrderItemLineDetail.html).

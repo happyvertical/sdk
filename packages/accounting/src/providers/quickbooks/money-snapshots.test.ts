@@ -174,6 +174,56 @@ describe('QuickBooks frozen money snapshots', () => {
     });
   });
 
+  it.each([
+    ['invoice', (input: InvoiceInput) => mapInvoiceToQBO(input)],
+    [
+      'credit memo',
+      (input: InvoiceInput) =>
+        mapCreditMemoToQBO({
+          ...creditMemo(),
+          ...input,
+          creditMemoNumber: 'CM-exempt-discount',
+          creditedInvoiceExternalId: 'qbo-invoice-1',
+        }),
+    ],
+  ] as const)('maps a component-free inclusive exempt fractional-unit discount for a %s', (_kind, map) => {
+    const invoice = inclusiveInvoice({
+      subtotal: 29,
+      taxAmount: 0,
+      totalAmount: 29,
+      lineItems: [
+        {
+          description: 'Inclusive exempt discounted service',
+          quantity: 3,
+          unitPrice: 10,
+          discount: 1,
+          amount: 29,
+          taxAmount: 0,
+          taxInclusiveAmount: 29,
+          taxComponents: [],
+          quickbooksMapping: {
+            itemRef: 'item-exempt',
+            taxCodeRef: 'tax-exempt',
+          },
+        },
+      ],
+    });
+    expect(map(invoice)).toMatchObject({
+      GlobalTaxCalculation: 'TaxInclusive',
+      TxnTaxDetail: { TotalTax: 0 },
+      Line: [
+        {
+          Amount: 30,
+          SalesItemLineDetail: { TaxInclusiveAmt: 30 },
+        },
+        {
+          Amount: -1,
+          SalesItemLineDetail: { TaxInclusiveAmt: -1 },
+        },
+      ],
+    });
+  });
+
   it('still rejects positive inclusive tax without frozen component detail for invoices and credit memos', () => {
     const invoice = inclusiveInvoice({
       lineItems: [

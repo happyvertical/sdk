@@ -744,19 +744,22 @@ function mapLine(
   const preDiscountGross = inclusive ? baseDocumentAmount : undefined;
   if (inclusive) {
     const components = item.taxComponents;
-    if (!components?.length)
+    const exemptSnapshot = taxAmount === 0 && components?.length === 0;
+    if (!components?.length && !exemptSnapshot)
       throw new Error(
         `QuickBooks ${label} needs frozen component rates for an inclusive negative discount line`,
       );
-    const rate = components.reduce(
-      (sum, component, componentIndex) =>
-        sum +
-        decimalRate(
-          component.rate,
-          `${label} tax component ${componentIndex + 1}`,
-        ).value,
-      0,
-    );
+    const rate = exemptSnapshot
+      ? 0
+      : components.reduce(
+          (sum, component, componentIndex) =>
+            sum +
+            decimalRate(
+              component.rate,
+              `${label} tax component ${componentIndex + 1}`,
+            ).value,
+          0,
+        );
     const discountNet = roundCurrencyAmount(discount / (1 + rate), currency);
     if (discountNet === undefined)
       throw new Error(
