@@ -70,18 +70,24 @@ const invoice = {
 
 The QuickBooks adapter maps these values to `SalesItemLineDetail.ItemRef`,
 `SalesItemLineDetail.TaxCodeRef`, `GlobalTaxCalculation`, and
-`TxnTaxDetail.TotalTax`. It supports `TaxExcluded`, zero-tax `NotApplicable`,
-and frozen `TaxInclusive` snapshots. For an inclusive line, pass the stored net
-amount as `amount`, its stored tax as `taxAmount`, the stored gross amount as
+`TxnTaxDetail`. It supports `TaxExcluded`, zero-tax `NotApplicable`, and frozen
+`TaxInclusive` snapshots. For an inclusive line, pass the stored net amount as
+`amount`, its stored tax as `taxAmount`, the stored gross amount as
 `taxInclusiveAmount`, and stored per-component amounts as `taxComponents`.
 The adapter sends net `Amount` and gross
 `SalesItemLineDetail.TaxInclusiveAmt`; Intuit defines that nested field as the
 total including tax in its [SDK reference](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippphpdevkitv3/entities/files/IPPSalesOrderItemLineDetail.html).
+It emits the stored component tax exactly as `TxnTaxDetail.TaxLine[].Amount`.
+Each component therefore needs a realm `quickbooksTaxRateRef`; its frozen
+`rate` is a fraction from `0` through `1` and becomes QBO's percent-form
+`TaxPercent` (for example `0.13` becomes `13`). Intuit's invoice example shows
+the writable `TaxLineDetail` fields, and its TaxLineDetail reference requires
+an international `TaxRateRef` to belong to a tax code used on a transaction
+line: [invoice API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/invoice),
+[TaxLineDetail reference](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/393902ec-f79c-bb8f-82fd-0f3bd296dd27.htm).
 It validates every component sum and the header reconciliation before any
-network request. Every
-mapped line must supply both realm-specific references. The caller must
-validate that those IDs belong to the configured company. See Intuit's [invoice API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/most-commonly-used/invoice)
-and [item API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/item).
+network request. Every mapped line must supply both realm-specific references;
+the caller must validate that those IDs belong to the configured company.
 
 Legacy untaxed invoices without `quickbooksMapping` remain supported. The
 adapter fails before authentication or HTTP when an input would otherwise be
@@ -101,6 +107,12 @@ lines remain non-negative. An explicit exclusive line `amount` must agree with
 precision. For example, CAD quantity `1.0005` × unit price `10` accepts the
 retained line amount `10.01`. The adapter preserves approved snapshots and never
 changes subtotal/tax reconciliation.
+
+Every frozen monetary snapshot (`subtotal`, tax, total, line net/gross,
+component tax, and discount) must fit the explicitly supplied ISO 4217 grid.
+The source `unitPrice` may remain fractional when its retained line amount is
+on that grid. Unknown or missing currency never authorizes frozen snapshot
+rounding.
 
 Precision comes from [ISO 4217 List One published 2026-09-17](https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml),
 not runtime display formatting (which differs for IQD, MGA and RSD). Zero-, two-,
@@ -215,12 +227,17 @@ await requireCreditMemoOperations(qbo).push({
 });
 ```
 
-The descriptor binds only the mapped frozen credit payload, realm, environment,
-and caller-owned request ID. It does not include mutable payment, allocation, or
-status fields, so a retry of the same frozen revision keeps the same request
-identity. It has the same retry and unknown-outcome rules as a keyed invoice
-create. No live Intuit sandbox assertion is made by this package's contract
-tests; they verify serialized payloads, request IDs, retries, and refusal paths.
+The descriptor carries its realm, environment, and caller-owned request ID, and
+hashes the mapped frozen credit payload together with
+`creditedInvoiceExternalId`. It does not include mutable payment, allocation,
+or status fields, so a retry of the same frozen revision keeps the same request
+identity. Creating a QBO
+`CreditMemo` does not itself apply that credit to the named invoice through this
+API contract; an application must record any later QBO payment/application step
+explicitly. This package does not assume an account's automatic-credit setting.
+It has the same retry and unknown-outcome rules as a keyed invoice create. No
+live Intuit sandbox assertion is made by this package's contract tests; they
+verify serialized payloads, request IDs, retries, and refusal paths.
 
 ## Stripe invoices
 

@@ -225,6 +225,8 @@ export interface TaxComponentSnapshot {
   taxCode: string;
   /** Frozen decimal component rate, for example `0.05` or the exact string `"0.05"` for 5%. */
   rate?: number | string;
+  /** Realm-specific QuickBooks TaxRate.Id for this component when syncing to QBO. */
+  quickbooksTaxRateRef?: string;
   /** Tax recorded for this component in currency major units. */
   taxAmount: number;
 }
@@ -305,7 +307,9 @@ export interface QuickBooksCreditMemoRequest {
   readonly requestId: string;
   readonly realmId: string;
   readonly environment: 'sandbox' | 'production';
-  /** SHA-256 of the exact mapped JSON payload; not an authorization signature. */
+  /** Immutable source invoice bound into the descriptor linkage envelope. */
+  readonly creditedInvoiceExternalId: string;
+  /** SHA-256 of the exact mapped JSON payload plus immutable linkage; not an authorization signature. */
   readonly payloadHash: string;
 }
 
@@ -376,7 +380,7 @@ export interface CreditMemoInput {
   id: string;
   /** Existing QuickBooks CreditMemo.Id, when already synchronized. */
   externalId?: string;
-  /** Existing QuickBooks Invoice.Id being credited. Retained for caller reconciliation. */
+  /** Existing QuickBooks Invoice.Id bound into the create descriptor for caller reconciliation. */
   creditedInvoiceExternalId: string;
   /** QuickBooks create-only identity, prepared with prepareQuickBooksCreditMemoRequest. */
   quickbooksCreditMemoRequest?: QuickBooksCreditMemoRequest;

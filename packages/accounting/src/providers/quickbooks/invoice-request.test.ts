@@ -102,6 +102,23 @@ describe('QuickBooks invoice request identity', () => {
     });
   });
 
+  it('accepts a persisted base-v0.103.5 exclusive descriptor without changing payload bytes', async () => {
+    const input = invoice();
+    // Generated from 1a44c45a (v0.103.5): DueDate preceded Line in the
+    // serialized invoice payload. Keep that byte order for retry safety.
+    input.quickbooksRequest = {
+      requestId: 'legacy-exclusive-v1',
+      realmId: 'realm-a',
+      environment: 'sandbox',
+      payloadHash:
+        '22a84aba3223c148e572a219f98572c87b767cf51459e715fa6f1ab26425d826',
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok()));
+    const result = await settle(provider().invoices.push(input));
+    expect(result.error).toBeUndefined();
+    expect(result.value?.externalId).toBe('remote-1');
+  });
+
   it.each([
     'item',
     'tax-code',
@@ -242,6 +259,7 @@ describe('QuickBooks invoice request identity', () => {
 
   it('accepts ordinary decimal multiplication and compensated multi-line totals', () => {
     const input = invoice();
+    input.currency = 'CAD';
     input.lineItems = Array.from({ length: 100 }, (_, index) => ({
       description: `Decimal line ${index + 1}`,
       quantity: 3,
@@ -295,7 +313,9 @@ describe('QuickBooks invoice request identity', () => {
         accepted.set(url, ok());
         throw new TypeError('response lost after acceptance');
       }
-      return accepted.get(url)!.clone();
+      const response = accepted.get(url);
+      if (!response) throw new Error('missing accepted response fixture');
+      return response.clone();
     });
     vi.stubGlobal('fetch', fetcher);
     const input = keyed();
@@ -347,12 +367,12 @@ describe('QuickBooks invoice request identity', () => {
     }
     if (change === 'environment')
       input.quickbooksRequest = {
-        ...input.quickbooksRequest!,
+        ...input.quickbooksRequest,
         environment: 'production',
       };
     if (change === 'hash')
       input.quickbooksRequest = {
-        ...input.quickbooksRequest!,
+        ...input.quickbooksRequest,
         payloadHash: 'bad',
       };
     if (change === 'update') input.externalId = 'existing';
@@ -417,7 +437,7 @@ describe('QuickBooks invoice request identity', () => {
       requestId: 'invoice-1',
       realmId: 'realm-a',
       environment: 'sandbox',
-      payloadHash: input.quickbooksRequest!.payloadHash,
+      payloadHash: input.quickbooksRequest?.payloadHash,
       status: 400,
     });
   });
@@ -545,7 +565,7 @@ describe('QuickBooks invoice request identity', () => {
       outcome: 'unknown',
       requestId: 'invoice-1',
       status: 400,
-      payloadHash: input.quickbooksRequest!.payloadHash,
+      payloadHash: input.quickbooksRequest?.payloadHash,
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });

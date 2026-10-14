@@ -30,6 +30,22 @@ interface QuickBooksSalesLine {
   };
 }
 
+interface QuickBooksTaxLine {
+  Amount: number;
+  DetailType: 'TaxLineDetail';
+  TaxLineDetail: {
+    TaxRateRef: { value: string };
+    TaxPercent: number;
+    PercentBased: true;
+  };
+}
+
+interface FrozenTaxComponent {
+  taxRateRef: string;
+  rate: number;
+  taxAmount: number;
+}
+
 /** Prepare once, persist before sending, and reuse unchanged. Performs no I/O. */
 export function prepareQuickBooksInvoiceRequest(
   invoice: InvoiceInput,
@@ -43,7 +59,10 @@ export function prepareQuickBooksInvoiceRequest(
 /** Prepare once, persist before sending, and reuse unchanged. Performs no I/O. */
 export function prepareQuickBooksCreditMemoRequest(
   creditMemo: CreditMemoInput,
-  identity: Omit<QuickBooksCreditMemoRequest, 'payloadHash'>,
+  identity: Omit<
+    QuickBooksCreditMemoRequest,
+    'payloadHash' | 'creditedInvoiceExternalId'
+  >,
 ): QuickBooksCreditMemoRequest {
   if (creditMemo.externalId)
     throw new Error(
@@ -51,7 +70,10 @@ export function prepareQuickBooksCreditMemoRequest(
     );
   return prepareRequest(
     mapCreditMemoToQBO(creditMemo),
-    identity,
+    {
+      ...identity,
+      creditedInvoiceExternalId: creditMemo.creditedInvoiceExternalId,
+    },
     'credit memo',
   );
 }
@@ -62,7 +84,10 @@ function prepareRequest<T extends QuickBooksCreateRequest>(
   kind: 'invoice' | 'credit memo',
 ): T {
   const payload = JSON.stringify(mapped);
-  const request = { ...identity, payloadHash: hash(payload) } as T;
+  const request = {
+    ...identity,
+    payloadHash: hashDescriptorPayload(payload, identity, kind),
+  } as T;
   validateRequest(
     request,
     identity.realmId,
@@ -75,6 +100,26 @@ function prepareRequest<T extends QuickBooksCreateRequest>(
 
 function hash(payload: string): string {
   return createHash('sha256').update(payload).digest('hex');
+}
+
+/** Bind a credit memo's immutable source invoice without sending it to QBO. */
+function hashDescriptorPayload(
+  payload: string,
+  request:
+    | QuickBooksCreateRequest
+    | Omit<QuickBooksCreateRequest, 'payloadHash'>,
+  kind: 'invoice' | 'credit memo',
+): string {
+  if (kind === 'invoice') return hash(payload);
+  const creditMemoRequest = request as QuickBooksCreditMemoRequest;
+  return hash(
+    JSON.stringify({
+      payload,
+      linkage: {
+        creditedInvoiceExternalId: creditMemoRequest.creditedInvoiceExternalId,
+      },
+    }),
+  );
 }
 
 export function validateQuickBooksInvoiceRequest(
@@ -119,9 +164,23 @@ function validateRequest(
   ) {
     throw new Error(`QuickBooks ${kind} request realm/environment mismatch`);
   }
-  if (!payload || request.payloadHash !== hash(payload)) {
+  if (
+    !payload ||
+    request.payloadHash !== hashDescriptorPayload(payload, request, kind)
+  ) {
     throw new Error(
       `QuickBooks ${kind} request payload mismatch; reconcile the original request`,
+    );
+  }
+  if (
+    kind === 'credit memo' &&
+    (!('creditedInvoiceExternalId' in request) ||
+      !request.creditedInvoiceExternalId ||
+      request.creditedInvoiceExternalId.trim() !==
+        request.creditedInvoiceExternalId)
+  ) {
+    throw new Error(
+      'QuickBooks credit memo request requires a credited invoice external ID',
     );
   }
   const parsed = JSON.parse(payload);
@@ -168,11 +227,54 @@ function componentRate(
     typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value)
       ? Number(value)
       : value;
-  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate < 0)
+  if (
+    typeof rate !== 'number' ||
+    !Number.isFinite(rate) ||
+    rate < 0 ||
+    rate > 1
+  )
     throw new Error(
-      `QuickBooks ${label} needs a non-negative decimal frozen component rate`,
+      `QuickBooks ${label} needs a frozen component rate from 0 through 1`,
     );
   return rate;
+}
+
+function frozenCurrencyAmount(
+  value: number,
+  label: string,
+  currency: string | undefined,
+  allowNegative = false,
+): number {
+  finite(value, label, allowNegative);
+  const rounded = roundCurrencyAmount(value, currency);
+  // Stored decimal money can reach JavaScript as an adjacent binary value
+  // (for example 0.1 * 3). Accept that representation only when the known
+  // currency round-trip differs by ordinary floating-point noise; this never
+  // authorizes a real off-grid amount such as CAD 0.005 or JPY 100.5.
+  if (
+    !isCurrencyMinorUnit(value, currency) &&
+    (rounded === undefined || !close(value, rounded))
+  )
+    throw new Error(
+      `QuickBooks ${label} must fit the explicitly supplied currency's ISO 4217 minor-unit grid`,
+    );
+  return value;
+}
+
+function hasFrozenSnapshots(
+  input: Pick<InvoiceInput, 'quickbooksMapping' | 'lineItems'>,
+): boolean {
+  return (
+    input.quickbooksMapping !== undefined ||
+    input.lineItems.some(
+      (item) =>
+        item.amount !== undefined ||
+        item.taxAmount !== undefined ||
+        item.taxComponents !== undefined ||
+        item.taxInclusiveAmount !== undefined ||
+        (item.discount !== undefined && item.discount !== 0),
+    )
+  );
 }
 
 function mapDocumentLines(
@@ -185,15 +287,20 @@ function mapDocumentLines(
     | 'currency'
     | 'quickbooksMapping'
   >,
-): QuickBooksSalesLine[] {
+): { lines: QuickBooksSalesLine[]; taxLines: QuickBooksTaxLine[] } {
   const mode = input.quickbooksMapping?.globalTaxCalculation;
   if (mode && !['TaxExcluded', 'TaxInclusive', 'NotApplicable'].includes(mode))
     throw new Error(
       'QuickBooks globalTaxCalculation must be TaxExcluded, TaxInclusive or NotApplicable',
     );
-  finite(input.subtotal, 'subtotal');
-  finite(input.taxAmount, 'tax amount');
-  finite(input.totalAmount, 'total amount');
+  const frozen = hasFrozenSnapshots(input);
+  const validateAmount = (value: number, label: string) =>
+    frozen
+      ? frozenCurrencyAmount(value, label, input.currency)
+      : finite(value, label);
+  validateAmount(input.subtotal, 'subtotal');
+  validateAmount(input.taxAmount, 'tax amount');
+  validateAmount(input.totalAmount, 'total amount');
   if (input.lineItems.length === 0)
     throw new Error('QuickBooks invoices require at least one sales line');
   const hasLineMapping = input.lineItems.some((item) => item.quickbooksMapping);
@@ -214,13 +321,34 @@ function mapDocumentLines(
     );
 
   const mapped: QuickBooksSalesLine[] = [];
+  const taxLines = new Map<string, QuickBooksTaxLine>();
   let snapshotTax = 0;
   let hasCompleteLineTax = true;
   for (const [index, item] of input.lineItems.entries()) {
-    const line = mapLine(item, index, input.currency, mode);
+    const line = mapLine(item, index, input.currency, mode, frozen);
     mapped.push(...line.lines);
     if (line.taxAmount === undefined) hasCompleteLineTax = false;
     else snapshotTax += line.taxAmount;
+    for (const component of line.taxComponents) {
+      const existing = taxLines.get(component.taxRateRef);
+      if (existing) {
+        if (!close(existing.TaxLineDetail.TaxPercent, component.rate * 100))
+          throw new Error(
+            `QuickBooks tax rate ${component.taxRateRef} has inconsistent frozen rates`,
+          );
+        existing.Amount += component.taxAmount;
+      } else {
+        taxLines.set(component.taxRateRef, {
+          Amount: component.taxAmount,
+          DetailType: 'TaxLineDetail',
+          TaxLineDetail: {
+            TaxRateRef: { value: component.taxRateRef },
+            TaxPercent: component.rate * 100,
+            PercentBased: true,
+          },
+        });
+      }
+    }
   }
   const mappedSubtotal = mapped.reduce(
     (sum, line) => sum + (line.Amount as number),
@@ -236,7 +364,7 @@ function mapDocumentLines(
     throw new Error(
       'QuickBooks stored line tax must equal the invoice tax amount',
     );
-  return mapped;
+  return { lines: mapped, taxLines: [...taxLines.values()] };
 }
 
 function mapLine(
@@ -244,7 +372,12 @@ function mapLine(
   index: number,
   currency: string | undefined,
   mode: 'TaxExcluded' | 'TaxInclusive' | 'NotApplicable' | undefined,
-): { lines: QuickBooksSalesLine[]; taxAmount?: number } {
+  enforceCurrencyGrid: boolean,
+): {
+  lines: QuickBooksSalesLine[];
+  taxAmount?: number;
+  taxComponents: FrozenTaxComponent[];
+} {
   const label = `line ${index + 1}`;
   if (item.taxRate !== undefined && item.taxRate !== 0)
     throw new Error(
@@ -260,19 +393,28 @@ function mapLine(
   finite(item.unitPrice, `${label} unit price`);
   const baseDocumentAmount = item.quantity * item.unitPrice;
   finite(baseDocumentAmount, `${label} pre-discount amount`);
-  const discount = finite(item.discount ?? 0, `${label} discount`);
+  const validateAmount = (
+    value: number,
+    amountLabel: string,
+    allowNegative = false,
+  ) =>
+    enforceCurrencyGrid
+      ? frozenCurrencyAmount(value, amountLabel, currency, allowNegative)
+      : finite(value, amountLabel, allowNegative);
+  const discount = validateAmount(item.discount ?? 0, `${label} discount`);
   if (discount > baseDocumentAmount && !close(discount, baseDocumentAmount))
     throw new Error(
       `QuickBooks ${label} discount cannot exceed quantity times unit price`,
     );
-  const netAmount = finite(
+  const netAmount = validateAmount(
     item.amount ?? baseDocumentAmount - discount,
     `${label} amount`,
   );
   const taxAmount =
     item.taxAmount === undefined
       ? undefined
-      : finite(item.taxAmount, `${label} tax amount`);
+      : validateAmount(item.taxAmount, `${label} tax amount`);
+  const taxComponents: FrozenTaxComponent[] = [];
   if (item.taxComponents !== undefined) {
     if (taxAmount === undefined)
       throw new Error(
@@ -287,13 +429,24 @@ function mapLine(
           throw new Error(
             `QuickBooks ${label} tax component ${componentIndex + 1} needs a tax code`,
           );
-        return (
-          sum +
-          finite(
-            component.taxAmount,
-            `${label} tax component ${componentIndex + 1}`,
-          )
+        const rate = componentRate(
+          component.rate,
+          `${label} tax component ${componentIndex + 1}`,
         );
+        const taxRateRef = reference(
+          component.quickbooksTaxRateRef,
+          `${label} tax component ${componentIndex + 1} quickbooksTaxRateRef`,
+        ).value;
+        const componentAmount = validateAmount(
+          component.taxAmount,
+          `${label} tax component ${componentIndex + 1}`,
+        );
+        taxComponents.push({
+          taxRateRef,
+          rate,
+          taxAmount: componentAmount,
+        });
+        return sum + componentAmount;
       },
       0,
     );
@@ -314,7 +467,7 @@ function mapLine(
       throw new Error(
         `QuickBooks ${label} TaxInclusive snapshots require gross amount, line tax and tax components`,
       );
-    finite(grossAmount, `${label} tax-inclusive amount`);
+    validateAmount(grossAmount, `${label} tax-inclusive amount`);
     if (!close(netAmount + taxAmount, grossAmount))
       throw new Error(
         `QuickBooks ${label} net amount plus tax must equal gross amount`,
@@ -369,6 +522,7 @@ function mapLine(
     return {
       lines: [line(netAmount, item.quantity, item.unitPrice, item.description)],
       taxAmount,
+      taxComponents,
     };
   }
   if (
@@ -386,10 +540,11 @@ function mapLine(
         ),
       ],
       taxAmount,
+      taxComponents,
     };
   }
 
-  let preDiscountAmount = baseDocumentAmount;
+  let preDiscountAmount = netAmount + discount;
   let negativeAmount = -discount;
   const preDiscountGross = inclusive ? baseDocumentAmount : undefined;
   if (inclusive) {
@@ -414,15 +569,39 @@ function mapLine(
       );
     preDiscountAmount = netAmount + discountNet;
     negativeAmount = -discountNet;
-  } else if (!close(preDiscountAmount - netAmount, discount)) {
-    throw new Error(
-      `QuickBooks ${label} amount must equal quantity times unit price less discount`,
+  }
+  if (enforceCurrencyGrid) {
+    frozenCurrencyAmount(
+      preDiscountAmount,
+      `${label} generated pre-discount amount`,
+      currency,
+    );
+    frozenCurrencyAmount(
+      negativeAmount,
+      `${label} generated discount amount`,
+      currency,
+      true,
     );
   }
-  const negativeGross = inclusive
-    ? (roundCurrencyAmount(grossAmount! - preDiscountGross!, currency) ??
-      grossAmount! - preDiscountGross!)
-    : undefined;
+  let negativeGross: number | undefined;
+  if (inclusive) {
+    if (grossAmount === undefined || preDiscountGross === undefined)
+      throw new Error(
+        `QuickBooks ${label} needs frozen gross amounts for an inclusive negative discount line`,
+      );
+    const unroundedNegativeGross = grossAmount - preDiscountGross;
+    negativeGross =
+      roundCurrencyAmount(unroundedNegativeGross, currency) ??
+      unroundedNegativeGross;
+  }
+  if (enforceCurrencyGrid && negativeGross !== undefined) {
+    frozenCurrencyAmount(
+      negativeGross,
+      `${label} generated gross discount amount`,
+      currency,
+      true,
+    );
+  }
   return {
     lines: [
       line(
@@ -441,6 +620,7 @@ function mapLine(
       ),
     ],
     taxAmount,
+    taxComponents,
   };
 }
 
@@ -459,16 +639,21 @@ function basePayload(
     | 'quickbooksMapping'
   >,
   number: string,
+  dueDate?: Date,
 ) {
-  const lines = mapDocumentLines(input);
+  const { lines, taxLines } = mapDocumentLines(input);
   return {
     CustomerRef: { value: input.customerExternalId || input.customerId },
     DocNumber: number,
     TxnDate: formatLocalDate(input.issueDate),
+    ...(dueDate ? { DueDate: formatLocalDate(dueDate) } : {}),
     Line: lines,
     GlobalTaxCalculation: input.quickbooksMapping?.globalTaxCalculation,
     TxnTaxDetail: input.quickbooksMapping
-      ? { TotalTax: input.taxAmount }
+      ? {
+          TotalTax: input.taxAmount,
+          ...(taxLines.length > 0 ? { TaxLine: taxLines } : {}),
+        }
       : undefined,
     CurrencyRef: input.currency ? { value: input.currency } : undefined,
     CustomerMemo: input.memo ? { value: input.memo } : undefined,
@@ -484,10 +669,11 @@ export function mapInvoiceToQBO(invoice: InvoiceInput) {
     throw new Error(
       'QuickBooks does not support automaticTax invoice calculation',
     );
-  return {
-    ...basePayload(invoice, invoice.invoiceNumber),
-    DueDate: formatLocalDate(invoice.dueDate),
-  };
+  return basePayload(
+    invoice,
+    invoice.invoiceNumber,
+    invoice.dueDate,
+  ) as ReturnType<typeof basePayload> & { DueDate: string };
 }
 
 export function mapCreditMemoToQBO(creditMemo: CreditMemoInput) {

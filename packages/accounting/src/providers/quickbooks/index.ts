@@ -558,14 +558,18 @@ class QuickBooksCreditMemoOperations implements CreditMemoOperations {
       throw new Error(
         'QuickBooks credit memo request identity cannot be used for updates',
       );
+    const mapped = mapCreditMemoToQBO(creditMemo);
+    if (
+      creditMemo.quickbooksCreditMemoRequest &&
+      creditMemo.quickbooksCreditMemoRequest.creditedInvoiceExternalId !==
+        creditMemo.creditedInvoiceExternalId
+    )
+      throw new Error(
+        'QuickBooks credit memo request linkage mismatch; reconcile the original request',
+      );
     const response = await this.provider.request<{
       CreditMemo: { Id: string };
-    }>(
-      'POST',
-      'creditmemo',
-      mapCreditMemoToQBO(creditMemo),
-      creditMemo.quickbooksCreditMemoRequest,
-    );
+    }>('POST', 'creditmemo', mapped, creditMemo.quickbooksCreditMemoRequest);
     return {
       action: 'created',
       externalId: response.CreditMemo.Id,
@@ -579,11 +583,13 @@ class QuickBooksCreditMemoOperations implements CreditMemoOperations {
       throw new Error(
         'QuickBooks credit memo request identity cannot be used for updates',
       );
+    // Refuse malformed frozen snapshots before authenticating or contacting QBO.
+    const mapped = mapCreditMemoToQBO(creditMemo);
     const existing = await this.provider.request<{
       CreditMemo: { SyncToken: string };
     }>('GET', `creditmemo/${creditMemo.externalId}`);
     await this.provider.request('POST', 'creditmemo', {
-      ...mapCreditMemoToQBO(creditMemo),
+      ...mapped,
       Id: creditMemo.externalId,
       SyncToken: existing.CreditMemo.SyncToken,
     });

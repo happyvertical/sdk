@@ -30,7 +30,14 @@ function inclusiveInvoice(overrides: Partial<InvoiceInput> = {}): InvoiceInput {
         amount: 100,
         taxAmount: 13,
         taxInclusiveAmount: 113,
-        taxComponents: [{ taxCode: 'HST', rate: '0.13', taxAmount: 13 }],
+        taxComponents: [
+          {
+            taxCode: 'HST',
+            rate: '0.13',
+            quickbooksTaxRateRef: 'rate-hst',
+            taxAmount: 13,
+          },
+        ],
         quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-hst' },
       },
     ],
@@ -96,7 +103,14 @@ describe('QuickBooks frozen money snapshots', () => {
           amount: net,
           taxAmount: tax,
           taxInclusiveAmount: gross,
-          taxComponents: [{ taxCode: 'GST', rate: '0.13', taxAmount: tax }],
+          taxComponents: [
+            {
+              taxCode: 'GST',
+              rate: '0.13',
+              quickbooksTaxRateRef: 'rate-gst',
+              taxAmount: tax,
+            },
+          ],
         },
       ],
     });
@@ -128,8 +142,18 @@ describe('QuickBooks frozen money snapshots', () => {
           taxAmount: 11.7,
           taxInclusiveAmount: 101.7,
           taxComponents: [
-            { taxCode: 'GST', rate: '0.05', taxAmount: 4.5 },
-            { taxCode: 'PST', rate: '0.08', taxAmount: 7.2 },
+            {
+              taxCode: 'GST',
+              rate: '0.05',
+              quickbooksTaxRateRef: 'rate-gst',
+              taxAmount: 4.5,
+            },
+            {
+              taxCode: 'PST',
+              rate: '0.08',
+              quickbooksTaxRateRef: 'rate-pst',
+              taxAmount: 7.2,
+            },
           ],
         },
       ],
@@ -158,7 +182,14 @@ describe('QuickBooks frozen money snapshots', () => {
       amount: net,
       taxAmount: tax,
       taxInclusiveAmount: gross,
-      taxComponents: [{ taxCode: 'GST', rate: '0.13', taxAmount: tax }],
+      taxComponents: [
+        {
+          taxCode: 'GST',
+          rate: '0.13',
+          quickbooksTaxRateRef: 'rate-gst',
+          taxAmount: tax,
+        },
+      ],
       quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-gst' },
     });
     const mapped = mapInvoiceToQBO(
@@ -177,7 +208,20 @@ describe('QuickBooks frozen money snapshots', () => {
       Amount: 82.46,
       SalesItemLineDetail: { TaxInclusiveAmt: 93.18 },
     });
-    expect(mapped.TxnTaxDetail).toEqual({ TotalTax: 34.44 });
+    expect(mapped.TxnTaxDetail).toEqual({
+      TotalTax: 34.44,
+      TaxLine: [
+        {
+          Amount: 34.44,
+          DetailType: 'TaxLineDetail',
+          TaxLineDetail: {
+            TaxRateRef: { value: 'rate-gst' },
+            TaxPercent: 13,
+            PercentBased: true,
+          },
+        },
+      ],
+    });
   });
 
   it('maps a flat $5 GST/PST-inclusive discount to a negative QBO line when it cannot reduce the unit price on the currency grid', () => {
@@ -195,8 +239,18 @@ describe('QuickBooks frozen money snapshots', () => {
           taxAmount: 12.2,
           taxInclusiveAmount: 106,
           taxComponents: [
-            { taxCode: 'GST', rate: '0.05', taxAmount: 4.69 },
-            { taxCode: 'PST', rate: '0.08', taxAmount: 7.51 },
+            {
+              taxCode: 'GST',
+              rate: '0.05',
+              quickbooksTaxRateRef: 'rate-gst',
+              taxAmount: 4.69,
+            },
+            {
+              taxCode: 'PST',
+              rate: '0.08',
+              quickbooksTaxRateRef: 'rate-pst',
+              taxAmount: 7.51,
+            },
           ],
         },
       ],
@@ -219,6 +273,72 @@ describe('QuickBooks frozen money snapshots', () => {
         }),
       }),
     ]);
+    expect(mapped.TxnTaxDetail).toMatchObject({
+      TotalTax: 12.2,
+      TaxLine: [
+        {
+          Amount: 4.69,
+          TaxLineDetail: {
+            TaxRateRef: { value: 'rate-gst' },
+            TaxPercent: 5,
+            PercentBased: true,
+          },
+        },
+        {
+          Amount: 7.51,
+          TaxLineDetail: {
+            TaxRateRef: { value: 'rate-pst' },
+            TaxPercent: 8,
+            PercentBased: true,
+          },
+        },
+      ],
+    });
+  });
+
+  it('maps an exclusive fractional-quantity discount from its stored net snapshot', () => {
+    const invoice = inclusiveInvoice({
+      currency: 'CAD',
+      subtotal: 13.99,
+      taxAmount: 0,
+      totalAmount: 13.99,
+      quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+      lineItems: [
+        {
+          description: 'Fractional service',
+          quantity: 1.5,
+          unitPrice: 9.99,
+          discount: 1,
+          amount: 13.99,
+          quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-zero' },
+        },
+      ],
+    });
+    expect(mapInvoiceToQBO(invoice).Line).toMatchObject([
+      { Amount: 14.99 },
+      { Amount: -1, Description: 'Discount on line 1' },
+    ]);
+  });
+
+  it('refuses off-grid frozen discounts before generating QBO fallback lines', () => {
+    const invoice = inclusiveInvoice({
+      currency: 'CAD',
+      subtotal: 10,
+      taxAmount: 0,
+      totalAmount: 10,
+      quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+      lineItems: [
+        {
+          description: 'Off-grid discount',
+          quantity: 3,
+          unitPrice: 3.335,
+          discount: 0.005,
+          amount: 10,
+          quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-zero' },
+        },
+      ],
+    });
+    expect(() => mapInvoiceToQBO(invoice)).toThrow(/minor-unit grid/);
   });
 
   it('refuses an inclusive negative-line discount without frozen component rates', () => {
@@ -252,7 +372,12 @@ describe('QuickBooks frozen money snapshots', () => {
       'component mismatch',
       (invoice: InvoiceInput) =>
         (invoice.lineItems[0].taxComponents = [
-          { taxCode: 'HST', rate: '0.13', taxAmount: 12 },
+          {
+            taxCode: 'HST',
+            rate: '0.13',
+            quickbooksTaxRateRef: 'rate-hst',
+            taxAmount: 12,
+          },
         ]),
     ],
     [
@@ -263,6 +388,45 @@ describe('QuickBooks frozen money snapshots', () => {
     const invoice = inclusiveInvoice();
     change(invoice);
     expect(() => mapInvoiceToQBO(invoice)).toThrow(/QuickBooks/);
+  });
+
+  it.each([
+    ['JPY', 100.5, 12.5, 113],
+    ['ZZZ', 100, 13, 113],
+  ] as const)('refuses off-grid or unknown %s frozen inclusive snapshots', (currency, net, tax, gross) => {
+    const invoice = inclusiveInvoice({
+      currency,
+      subtotal: net,
+      taxAmount: tax,
+      totalAmount: gross,
+      lineItems: [
+        {
+          ...inclusiveInvoice().lineItems[0],
+          quantity: 1,
+          unitPrice: gross,
+          amount: net,
+          taxAmount: tax,
+          taxInclusiveAmount: gross,
+          taxComponents: [
+            {
+              taxCode: 'HST',
+              rate: '0.13',
+              quickbooksTaxRateRef: 'rate-hst',
+              taxAmount: tax,
+            },
+          ],
+        },
+      ],
+    });
+    expect(() => mapInvoiceToQBO(invoice)).toThrow(/minor-unit grid/);
+  });
+
+  it('refuses percent-form component rates instead of treating 13 as 13%', () => {
+    const invoice = inclusiveInvoice();
+    const component = invoice.lineItems[0].taxComponents?.[0];
+    if (!component) throw new Error('invalid test fixture');
+    component.rate = 13;
+    expect(() => mapInvoiceToQBO(invoice)).toThrow(/rate from 0 through 1/);
   });
 
   it('binds a positive credit memo payload to one request identity and retries identical bytes', async () => {
@@ -303,10 +467,45 @@ describe('QuickBooks frozen money snapshots', () => {
     expect(new URL(requests[0].url).searchParams.get('requestid')).toBe(
       'credit-1-freeze-v1',
     );
+    expect(memo.quickbooksCreditMemoRequest).toMatchObject({
+      creditedInvoiceExternalId: 'qbo-invoice-1',
+    });
     expect(mapCreditMemoToQBO(memo)).toMatchObject({
       GlobalTaxCalculation: 'TaxInclusive',
       TxnTaxDetail: { TotalTax: 13 },
     });
+  });
+
+  it('rejects a changed credited invoice before issuing a request', async () => {
+    const memo = creditMemo();
+    memo.quickbooksCreditMemoRequest = prepareQuickBooksCreditMemoRequest(
+      memo,
+      {
+        requestId: 'credit-link-v1',
+        realmId: 'realm-1',
+        environment: 'sandbox',
+      },
+    );
+    memo.creditedInvoiceExternalId = 'qbo-invoice-2';
+    const provider = quickBooksProvider();
+    await expect(provider.creditMemos.push(memo)).rejects.toThrow(
+      /linkage mismatch/,
+    );
+    expect(provider.ensureAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('validates malformed credit-memo updates before authentication or GET', async () => {
+    const memo = creditMemo();
+    memo.externalId = 'qbo-credit-1';
+    delete memo.lineItems[0].taxInclusiveAmount;
+    const provider = quickBooksProvider();
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    await expect(provider.creditMemos.sync(memo)).rejects.toThrow(
+      /TaxInclusive/,
+    );
+    expect(provider.ensureAccessToken).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it('keeps credit memos optional and refuses unsupported providers explicitly', () => {
