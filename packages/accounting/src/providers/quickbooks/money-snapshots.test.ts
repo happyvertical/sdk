@@ -182,6 +182,60 @@ describe('QuickBooks frozen money snapshots', () => {
         mapCreditMemoToQBO({
           ...creditMemo(),
           ...input,
+          creditMemoNumber: 'CM-exempt-omitted-components',
+          creditedInvoiceExternalId: 'qbo-invoice-1',
+        }),
+    ],
+  ] as const)('maps an omitted component list for a %s exempt fractional-unit discount', (_kind, map) => {
+    const baseLine = inclusiveInvoice().lineItems[0];
+    const { taxComponents: _taxComponents, ...lineWithoutComponents } =
+      baseLine;
+    const invoice = inclusiveInvoice({
+      subtotal: 29,
+      taxAmount: 0,
+      totalAmount: 29,
+      lineItems: [
+        {
+          ...lineWithoutComponents,
+          description: 'Inclusive exempt discounted service without components',
+          quantity: 3,
+          unitPrice: 10,
+          discount: 1,
+          amount: 29,
+          taxAmount: 0,
+          taxInclusiveAmount: 29,
+          quickbooksMapping: {
+            itemRef: 'item-exempt',
+            taxCodeRef: 'tax-exempt',
+          },
+        },
+      ],
+    });
+    expect(map(invoice)).toMatchObject({
+      GlobalTaxCalculation: 'TaxInclusive',
+      TxnTaxDetail: { TotalTax: 0 },
+      Line: [
+        {
+          Amount: 30,
+          SalesItemLineDetail: { TaxInclusiveAmt: 30 },
+        },
+        {
+          Description: 'Discount on line 1',
+          Amount: -1,
+          SalesItemLineDetail: { TaxInclusiveAmt: -1 },
+        },
+      ],
+    });
+  });
+
+  it.each([
+    ['invoice', (input: InvoiceInput) => mapInvoiceToQBO(input)],
+    [
+      'credit memo',
+      (input: InvoiceInput) =>
+        mapCreditMemoToQBO({
+          ...creditMemo(),
+          ...input,
           creditMemoNumber: 'CM-exempt-discount',
           creditedInvoiceExternalId: 'qbo-invoice-1',
         }),
