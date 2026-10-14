@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.103.6
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - stop pinning promises in SQLite transaction tracking (#1409) (sql)
+
 ## 0.103.5
 
 ### Patch Changes
