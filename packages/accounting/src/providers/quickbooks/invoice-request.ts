@@ -393,6 +393,19 @@ function hasFrozenSnapshots(
   );
 }
 
+/** Limit accumulated binary error when a valid document has many decimal lines. */
+function compensatedSum(values: readonly number[]): number {
+  let sum = 0;
+  let compensation = 0;
+  for (const value of values) {
+    const adjusted = value - compensation;
+    const next = sum + adjusted;
+    compensation = next - sum - adjusted;
+    sum = next;
+  }
+  return sum;
+}
+
 function mapDocumentLines(
   input: Pick<
     InvoiceInput,
@@ -441,7 +454,8 @@ function mapDocumentLines(
     string,
     { rate: DecimalRate; amountMinor: bigint }
   >();
-  let snapshotTax = 0;
+  const snapshotLineTaxes: number[] = [];
+  let hasAnyLineTax = false;
   let hasCompleteLineTax = true;
   const lineTaxSnapshots: Array<{
     taxAmount: number | undefined;
@@ -455,7 +469,10 @@ function mapDocumentLines(
       taxComponents: line.taxComponents,
     });
     if (line.taxAmount === undefined) hasCompleteLineTax = false;
-    else snapshotTax += line.taxAmount;
+    else {
+      hasAnyLineTax = true;
+      snapshotLineTaxes.push(line.taxAmount);
+    }
     for (const component of line.taxComponents) {
       const existing = taxLines.get(component.taxRateRef);
       if (existing) {
@@ -472,10 +489,7 @@ function mapDocumentLines(
       }
     }
   }
-  const mappedSubtotal = mapped.reduce(
-    (sum, line) => sum + (line.Amount as number),
-    0,
-  );
+  const mappedSubtotal = compensatedSum(mapped.map((line) => line.Amount));
   if (!close(mappedSubtotal, input.subtotal))
     throw new Error('QuickBooks line amounts must equal the invoice subtotal');
   if (!close(input.subtotal + input.taxAmount, input.totalAmount))
@@ -507,7 +521,14 @@ function mapDocumentLines(
         'QuickBooks component tax detail must equal the invoice tax amount',
       );
   }
-  if (hasCompleteLineTax && !close(snapshotTax, input.taxAmount))
+  if (hasAnyLineTax && !hasCompleteLineTax)
+    throw new Error(
+      'QuickBooks stored line tax must be supplied on every line when any line supplies it',
+    );
+  if (
+    hasAnyLineTax &&
+    !close(compensatedSum(snapshotLineTaxes), input.taxAmount)
+  )
     throw new Error(
       'QuickBooks stored line tax must equal the invoice tax amount',
     );
@@ -620,6 +641,10 @@ function mapLine(
 
   const inclusive = mode === 'TaxInclusive';
   const grossAmount = item.taxInclusiveAmount;
+  if (!inclusive && grossAmount !== undefined)
+    throw new Error(
+      `QuickBooks ${label} tax-inclusive amount requires TaxInclusive global tax calculation`,
+    );
   if (inclusive) {
     if (
       grossAmount === undefined ||

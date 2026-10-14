@@ -127,6 +127,82 @@ describe('QuickBooks frozen money snapshots', () => {
     });
   });
 
+  it.each([
+    ['invoice', (input: InvoiceInput) => mapInvoiceToQBO(input)],
+    [
+      'credit memo',
+      (input: InvoiceInput) =>
+        mapCreditMemoToQBO({
+          ...creditMemo(),
+          ...input,
+          creditMemoNumber: 'CM-partial-tax',
+          creditedInvoiceExternalId: 'qbo-invoice-1',
+        }),
+    ],
+  ] as const)('rejects partial stored line tax for a frozen %s before mapping', (_kind, map) => {
+    const input = inclusiveInvoice({
+      quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+      subtotal: 20,
+      taxAmount: 2,
+      totalAmount: 22,
+      lineItems: [
+        {
+          description: 'Stored tax',
+          quantity: 1,
+          unitPrice: 10,
+          amount: 10,
+          taxAmount: 1,
+          quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-gst' },
+        },
+        {
+          description: 'Missing stored tax',
+          quantity: 1,
+          unitPrice: 10,
+          amount: 10,
+          quickbooksMapping: { itemRef: 'item-2', taxCodeRef: 'tax-gst' },
+        },
+      ],
+    });
+    expect(() => map(input)).toThrow(
+      'QuickBooks stored line tax must be supplied on every line when any line supplies it',
+    );
+  });
+
+  it.each([
+    ['invoice', (input: InvoiceInput) => mapInvoiceToQBO(input)],
+    [
+      'credit memo',
+      (input: InvoiceInput) =>
+        mapCreditMemoToQBO({
+          ...creditMemo(),
+          ...input,
+          creditMemoNumber: 'CM-wrong-mode',
+          creditedInvoiceExternalId: 'qbo-invoice-1',
+        }),
+    ],
+  ] as const)('rejects a tax-inclusive amount outside TaxInclusive mode for a frozen %s', (_kind, map) => {
+    const input = inclusiveInvoice({
+      quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+      subtotal: 10,
+      taxAmount: 0,
+      totalAmount: 10,
+      lineItems: [
+        {
+          description: 'Wrong-mode gross snapshot',
+          quantity: 1,
+          unitPrice: 10,
+          amount: 10,
+          taxAmount: 0,
+          taxInclusiveAmount: 10,
+          quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-none' },
+        },
+      ],
+    });
+    expect(() => map(input)).toThrow(
+      'QuickBooks line 1 tax-inclusive amount requires TaxInclusive global tax calculation',
+    );
+  });
+
   it('maps a 10% GST/PST-inclusive discount as the reduced net unit price exactly once', () => {
     const invoice = inclusiveInvoice({
       subtotal: 90,

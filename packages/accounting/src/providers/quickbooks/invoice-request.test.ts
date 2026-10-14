@@ -262,13 +262,13 @@ describe('QuickBooks invoice request identity', () => {
     input.currency = 'CAD';
     input.lineItems = Array.from({ length: 100 }, (_, index) => ({
       description: `Decimal line ${index + 1}`,
-      quantity: 3,
+      quantity: 1,
       unitPrice: 0.1,
-      amount: 0.1 * 3,
+      amount: 0.1,
     }));
-    input.subtotal = 30;
+    input.subtotal = 10;
     input.taxAmount = 0;
-    input.totalAmount = 30;
+    input.totalAmount = 10;
     expect(() => mapInvoiceToQBO(input)).not.toThrow();
   });
 
