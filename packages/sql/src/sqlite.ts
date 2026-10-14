@@ -2,6 +2,7 @@ import {
   AsyncLocalStorage,
   createHook,
   executionAsyncId,
+  executionAsyncResource,
 } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { types as utilTypes } from 'node:util';
@@ -241,7 +242,11 @@ interface PromiseObservation {
 
 const activeNativeTransferObservations = new Set<PromiseObservation>();
 const trackedPromiseObservations = new Set<PromiseObservation>();
-const nativePromiseResources = new Map<number, WeakRef<Promise<unknown>>>();
+// Correlation state is keyed by async id only. Allocating a WeakRef per
+// promise would pin every promise created while a transaction is open until
+// the current macrotask ends (V8's KeepDuringJob set), so SQLite work that
+// never yields would grow the heap without bound (#1320). The adopting
+// promise is instead captured at the native assimilation `then()` call.
 const nativePromiseTriggers = new Map<number, number>();
 const nativePromiseIds = new WeakMap<Promise<unknown>, number>();
 const nativePromiseWatermarks = new WeakMap<Promise<unknown>, number>();
@@ -252,16 +257,11 @@ const nativePromiseHook = createHook({
   init(asyncId, type, triggerAsyncId, resource) {
     if (type === 'PROMISE') {
       latestNativePromiseId = Math.max(latestNativePromiseId, asyncId);
-      nativePromiseResources.set(
-        asyncId,
-        new WeakRef(resource as Promise<unknown>),
-      );
       nativePromiseTriggers.set(asyncId, triggerAsyncId);
       nativePromiseIds.set(resource as Promise<unknown>, asyncId);
-      while (nativePromiseResources.size > MAX_TRACKED_PROMISE_RESOURCES) {
-        const oldest = nativePromiseResources.keys().next().value;
+      while (nativePromiseTriggers.size > MAX_TRACKED_PROMISE_RESOURCES) {
+        const oldest = nativePromiseTriggers.keys().next().value;
         if (oldest === undefined) break;
-        nativePromiseResources.delete(oldest);
         nativePromiseTriggers.delete(oldest);
         for (const observation of trackedPromiseObservations) {
           if (
@@ -275,7 +275,6 @@ const nativePromiseHook = createHook({
     }
   },
   destroy(asyncId) {
-    nativePromiseResources.delete(asyncId);
     nativePromiseTriggers.delete(asyncId);
   },
 });
@@ -416,18 +415,37 @@ function releaseNativePromiseTracking(observation: PromiseObservation): void {
   nativePromiseTrackingUsers -= 1;
   if (nativePromiseTrackingUsers === 0) {
     nativePromiseHook.disable();
-    nativePromiseResources.clear();
     nativePromiseTriggers.clear();
   }
 }
 
-function recordNativePromiseTransfer(observation: PromiseObservation): void {
+/**
+ * Returns the resource executing a native assimilation `then()` call. During
+ * the PromiseResolveThenableJob this is the native Promise adopting the
+ * observed one; the rejection reaction later runs under a derived promise
+ * whose trigger is that same adopting promise.
+ */
+function currentAdoptionCandidate(): unknown {
+  return executionAsyncResource();
+}
+
+function recordNativePromiseTransfer(
+  observation: PromiseObservation,
+  adoptionCandidate: unknown,
+): void {
   const executionId = executionAsyncId();
   const adoptionId = nativePromiseTriggers.get(executionId) ?? executionId;
-  const adoptingPromise = nativePromiseResources.get(adoptionId)?.deref();
-  // If Node cannot identify the adopting promise, leave the failed operation
+  // Accept the candidate only when Node's still-tracked async id graph names
+  // it as the adopting promise. Otherwise leave the failed operation
   // unobserved so transaction draining fails closed.
-  if (!adoptingPromise) return;
+  if (
+    !nativePromiseTriggers.has(adoptionId) ||
+    !utilTypes.isPromise(adoptionCandidate) ||
+    nativePromiseIds.get(adoptionCandidate as Promise<unknown>) !== adoptionId
+  ) {
+    return;
+  }
+  const adoptingPromise = adoptionCandidate as Promise<unknown>;
   observation.nativeTransfers.add(adoptingPromise);
   // Native adoption is recovery unless its derived Promise later reaches the
   // unhandled-rejection event. Record that event below before drain commits.
@@ -733,10 +751,13 @@ function withRejectionObservation<T>(
             onFulfilled,
             onRejected,
           );
+          const adoptionCandidate = transfersToNativePromise
+            ? currentAdoptionCandidate()
+            : undefined;
           const handleRejected =
             transfersToNativePromise && typeof onRejected === 'function'
               ? (reason: any) => {
-                  recordNativePromiseTransfer(branch);
+                  recordNativePromiseTransfer(branch, adoptionCandidate);
                   return onRejected(reason);
                 }
               : onRejected;
@@ -828,10 +849,16 @@ function withRejectionObservation<T>(
           onFulfilled,
           onRejected,
         );
+        const adoptionCandidate = transfersToNativePromise
+          ? currentAdoptionCandidate()
+          : undefined;
         const handleRejected =
           transfersToNativePromise && typeof onRejected === 'function'
             ? (reason: any) => {
-                recordNativePromiseTransfer(currentObservation);
+                recordNativePromiseTransfer(
+                  currentObservation,
+                  adoptionCandidate,
+                );
                 return onRejected(reason);
               }
             : onRejected;
