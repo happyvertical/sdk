@@ -70,27 +70,37 @@ const invoice = {
 
 The QuickBooks adapter maps these values to `SalesItemLineDetail.ItemRef`,
 `SalesItemLineDetail.TaxCodeRef`, `GlobalTaxCalculation`, and
-`TxnTaxDetail.TotalTax`. It supports `TaxExcluded` and zero-tax
-`NotApplicable`; tax-inclusive inputs are rejected because the provider-neutral
-line model does not allocate included tax. Every mapped line must supply both
-realm-specific references. The caller must validate that those IDs belong to
-the configured company. See Intuit's [invoice API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/most-commonly-used/invoice)
+`TxnTaxDetail.TotalTax`. It supports `TaxExcluded`, zero-tax `NotApplicable`,
+and frozen `TaxInclusive` snapshots. For an inclusive line, pass the stored net
+amount as `amount`, its stored tax as `taxAmount`, the stored gross amount as
+`taxInclusiveAmount`, and stored per-component amounts as `taxComponents`.
+The adapter sends net `Amount` and gross
+`SalesItemLineDetail.TaxInclusiveAmt`; Intuit defines that nested field as the
+total including tax in its [SDK reference](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippphpdevkitv3/entities/files/IPPSalesOrderItemLineDetail.html).
+It validates every component sum and the header reconciliation before any
+network request. Every
+mapped line must supply both realm-specific references. The caller must
+validate that those IDs belong to the configured company. See Intuit's [invoice API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/most-commonly-used/invoice)
 and [item API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/item).
 
 Legacy untaxed invoices without `quickbooksMapping` remain supported. The
 adapter fails before authentication or HTTP when an input would otherwise be
-silently discarded: nonzero line `discount`, nonzero numeric `taxRate`, generic
-`taxCode`, `automaticTax`, inconsistent totals, partial mappings, or invalid
-references. Explicit zero `discount` and `taxRate` are accepted. This mapping
-API has no discount representation and does not silently net discounts into
-prices. An explicit line `amount` must agree with `quantity × unitPrice`, either
-as the existing exact-product calculation or as its decimal **half-up** result at
-the explicitly supplied currency's ISO 4217 minor precision. For example, CAD
-quantity `1.0005` × unit price `10` accepts the retained line amount `10.01`.
-The adapter preserves all three supplied values; it does not replace the amount,
-round an omitted amount, or change subtotal/tax reconciliation. The rounded path
-requires an amount exactly on the currency's minor-unit grid, not an arbitrary
-monetary tolerance. Negative quantities, prices and amounts remain unsupported.
+silently discarded: nonzero numeric `taxRate`, generic `taxCode`, `automaticTax`,
+inconsistent totals, partial mappings, or invalid references. `unitPrice` and
+`discount` are in the document's amount mode: net for exclusive inputs and gross
+for inclusive ones; `amount` is always the already-discounted net snapshot. A
+discount uses a reduced QBO unit price only when that price fits the currency's
+ISO 4217 minor-unit grid. Otherwise, for an inclusive line, the adapter derives
+the negative net amount from the frozen gross discount and frozen component
+rates, and then adds a negative `Discount on line N` sales line with the same item and tax-code
+references. It never sends QBO's unsupported line-discount field or subtracts a
+discount twice. Negative generated discount lines are internal; caller invoice
+lines remain non-negative. An explicit exclusive line `amount` must agree with
+`quantity × unitPrice` after discount, either exactly or as its decimal
+**half-up** result at the explicitly supplied currency's ISO 4217 minor
+precision. For example, CAD quantity `1.0005` × unit price `10` accepts the
+retained line amount `10.01`. The adapter preserves approved snapshots and never
+changes subtotal/tax reconciliation.
 
 Precision comes from [ISO 4217 List One published 2026-09-17](https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml),
 not runtime display formatting (which differs for IQD, MGA and RSD). Zero-, two-,
@@ -178,6 +188,39 @@ one invoice, and simulate a lost response before replaying it. Record realm,
 environment, request ID, timestamps, and returned IDs without credentials.
 No replay retention period or exactly-once guarantee is asserted here; reconcile
 old or uncertain requests against QuickBooks before any new creation identity.
+
+## QuickBooks credit memos
+
+`creditMemos` is an optional provider capability. QuickBooks supports positive
+frozen customer credit notes through `CreditMemo`; providers that omit the
+capability must be refused by the caller. A `CreditMemoInput` uses the same
+net/gross/tax snapshot rules as an invoice, has a
+`creditedInvoiceExternalId` for durable reconciliation, and is created with a
+separate descriptor:
+
+```ts
+import {
+  prepareQuickBooksCreditMemoRequest,
+  requireCreditMemoOperations,
+} from '@happyvertical/accounting';
+
+const request = prepareQuickBooksCreditMemoRequest(creditMemo, {
+  requestId: outbox.requestId,
+  realmId: outbox.realmId,
+  environment: 'sandbox',
+});
+await requireCreditMemoOperations(qbo).push({
+  ...creditMemo,
+  quickbooksCreditMemoRequest: request,
+});
+```
+
+The descriptor binds only the mapped frozen credit payload, realm, environment,
+and caller-owned request ID. It does not include mutable payment, allocation, or
+status fields, so a retry of the same frozen revision keeps the same request
+identity. It has the same retry and unknown-outcome rules as a keyed invoice
+create. No live Intuit sandbox assertion is made by this package's contract
+tests; they verify serialized payloads, request IDs, retries, and refusal paths.
 
 ## Stripe invoices
 

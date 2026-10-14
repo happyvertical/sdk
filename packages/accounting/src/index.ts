@@ -34,6 +34,7 @@ import { loadEnvConfig } from '@happyvertical/utils';
 import type {
   AccountingOptions,
   AccountingProvider,
+  CreditMemoOperations,
   QuickBooksOptions,
   StripeOptions,
 } from './types.js';
@@ -44,7 +45,10 @@ export {
   QuickBooksWriteError,
   StripeApiError,
 } from './errors.js';
-export { prepareQuickBooksInvoiceRequest } from './providers/quickbooks/invoice-request.js';
+export {
+  prepareQuickBooksCreditMemoRequest,
+  prepareQuickBooksInvoiceRequest,
+} from './providers/quickbooks/invoice-request.js';
 export { createQuickBooksOAuthClient } from './providers/quickbooks/oauth.js';
 // Re-export all types
 export * from './types.js';
@@ -82,6 +86,20 @@ export function isStripeOptions(
   options: AccountingOptions,
 ): options is StripeOptions {
   return options.type === 'stripe';
+}
+
+/**
+ * Return the provider's credit-memo capability or fail explicitly before a
+ * caller attempts a write against a provider that does not implement it.
+ */
+export function requireCreditMemoOperations(
+  provider: Pick<AccountingProvider, 'type' | 'creditMemos'>,
+): CreditMemoOperations {
+  if (!provider.creditMemos)
+    throw new Error(
+      `Accounting provider '${provider.type}' does not support credit memos`,
+    );
+  return provider.creditMemos;
 }
 
 /**
