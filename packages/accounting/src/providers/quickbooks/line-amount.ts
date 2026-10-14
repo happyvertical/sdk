@@ -18,6 +18,48 @@ const currencyPrecision = new Map(
   ),
 );
 
+/** ISO minor-unit factor, or undefined when the code is unknown or omitted. */
+export function currencyMinorUnitFactor(
+  currency: string | undefined,
+): number | undefined {
+  if (typeof currency !== 'string') return undefined;
+  const precision = currencyPrecision.get(currency.toUpperCase());
+  return precision === undefined ? undefined : 10 ** precision;
+}
+
+/** True only for a finite amount exactly representable on the ISO minor-unit grid. */
+export function isCurrencyMinorUnit(
+  amount: number,
+  currency: string | undefined,
+): boolean {
+  if (!Number.isFinite(amount) || typeof currency !== 'string') return false;
+  const precision = currencyPrecision.get(currency.toUpperCase());
+  if (precision === undefined) return false;
+  const value = decimalRatio(Math.abs(amount));
+  return (
+    (value.numerator * 10n ** BigInt(precision)) % value.denominator === 0n
+  );
+}
+
+/** Round a finite major-unit amount half-up to a known ISO currency grid. */
+export function roundCurrencyAmount(
+  amount: number,
+  currency: string | undefined,
+): number | undefined {
+  if (!Number.isFinite(amount) || typeof currency !== 'string')
+    return undefined;
+  const precision = currencyPrecision.get(currency.toUpperCase());
+  if (precision === undefined) return undefined;
+  const sign = amount < 0 ? -1n : 1n;
+  const value = decimalRatio(Math.abs(amount));
+  const scale = 10n ** BigInt(precision);
+  const numerator = value.numerator * scale;
+  const rounded =
+    numerator / value.denominator +
+    ((numerator % value.denominator) * 2n >= value.denominator ? 1n : 0n);
+  return Number(sign * rounded) / Number(scale);
+}
+
 /** Exact decimal interpretation of the finite nonnegative public number value. */
 function decimalRatio(value: number): {
   numerator: bigint;

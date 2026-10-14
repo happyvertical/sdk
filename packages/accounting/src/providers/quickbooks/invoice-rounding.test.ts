@@ -68,7 +68,7 @@ describe('QuickBooks currency-rounded retained line amounts', () => {
     10, 10.02, 10.009, 10.0101,
   ])('rejects contradictory or extra-precision CAD amount%s', (amount) => {
     expect(() => mapInvoiceToQBO(invoice(1.0005, 10, amount, 'CAD'))).toThrow(
-      /amount must equal/,
+      /amount must equal|minor-unit grid/,
     );
   });
   it.each([
@@ -100,6 +100,13 @@ describe('QuickBooks currency-rounded retained line amounts', () => {
         input.lineItems[0].amount,
       );
     }
+  });
+  it.each([
+    undefined,
+    'ZZZ',
+  ] as const)('preserves exact fractional products without a recognized currency (%s)', (currency) => {
+    const input = invoice(1, 0.00001, 0.00001, currency);
+    expect(mapInvoiceToQBO(input).Line[0].Amount).toBe(0.00001);
   });
   it('keeps invoice totals authoritative after admitting rounded lines', () => {
     const input = invoice(1.0005, 10, 10.01, 'CAD');

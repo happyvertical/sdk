@@ -215,8 +215,20 @@ export interface QuickBooksInvoiceLineMapping {
 
 /** QuickBooks global-tax behavior for a non-US invoice. */
 export interface QuickBooksInvoiceMapping {
-  /** Whether line amounts exclude tax or have no applicable tax. */
-  globalTaxCalculation: 'TaxExcluded' | 'NotApplicable';
+  /** Whether line amounts exclude tax, include tax, or have no applicable tax. */
+  globalTaxCalculation: 'TaxExcluded' | 'TaxInclusive' | 'NotApplicable';
+}
+
+/** Frozen tax component contributing to a line's stored tax amount. */
+export interface TaxComponentSnapshot {
+  /** The caller's stable component/tax-code identifier. */
+  taxCode: string;
+  /** Frozen decimal component rate, for example `0.05` or the exact string `"0.05"` for 5%. */
+  rate?: number | string;
+  /** Realm-specific QuickBooks TaxRate.Id for this component when syncing to QBO. */
+  quickbooksTaxRateRef?: string;
+  /** Tax recorded for this component in currency major units. */
+  taxAmount: number;
 }
 
 /**
@@ -230,14 +242,15 @@ export interface InvoiceLineItemInput {
   /** Quantity */
   quantity: number;
   /**
-   * Unit price in the currency's major unit (for example, `12.34` USD or
-   * `1200` JPY). The Stripe provider converts this value to Stripe's smallest
-   * currency unit.
+   * Pre-discount unit price in the document's amount mode. It is net for
+   * tax-exclusive invoices and gross for `TaxInclusive` QuickBooks invoices.
+   * The Stripe provider converts this value to Stripe's smallest currency unit.
    */
   unitPrice: number;
   /**
-   * Total discount for this line (not per unit), in the currency's major
-   * unit. Must be between 0 and `quantity × unitPrice`. The Stripe provider
+   * Total pre-discount line reduction (not per unit), in the document's amount
+   * mode. It is net for tax-exclusive invoices and gross for tax-inclusive
+   * invoices. Must be between 0 and `quantity × unitPrice`. The Stripe provider
    * applies it as an amount-off discount on the invoice item, so the invoice
    * shows the discount and Stripe Tax taxes the discounted amount.
    */
@@ -254,11 +267,19 @@ export interface InvoiceLineItemInput {
   /** Explicit realm-specific references used only by the QuickBooks provider. */
   quickbooksMapping?: QuickBooksInvoiceLineMapping;
   /**
-   * Calculated line total in currency major units. QuickBooks preserves this
-   * value and accepts the exact quantity × unitPrice or its decimal half-up
-   * result at an explicitly recognized ISO currency's minor precision.
+   * Frozen net line total after the discount, in currency major units.
+   * QuickBooks maps this to `Line.Amount`.
    */
   amount?: number;
+  /** Stored aggregate tax for this frozen line. Required for a tax-inclusive snapshot. */
+  taxAmount?: number;
+  /** Stored tax components. When supplied, their amounts must sum to `taxAmount`. */
+  taxComponents?: TaxComponentSnapshot[];
+  /**
+   * Frozen gross line total after the discount. Required for `TaxInclusive`
+   * QuickBooks snapshots and mapped to `Line.TaxInclusiveAmt`.
+   */
+  taxInclusiveAmount?: number;
   /**
    * Service period start. Set together with `periodEnd`; the Stripe provider
    * sends both as the invoice item's `period` (Unix seconds).
@@ -278,6 +299,17 @@ export interface QuickBooksInvoiceRequest {
   readonly realmId: string;
   readonly environment: 'sandbox' | 'production';
   /** SHA-256 of the exact mapped JSON payload; not an authorization signature. */
+  readonly payloadHash: string;
+}
+
+/** Persist this descriptor with the frozen credit memo before the first QuickBooks create. */
+export interface QuickBooksCreditMemoRequest {
+  readonly requestId: string;
+  readonly realmId: string;
+  readonly environment: 'sandbox' | 'production';
+  /** Immutable source invoice bound into the descriptor linkage envelope. */
+  readonly creditedInvoiceExternalId: string;
+  /** SHA-256 of the exact mapped JSON payload plus immutable linkage; not an authorization signature. */
   readonly payloadHash: string;
 }
 
@@ -340,6 +372,37 @@ export interface InvoiceInput {
    * Stripe only allows changing it while the invoice is a draft.
    */
   collectionMethod?: InvoiceCollectionMethod;
+}
+
+/** A positive frozen credit note. Its direction is represented by QuickBooks CreditMemo. */
+export interface CreditMemoInput {
+  /** Local immutable credit-note ID. */
+  id: string;
+  /** Existing QuickBooks CreditMemo.Id, when already synchronized. */
+  externalId?: string;
+  /** Existing QuickBooks Invoice.Id bound into the create descriptor for caller reconciliation. */
+  creditedInvoiceExternalId: string;
+  /** QuickBooks create-only identity, prepared with prepareQuickBooksCreditMemoRequest. */
+  quickbooksCreditMemoRequest?: QuickBooksCreditMemoRequest;
+  /** Required realm-specific non-US QuickBooks tax mapping. */
+  quickbooksMapping?: QuickBooksInvoiceMapping;
+  /** Caller-visible credit-note number. */
+  creditMemoNumber: string;
+  customerId: string;
+  customerExternalId?: string;
+  issueDate: Date;
+  /** Positive frozen sales lines. */
+  lineItems: InvoiceLineItemInput[];
+  /** Positive net total before tax. */
+  subtotal: number;
+  /** Positive tax total. */
+  taxAmount: number;
+  /** Positive gross credit total. */
+  totalAmount: number;
+  currency?: string;
+  reference?: string;
+  memo?: string;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -1076,6 +1139,17 @@ export interface InvoiceOperations {
 }
 
 /**
+ * Provider support for positive customer credit notes. Its optional presence
+ * is the capability check: callers must refuse a provider that omits it.
+ */
+export interface CreditMemoOperations {
+  /** Create a positive credit note in the provider. */
+  push(creditMemo: CreditMemoInput): Promise<SyncResult>;
+  /** Create or update a credit note. Create-only descriptors are refused on update. */
+  sync(creditMemo: CreditMemoInput): Promise<SyncResult>;
+}
+
+/**
  * Vendor operations interface
  */
 export interface VendorOperations {
@@ -1214,6 +1288,8 @@ export interface AccountingProvider {
   customers: CustomerOperations;
   /** Invoice operations */
   invoices: InvoiceOperations;
+  /** Optional because not every accounting provider supports customer credit notes. */
+  creditMemos?: CreditMemoOperations;
 
   // AP: Accounts Payable
   /** Vendor operations */

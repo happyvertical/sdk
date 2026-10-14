@@ -18,6 +18,8 @@ import type {
   AuditReport,
   BillInput,
   BillOperations,
+  CreditMemoInput,
+  CreditMemoOperations,
   CustomerInput,
   CustomerOperations,
   DateRange,
@@ -33,6 +35,7 @@ import type {
   ListOptions,
   PaymentInput,
   PaymentOperations,
+  QuickBooksCreditMemoRequest,
   QuickBooksInvoiceRequest,
   QuickBooksOptions,
   SyncResult,
@@ -43,7 +46,9 @@ import type {
   WebhookOperations,
 } from '../../types.js';
 import {
+  mapCreditMemoToQBO,
   mapInvoiceToQBO,
+  validateQuickBooksCreditMemoRequest,
   validateQuickBooksInvoiceRequest,
 } from './invoice-request.js';
 
@@ -100,6 +105,7 @@ export class QuickBooksProvider implements AccountingProvider {
 
   readonly customers: CustomerOperations;
   readonly invoices: InvoiceOperations;
+  readonly creditMemos: CreditMemoOperations;
   readonly vendors: VendorOperations;
   readonly bills: BillOperations;
   readonly payments: PaymentOperations;
@@ -116,6 +122,7 @@ export class QuickBooksProvider implements AccountingProvider {
     // Initialize operation handlers
     this.customers = new QuickBooksCustomerOperations(this);
     this.invoices = new QuickBooksInvoiceOperations(this);
+    this.creditMemos = new QuickBooksCreditMemoOperations(this);
     this.vendors = new QuickBooksVendorOperations(this);
     this.bills = new QuickBooksBillOperations(this);
     this.payments = new QuickBooksPaymentOperations(this);
@@ -209,7 +216,7 @@ export class QuickBooksProvider implements AccountingProvider {
     method: 'GET' | 'POST' | 'DELETE',
     endpoint: string,
     body?: unknown,
-    invoiceRequest?: QuickBooksInvoiceRequest,
+    createRequest?: QuickBooksInvoiceRequest | QuickBooksCreditMemoRequest,
   ): Promise<T> {
     // Freeze identity and bytes before any asynchronous work.
     const serializedBody =
@@ -217,21 +224,29 @@ export class QuickBooksProvider implements AccountingProvider {
     const realmId = this.realmId;
     const environment =
       this.options.environment === 'production' ? 'production' : 'sandbox';
-    if (invoiceRequest) {
-      if (method !== 'POST' || endpoint !== 'invoice') {
+    if (createRequest) {
+      if (method !== 'POST' || !['invoice', 'creditmemo'].includes(endpoint)) {
         throw new Error(
-          'QuickBooks request identity is only supported for invoice creation',
+          'QuickBooks request identity is only supported for invoice or credit memo creation',
         );
       }
-      validateQuickBooksInvoiceRequest(
-        invoiceRequest,
-        realmId,
-        environment,
-        serializedBody,
-      );
+      if (endpoint === 'invoice')
+        validateQuickBooksInvoiceRequest(
+          createRequest as QuickBooksInvoiceRequest,
+          realmId,
+          environment,
+          serializedBody,
+        );
+      else
+        validateQuickBooksCreditMemoRequest(
+          createRequest as QuickBooksCreditMemoRequest,
+          realmId,
+          environment,
+          serializedBody,
+        );
     }
-    const requestId = invoiceRequest?.requestId;
-    const payloadHash = invoiceRequest?.payloadHash;
+    const requestId = createRequest?.requestId;
+    const payloadHash = createRequest?.payloadHash;
     const url = new URL(`${this.baseUrl}/v3/company/${realmId}/${endpoint}`);
     if (requestId) url.searchParams.set('requestid', requestId);
     const timeout = this.options.timeout ?? 30000;
@@ -242,6 +257,7 @@ export class QuickBooksProvider implements AccountingProvider {
       'Vendor',
       'Bill',
       'Invoice',
+      'CreditMemo',
       'Payment',
     ].find((entity) => entity.toLowerCase() === endpoint.split(/[/?]/, 1)[0]);
     const accessToken = await this.ensureAccessToken();
@@ -527,6 +543,61 @@ class QuickBooksInvoiceOperations implements InvoiceOperations {
       // or create a credit memo. For now, we'll use sparse update to mark private note
       PrivateNote: 'VOIDED',
     });
+  }
+}
+
+// =============================================================================
+// Credit memo operations
+// =============================================================================
+
+class QuickBooksCreditMemoOperations implements CreditMemoOperations {
+  constructor(private provider: QuickBooksProvider) {}
+
+  async push(creditMemo: CreditMemoInput): Promise<SyncResult> {
+    if (creditMemo.externalId && creditMemo.quickbooksCreditMemoRequest)
+      throw new Error(
+        'QuickBooks credit memo request identity cannot be used for updates',
+      );
+    const mapped = mapCreditMemoToQBO(creditMemo);
+    if (
+      creditMemo.quickbooksCreditMemoRequest &&
+      creditMemo.quickbooksCreditMemoRequest.creditedInvoiceExternalId !==
+        creditMemo.creditedInvoiceExternalId
+    )
+      throw new Error(
+        'QuickBooks credit memo request linkage mismatch; reconcile the original request',
+      );
+    const response = await this.provider.request<{
+      CreditMemo: { Id: string };
+    }>('POST', 'creditmemo', mapped, creditMemo.quickbooksCreditMemoRequest);
+    return {
+      action: 'created',
+      externalId: response.CreditMemo.Id,
+      syncedAt: new Date(),
+    };
+  }
+
+  async sync(creditMemo: CreditMemoInput): Promise<SyncResult> {
+    if (!creditMemo.externalId) return this.push(creditMemo);
+    if (creditMemo.quickbooksCreditMemoRequest)
+      throw new Error(
+        'QuickBooks credit memo request identity cannot be used for updates',
+      );
+    // Refuse malformed frozen snapshots before authenticating or contacting QBO.
+    const mapped = mapCreditMemoToQBO(creditMemo);
+    const existing = await this.provider.request<{
+      CreditMemo: { SyncToken: string };
+    }>('GET', `creditmemo/${creditMemo.externalId}`);
+    await this.provider.request('POST', 'creditmemo', {
+      ...mapped,
+      Id: creditMemo.externalId,
+      SyncToken: existing.CreditMemo.SyncToken,
+    });
+    return {
+      action: 'updated',
+      externalId: creditMemo.externalId,
+      syncedAt: new Date(),
+    };
   }
 }
 
@@ -1296,6 +1367,7 @@ interface QBOInvoiceLine {
     UnitPrice?: number;
     ItemRef?: QBORef;
     TaxCodeRef?: QBORef;
+    TaxInclusiveAmt?: number;
   };
 }
 
@@ -1310,7 +1382,7 @@ interface QBOInvoiceBase {
   TxnTaxDetail?: {
     TotalTax?: number;
   };
-  GlobalTaxCalculation?: 'TaxExcluded' | 'NotApplicable';
+  GlobalTaxCalculation?: 'TaxExcluded' | 'TaxInclusive' | 'NotApplicable';
   CurrencyRef?: QBORef;
   CustomerMemo?: { value: string };
 }
