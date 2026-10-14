@@ -289,11 +289,23 @@ function currencyMinor(
   label: string,
 ): bigint {
   const factor = currencyMinorUnitFactor(currency);
-  if (factor === undefined || !isCurrencyMinorUnit(amount, currency))
+  const rounded = roundCurrencyAmount(amount, currency);
+  if (
+    factor === undefined ||
+    rounded === undefined ||
+    (!isCurrencyMinorUnit(amount, currency) && !close(amount, rounded))
+  )
     throw new Error(
       `QuickBooks ${label} must fit the explicitly supplied currency's ISO 4217 minor-unit grid`,
     );
-  return BigInt(Math.round(amount * factor));
+  // Match frozenCurrencyAmount: only a value already admitted as ordinary
+  // binary noise is normalized before exact minor-unit aggregation. A genuine
+  // off-grid value still refuses before any request is mapped.
+  return BigInt(
+    Math.round(
+      (isCurrencyMinorUnit(amount, currency) ? amount : rounded) * factor,
+    ),
+  );
 }
 
 function currencyMajor(minor: bigint, currency: string | undefined): number {

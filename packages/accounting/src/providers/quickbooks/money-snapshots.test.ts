@@ -617,6 +617,41 @@ describe('QuickBooks frozen money snapshots', () => {
     ]);
   });
 
+  it('normalizes only admitted binary-noise frozen amounts before TaxLine minor conversion', () => {
+    const noisyAmount = 0.1 + 0.2;
+    const invoice = inclusiveInvoice({
+      subtotal: noisyAmount,
+      taxAmount: noisyAmount,
+      totalAmount: noisyAmount + noisyAmount,
+      quickbooksMapping: { globalTaxCalculation: 'TaxExcluded' },
+      lineItems: [
+        {
+          description: 'Derived noisy net',
+          quantity: 3,
+          unitPrice: 0.1,
+          taxAmount: noisyAmount,
+          taxComponents: [
+            {
+              taxCode: 'GST',
+              rate: 1,
+              quickbooksTaxRateRef: 'rate-full',
+              taxAmount: noisyAmount,
+            },
+          ],
+          quickbooksMapping: { itemRef: 'item-1', taxCodeRef: 'tax-full' },
+        },
+      ],
+    });
+    const mapped = mapInvoiceToQBO(invoice);
+    expect(mapped.Line[0]?.Amount).toBe(noisyAmount);
+    expect(mapped.TxnTaxDetail?.TaxLine).toEqual([
+      expect.objectContaining({
+        Amount: 0.3,
+        TaxLineDetail: expect.objectContaining({ TaxPercent: 100 }),
+      }),
+    ]);
+  });
+
   it('binds a positive credit memo payload to one request identity and retries identical bytes', async () => {
     const memo = creditMemo();
     memo.quickbooksCreditMemoRequest = prepareQuickBooksCreditMemoRequest(

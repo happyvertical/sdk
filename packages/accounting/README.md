@@ -111,11 +111,14 @@ precision. For example, CAD quantity `1.0005` × unit price `10` accepts the
 retained line amount `10.01`. The adapter preserves approved snapshots and never
 changes subtotal/tax reconciliation.
 
-Every frozen monetary snapshot (`subtotal`, tax, total, line net/gross,
+A frozen monetary snapshot means a `TaxInclusive` document, or a line carrying
+`taxAmount`, `taxComponents`, `taxInclusiveAmount`, or a nonzero `discount`.
+Those snapshots (document subtotal/tax/total and relevant line net/gross,
 component tax, and discount) must fit the explicitly supplied ISO 4217 grid.
 The source `unitPrice` may remain fractional when its retained line amount is
-on that grid. Unknown or missing currency never authorizes frozen snapshot
-rounding.
+on that grid. Legacy exclusive exact-product inputs that carry only an `amount`
+or QuickBooks mapping retain the base validation and do not require a known
+currency. Unknown or missing currency never authorizes frozen snapshot rounding.
 
 Precision comes from [ISO 4217 List One published 2026-09-17](https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml),
 not runtime display formatting (which differs for IQD, MGA and RSD). Zero-, two-,
