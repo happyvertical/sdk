@@ -299,12 +299,13 @@ export class StripeAdapter implements PaymentBackend {
       'metadata[quoteId]': quoteId,
     };
 
+    const stripeAccount = this.resolveStripeAccount(input.stripeAccount);
     const session = await this.stripeRequest<Record<string, unknown>>(
       '/checkout/sessions',
       {
         method: 'POST',
         idempotencyKey: input.idempotencyKey,
-        stripeAccount: this.resolveStripeAccount(input.stripeAccount),
+        stripeAccount,
         body: formEncode(params),
       },
     );
@@ -343,7 +344,7 @@ export class StripeAdapter implements PaymentBackend {
 
     rememberPaymentOption(
       this.optionsByQuote,
-      quoteId,
+      stripePaymentOptionKey(quoteId, stripeAccount),
       option,
       this.maxStoredPaymentOptions,
     );
@@ -379,9 +380,13 @@ export class StripeAdapter implements PaymentBackend {
             context.providerPaymentId,
             'Stripe providerPaymentId',
           );
+    const stripeAccount = this.resolveStripeAccount(context.stripeAccount);
+    const option = this.optionsByQuote.get(
+      stripePaymentOptionKey(normalizedQuoteId, stripeAccount),
+    );
     const sessionId =
-      this.optionsByQuote.get(normalizedQuoteId)?.providerPaymentId ??
       contextProviderPaymentId ??
+      option?.providerPaymentId ??
       extractStripeSessionId(normalizedPayTo);
 
     if (!sessionId) {
@@ -392,7 +397,7 @@ export class StripeAdapter implements PaymentBackend {
 
     const session = await this.stripeRequest<Record<string, unknown>>(
       `/checkout/sessions/${encodeURIComponent(sessionId)}`,
-      { stripeAccount: this.resolveStripeAccount(context.stripeAccount) },
+      { stripeAccount },
     );
     const sessionQuoteId = readStripeSessionQuoteId(session);
 
@@ -408,7 +413,6 @@ export class StripeAdapter implements PaymentBackend {
       paymentStatus,
     );
 
-    const option = this.optionsByQuote.get(normalizedQuoteId);
     const contextAmount =
       context.amount === undefined
         ? undefined
@@ -1079,6 +1083,16 @@ function normalizeApplicationFeeAmount(
     );
   }
   return fee;
+}
+
+function stripePaymentOptionKey(
+  quoteId: string,
+  stripeAccount: string | undefined,
+): string {
+  // Platform entries retain their old quote-only keys. Connected-account ids
+  // cannot contain NUL in an HTTP header, so it safely separates account scope
+  // from the caller's quote id without collapsing tenant-local quote ids.
+  return stripeAccount === undefined ? quoteId : `${stripeAccount}\0${quoteId}`;
 }
 
 function stripeRefundReferenceParam(

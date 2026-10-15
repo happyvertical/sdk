@@ -1369,6 +1369,84 @@ describe('StripeAdapter', () => {
     ).toBe('acct_override');
   });
 
+  it('keeps same-quote Checkout sessions isolated by account and honors an explicit session id', async () => {
+    const fetch = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        const account = new Headers(init?.headers).get('Stripe-Account');
+
+        if (url.endsWith('/checkout/sessions') && init?.method === 'POST') {
+          const sessionId = account === 'acct_a' ? 'cs_a' : 'cs_b';
+          return jsonResponse({
+            id: sessionId,
+            url: `https://checkout.stripe.com/c/pay/${sessionId}`,
+          });
+        }
+
+        if (url.endsWith('/checkout/sessions/cs_a')) {
+          return jsonResponse({
+            id: 'cs_a',
+            status: 'complete',
+            ...Object.fromEntries([['payment_status', 'paid']]),
+          });
+        }
+
+        if (url.endsWith('/checkout/sessions/cs_b')) {
+          return jsonResponse({
+            id: 'cs_b',
+            status: 'complete',
+            ...Object.fromEntries([['payment_status', 'paid']]),
+          });
+        }
+
+        return jsonResponse({ error: { message: 'not found' } }, 404);
+      },
+    );
+    const adapter = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch,
+      successUrl: 'https://app.example/success',
+      cancelUrl: 'https://app.example/cancel',
+    });
+
+    await adapter.createPaymentOption({
+      quoteId: 'tenant-local-quote',
+      amount: 1000,
+      currency: 'USD',
+      expiresAt: futureExpiresAt(),
+      stripeAccount: 'acct_a',
+    });
+    await adapter.createPaymentOption({
+      quoteId: 'tenant-local-quote',
+      amount: 1000,
+      currency: 'USD',
+      expiresAt: futureExpiresAt(),
+      stripeAccount: 'acct_b',
+    });
+
+    await adapter.getStatus(
+      'tenant-local-quote',
+      'https://checkout.stripe.com/c/pay/cs_a',
+      { stripeAccount: 'acct_a' },
+    );
+    await adapter.getStatus(
+      'tenant-local-quote',
+      'https://checkout.stripe.com/c/pay/cs_a',
+      { providerPaymentId: 'cs_a', stripeAccount: 'acct_a' },
+    );
+
+    const statusCalls = fetch.mock.calls.slice(2);
+    expect(String(statusCalls[0]?.[0])).toMatch(/\/checkout\/sessions\/cs_a$/);
+    expect(String(statusCalls[1]?.[0])).toMatch(/\/checkout\/sessions\/cs_a$/);
+    expect(
+      new Headers(statusCalls[0]?.[1]?.headers).get('Stripe-Account'),
+    ).toBe('acct_a');
+    expect(
+      new Headers(statusCalls[1]?.[1]?.headers).get('Stripe-Account'),
+    ).toBe('acct_a');
+  });
+
   it('rejects impossible application fees before calling Stripe', async () => {
     const fetch = createStripeFetch();
     const adapter = new StripeAdapter({
