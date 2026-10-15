@@ -1257,6 +1257,140 @@ describe('StripeAdapter', () => {
     expect(body.get('line_items[0][price_data][currency]')).toBe('usd');
   });
 
+  it('creates a worker-co-op direct Checkout charge with an application fee and scoped refund', async () => {
+    const fetch = createStripeFetch();
+    const adapter = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch,
+      successUrl: 'https://app.example/success',
+      cancelUrl: 'https://app.example/cancel',
+    });
+
+    await adapter.createPaymentOption({
+      quoteId: 'worker-coop-project-revenue',
+      amount: 10_000,
+      currency: 'USD',
+      expiresAt: futureExpiresAt(),
+      stripeAccount: 'acct_worker_coop',
+      applicationFeeAmount: 500,
+    });
+    await adapter.refundPayment({
+      paymentId: 'pi_123',
+      amount: 10_000,
+      stripeAccount: 'acct_worker_coop',
+      refundApplicationFee: true,
+      reverseTransfer: true,
+    });
+
+    const checkoutInit = fetch.mock.calls[0]?.[1];
+    const refundInit = fetch.mock.calls[1]?.[1];
+    const checkout = new URLSearchParams(String(checkoutInit?.body));
+    const refund = new URLSearchParams(String(refundInit?.body));
+
+    expect(new Headers(checkoutInit?.headers).get('Stripe-Account')).toBe(
+      'acct_worker_coop',
+    );
+    expect(checkout.get('payment_intent_data[application_fee_amount]')).toBe(
+      '500',
+    );
+    expect(new Headers(refundInit?.headers).get('Stripe-Account')).toBe(
+      'acct_worker_coop',
+    );
+    expect(refund.get('refund_application_fee')).toBe('true');
+    expect(refund.get('reverse_transfer')).toBe('true');
+  });
+
+  it('uses adapter account scope by default and leaves platform requests unscoped', async () => {
+    const connectedFetch = createStripeFetch();
+    const connected = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch: connectedFetch,
+      successUrl: 'https://app.example/success',
+      cancelUrl: 'https://app.example/cancel',
+      stripeAccount: ' acct_default ',
+    });
+    const platformFetch = createStripeFetch();
+    const platform = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch: platformFetch,
+      successUrl: 'https://app.example/success',
+      cancelUrl: 'https://app.example/cancel',
+    });
+
+    await connected.createPaymentOption({
+      quoteId: 'connected-default',
+      amount: 1000,
+      currency: 'USD',
+      expiresAt: futureExpiresAt(),
+    });
+    await platform.createPaymentOption({
+      quoteId: 'platform-default',
+      amount: 1000,
+      currency: 'USD',
+      expiresAt: futureExpiresAt(),
+    });
+
+    expect(
+      new Headers(connectedFetch.mock.calls[0]?.[1]?.headers).get(
+        'Stripe-Account',
+      ),
+    ).toBe('acct_default');
+    expect(
+      new Headers(platformFetch.mock.calls[0]?.[1]?.headers).get(
+        'Stripe-Account',
+      ),
+    ).toBeNull();
+  });
+
+  it('lets an individual request override the adapter account scope', async () => {
+    const fetch = createStripeFetch();
+    const adapter = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch,
+      successUrl: 'https://app.example/success',
+      cancelUrl: 'https://app.example/cancel',
+      stripeAccount: 'acct_default',
+    });
+
+    await adapter.createPaymentOption({
+      quoteId: 'override-account',
+      amount: 1000,
+      currency: 'USD',
+      expiresAt: futureExpiresAt(),
+      stripeAccount: 'acct_override',
+    });
+
+    expect(
+      new Headers(fetch.mock.calls[0]?.[1]?.headers).get('Stripe-Account'),
+    ).toBe('acct_override');
+  });
+
+  it('rejects impossible application fees before calling Stripe', async () => {
+    const fetch = createStripeFetch();
+    const adapter = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch,
+      successUrl: 'https://app.example/success',
+      cancelUrl: 'https://app.example/cancel',
+    });
+
+    await expect(
+      adapter.createPaymentOption({
+        quoteId: 'fee-too-large',
+        amount: 1000,
+        currency: 'USD',
+        expiresAt: futureExpiresAt(),
+        applicationFeeAmount: 1001,
+      }),
+    ).rejects.toThrow('must not exceed the charge amount');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('keeps reserved Stripe metadata fields authoritative', async () => {
     const fetch = createStripeFetch();
     const adapter = new StripeAdapter({
@@ -1799,6 +1933,8 @@ describe('StripeAdapter manual-capture lifecycle', () => {
       providerPaymentMethodId: 'pm_card_visa',
       description: 'Anytown campaign',
       idempotencyKey: 'campaign-1-authorize',
+      stripeAccount: 'acct_worker_coop',
+      applicationFeeAmount: 250,
       metadata: { campaignId: '1' },
     });
 
@@ -1807,6 +1943,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     const headers = new Headers(capturedInit?.headers);
     expect(headers.get('Authorization')).toBe('Bearer sk_test_123');
     expect(headers.get('Idempotency-Key')).toBe('campaign-1-authorize');
+    expect(headers.get('Stripe-Account')).toBe('acct_worker_coop');
     const body = new URLSearchParams(String(capturedInit?.body));
     expect(body.get('amount')).toBe('5000');
     expect(body.get('currency')).toBe('cad');
@@ -1814,6 +1951,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     expect(body.get('capture_method')).toBe('manual');
     expect(body.get('confirm')).toBe('true');
     expect(body.get('off_session')).toBe('true');
+    expect(body.get('application_fee_amount')).toBe('250');
     expect(body.get('metadata[campaignId]')).toBe('1');
     expect(result).toMatchObject({
       backendId: 'stripe',

@@ -67,7 +67,61 @@ export interface StripeAdapterOptions {
   pollIntervalMs?: number;
   maxStoredPaymentOptions?: number;
   maxStoredWebhookEventIds?: number;
+  /** Default Stripe Connect account for this adapter's provider requests. */
+  stripeAccount?: string;
 }
+
+/** Stripe Connect account scope for a request; omit it for the platform. */
+export interface StripeAccountScope {
+  stripeAccount?: string;
+}
+
+export interface StripeCreatePaymentOptionInput
+  extends CreatePaymentOptionInput,
+    StripeAccountScope {
+  /** Stripe application fee in integer minor units for this direct charge. */
+  applicationFeeAmount?: number;
+}
+
+export interface StripePaymentStatusContext
+  extends PaymentStatusContext,
+    StripeAccountScope {}
+
+export interface StripeSendPayoutInput
+  extends SendPayoutInput,
+    StripeAccountScope {}
+
+export interface StripeRefundPaymentInput
+  extends RefundPaymentInput,
+    StripeAccountScope {
+  /** Refund a Stripe application fee collected with the charge. */
+  refundApplicationFee?: boolean;
+  /** Reverse a destination transfer when the provider supports one. */
+  reverseTransfer?: boolean;
+}
+
+export interface StripeAuthorizePaymentInput
+  extends AuthorizePaymentInput,
+    StripeAccountScope {
+  /** Stripe application fee in integer minor units for this PaymentIntent. */
+  applicationFeeAmount?: number;
+}
+
+export interface StripeCapturePaymentInput
+  extends CapturePaymentInput,
+    StripeAccountScope {}
+
+export interface StripeVoidPaymentInput
+  extends VoidPaymentInput,
+    StripeAccountScope {}
+
+export interface StripeCreateSetupSessionInput
+  extends CreateSetupSessionInput,
+    StripeAccountScope {}
+
+export interface StripeGetSetupResultInput
+  extends GetSetupResultInput,
+    StripeAccountScope {}
 
 export interface StripeWebhookEvent extends PaymentWebhookEvent {
   id: string;
@@ -89,6 +143,7 @@ export class StripeAdapter implements PaymentBackend {
   private readonly supportedCurrencies: Set<string>;
   private readonly checkoutMode: string;
   private readonly webhookSecret: string | undefined;
+  private readonly stripeAccount: string | undefined;
   private readonly maxStoredPaymentOptions: number;
   private readonly maxStoredWebhookEventIds: number;
   private readonly optionsByQuote = new Map<string, PaymentOption>();
@@ -161,6 +216,10 @@ export class StripeAdapter implements PaymentBackend {
     }
 
     this.webhookSecret = options.webhookSecret?.trim();
+    this.stripeAccount = normalizeOptionalStripeAccount(
+      options.stripeAccount,
+      'StripeAdapter stripeAccount',
+    );
     this.capabilities = {
       id: STRIPE_BACKEND_ID,
       displayName: 'Stripe Checkout',
@@ -189,7 +248,7 @@ export class StripeAdapter implements PaymentBackend {
   }
 
   async createPaymentOption(
-    input: CreatePaymentOptionInput,
+    input: StripeCreatePaymentOptionInput,
   ): Promise<PaymentOption> {
     const quoteId = normalizeNonEmptyString(input.quoteId, 'Stripe quoteId');
     const rawSuccessUrl = input.successUrl ?? this.options.successUrl;
@@ -210,6 +269,11 @@ export class StripeAdapter implements PaymentBackend {
       currency,
       'Stripe Checkout amount',
     );
+    const applicationFeeAmount = normalizeApplicationFeeAmount(
+      input.applicationFeeAmount,
+      amount,
+      'Stripe Checkout applicationFeeAmount',
+    );
     const expiresAt = normalizeDate(input.expiresAt);
     const stripeExpiresAt = normalizeStripeCheckoutExpiresAt(expiresAt);
     const params: Record<string, unknown> = {
@@ -226,6 +290,11 @@ export class StripeAdapter implements PaymentBackend {
       'line_items[0][price_data][unit_amount]': amount,
       'line_items[0][price_data][product_data][name]':
         input.description ?? `Quote ${quoteId}`,
+      ...(applicationFeeAmount === undefined
+        ? {}
+        : {
+            'payment_intent_data[application_fee_amount]': applicationFeeAmount,
+          }),
       ...flattenStripeMetadata(input.metadata),
       'metadata[quoteId]': quoteId,
     };
@@ -235,6 +304,7 @@ export class StripeAdapter implements PaymentBackend {
       {
         method: 'POST',
         idempotencyKey: input.idempotencyKey,
+        stripeAccount: this.resolveStripeAccount(input.stripeAccount),
         body: formEncode(params),
       },
     );
@@ -295,7 +365,7 @@ export class StripeAdapter implements PaymentBackend {
   async getStatus(
     quoteId: string,
     payTo: string,
-    context: PaymentStatusContext = {},
+    context: StripePaymentStatusContext = {},
   ): Promise<PaymentStatusResult> {
     const normalizedQuoteId = normalizeNonEmptyString(
       quoteId,
@@ -322,6 +392,7 @@ export class StripeAdapter implements PaymentBackend {
 
     const session = await this.stripeRequest<Record<string, unknown>>(
       `/checkout/sessions/${encodeURIComponent(sessionId)}`,
+      { stripeAccount: this.resolveStripeAccount(context.stripeAccount) },
     );
     const sessionQuoteId = readStripeSessionQuoteId(session);
 
@@ -387,7 +458,7 @@ export class StripeAdapter implements PaymentBackend {
     };
   }
 
-  async sendPayout(input: SendPayoutInput): Promise<PayoutResult> {
+  async sendPayout(input: StripeSendPayoutInput): Promise<PayoutResult> {
     const currency = normalizeStripeCurrency(
       input.currency ?? this.defaultCurrency,
     );
@@ -410,6 +481,7 @@ export class StripeAdapter implements PaymentBackend {
       {
         method: 'POST',
         idempotencyKey: input.idempotencyKey,
+        stripeAccount: this.resolveStripeAccount(input.stripeAccount),
         body: formEncode({
           amount,
           currency,
@@ -434,7 +506,7 @@ export class StripeAdapter implements PaymentBackend {
     };
   }
 
-  async refundPayment(input: RefundPaymentInput): Promise<RefundResult> {
+  async refundPayment(input: StripeRefundPaymentInput): Promise<RefundResult> {
     const rawPaymentReference = input.paymentId ?? input.transactionId;
 
     if (!rawPaymentReference) {
@@ -459,12 +531,17 @@ export class StripeAdapter implements PaymentBackend {
             currency,
             'Stripe refund amount',
           );
-    const refundReferenceParam =
-      await this.resolveStripeRefundReferenceParam(paymentReference);
+    const stripeAccount = this.resolveStripeAccount(input.stripeAccount);
+    const refundReferenceParam = await this.resolveStripeRefundReferenceParam(
+      paymentReference,
+      stripeAccount,
+    );
     const refundParams: Record<string, unknown> = {
       ...refundReferenceParam,
       amount: amount === undefined ? undefined : amount,
       reason: input.reason,
+      refund_application_fee: input.refundApplicationFee,
+      reverse_transfer: input.reverseTransfer,
       ...flattenStripeMetadata(input.metadata),
     };
 
@@ -473,6 +550,7 @@ export class StripeAdapter implements PaymentBackend {
       {
         method: 'POST',
         idempotencyKey: input.idempotencyKey,
+        stripeAccount,
         body: formEncode(refundParams),
       },
     );
@@ -496,7 +574,7 @@ export class StripeAdapter implements PaymentBackend {
   }
 
   async authorizePayment(
-    input: AuthorizePaymentInput,
+    input: StripeAuthorizePaymentInput,
   ): Promise<AuthorizationResult> {
     const currency = normalizeStripeCurrency(input.currency);
     this.assertSupportedCurrency(currency);
@@ -520,18 +598,25 @@ export class StripeAdapter implements PaymentBackend {
       input.quoteId === undefined
         ? undefined
         : normalizeNonEmptyString(input.quoteId, 'Stripe authorize quoteId');
+    const applicationFeeAmount = normalizeApplicationFeeAmount(
+      input.applicationFeeAmount,
+      amount,
+      'Stripe PaymentIntent applicationFeeAmount',
+    );
 
     const intent = await this.stripeRequest<Record<string, unknown>>(
       '/payment_intents',
       {
         method: 'POST',
         idempotencyKey: input.idempotencyKey,
+        stripeAccount: this.resolveStripeAccount(input.stripeAccount),
         body: formEncode({
           amount,
           currency,
           confirm: true,
           'payment_method_types[]': 'card',
           description: input.description,
+          application_fee_amount: applicationFeeAmount,
           ...Object.fromEntries([
             ['payment_method', paymentMethod],
             ['capture_method', 'manual'],
@@ -587,7 +672,9 @@ export class StripeAdapter implements PaymentBackend {
     };
   }
 
-  async capturePayment(input: CapturePaymentInput): Promise<CaptureResult> {
+  async capturePayment(
+    input: StripeCapturePaymentInput,
+  ): Promise<CaptureResult> {
     const providerPaymentId = normalizeNonEmptyString(
       input.providerPaymentId,
       'Stripe capture providerPaymentId',
@@ -605,6 +692,7 @@ export class StripeAdapter implements PaymentBackend {
       {
         method: 'POST',
         idempotencyKey: input.idempotencyKey,
+        stripeAccount: this.resolveStripeAccount(input.stripeAccount),
         body: formEncode({
           ...Object.fromEntries([['amount_to_capture', amount]]),
           ...flattenStripeMetadata(input.metadata),
@@ -627,7 +715,7 @@ export class StripeAdapter implements PaymentBackend {
     };
   }
 
-  async voidPayment(input: VoidPaymentInput): Promise<VoidResult> {
+  async voidPayment(input: StripeVoidPaymentInput): Promise<VoidResult> {
     const providerPaymentId = normalizeNonEmptyString(
       input.providerPaymentId,
       'Stripe void providerPaymentId',
@@ -642,6 +730,7 @@ export class StripeAdapter implements PaymentBackend {
       {
         method: 'POST',
         idempotencyKey: input.idempotencyKey,
+        stripeAccount: this.resolveStripeAccount(input.stripeAccount),
         body: formEncode(Object.fromEntries([['cancellation_reason', reason]])),
       },
     );
@@ -659,7 +748,7 @@ export class StripeAdapter implements PaymentBackend {
   }
 
   async createSetupSession(
-    input: CreateSetupSessionInput,
+    input: StripeCreateSetupSessionInput,
   ): Promise<SetupSession> {
     const rawSuccessUrl = input.successUrl ?? this.options.successUrl;
     const rawCancelUrl = input.cancelUrl ?? this.options.cancelUrl;
@@ -727,6 +816,7 @@ export class StripeAdapter implements PaymentBackend {
       {
         method: 'POST',
         idempotencyKey: input.idempotencyKey,
+        stripeAccount: this.resolveStripeAccount(input.stripeAccount),
         body: formEncode(params),
       },
     );
@@ -758,7 +848,7 @@ export class StripeAdapter implements PaymentBackend {
   }
 
   async getSetupResult(
-    input: GetSetupResultInput,
+    input: StripeGetSetupResultInput,
   ): Promise<SavedPaymentMethod> {
     const sessionId = normalizeNonEmptyString(
       input.sessionId,
@@ -770,6 +860,7 @@ export class StripeAdapter implements PaymentBackend {
 
     const session = await this.stripeRequest<Record<string, unknown>>(
       `/checkout/sessions/${encodeURIComponent(sessionId)}?${query.toString()}`,
+      { stripeAccount: this.resolveStripeAccount(input.stripeAccount) },
     );
 
     const setupIntent = readObject(session, 'setup_intent');
@@ -886,13 +977,20 @@ export class StripeAdapter implements PaymentBackend {
 
   private async stripeRequest<T>(
     path: string,
-    init: RequestInit & { idempotencyKey?: string } = {},
+    init: RequestInit & {
+      idempotencyKey?: string;
+      stripeAccount?: string;
+    } = {},
   ): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${this.secretKey}`);
     headers.set('Content-Type', 'application/x-www-form-urlencoded');
     headers.set('Accept', 'application/json');
     headers.set('Stripe-Version', this.apiVersion);
+
+    if (init.stripeAccount !== undefined) {
+      headers.set('Stripe-Account', init.stripeAccount);
+    }
 
     if (init.idempotencyKey !== undefined) {
       headers.set(
@@ -901,7 +999,11 @@ export class StripeAdapter implements PaymentBackend {
       );
     }
 
-    const { idempotencyKey: _idempotencyKey, ...requestInit } = init;
+    const {
+      idempotencyKey: _idempotencyKey,
+      stripeAccount: _stripeAccount,
+      ...requestInit
+    } = init;
     const response = await this.fetch(`${this.apiBaseUrl}${path}`, {
       ...requestInit,
       method: init.method ?? 'GET',
@@ -921,10 +1023,12 @@ export class StripeAdapter implements PaymentBackend {
 
   private async resolveStripeRefundReferenceParam(
     paymentReference: string,
+    stripeAccount: string | undefined,
   ): Promise<Record<string, string>> {
     if (paymentReference.startsWith('cs_')) {
       const session = await this.stripeRequest<Record<string, unknown>>(
         `/checkout/sessions/${encodeURIComponent(paymentReference)}`,
+        { stripeAccount },
       );
       const paymentIntent = normalizeOptionalProviderString(
         readProviderString(session, 'payment_intent'),
@@ -941,6 +1045,40 @@ export class StripeAdapter implements PaymentBackend {
 
     return stripeRefundReferenceParam(paymentReference);
   }
+
+  private resolveStripeAccount(
+    override: string | undefined,
+  ): string | undefined {
+    return (
+      normalizeOptionalStripeAccount(override, 'Stripe stripeAccount') ??
+      this.stripeAccount
+    );
+  }
+}
+
+function normalizeOptionalStripeAccount(
+  value: string | undefined,
+  context: string,
+): string | undefined {
+  return value === undefined
+    ? undefined
+    : normalizeNonEmptyString(value, context);
+}
+
+function normalizeApplicationFeeAmount(
+  value: number | undefined,
+  chargeAmount: number,
+  context: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+
+  const fee = normalizePositiveMinorUnitAmount(value, context);
+  if (fee > chargeAmount) {
+    throw new PaymentConfigurationError(
+      `${context} must not exceed the charge amount.`,
+    );
+  }
+  return fee;
 }
 
 function stripeRefundReferenceParam(
