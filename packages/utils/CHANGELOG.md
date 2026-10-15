@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.103.7
+
+### Patch Changes
+
+- ### Features
+
+  - support frozen taxes and credit memos (#1410) (accounting)
+
 ## 0.103.6
 
 ### Patch Changes
