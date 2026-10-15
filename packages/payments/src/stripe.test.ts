@@ -1778,6 +1778,7 @@ describe('StripeAdapter', () => {
       paymentId: 'cs_test_123',
       amount: 1000,
       currency: 'USD',
+      stripeAccount: 'acct_worker_coop',
     });
     const refundCall = fetch.mock.calls.find(([input]) =>
       String(input).endsWith('/refunds'),
@@ -1791,6 +1792,12 @@ describe('StripeAdapter', () => {
     });
     expect(body.get('payment_intent')).toBe('pi_123');
     expect(body.get('charge')).toBeNull();
+    expect(
+      new Headers(fetch.mock.calls[0]?.[1]?.headers).get('Stripe-Account'),
+    ).toBe('acct_worker_coop');
+    expect(new Headers(refundCall?.[1]?.headers).get('Stripe-Account')).toBe(
+      'acct_worker_coop',
+    );
   });
 
   it('rejects unsupported Stripe refund reference ids before calling Stripe', async () => {
