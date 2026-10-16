@@ -504,3 +504,48 @@ After `webhooks.verify` succeeds, the parsed Stripe webhook exposes its provider
 Persist that identifier in a durable inbox before applying side effects; the
 in-process parser alone cannot deduplicate deliveries across restarts or
 replicas.
+
+### Ordered compound tax snapshots
+
+A frozen component may set `compound: true` and `taxableAmount` (currency major
+units). It then taxes the line's net amount plus **all preceding components in
+that line's ordered snapshot**. Its explicit basis must equal that sum of stored
+facts; neither a replacement rate nor a jurisdiction rule is inferred. Different
+applicable line subsets use their corresponding realm tax codes.
+
+Compound lines also require verified configuration evidence:
+
+```ts
+quickbooksMapping: {
+  itemRef: '123',
+  taxCodeRef: 'configured-compound-code',
+  taxComponents: [
+    { taxRateRef: 'gst-rate', compound: false },
+    { taxRateRef: 'provincial-rate', compound: true },
+  ],
+}
+```
+
+The host must verify this sequence against the target company's existing TaxCode,
+including its applicability and ordering, and persist the verification provenance
+with tenant configuration. The SDK requires an exact match with frozen component
+references and flags; it cannot verify a remote realm from an ID alone and does
+not create or modify tax codes. Missing, duplicate, unknown or mismatched order
+metadata fails before a request can be sent. Tax-only dependencies other than
+all previous applicable components are outside this contract.
+
+Exclusive validation uses preceding stored rounded/allocated taxes. Inclusive
+validation extracts exact ordered rational factors and checks the same permitted
+floor/ceiling allocation as additive snapshots. Inclusive discount projection
+uses those factors too. Stored component amounts and original rates are preserved
+in `TxnTaxDetail.TaxLine`; an explicit basis is aggregated by rate into
+`TaxLineDetail.NetAmountTaxable`. Additive snapshots without these new fields
+retain their prior payload bytes and retry descriptor hashes. Credit memos use
+the same representation. This preserves source facts; sandbox acceptance and
+provider readback still require the host's authorized integration verification.
+
+Intuit's [TaxRateDetail schema](https://static.developer.intuit.com/sdkdocs/qbv3doc/ipp-v3-java-devkit-javadoc/com/intuit/ipp/data/TaxRateDetail.html)
+defines applicability/order, including
+[TaxOnAmountPlusTax](https://static.developer.intuit.com/sdkdocs/qbv3doc/ipp-v3-java-devkit-javadoc/com/intuit/ipp/data/TaxTypeApplicablityEnum.html).
+Its [TaxLineDetail reference](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/393902ec-f79c-bb8f-82fd-0f3bd296dd27.htm)
+documents the applicable-rate taxable base and realm rate-reference constraint.

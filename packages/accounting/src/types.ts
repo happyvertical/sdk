@@ -211,6 +211,8 @@ export interface QuickBooksInvoiceLineMapping {
   itemRef: string;
   /** Existing TaxCode.Id in the target QuickBooks company. */
   taxCodeRef: string;
+  /** Caller-verified ordered TaxCode configuration in this realm; required for compound snapshots. */
+  taxComponents?: Array<{ taxRateRef: string; compound: boolean }>;
 }
 
 /** QuickBooks global-tax behavior for a non-US invoice. */
@@ -229,6 +231,10 @@ export interface TaxComponentSnapshot {
   quickbooksTaxRateRef?: string;
   /** Tax recorded for this component in currency major units. */
   taxAmount: number;
+  /** Ordered tax-on-tax: includes all preceding components on this line. */
+  compound?: boolean;
+  /** Frozen actual taxable basis in currency major units; required for compound tax. */
+  taxableAmount?: number;
 }
 
 /**
