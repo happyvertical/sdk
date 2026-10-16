@@ -192,6 +192,49 @@ describe('public frozen QuickBooks document verification', () => {
       verifyQuickBooksInvoiceReadback(invoice, request, observed(raw)),
     ).toThrow('differs from the frozen document');
   });
+  it('checks provider-added implicit taxable bases without changing frozen request bytes', () => {
+    const invoice = input();
+    const descriptor = prepareQuickBooksInvoiceRequest(invoice, identity);
+    const raw: any = record();
+    raw.TxnTaxDetail.TaxLine[0].TaxLineDetail.NetAmountTaxable = 99;
+    expect(() =>
+      verifyQuickBooksInvoiceReadback(invoice, descriptor, observed(raw)),
+    ).toThrow();
+    raw.TxnTaxDetail.TaxLine[0].TaxLineDetail.NetAmountTaxable = 100;
+    expect(
+      verifyQuickBooksInvoiceReadback(invoice, descriptor, observed(raw))
+        .externalId,
+    ).toBe('remote');
+    expect(prepareQuickBooksInvoiceRequest(invoice, identity)).toEqual(
+      descriptor,
+    );
+    const { invoiceNumber, dueDate: _due, ...shared } = invoice;
+    const credit: CreditMemoInput = {
+      ...shared,
+      creditMemoNumber: invoiceNumber,
+      creditedInvoiceExternalId: 'original',
+    };
+    const creditDescriptor = prepareQuickBooksCreditMemoRequest(
+      credit,
+      identity,
+    );
+    delete raw.DueDate;
+    expect(
+      verifyQuickBooksCreditMemoReadback(
+        credit,
+        creditDescriptor,
+        observed(raw),
+      ).externalId,
+    ).toBe('remote');
+    raw.TxnTaxDetail.TaxLine[0].TaxLineDetail.NetAmountTaxable = 99;
+    expect(() =>
+      verifyQuickBooksCreditMemoReadback(
+        credit,
+        creditDescriptor,
+        observed(raw),
+      ),
+    ).toThrow();
+  });
   it('refuses foreign connection, changed frozen descriptor and unproved tax components', () => {
     const invoice = input(),
       request = prepareQuickBooksInvoiceRequest(invoice, identity);

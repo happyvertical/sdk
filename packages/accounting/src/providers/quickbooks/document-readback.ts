@@ -6,6 +6,7 @@ import type {
 } from '../../types.js';
 import {
   mapCreditMemoToQBO,
+  mapDocumentTaxReadback,
   mapInvoiceToQBO,
   prepareQuickBooksCreditMemoRequest,
   prepareQuickBooksInvoiceRequest,
@@ -102,6 +103,19 @@ function verify(
     (!Array.isArray(actualTax.TaxLine) || actualTax.TaxLine.length !== 0)
   )
     reject();
+  // Provider-added taxable bases are economics, not display metadata. Compare
+  // them with the owning mapper's aggregate basis without changing create bytes.
+  if (Array.isArray(actualTax.TaxLine)) {
+    const bases = mapDocumentTaxReadback(input);
+    for (const [index, line] of actualTax.TaxLine.entries()) {
+      const detail = object(object(line).TaxLineDetail);
+      if (
+        detail.NetAmountTaxable !== undefined &&
+        detail.NetAmountTaxable !== bases[index]?.TaxLineDetail.NetAmountTaxable
+      )
+        reject();
+    }
+  }
   if (!matches(payload, { ...raw, Line: lines })) reject();
   return {
     externalId: observed.externalId,
