@@ -44,7 +44,7 @@ persistence, webhook routing, and operational policy.
 ### Stripe Connect Standard direct charges
 
 Pass `stripeAccount` to a `StripeAdapter` for a fixed connected-account scope,
-or to an individual Checkout, PaymentIntent, refund, status, setup, or payout
+or to an individual Checkout, PaymentIntent, refund, status, or setup
 call. The adapter sends it as Stripe's `Stripe-Account` header. With no account
 configured or supplied, requests retain platform-account behavior.
 

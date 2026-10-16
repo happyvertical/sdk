@@ -87,10 +87,6 @@ export interface StripePaymentStatusContext
   extends PaymentStatusContext,
     StripeAccountScope {}
 
-export interface StripeSendPayoutInput
-  extends SendPayoutInput,
-    StripeAccountScope {}
-
 export interface StripeRefundPaymentInput
   extends RefundPaymentInput,
     StripeAccountScope {
@@ -122,6 +118,11 @@ export interface StripeCreateSetupSessionInput
 export interface StripeGetSetupResultInput
   extends GetSetupResultInput,
     StripeAccountScope {}
+
+export interface StripeWatchPaymentInput
+  extends Omit<WatchPaymentInput, 'statusContext'> {
+  statusContext?: StripePaymentStatusContext;
+}
 
 export interface StripeWebhookEvent extends PaymentWebhookEvent {
   id: string;
@@ -336,6 +337,7 @@ export class StripeAdapter implements PaymentBackend {
       paymentUri: checkoutUrl,
       metadata: {
         sessionId,
+        stripeAccount,
         paymentIntent: normalizeOptionalProviderString(
           readProviderString(session, 'payment_intent'),
         ),
@@ -352,7 +354,7 @@ export class StripeAdapter implements PaymentBackend {
     return option;
   }
 
-  watchPayment(input: WatchPaymentInput): AsyncIterable<PaymentEvent> {
+  watchPayment(input: StripeWatchPaymentInput): AsyncIterable<PaymentEvent> {
     return pollPaymentStatus(
       {
         ...input,
@@ -380,13 +382,9 @@ export class StripeAdapter implements PaymentBackend {
             context.providerPaymentId,
             'Stripe providerPaymentId',
           );
-    const stripeAccount = this.resolveStripeAccount(context.stripeAccount);
-    const cachedOption = this.optionsByQuote.get(
-      stripePaymentOptionKey(normalizedQuoteId, stripeAccount),
-    );
     const sessionId =
       contextProviderPaymentId ??
-      cachedOption?.providerPaymentId ??
+      this.optionsByQuote.get(normalizedQuoteId)?.providerPaymentId ??
       extractStripeSessionId(normalizedPayTo);
 
     if (!sessionId) {
@@ -394,6 +392,18 @@ export class StripeAdapter implements PaymentBackend {
         'Stripe getStatus requires a Checkout Session id or URL.',
       );
     }
+
+    const storedOption = this.findStoredOptionBySessionId(sessionId);
+    const stripeAccount =
+      normalizeOptionalStripeAccount(
+        context.stripeAccount,
+        'Stripe stripeAccount',
+      ) ??
+      readStripeOptionAccount(storedOption) ??
+      this.stripeAccount;
+    const cachedOption = this.optionsByQuote.get(
+      stripePaymentOptionKey(normalizedQuoteId, stripeAccount),
+    );
 
     // A caller-supplied session id can deliberately select a later checkout
     // for the same quote. Cache-derived amount, currency, and expiry describe
@@ -468,7 +478,7 @@ export class StripeAdapter implements PaymentBackend {
     };
   }
 
-  async sendPayout(input: StripeSendPayoutInput): Promise<PayoutResult> {
+  async sendPayout(input: SendPayoutInput): Promise<PayoutResult> {
     const currency = normalizeStripeCurrency(
       input.currency ?? this.defaultCurrency,
     );
@@ -491,7 +501,6 @@ export class StripeAdapter implements PaymentBackend {
       {
         method: 'POST',
         idempotencyKey: input.idempotencyKey,
-        stripeAccount: this.resolveStripeAccount(input.stripeAccount),
         body: formEncode({
           amount,
           currency,
@@ -1064,6 +1073,22 @@ export class StripeAdapter implements PaymentBackend {
       this.stripeAccount
     );
   }
+
+  private findStoredOptionBySessionId(
+    sessionId: string,
+  ): PaymentOption | undefined {
+    for (const option of this.optionsByQuote.values()) {
+      if (option.providerPaymentId === sessionId) return option;
+    }
+    return undefined;
+  }
+}
+
+function readStripeOptionAccount(
+  option: PaymentOption | undefined,
+): string | undefined {
+  const value = option?.metadata?.stripeAccount;
+  return typeof value === 'string' ? value : undefined;
 }
 
 function normalizeOptionalStripeAccount(
