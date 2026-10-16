@@ -1394,8 +1394,8 @@ describe('StripeAdapter', () => {
         if (url.endsWith('/checkout/sessions/cs_b')) {
           return jsonResponse({
             id: 'cs_b',
-            status: 'complete',
-            ...Object.fromEntries([['payment_status', 'paid']]),
+            status: 'open',
+            ...Object.fromEntries([['payment_status', 'unpaid']]),
           });
         }
 
@@ -1430,21 +1430,41 @@ describe('StripeAdapter', () => {
       'https://checkout.stripe.com/c/pay/cs_a',
       { stripeAccount: 'acct_a' },
     );
+    const cachedOptions = adapter as unknown as {
+      optionsByQuote: Map<string, { expiresAt: Date }>;
+    };
+    const cachedA = cachedOptions.optionsByQuote.values().next().value;
+    cachedA.expiresAt = new Date(Date.now() - 1_000);
     await adapter.getStatus(
       'tenant-local-quote',
-      'https://checkout.stripe.com/c/pay/cs_a',
-      { providerPaymentId: 'cs_a', stripeAccount: 'acct_a' },
+      'https://checkout.stripe.com/c/pay/cs_b',
+      {
+        providerPaymentId: 'cs_b',
+        stripeAccount: 'acct_a',
+        expiresAt: futureExpiresAt(),
+      },
     );
 
     const statusCalls = fetch.mock.calls.slice(2);
     expect(String(statusCalls[0]?.[0])).toMatch(/\/checkout\/sessions\/cs_a$/);
-    expect(String(statusCalls[1]?.[0])).toMatch(/\/checkout\/sessions\/cs_a$/);
+    expect(String(statusCalls[1]?.[0])).toMatch(/\/checkout\/sessions\/cs_b$/);
     expect(
       new Headers(statusCalls[0]?.[1]?.headers).get('Stripe-Account'),
     ).toBe('acct_a');
     expect(
       new Headers(statusCalls[1]?.[1]?.headers).get('Stripe-Account'),
     ).toBe('acct_a');
+    await expect(
+      adapter.getStatus(
+        'tenant-local-quote',
+        'https://checkout.stripe.com/c/pay/cs_b',
+        {
+          providerPaymentId: 'cs_b',
+          stripeAccount: 'acct_a',
+          expiresAt: futureExpiresAt(),
+        },
+      ),
+    ).resolves.toMatchObject({ status: 'pending', providerPaymentId: 'cs_b' });
   });
 
   it('rejects impossible application fees before calling Stripe', async () => {

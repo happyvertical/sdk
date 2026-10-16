@@ -381,12 +381,12 @@ export class StripeAdapter implements PaymentBackend {
             'Stripe providerPaymentId',
           );
     const stripeAccount = this.resolveStripeAccount(context.stripeAccount);
-    const option = this.optionsByQuote.get(
+    const cachedOption = this.optionsByQuote.get(
       stripePaymentOptionKey(normalizedQuoteId, stripeAccount),
     );
     const sessionId =
       contextProviderPaymentId ??
-      option?.providerPaymentId ??
+      cachedOption?.providerPaymentId ??
       extractStripeSessionId(normalizedPayTo);
 
     if (!sessionId) {
@@ -394,6 +394,12 @@ export class StripeAdapter implements PaymentBackend {
         'Stripe getStatus requires a Checkout Session id or URL.',
       );
     }
+
+    // A caller-supplied session id can deliberately select a later checkout
+    // for the same quote. Cache-derived amount, currency, and expiry describe
+    // only the session we created, never an explicitly selected replacement.
+    const option =
+      cachedOption?.providerPaymentId === sessionId ? cachedOption : undefined;
 
     const session = await this.stripeRequest<Record<string, unknown>>(
       `/checkout/sessions/${encodeURIComponent(sessionId)}`,
