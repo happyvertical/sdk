@@ -1149,6 +1149,8 @@ export interface InvoiceOperations {
  * is the capability check: callers must refuse a provider that omits it.
  */
 export interface CreditMemoOperations {
+  /** Read original provider evidence for verified reconciliation; never creates or applies credit. */
+  pull?(externalId: string): Promise<ExternalRecord>;
   /** Create a positive credit note in the provider. */
   push(creditMemo: CreditMemoInput): Promise<SyncResult>;
   /** Create or update a credit note. Create-only descriptors are refused on update. */

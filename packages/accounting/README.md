@@ -41,6 +41,26 @@ not make those application decisions. The redirect URI must also be registered
 in Intuit's developer portal. See Intuit's [OAuth client authorization-code flow](https://github.com/intuit/oauth-jsclient#authorization-code-flow)
 and [revocation helper](https://github.com/intuit/oauth-jsclient#revoke-access_token).
 
+## Frozen QuickBooks document readback
+
+`verifyQuickBooksInvoiceReadback(invoice, request, observation)` and
+`verifyQuickBooksCreditMemoReadback(credit, request, observation)` verify a fetched
+record against the owning mapper's frozen create payload. The observation contains
+`realmId`, `environment`, `externalId` and the provider's raw `record`; obtain it
+through the host's live authorized connection. QuickBooks also exposes the optional
+`creditMemos.pull(externalId)` capability to read original credit evidence without
+creating or applying a credit. Check that capability before recovery. The result retains the verified
+external ID, provider revision and payload hash. Verification makes no HTTP call
+and never sends, pays, or changes a document.
+
+The verifier requires explicit currency, item/tax mapping and frozen nonzero tax
+components. It checks exact generated discount/inclusive lines and component tax,
+accepts unrelated provider metadata and a matching subtotal summary, and refuses
+unknown economic line kinds, deposits or foreign-exchange rates. It verifies the
+original document, not its later cash settlement or a credit's application. A
+bounded search never proves absence; interrupted-owner and reconciliation decisions
+remain with the host's durable command coordinator.
+
 ## QuickBooks invoice creation and retries
 
 QuickBooks sales lines can carry explicit references to existing entities in the

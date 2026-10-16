@@ -553,6 +553,28 @@ class QuickBooksInvoiceOperations implements InvoiceOperations {
 class QuickBooksCreditMemoOperations implements CreditMemoOperations {
   constructor(private provider: QuickBooksProvider) {}
 
+  async pull(externalId: string): Promise<ExternalRecord> {
+    if (
+      !externalId ||
+      externalId.trim() !== externalId ||
+      externalId.length > 500
+    )
+      throw new Error(
+        'QuickBooks credit memo readback requires an exact external ID',
+      );
+    const response = await this.provider.request<{
+      CreditMemo: Record<string, unknown>;
+    }>('GET', `creditmemo/${encodeURIComponent(externalId)}`);
+    if (!response.CreditMemo || response.CreditMemo.Id !== externalId)
+      throw new Error('QuickBooks credit memo readback identity differs');
+    return {
+      provider: 'quickbooks',
+      externalId,
+      syncedAt: new Date(),
+      raw: response.CreditMemo,
+    };
+  }
+
   async push(creditMemo: CreditMemoInput): Promise<SyncResult> {
     if (creditMemo.externalId && creditMemo.quickbooksCreditMemoRequest)
       throw new Error(

@@ -46,6 +46,12 @@ export {
   StripeApiError,
 } from './errors.js';
 export {
+  type QuickBooksDocumentReadback,
+  type VerifiedQuickBooksDocumentReadback,
+  verifyQuickBooksCreditMemoReadback,
+  verifyQuickBooksInvoiceReadback,
+} from './providers/quickbooks/document-readback.js';
+export {
   prepareQuickBooksCreditMemoRequest,
   prepareQuickBooksInvoiceRequest,
 } from './providers/quickbooks/invoice-request.js';
