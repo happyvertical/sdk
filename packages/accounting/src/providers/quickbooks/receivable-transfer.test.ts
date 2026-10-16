@@ -446,19 +446,48 @@ describe('receivable failure and reconciliation boundaries', () => {
     });
     expect(posted.Line[0].Amount).toBe(10);
   });
-  it('does not confirm a malformed successful write or hide its request identity', async () => {
+  it.each([
+    'missing-sync-token',
+    'wrong-amount',
+    'wrong-links',
+  ])('retains uncertain write identity after %s provider success', async (fault) => {
     const p = provider(),
       rows = fixtures();
-    vi.spyOn(p, 'request').mockImplementation(async (method, endpoint) =>
-      method === 'POST'
-        ? ({ JournalEntry: { Id: 'remote-1' } } as any)
-        : (rows.get(endpoint) as any),
-    );
-    await expect(
-      p.receivableTransfers.execute(
-        prepareQuickBooksReceivableRequest(input()),
-      ),
-    ).rejects.toThrow(/sync token/);
+    const value = fault === 'wrong-links' ? application() : input();
+    const request = prepareQuickBooksReceivableRequest(value);
+    const malformed = record(value) as any;
+    malformed.Id = 'remote-1';
+    if (fault === 'missing-sync-token') delete malformed.SyncToken;
+    if (fault === 'wrong-amount') malformed.Line[0].Amount = 999;
+    if (fault === 'wrong-links')
+      malformed.Line[0].LinkedTxn[0].TxnId = 'wrong-source';
+    const requestSpy = vi
+      .spyOn(p, 'request')
+      .mockImplementation(async (method, endpoint) =>
+        method === 'POST'
+          ? ({
+              [request.endpoint === 'payment' ? 'Payment' : 'JournalEntry']:
+                malformed,
+            } as any)
+          : ((endpoint.startsWith('query?')
+              ? { QueryResponse: { Payment: [] } }
+              : rows.get(endpoint)) as any),
+      );
+    await expect(p.receivableTransfers.execute(request)).rejects.toMatchObject({
+      name: 'QuickBooksWriteError',
+      code: 'QBO_WRITE_ERROR',
+      outcome: 'unknown',
+      realmId: 'realm-a',
+      environment: 'sandbox',
+      endpoint: request.endpoint,
+      requestId: request.requestId,
+      payloadHash: request.payloadHash,
+      externalId: 'remote-1',
+      cause: expect.any(Error),
+    });
+    expect(
+      requestSpy.mock.calls.filter(([method]) => method === 'POST'),
+    ).toHaveLength(1);
   });
   it('classifies a lost write response as unknown, never a confirmed cash payment', async () => {
     const p = provider(),

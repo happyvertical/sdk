@@ -625,3 +625,8 @@ must verify realm-specific journal/customer application behavior and echoed fiel
 - [Journal line contract](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/62627c63-90a3-c87a-ef9b-8b4b06daee08.htm): AccountRef, PostingType and customer Entity.
 - [Journal contract](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/0b5f8961-f32e-e396-3a39-7b3e241434e8.htm): transaction currency/date; no assumed release due-date field.
 - [Intuit API best practices](https://blogs.a.intuit.com/2018/09/10/quickbooks-online-api-best-practices/): request-ID duplicate handling. This is distinct from host durable reconciliation.
+
+A receivable-transfer POST whose response cannot be reconciled throws
+`QuickBooksWriteError` with `outcome: "unknown"`, the original request identity
+and payload hash, and `externalId` when returned by the provider. Use that ID for
+read-only reconciliation; a malformed success never authorizes a new write identity.

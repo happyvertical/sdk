@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { QuickBooksWriteError } from '../../errors.js';
 import type { QuickBooksProvider } from './index.js';
 import { currencyMinorUnitFactor, isCurrencyMinorUnit } from './line-amount.js';
 import {
@@ -239,7 +240,22 @@ export class QuickBooksReceivableTransfers
     const type =
       retained.endpoint === 'journalentry' ? 'JournalEntry' : 'Payment';
     // A malformed success is unresolved, never a confirmed operation.
-    return reconcileQuickBooksReceivableRecord(retained, response[type]);
+    try {
+      return reconcileQuickBooksReceivableRecord(retained, response[type]);
+    } catch (cause) {
+      const externalId = response?.[type]?.Id;
+      throw new QuickBooksWriteError({
+        outcome: 'unknown',
+        realmId: retained.realmId,
+        environment: retained.environment,
+        endpoint: retained.endpoint,
+        requestId: retained.requestId,
+        payloadHash: retained.payloadHash,
+        externalId:
+          typeof externalId === 'string' && externalId ? externalId : undefined,
+        cause,
+      });
+    }
   }
   async read(
     request: QuickBooksReceivableRequest,
