@@ -1,5 +1,15 @@
 # @happyvertical/accounting
 
+## 0.105.0
+
+### Minor Changes
+
+- 2a3696e: Verify recovered QuickBooks invoices and credit memos against the original frozen request and realm. Expose read-only credit memo fetching for authorized host reconciliation.
+
+### Patch Changes
+
+- @happyvertical/utils@0.105.0
+
 ## 0.104.1
 
 ### Patch Changes
