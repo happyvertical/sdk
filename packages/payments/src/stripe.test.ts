@@ -1356,7 +1356,7 @@ describe('StripeAdapter', () => {
       stripeAccount: 'acct_default',
     });
 
-    await adapter.createPaymentOption({
+    const option = await adapter.createPaymentOption({
       quoteId: 'override-account',
       amount: 1000,
       currency: 'USD',
@@ -1366,6 +1366,11 @@ describe('StripeAdapter', () => {
 
     expect(
       new Headers(fetch.mock.calls[0]?.[1]?.headers).get('Stripe-Account'),
+    ).toBe('acct_override');
+
+    await adapter.getStatus('override-account', option.payTo);
+    expect(
+      new Headers(fetch.mock.calls[1]?.[1]?.headers).get('Stripe-Account'),
     ).toBe('acct_override');
   });
 

@@ -382,13 +382,15 @@ export class StripeAdapter implements PaymentBackend {
             context.providerPaymentId,
             'Stripe providerPaymentId',
           );
-    const requestedStripeAccount =
-      normalizeOptionalStripeAccount(
-        context.stripeAccount,
-        'Stripe stripeAccount',
-      ) ?? this.stripeAccount;
+    const contextStripeAccount = normalizeOptionalStripeAccount(
+      context.stripeAccount,
+      'Stripe stripeAccount',
+    );
     const scopedOption = this.optionsByQuote.get(
-      stripePaymentOptionKey(normalizedQuoteId, requestedStripeAccount),
+      stripePaymentOptionKey(
+        normalizedQuoteId,
+        contextStripeAccount ?? this.stripeAccount,
+      ),
     );
     const sessionId =
       contextProviderPaymentId ??
@@ -403,7 +405,9 @@ export class StripeAdapter implements PaymentBackend {
 
     const storedOption = this.findStoredOptionBySessionId(sessionId);
     const stripeAccount =
-      requestedStripeAccount ?? readStripeOptionAccount(storedOption);
+      contextStripeAccount ??
+      readStripeOptionAccount(storedOption) ??
+      this.stripeAccount;
     const cachedOption = this.optionsByQuote.get(
       stripePaymentOptionKey(normalizedQuoteId, stripeAccount),
     );
