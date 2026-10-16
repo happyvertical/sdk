@@ -1,5 +1,15 @@
 # @happyvertical/accounting
 
+## 0.104.0
+
+### Minor Changes
+
+- a4a421d: Preserve ordered compound tax amounts and explicit taxable bases in QuickBooks invoice and credit memo snapshots. Require caller-verified realm tax-code ordering for compound input while retaining additive request bytes and retry hashes.
+
+### Patch Changes
+
+- @happyvertical/utils@0.104.0
+
 ## 0.103.7
 
 ### Patch Changes
