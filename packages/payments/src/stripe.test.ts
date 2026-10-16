@@ -1369,14 +1369,19 @@ describe('StripeAdapter', () => {
     ).toBe('acct_override');
   });
 
-  it('keeps same-quote Checkout sessions isolated by account and honors an explicit session id', async () => {
+  it('keeps platform and connected same-quote Checkout sessions isolated by account', async () => {
     const fetch = vi.fn(
       async (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input);
         const account = new Headers(init?.headers).get('Stripe-Account');
 
         if (url.endsWith('/checkout/sessions') && init?.method === 'POST') {
-          const sessionId = account === 'acct_a' ? 'cs_a' : 'cs_b';
+          const sessionId =
+            account === 'acct_a'
+              ? 'cs_a'
+              : account === 'acct_b'
+                ? 'cs_b'
+                : 'cs_platform';
           return jsonResponse({
             id: sessionId,
             url: `https://checkout.stripe.com/c/pay/${sessionId}`,
@@ -1394,6 +1399,14 @@ describe('StripeAdapter', () => {
         if (url.endsWith('/checkout/sessions/cs_b')) {
           return jsonResponse({
             id: 'cs_b',
+            status: 'open',
+            ...Object.fromEntries([['payment_status', 'unpaid']]),
+          });
+        }
+
+        if (url.endsWith('/checkout/sessions/cs_platform')) {
+          return jsonResponse({
+            id: 'cs_platform',
             status: 'open',
             ...Object.fromEntries([['payment_status', 'unpaid']]),
           });
@@ -1424,11 +1437,16 @@ describe('StripeAdapter', () => {
       expiresAt: futureExpiresAt(),
       stripeAccount: 'acct_b',
     });
+    await adapter.createPaymentOption({
+      quoteId: 'tenant-local-quote',
+      amount: 1000,
+      currency: 'USD',
+      expiresAt: futureExpiresAt(),
+    });
 
     await adapter.getStatus(
       'tenant-local-quote',
       'https://checkout.stripe.com/c/pay/cs_a',
-      { stripeAccount: 'acct_a' },
     );
     const cachedOptions = adapter as unknown as {
       optionsByQuote: Map<string, { expiresAt: Date }>;
@@ -1445,7 +1463,7 @@ describe('StripeAdapter', () => {
       },
     );
 
-    const statusCalls = fetch.mock.calls.slice(2);
+    const statusCalls = fetch.mock.calls.slice(3);
     expect(String(statusCalls[0]?.[0])).toMatch(/\/checkout\/sessions\/cs_a$/);
     expect(String(statusCalls[1]?.[0])).toMatch(/\/checkout\/sessions\/cs_b$/);
     expect(
@@ -1926,7 +1944,7 @@ describe('StripeAdapter', () => {
         if (url.endsWith('/checkout/sessions') && init?.method === 'POST') {
           return jsonResponse({
             id: ' cs_test_trimmed ',
-            url: checkoutUrl,
+            url: 'https://checkout.stripe.com/c/pay/cs_test_trimmed',
             ...Object.fromEntries([['payment_intent', ' pi_trimmed ']]),
           });
         }
