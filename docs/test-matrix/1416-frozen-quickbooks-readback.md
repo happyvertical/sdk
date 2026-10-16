@@ -20,7 +20,7 @@ cannot verify the exact owning payload through public API. Existing frozen sync
 and transfer contracts remain unchanged. Local verification does not claim live
 QuickBooks sandbox certification. UI/accessibility are N/A to this pure SDK API.
 
-Validation: 22 focused public API tests and all 317 accounting tests pass.
+Validation: 22 focused public API tests and all 342 accounting tests pass against the released transfer APIs.
 Package TypeScript and build pass, including generated public declarations.
 Repository CI-script tests (85), agent-context freshness, typecheck and lint pass.
 Final repository build and independent exact-head review are recorded in the
