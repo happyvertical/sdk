@@ -1,3 +1,4 @@
+import type { QuickBooksReceivableTransferOperations } from './providers/quickbooks/receivable-transfer.js';
 /**
  * @happyvertical/accounting - Type definitions
  *
@@ -1290,6 +1291,8 @@ export interface WebhookOperations {
 export interface AccountingProvider {
   /** Provider type */
   readonly type: AccountingProviderType;
+  /** Optional exact journal/noncash receivable capability; not a bank-transfer API. */
+  receivableTransfers?: QuickBooksReceivableTransferOperations;
 
   // AR: Accounts Receivable
   /** Customer operations */

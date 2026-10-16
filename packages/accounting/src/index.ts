@@ -186,3 +186,18 @@ export async function getAccountingProvider(
 
 /** @internal */
 export const PACKAGE_VERSION_INITIALIZED = true;
+
+export type {
+  QuickBooksNonCashApplicationInput,
+  QuickBooksReceivableInput,
+  QuickBooksReceivableMapping,
+  QuickBooksReceivableReadback,
+  QuickBooksReceivableRequest,
+  QuickBooksReceivableSource,
+  QuickBooksReceivableTransferInput,
+  QuickBooksReceivableTransferOperations,
+} from './providers/quickbooks/receivable-transfer.js';
+export {
+  prepareQuickBooksReceivableRequest,
+  reconcileQuickBooksReceivableRecord,
+} from './providers/quickbooks/receivable-transfer.js';

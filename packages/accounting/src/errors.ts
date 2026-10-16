@@ -56,6 +56,8 @@ export class QuickBooksWriteError extends Error {
   readonly endpoint: string;
   readonly requestId?: string;
   readonly payloadHash?: string;
+  /** Returned identity retained for read-only reconciliation of an uncertain write. */
+  readonly externalId?: string;
   readonly status?: number;
 
   constructor(details: {
@@ -65,6 +67,7 @@ export class QuickBooksWriteError extends Error {
     endpoint: string;
     requestId?: string;
     payloadHash?: string;
+    externalId?: string;
     status?: number;
     cause: unknown;
   }) {
@@ -79,6 +82,7 @@ export class QuickBooksWriteError extends Error {
     this.endpoint = details.endpoint;
     this.requestId = details.requestId;
     this.payloadHash = details.payloadHash;
+    this.externalId = details.externalId;
     this.status = details.status;
   }
 }
