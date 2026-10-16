@@ -440,6 +440,7 @@ function mapDocumentLines(
     | 'currency'
     | 'quickbooksMapping'
   >,
+  includeImplicitTaxBasis = false,
 ): { lines: QuickBooksSalesLine[]; taxLines: QuickBooksTaxLine[] } {
   const mode = input.quickbooksMapping?.globalTaxCalculation;
   if (mode && !['TaxExcluded', 'TaxInclusive', 'NotApplicable'].includes(mode))
@@ -581,7 +582,7 @@ function mapDocumentLines(
         TaxRateRef: { value: taxRateRef },
         TaxPercent: taxPercent(detail.rate),
         PercentBased: true,
-        ...(detail.explicitBasis
+        ...(detail.explicitBasis || includeImplicitTaxBasis
           ? {
               NetAmountTaxable: currencyMajor(
                 detail.basisMinor,
@@ -592,6 +593,11 @@ function mapDocumentLines(
       },
     })),
   };
+}
+
+/** Internal readback projection reuses the mapper's validated aggregate tax bases. */
+export function mapDocumentTaxReadback(input: InvoiceInput | CreditMemoInput) {
+  return mapDocumentLines(input, true).taxLines;
 }
 
 function mapLine(
