@@ -1,3 +1,8 @@
+import { QuickBooksReceivableTransfers } from './receivable-operations.js';
+import {
+  type QuickBooksReceivableRequest,
+  validateQuickBooksReceivableRequest,
+} from './receivable-transfer.js';
 /**
  * QuickBooks Online Provider
  *
@@ -98,6 +103,7 @@ function valuesEqual(a: unknown, b: unknown): boolean {
  */
 export class QuickBooksProvider implements AccountingProvider {
   readonly type = 'quickbooks' as const;
+  readonly receivableTransfers: QuickBooksReceivableTransfers;
 
   private options: QuickBooksOptions;
   private accessToken: string | null = null;
@@ -119,6 +125,7 @@ export class QuickBooksProvider implements AccountingProvider {
       ...options,
     };
 
+    this.receivableTransfers = new QuickBooksReceivableTransfers(this);
     // Initialize operation handlers
     this.customers = new QuickBooksCustomerOperations(this);
     this.invoices = new QuickBooksInvoiceOperations(this);
@@ -142,6 +149,10 @@ export class QuickBooksProvider implements AccountingProvider {
   /**
    * Get the company/realm ID
    */
+  get environment(): 'sandbox' | 'production' {
+    return this.options.environment === 'production' ? 'production' : 'sandbox';
+  }
+
   get realmId(): string {
     return this.options.realmId;
   }
@@ -216,7 +227,10 @@ export class QuickBooksProvider implements AccountingProvider {
     method: 'GET' | 'POST' | 'DELETE',
     endpoint: string,
     body?: unknown,
-    createRequest?: QuickBooksInvoiceRequest | QuickBooksCreditMemoRequest,
+    createRequest?:
+      | QuickBooksInvoiceRequest
+      | QuickBooksCreditMemoRequest
+      | QuickBooksReceivableRequest,
   ): Promise<T> {
     // Freeze identity and bytes before any asynchronous work.
     const serializedBody =
@@ -225,12 +239,27 @@ export class QuickBooksProvider implements AccountingProvider {
     const environment =
       this.options.environment === 'production' ? 'production' : 'sandbox';
     if (createRequest) {
-      if (method !== 'POST' || !['invoice', 'creditmemo'].includes(endpoint)) {
+      if (
+        method !== 'POST' ||
+        !['invoice', 'creditmemo', 'journalentry', 'payment'].includes(endpoint)
+      ) {
         throw new Error(
-          'QuickBooks request identity is only supported for invoice or credit memo creation',
+          'QuickBooks request identity is only supported for prepared invoice, credit memo, journal or noncash application creation',
         );
       }
-      if (endpoint === 'invoice')
+      if (endpoint === 'journalentry' || endpoint === 'payment') {
+        if (
+          !('endpoint' in createRequest) ||
+          createRequest.endpoint !== endpoint
+        )
+          throw new Error('Receivable endpoint differs from request identity');
+        validateQuickBooksReceivableRequest(
+          createRequest,
+          realmId,
+          environment,
+          serializedBody,
+        );
+      } else if (endpoint === 'invoice')
         validateQuickBooksInvoiceRequest(
           createRequest as QuickBooksInvoiceRequest,
           realmId,
@@ -259,6 +288,7 @@ export class QuickBooksProvider implements AccountingProvider {
       'Invoice',
       'CreditMemo',
       'Payment',
+      'JournalEntry',
     ].find((entity) => entity.toLowerCase() === endpoint.split(/[/?]/, 1)[0]);
     const accessToken = await this.ensureAccessToken();
     // A persisted identity may have been sent by an earlier worker. Without a
