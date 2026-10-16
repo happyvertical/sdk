@@ -549,3 +549,79 @@ defines applicability/order, including
 [TaxOnAmountPlusTax](https://static.developer.intuit.com/sdkdocs/qbv3doc/ipp-v3-java-devkit-javadoc/com/intuit/ipp/data/TaxTypeApplicablityEnum.html).
 Its [TaxLineDetail reference](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/393902ec-f79c-bb8f-82fd-0f3bd296dd27.htm)
 documents the applicable-rate taxable base and realm rate-reference constraint.
+# QuickBooks receivable transfers
+
+`AccountingProvider.receivableTransfers` is an optional capability. The QuickBooks
+provider implements reviewed receivable reclassification using JournalEntry and
+zero-cash Payment requests. It does not emulate a native retainage API, create
+sales items, reduce invoice gross/tax, or initiate bank settlement.
+
+The caller supplies an immutable, versioned mapping and review evidence:
+`accountingBasis: 'accrual'`, `taxTiming: 'invoice-tax-point'`,
+`releaseDueDates: 'host-managed'`, realm/environment, customer, currency and
+distinct AR/retained-asset/optional bank accounts. Other accounting/tax timing
+policies are unsupported. The provider verifies active customer/accounts, account
+types and the realm's home currency before writing. Foreign-currency transfers
+are unsupported; no exchange rate is inferred. Account CurrencyRef, when present,
+must agree. Missing transaction currency or financial fields fails closed.
+
+`prepareQuickBooksReceivableRequest(input)` returns a persistable descriptor.
+Amounts are positive safe integer **minor units**, exactly representable on the
+currency grid. Source type/ID/customer, effective date, evidence and mapping version
+are bound into its hash and provider note; journal lines repeat source/customer
+evidence. No provider DueDate is invented for release journals: the host owns
+release due dates and customer-facing collection documents.
+
+| Kind | Debit | Credit | Readback meaning |
+| --- | --- | --- | --- |
+| withhold | retained asset | customer AR | receivable reclassification |
+| release | customer AR | retained asset | released receivable |
+| cash-refund | customer AR | bank | recorded cash outflow, not verified settlement |
+| reverse-cash-refund | bank | customer AR | recorded reversal, not bank execution |
+| application | existing Invoice/JournalEntry | existing CreditMemo/JournalEntry | noncash application, TotalAmt = 0 |
+
+`provider.receivableTransfers.execute(prepared)` verifies scope, mapping and
+source customer/currency before posting. Applications also inspect current debit
+and credit capacity. Journal capacity uses the complete paginated customer payment
+history, rejecting ambiguous multi-transaction allocation lines instead of
+allocating them arbitrarily. These reads are not a remote transaction lock: hosts
+must serialize their own workflows and reconcile changes made by other provider
+users. A stale or rejected application must not be recorded as completed locally.
+
+Readback validates exact postings/linkage, amounts, source evidence, customer,
+currency and date. It returns `nonCashAppliedMinor` separately from
+`recordedCashChangeMinor`. `providerProcessedCashMinor` is zero and
+`bankSettlementVerified` is false, including cash-refund journals. Ordinary invoice
+`TotalAmt - Balance` includes noncash applications and must not be treated as cash
+received in a retention workflow.
+
+## Durability and recovery
+
+Persist the complete descriptor before execution. Its hash binds bytes and
+provenance; it does **not** prove that a provider operation happened exactly once.
+The request uses QuickBooks' documented `requestid` query parameter (1–50 URL-safe
+characters) through the existing SDK duplicate-handling transport. A host must
+retain that identity across transport retries and may never silently replace it
+with a fresh identity following an unknown outcome.
+
+Each journal and application is a separate provider write. The SDK supplies no
+cross-request transaction or persistent workflow. The host must persist per-step
+in-flight/unknown/rejected/confirmed states and retain successful earlier steps
+when a later step fails. `read(prepared, externalId)` reconciles a known remote ID
+without writing. Unknown IDs/outcomes require authoritative provider reconciliation
+before progressing; an input hash or a missing list result is not proof of absence.
+Replaying `execute` after a completed application can fail its current-capacity
+preflight; use persisted confirmation/readback instead. Reversal commands require
+the host's approved source lineage and conserved refund/release capacity; they are
+not an automatic recovery action.
+
+The public contract is covered by local mocked provider tests. **No live sandbox
+certification or production write has been performed.** Deployment certification
+must verify realm-specific journal/customer application behavior and echoed fields.
+
+## Provider evidence
+
+- [Payment API](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/Payment): Invoice, CreditMemo and JournalEntry links; zero-total credit application example.
+- [Journal line contract](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/62627c63-90a3-c87a-ef9b-8b4b06daee08.htm): AccountRef, PostingType and customer Entity.
+- [Journal contract](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/0b5f8961-f32e-e396-3a39-7b3e241434e8.htm): transaction currency/date; no assumed release due-date field.
+- [Intuit API best practices](https://blogs.a.intuit.com/2018/09/10/quickbooks-online-api-best-practices/): request-ID duplicate handling. This is distinct from host durable reconciliation.
