@@ -3,6 +3,7 @@ import { QuickBooksProvider } from './index.js';
 import {
   mapQuickBooksReceivableRequest,
   prepareQuickBooksReceivableRequest,
+  type QuickBooksOrdinaryReceivableMapping,
   type QuickBooksReceivableInput,
   type QuickBooksReceivableMapping,
   reconcileQuickBooksReceivableRecord,
@@ -122,6 +123,17 @@ function fixtures() {
       },
     ],
     ['journalentry/journal-1', { JournalEntry: journal }],
+    [
+      'creditmemo/credit-1',
+      {
+        CreditMemo: {
+          Id: 'credit-1',
+          CustomerRef: { value: 'customer-1' },
+          CurrencyRef: { value: 'CAD' },
+          RemainingCredit: 10,
+        },
+      },
+    ],
   ]);
 }
 function network(rows = fixtures()) {
@@ -156,6 +168,154 @@ function network(rows = fixtures()) {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+function ordinary(
+  kind: 'application' | 'cash-refund' | 'reverse-cash-refund' = 'application',
+): QuickBooksReceivableInput {
+  const {
+    retainedAssetAccountRef: _retained,
+    releaseDueDates: _due,
+    ...common
+  } = mapping;
+  const ordinaryMapping: QuickBooksOrdinaryReceivableMapping = {
+    ...common,
+    kind: 'ordinary',
+  };
+  return {
+    ...(kind === 'application'
+      ? {
+          ...application(),
+          credit: { type: 'CreditMemo' as const, id: 'credit-1' },
+        }
+      : input(kind)),
+    mapping: ordinaryMapping,
+  };
+}
+
+describe('ordinary receivables without retention authority', () => {
+  it('preserves all existing retained prepared payload hashes', () => {
+    expect(
+      [
+        'withhold',
+        'release',
+        'cash-refund',
+        'reverse-cash-refund',
+        'application',
+      ].map(
+        (kind) =>
+          prepareQuickBooksReceivableRequest(
+            kind === 'application' ? application() : input(kind as 'withhold'),
+          ).payloadHash,
+      ),
+    ).toMatchSnapshot();
+  });
+  it.each([
+    'application',
+    'cash-refund',
+    'reverse-cash-refund',
+  ] as const)('executes and reads %s using only reviewed AR/cash accounts', async (kind) => {
+    const net = network();
+    net.rows.delete('account/retained');
+    const value = ordinary(kind);
+    if (kind === 'application') value.mapping.cashAccountRef = null;
+    const request = prepareQuickBooksReceivableRequest(value);
+    const p = provider();
+    const result = await p.receivableTransfers.execute(request);
+    expect(net.posts).toHaveLength(1);
+    expect(result).toMatchObject({
+      amountMinor: 1000,
+      providerProcessedCashMinor: 0,
+      bankSettlementVerified: false,
+      nonCashAppliedMinor: kind === 'application' ? 1000 : 0,
+      recordedCashChangeMinor:
+        kind === 'cash-refund'
+          ? -1000
+          : kind === 'reverse-cash-refund'
+            ? 1000
+            : 0,
+    });
+    const type = kind === 'application' ? 'Payment' : 'JournalEntry';
+    net.rows.set(`${type.toLowerCase()}/remote-1`, { [type]: record(value) });
+    expect(await p.receivableTransfers.read(request, 'remote-1')).toEqual(
+      result,
+    );
+    expect(net.posts).toHaveLength(1);
+    expect(
+      net.fetcher.mock.calls.every(
+        ([url]) => !url.includes('/account/retained'),
+      ),
+    ).toBe(true);
+  });
+  it.each([
+    'withhold',
+    'release',
+  ] as const)('rejects ordinary %s before provider IO', (kind) => {
+    const net = network();
+    expect(() =>
+      prepareQuickBooksReceivableRequest({ ...ordinary('cash-refund'), kind }),
+    ).toThrow();
+    expect(net.fetcher).not.toHaveBeenCalled();
+  });
+  it.each([
+    { kind: 'unknown' },
+    { retainedAssetAccountRef: 'retained' },
+    { releaseDueDates: 'host-managed' },
+    { cashAccountRef: 'ar' },
+    { accountingBasis: 'cash' },
+    { taxTiming: 'receipt' },
+    { currency: 'ZZZ' },
+    { receivablesAccountRef: undefined },
+    { cashAccountRef: undefined },
+  ])('rejects ambiguous or malformed ordinary mapping %j', (patch) => {
+    const value = ordinary();
+    expect(() =>
+      prepareQuickBooksReceivableRequest({
+        ...value,
+        mapping: { ...value.mapping, ...patch } as any,
+      }),
+    ).toThrow();
+  });
+  it('requires a real cash account for refund recording', () => {
+    const value = ordinary('cash-refund');
+    value.mapping.cashAccountRef = null;
+    expect(() => prepareQuickBooksReceivableRequest(value)).toThrow();
+  });
+  it.each([
+    'realm',
+    'source',
+    'currency',
+    'inactive',
+    'capacity',
+  ] as const)('rejects ordinary %s without a write', async (reason) => {
+    const net = network(),
+      value = ordinary();
+    if (reason === 'realm') value.mapping.realmId = 'other';
+    if (reason === 'currency') value.mapping.currency = 'USD';
+    if (reason === 'source') value.source.customerRef = 'other';
+    if (reason === 'inactive')
+      net.rows.set('account/ar', {
+        Account: {
+          Id: 'ar',
+          Active: false,
+          AccountType: 'Accounts Receivable',
+        },
+      });
+    if (reason === 'capacity') value.amountMinor = 1001;
+    await expect(async () =>
+      provider().receivableTransfers.execute(
+        prepareQuickBooksReceivableRequest(value),
+      ),
+    ).rejects.toThrow();
+    expect(net.posts).toHaveLength(0);
+  });
+  it('binds ordinary request provenance and rejects a mutated prepared mapping', () => {
+    const request = prepareQuickBooksReceivableRequest(ordinary());
+    request.input.mapping.receivablesAccountRef = 'other';
+    expect(() =>
+      validateQuickBooksReceivableRequest(request, 'realm-a', 'sandbox'),
+    ).toThrow(/changed/);
+  });
 });
 
 describe('reviewed receivable transfer contracts', () => {
@@ -368,6 +528,39 @@ describe('public QuickBooks transfer provider path', () => {
 });
 
 describe('receivable failure and reconciliation boundaries', () => {
+  it('preserves ordinary unknown outcome and reconciles without another POST', async () => {
+    const value = ordinary('cash-refund'),
+      request = prepareQuickBooksReceivableRequest(value),
+      p = provider(),
+      rows = fixtures();
+    rows.delete('account/retained');
+    rows.set('journalentry/remote-1', { JournalEntry: record(value) });
+    const spy = vi
+      .spyOn(p, 'request')
+      .mockImplementation(async (method, endpoint) =>
+        method === 'POST'
+          ? ({
+              JournalEntry: { ...record(value), SyncToken: undefined },
+            } as any)
+          : (rows.get(endpoint) as any),
+      );
+    await expect(p.receivableTransfers.execute(request)).rejects.toMatchObject({
+      outcome: 'unknown',
+      requestId: request.requestId,
+      payloadHash: request.payloadHash,
+      externalId: 'remote-1',
+    });
+    expect(await p.receivableTransfers.read(request, 'remote-1')).toMatchObject(
+      {
+        recordedCashChangeMinor: -1000,
+        providerProcessedCashMinor: 0,
+        bankSettlementVerified: false,
+      },
+    );
+    expect(spy.mock.calls.filter(([method]) => method === 'POST')).toHaveLength(
+      1,
+    );
+  });
   it('does not truncate journal capacity at the first history page', async () => {
     const p = provider(),
       rows = fixtures(),

@@ -585,6 +585,19 @@ types and the realm's home currency before writing. Foreign-currency transfers
 are unsupported; no exchange rate is inferred. Account CurrencyRef, when present,
 must agree. Missing transaction currency or financial fields fails closed.
 
+For ordinary invoices without retention, use the additive
+`QuickBooksOrdinaryReceivableMapping` with `kind: 'ordinary'`. It retains the same
+explicit accrual/invoice-tax-point policy, scope, review evidence, customer,
+currency and AR/cash references, but forbids `retainedAssetAccountRef` and
+`releaseDueDates`. No unused retention account is queried or invented.
+`QuickBooksReceivableOperationMapping` accepts either mapping; existing retained
+mapping shapes and prepared payload hashes remain unchanged. An ordinary mapping
+supports only noncash application, cash-refund recording and its reversal;
+withhold/release are rejected before provider I/O. `cashAccountRef: null` is valid
+for application; cash-refund recording requires an explicit reviewed bank account.
+Durable reservations, authorization and uncertain-outcome recovery remain the
+host's responsibility for either mapping.
+
 `prepareQuickBooksReceivableRequest(input)` returns a persistable descriptor.
 Amounts are positive safe integer **minor units**, exactly representable on the
 currency grid. Source type/ID/customer, effective date, evidence and mapping version

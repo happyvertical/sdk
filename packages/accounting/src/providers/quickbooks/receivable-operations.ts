@@ -3,8 +3,9 @@ import { QuickBooksWriteError } from '../../errors.js';
 import type { QuickBooksProvider } from './index.js';
 import { currencyMinorUnitFactor, isCurrencyMinorUnit } from './line-amount.js';
 import {
+  isOrdinaryReceivableMapping,
   mapQuickBooksReceivableRequest,
-  type QuickBooksReceivableMapping,
+  type QuickBooksReceivableOperationMapping,
   type QuickBooksReceivableReadback,
   type QuickBooksReceivableRequest,
   type QuickBooksReceivableTransferOperations,
@@ -19,7 +20,7 @@ export class QuickBooksReceivableTransfers
   implements QuickBooksReceivableTransferOperations
 {
   constructor(private provider: QuickBooksProvider) {}
-  private assertScope(mapping: QuickBooksReceivableMapping) {
+  private assertScope(mapping: QuickBooksReceivableOperationMapping) {
     validateQuickBooksReceivableMapping(mapping);
     if (
       mapping.realmId !== this.provider.realmId ||
@@ -41,7 +42,7 @@ export class QuickBooksReceivableTransfers
       throw new Error(`Provider ${type} identity differs`);
     return value;
   }
-  async verifyMapping(mapping: QuickBooksReceivableMapping) {
+  async verifyMapping(mapping: QuickBooksReceivableOperationMapping) {
     this.assertScope(mapping);
     const prefs = await this.provider.request<{ Preferences?: ProviderRecord }>(
       'GET',
@@ -68,7 +69,9 @@ export class QuickBooksReceivableTransfers
       );
     for (const [ref, type] of [
       [mapping.receivablesAccountRef, 'Accounts Receivable'],
-      [mapping.retainedAssetAccountRef, 'Other Current Asset'],
+      ...(isOrdinaryReceivableMapping(mapping)
+        ? []
+        : [[mapping.retainedAssetAccountRef, 'Other Current Asset']]),
       ...(mapping.cashAccountRef ? [[mapping.cashAccountRef, 'Bank']] : []),
     ]) {
       const account = await this.entity('Account', ref);
@@ -91,7 +94,7 @@ export class QuickBooksReceivableTransfers
   }
   private currency(
     record: ProviderRecord,
-    mapping: QuickBooksReceivableMapping,
+    mapping: QuickBooksReceivableOperationMapping,
   ) {
     if (record.CurrencyRef?.value !== mapping.currency)
       throw new Error('Provider transaction currency differs');
@@ -108,7 +111,7 @@ export class QuickBooksReceivableTransfers
   }
   private journalDirection(
     record: ProviderRecord,
-    mapping: QuickBooksReceivableMapping,
+    mapping: QuickBooksReceivableOperationMapping,
   ): { kind: 'debit' | 'credit'; amountMinor: number } {
     this.currency(record, mapping);
     if (!Array.isArray(record.Line))
@@ -135,7 +138,7 @@ export class QuickBooksReceivableTransfers
     };
   }
   private async customerPayments(
-    mapping: QuickBooksReceivableMapping,
+    mapping: QuickBooksReceivableOperationMapping,
   ): Promise<ProviderRecord[]> {
     const rows: ProviderRecord[] = [];
     // Complete pagination is mandatory for capacity; no ordinary list default cap may truncate it.
@@ -158,7 +161,7 @@ export class QuickBooksReceivableTransfers
   }
   private async available(
     ref: { type: string; id: string },
-    mapping: QuickBooksReceivableMapping,
+    mapping: QuickBooksReceivableOperationMapping,
     direction: 'debit' | 'credit',
   ) {
     const record = await this.entity(ref.type, ref.id);
