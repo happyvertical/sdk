@@ -452,6 +452,12 @@ waits for the one in progress instead of interleaving with it. A call that waits
 longer than `transactionQueueTimeout` (30s by default) rejects rather than
 stalling indefinitely.
 
+DuckDB and JSON handles also queue every individual statement on their shared
+connection, because `@duckdb/node-api` cannot run two at once: overlapping
+`db.*` calls used to abort each other with a bare
+`Failed to execute prepared statement`. That queue is per statement, so a
+transaction callback's own statements never wait on their transaction.
+
 ```typescript
 const db = await getDatabase({
   type: 'sqlite',
