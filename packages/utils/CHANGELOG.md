@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.105.2
+
+### Patch Changes
+
+- ### Features
+
+  - support ordinary receivable mapping authority (#1421) (accounting)
+
 ## 0.105.1
 
 ### Patch Changes
