@@ -189,8 +189,10 @@ export const PACKAGE_VERSION_INITIALIZED = true;
 
 export type {
   QuickBooksNonCashApplicationInput,
+  QuickBooksOrdinaryReceivableMapping,
   QuickBooksReceivableInput,
   QuickBooksReceivableMapping,
+  QuickBooksReceivableOperationMapping,
   QuickBooksReceivableReadback,
   QuickBooksReceivableRequest,
   QuickBooksReceivableSource,

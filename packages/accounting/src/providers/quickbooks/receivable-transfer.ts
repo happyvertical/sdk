@@ -16,6 +16,26 @@ export interface QuickBooksReceivableMapping {
   retainedAssetAccountRef: string;
   cashAccountRef: string | null;
 }
+/** Ordinary AR/cash authority; cannot authorize retention reclassification. */
+export interface QuickBooksOrdinaryReceivableMapping
+  extends Omit<
+    QuickBooksReceivableMapping,
+    'retainedAssetAccountRef' | 'releaseDueDates'
+  > {
+  kind: 'ordinary';
+  retainedAssetAccountRef?: never;
+  releaseDueDates?: never;
+}
+export type QuickBooksReceivableOperationMapping =
+  | QuickBooksReceivableMapping
+  | QuickBooksOrdinaryReceivableMapping;
+
+/** @internal */
+export function isOrdinaryReceivableMapping(
+  mapping: QuickBooksReceivableOperationMapping,
+): mapping is QuickBooksOrdinaryReceivableMapping {
+  return 'kind' in mapping && mapping.kind === 'ordinary';
+}
 export interface QuickBooksReceivableSource {
   type: 'Invoice' | 'CreditMemo' | 'JournalEntry';
   id: string;
@@ -24,7 +44,7 @@ export interface QuickBooksReceivableSource {
   evidenceRef: string;
 }
 interface TransferEvidence {
-  mapping: QuickBooksReceivableMapping;
+  mapping: QuickBooksReceivableOperationMapping;
   source: QuickBooksReceivableSource;
   requestId: string;
   effectiveOn: string;
@@ -71,7 +91,7 @@ export interface QuickBooksReceivableReadback {
 }
 export interface QuickBooksReceivableTransferOperations {
   verifyMapping(
-    mapping: QuickBooksReceivableMapping,
+    mapping: QuickBooksReceivableOperationMapping,
   ): Promise<{ mappingHash: string; homeCurrency: string }>;
   execute(
     request: QuickBooksReceivableRequest,
@@ -128,8 +148,15 @@ function minor(value: number, currency: string): number {
   return major;
 }
 export function validateQuickBooksReceivableMapping(
-  mapping: QuickBooksReceivableMapping,
+  mapping: QuickBooksReceivableOperationMapping,
 ) {
+  const ordinary = isOrdinaryReceivableMapping(mapping);
+  if (
+    ('kind' in mapping && !ordinary) ||
+    (ordinary &&
+      ('retainedAssetAccountRef' in mapping || 'releaseDueDates' in mapping))
+  )
+    throw new Error('Receivable mapping kind and retention authority conflict');
   id(mapping.realmId, 'Realm');
   id(mapping.customerRef, 'Customer');
   text(mapping.version, 'Mapping version');
@@ -138,7 +165,7 @@ export function validateQuickBooksReceivableMapping(
     !['sandbox', 'production'].includes(mapping.environment) ||
     mapping.accountingBasis !== 'accrual' ||
     mapping.taxTiming !== 'invoice-tax-point' ||
-    mapping.releaseDueDates !== 'host-managed'
+    (!ordinary && mapping.releaseDueDates !== 'host-managed')
   )
     throw new Error(
       'Receivable transfers support explicit accrual, invoice-tax-point and host-managed release due dates only',
@@ -150,7 +177,7 @@ export function validateQuickBooksReceivableMapping(
     throw new Error('Unsupported receivable currency');
   const refs = [
     mapping.receivablesAccountRef,
-    mapping.retainedAssetAccountRef,
+    ...(ordinary ? [] : [mapping.retainedAssetAccountRef]),
     ...(mapping.cashAccountRef === null ? [] : [mapping.cashAccountRef]),
   ];
   for (const ref of refs) id(ref, 'Posting account');
@@ -159,6 +186,13 @@ export function validateQuickBooksReceivableMapping(
 }
 function validate(input: QuickBooksReceivableInput) {
   validateQuickBooksReceivableMapping(input.mapping);
+  if (
+    isOrdinaryReceivableMapping(input.mapping) &&
+    (input.kind === 'withhold' || input.kind === 'release')
+  )
+    throw new Error(
+      'Ordinary receivable mapping cannot authorize retention transfers',
+    );
   id(input.requestId, 'Request');
   if (input.requestId.length > 50)
     throw new Error('QuickBooks requestId must contain at most 50 characters');
