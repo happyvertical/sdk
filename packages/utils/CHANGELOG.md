@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.105.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - serialize every DuckDB statement on the shared connection (#1418) (sql)
+
 ## 0.105.0
 
 ## 0.104.1
