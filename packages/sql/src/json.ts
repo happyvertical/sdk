@@ -16,6 +16,7 @@ import {
   throwWithDuckDBCleanup,
 } from './shared/duckdb-resources';
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+import { serializeDuckDBStatements } from './shared/duckdb-statement-queue';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
@@ -359,7 +360,8 @@ async function createJSONConnection(options: JSONOptions) {
 
     // Always use in-memory database - no persistent files
     instance = await DuckDBInstance.create(':memory:');
-    connection = await instance.connect();
+    // One connection serves every call on this handle; queue its statements.
+    connection = serializeDuckDBStatements(await instance.connect());
 
     // Ensure data directory exists
     try {
