@@ -1,3 +1,4 @@
+import type { QuickBooksReceivableTransferOperations } from './providers/quickbooks/receivable-transfer.js';
 /**
  * @happyvertical/accounting - Type definitions
  *
@@ -211,6 +212,8 @@ export interface QuickBooksInvoiceLineMapping {
   itemRef: string;
   /** Existing TaxCode.Id in the target QuickBooks company. */
   taxCodeRef: string;
+  /** Caller-verified ordered TaxCode configuration in this realm; required for compound snapshots. */
+  taxComponents?: Array<{ taxRateRef: string; compound: boolean }>;
 }
 
 /** QuickBooks global-tax behavior for a non-US invoice. */
@@ -229,6 +232,10 @@ export interface TaxComponentSnapshot {
   quickbooksTaxRateRef?: string;
   /** Tax recorded for this component in currency major units. */
   taxAmount: number;
+  /** Ordered tax-on-tax: includes all preceding components on this line. */
+  compound?: boolean;
+  /** Frozen actual taxable basis in currency major units; required for compound tax. */
+  taxableAmount?: number;
 }
 
 /**
@@ -1143,6 +1150,8 @@ export interface InvoiceOperations {
  * is the capability check: callers must refuse a provider that omits it.
  */
 export interface CreditMemoOperations {
+  /** Read original provider evidence for verified reconciliation; never creates or applies credit. */
+  pull?(externalId: string): Promise<ExternalRecord>;
   /** Create a positive credit note in the provider. */
   push(creditMemo: CreditMemoInput): Promise<SyncResult>;
   /** Create or update a credit note. Create-only descriptors are refused on update. */
@@ -1282,6 +1291,8 @@ export interface WebhookOperations {
 export interface AccountingProvider {
   /** Provider type */
   readonly type: AccountingProviderType;
+  /** Optional exact journal/noncash receivable capability; not a bank-transfer API. */
+  receivableTransfers?: QuickBooksReceivableTransferOperations;
 
   // AR: Accounts Receivable
   /** Customer operations */

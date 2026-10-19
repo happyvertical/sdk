@@ -46,6 +46,12 @@ export {
   StripeApiError,
 } from './errors.js';
 export {
+  type QuickBooksDocumentReadback,
+  type VerifiedQuickBooksDocumentReadback,
+  verifyQuickBooksCreditMemoReadback,
+  verifyQuickBooksInvoiceReadback,
+} from './providers/quickbooks/document-readback.js';
+export {
   prepareQuickBooksCreditMemoRequest,
   prepareQuickBooksInvoiceRequest,
 } from './providers/quickbooks/invoice-request.js';
@@ -180,3 +186,20 @@ export async function getAccountingProvider(
 
 /** @internal */
 export const PACKAGE_VERSION_INITIALIZED = true;
+
+export type {
+  QuickBooksNonCashApplicationInput,
+  QuickBooksOrdinaryReceivableMapping,
+  QuickBooksReceivableInput,
+  QuickBooksReceivableMapping,
+  QuickBooksReceivableOperationMapping,
+  QuickBooksReceivableReadback,
+  QuickBooksReceivableRequest,
+  QuickBooksReceivableSource,
+  QuickBooksReceivableTransferInput,
+  QuickBooksReceivableTransferOperations,
+} from './providers/quickbooks/receivable-transfer.js';
+export {
+  prepareQuickBooksReceivableRequest,
+  reconcileQuickBooksReceivableRecord,
+} from './providers/quickbooks/receivable-transfer.js';

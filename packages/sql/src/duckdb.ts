@@ -19,6 +19,7 @@ import {
   throwWithDuckDBCleanup,
 } from './shared/duckdb-resources';
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+import { serializeDuckDBStatements } from './shared/duckdb-statement-queue';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
@@ -178,7 +179,8 @@ async function createDuckDBConnection(options: DuckDBOptions) {
 
     // Create DuckDB instance with resolved URL
     instance = await DuckDBInstance.create(resolvedUrl);
-    connection = await instance.connect();
+    // One connection serves every call on this handle; queue its statements.
+    connection = serializeDuckDBStatements(await instance.connect());
 
     // Create tables from provided schemas first
     if (schemas && Object.keys(schemas).length > 0) {

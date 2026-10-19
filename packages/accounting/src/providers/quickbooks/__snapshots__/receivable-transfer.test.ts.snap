@@ -1,0 +1,11 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ordinary receivables without retention authority > preserves all existing retained prepared payload hashes 1`] = `
+[
+  "9d14674e46ce928f7cd7860d51ccf353cebb0ec3c77b58eab4a390185b277493",
+  "aafa2aa006f8df3a6ccd60c25f093f7d350d9d92f5a655f8db059598a954f08f",
+  "7ab946e366d3d9a177fb3c0ffcd7d648a3385dfd6a2e9bfd32499f0ee19a6674",
+  "30fb23cee5c7a15f4948585934fa2b7a0091197b66805ea4bb92812d1efb40ce",
+  "98d218dfbcf55de07653f2d35a23fb9f0f39f662d563aa2fbadc8d678c28cf90",
+]
+`;

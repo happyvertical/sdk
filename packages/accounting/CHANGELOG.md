@@ -1,5 +1,60 @@
 # @happyvertical/accounting
 
+## 0.105.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.105.4
+
+## 0.105.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.105.3
+
+## 0.105.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.105.2
+
+## 0.105.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.105.1
+
+## 0.105.0
+
+### Minor Changes
+
+- 2a3696e: Verify recovered QuickBooks invoices and credit memos against the original frozen request and realm. Expose read-only credit memo fetching for authorized host reconciliation.
+
+### Patch Changes
+
+- @happyvertical/utils@0.105.0
+
+## 0.104.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.104.1
+
+## 0.104.0
+
+### Minor Changes
+
+- a4a421d: Preserve ordered compound tax amounts and explicit taxable bases in QuickBooks invoice and credit memo snapshots. Require caller-verified realm tax-code ordering for compound input while retaining additive request bytes and retry hashes.
+
+### Patch Changes
+
+- @happyvertical/utils@0.104.0
+
 ## 0.103.7
 
 ### Patch Changes

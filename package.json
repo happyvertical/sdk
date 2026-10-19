@@ -3,7 +3,7 @@
   "description": "HAppy VErtical SDK - A TypeScript monorepo for building vertical AI agents",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
-  "version": "0.103.7",
+  "version": "0.105.4",
   "scripts": {
     "format": "turbo run format",
     "format:check": "turbo run format --dry-run",
@@ -22,7 +22,7 @@
     "test:coverage": "npx vitest run --coverage",
     "test:ui": "npx vitest --ui",
     "test:dind": "./.devcontainer/scripts/test-dind-setup.sh",
-    "test:ci": "act pull_request",
+    "test:ci": "act pull_request_target",
     "test:ci-debug": "act pull_request --verbose",
     "test:ci-build": "pnpm run build && pnpm run validate-build",
     "test:ci-clean": "act --rm pull_request",

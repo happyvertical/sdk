@@ -38,6 +38,7 @@ interface QuickBooksTaxLine {
     TaxRateRef: { value: string };
     TaxPercent: number;
     PercentBased: true;
+    NetAmountTaxable?: number;
   };
 }
 
@@ -45,6 +46,9 @@ interface FrozenTaxComponent {
   taxRateRef: string;
   rate: DecimalRate;
   taxMinor: bigint;
+  compound: boolean;
+  basisMinor: bigint;
+  explicitBasis: boolean;
 }
 
 interface DecimalRate {
@@ -325,6 +329,29 @@ function taxMinorMatchesAllocation(
   return taxMinor === floor || (remainder !== 0n && taxMinor === floor + 1n);
 }
 
+/** Exact per-component factors relative to net; component order is significant. */
+function orderedFactors(components: readonly FrozenTaxComponent[]): {
+  factors: DecimalRate[];
+  total: DecimalRate;
+} {
+  let total: DecimalRate = { numerator: 0n, denominator: 1n, value: 0 };
+  const factors = components.map((component) => {
+    const basis = component.compound
+      ? addRates({ numerator: 1n, denominator: 1n, value: 1 }, total)
+      : { numerator: 1n, denominator: 1n, value: 1 };
+    const numerator = component.rate.numerator * basis.numerator;
+    const denominator = component.rate.denominator * basis.denominator;
+    const factor = {
+      numerator,
+      denominator,
+      value: Number(numerator) / Number(denominator),
+    };
+    total = addRates(total, factor);
+    return factor;
+  });
+  return { factors, total };
+}
+
 function validateFrozenComponentRates(
   components: readonly FrozenTaxComponent[],
   taxableAmount: number,
@@ -337,17 +364,14 @@ function validateFrozenComponentRates(
     currency,
     `${label} taxable amount`,
   );
-  const totalRate = components.reduce(
-    (sum, component) => addRates(sum, component.rate),
-    { numerator: 0n, denominator: 1n, value: 0 },
-  );
-  for (const component of components) {
+  const { factors, total } = orderedFactors(components);
+  for (const [index, component] of components.entries()) {
+    const factor = factors[index];
     const numerator = inclusive
-      ? taxableMinor * component.rate.numerator * totalRate.denominator
-      : taxableMinor * component.rate.numerator;
+      ? taxableMinor * factor.numerator * total.denominator
+      : component.basisMinor * component.rate.numerator;
     const denominator = inclusive
-      ? component.rate.denominator *
-        (totalRate.denominator + totalRate.numerator)
+      ? factor.denominator * (total.denominator + total.numerator)
       : component.rate.denominator;
     if (!taxMinorMatchesAllocation(component.taxMinor, numerator, denominator))
       throw new Error(
@@ -416,6 +440,7 @@ function mapDocumentLines(
     | 'currency'
     | 'quickbooksMapping'
   >,
+  includeImplicitTaxBasis = false,
 ): { lines: QuickBooksSalesLine[]; taxLines: QuickBooksTaxLine[] } {
   const mode = input.quickbooksMapping?.globalTaxCalculation;
   if (mode && !['TaxExcluded', 'TaxInclusive', 'NotApplicable'].includes(mode))
@@ -452,7 +477,12 @@ function mapDocumentLines(
   const mapped: QuickBooksSalesLine[] = [];
   const taxLines = new Map<
     string,
-    { rate: DecimalRate; amountMinor: bigint }
+    {
+      rate: DecimalRate;
+      amountMinor: bigint;
+      basisMinor: bigint;
+      explicitBasis: boolean;
+    }
   >();
   const snapshotLineTaxes: number[] = [];
   let hasAnyLineTax = false;
@@ -481,10 +511,21 @@ function mapDocumentLines(
             `QuickBooks tax rate ${component.taxRateRef} has inconsistent frozen rates`,
           );
         existing.amountMinor += component.taxMinor;
+        existing.basisMinor += component.basisMinor;
+        existing.explicitBasis ||= component.explicitBasis;
+        if (
+          existing.explicitBasis &&
+          !Number.isSafeInteger(Number(existing.basisMinor))
+        )
+          throw new Error(
+            'QuickBooks aggregate taxable basis exceeds safe minor units',
+          );
       } else {
         taxLines.set(component.taxRateRef, {
           rate: component.rate,
           amountMinor: component.taxMinor,
+          basisMinor: component.basisMinor,
+          explicitBasis: component.explicitBasis,
         });
       }
     }
@@ -541,9 +582,22 @@ function mapDocumentLines(
         TaxRateRef: { value: taxRateRef },
         TaxPercent: taxPercent(detail.rate),
         PercentBased: true,
+        ...(detail.explicitBasis || includeImplicitTaxBasis
+          ? {
+              NetAmountTaxable: currencyMajor(
+                detail.basisMinor,
+                input.currency,
+              ),
+            }
+          : {}),
       },
     })),
   };
+}
+
+/** Internal readback projection reuses the mapper's validated aggregate tax bases. */
+export function mapDocumentTaxReadback(input: InvoiceInput | CreditMemoInput) {
+  return mapDocumentLines(input, true).taxLines;
 }
 
 function mapLine(
@@ -594,6 +648,8 @@ function mapLine(
       ? undefined
       : validateAmount(item.taxAmount, `${label} tax amount`);
   const taxComponents: FrozenTaxComponent[] = [];
+  const componentIds = new Set<string>();
+  const componentRateRefs = new Set<string>();
   if (item.taxComponents !== undefined) {
     if (taxAmount === undefined)
       throw new Error(
@@ -601,6 +657,33 @@ function mapLine(
       );
     const componentTax = item.taxComponents.reduce(
       (sum, component, componentIndex) => {
+        if (
+          !component ||
+          typeof component !== 'object' ||
+          Object.keys(component).some(
+            (key) =>
+              ![
+                'taxCode',
+                'rate',
+                'quickbooksTaxRateRef',
+                'taxAmount',
+                'compound',
+                'taxableAmount',
+              ].includes(key),
+          )
+        )
+          throw new Error(
+            `QuickBooks ${label} tax component has unsupported fields`,
+          );
+        if (
+          component.compound !== undefined &&
+          typeof component.compound !== 'boolean'
+        )
+          throw new Error(`QuickBooks ${label} compound must be boolean`);
+        if (component.compound && component.taxableAmount === undefined)
+          throw new Error(
+            `QuickBooks ${label} compound tax requires its frozen taxableAmount`,
+          );
         if (
           !component.taxCode ||
           component.taxCode.trim() !== component.taxCode
@@ -620,9 +703,45 @@ function mapLine(
           component.taxAmount,
           `${label} tax component ${componentIndex + 1}`,
         );
+        if (
+          componentIds.has(component.taxCode) ||
+          componentRateRefs.has(taxRateRef)
+        )
+          throw new Error(
+            `QuickBooks ${label} repeats a tax component or rate reference`,
+          );
+        componentIds.add(component.taxCode);
+        componentRateRefs.add(taxRateRef);
+        const expectedBasis =
+          currencyMinor(netAmount, currency, `${label} net amount`) +
+          (component.compound
+            ? taxComponents.reduce((sum, prior) => sum + prior.taxMinor, 0n)
+            : 0n);
+        const basisMinor =
+          component.taxableAmount === undefined
+            ? expectedBasis
+            : currencyMinor(
+                validateAmount(
+                  component.taxableAmount,
+                  `${label} taxable basis`,
+                ),
+                currency,
+                `${label} taxable basis`,
+              );
+        if (!Number.isSafeInteger(Number(basisMinor)))
+          throw new Error(
+            `QuickBooks ${label} taxable basis exceeds safe minor units`,
+          );
+        if (basisMinor !== expectedBasis)
+          throw new Error(
+            `QuickBooks ${label} frozen taxable basis does not match its ordered components`,
+          );
         taxComponents.push({
           taxRateRef,
           rate,
+          compound: component.compound ?? false,
+          basisMinor,
+          explicitBasis: component.taxableAmount !== undefined,
           taxMinor: currencyMinor(
             componentAmount,
             currency,
@@ -675,6 +794,51 @@ function mapLine(
     throw new Error(
       `QuickBooks ${label} amount must equal quantity times unit price less discount`,
     );
+  }
+  const mappedComponents = item.quickbooksMapping?.taxComponents;
+  if (
+    taxComponents.some((component) => component.compound) &&
+    mappedComponents === undefined
+  )
+    throw new Error(
+      `QuickBooks ${label} compound tax requires caller-verified ordered tax-code mapping`,
+    );
+  if (mappedComponents !== undefined) {
+    if (
+      !Array.isArray(mappedComponents) ||
+      mappedComponents.length !== taxComponents.length
+    )
+      throw new Error(
+        `QuickBooks ${label} ordered tax-code mapping must match every frozen component`,
+      );
+    const refs = new Set<string>();
+    for (const [position, mapped] of mappedComponents.entries()) {
+      if (
+        !mapped ||
+        typeof mapped !== 'object' ||
+        Object.keys(mapped).some(
+          (key) => !['taxRateRef', 'compound'].includes(key),
+        ) ||
+        typeof mapped.compound !== 'boolean'
+      )
+        throw new Error(
+          `QuickBooks ${label} ordered tax-code mapping has unknown order metadata`,
+        );
+      const ref = reference(
+        mapped.taxRateRef,
+        `${label} mapped tax rate`,
+      ).value;
+      const component = taxComponents[position];
+      if (
+        refs.has(ref) ||
+        ref !== component.taxRateRef ||
+        mapped.compound !== component.compound
+      )
+        throw new Error(
+          `QuickBooks ${label} ordered tax-code mapping does not match frozen components`,
+        );
+      refs.add(ref);
+    }
   }
   if (taxComponents.length > 0)
     validateFrozenComponentRates(
@@ -760,7 +924,18 @@ function mapLine(
             ).value,
           0,
         );
-    const discountNet = roundCurrencyAmount(discount / (1 + rate), currency);
+    let discountNet = roundCurrencyAmount(discount / (1 + rate), currency);
+    if (taxComponents.some((component) => component.compound)) {
+      const { total } = orderedFactors(taxComponents);
+      const numerator =
+        currencyMinor(discount, currency, `${label} discount`) *
+        total.denominator;
+      const denominator = total.denominator + total.numerator;
+      discountNet = currencyMajor(
+        (2n * numerator + denominator) / (2n * denominator),
+        currency,
+      );
+    }
     if (discountNet === undefined)
       throw new Error(
         `QuickBooks ${label} needs a recognized currency to map an inclusive fractional-unit discount`,

@@ -47,7 +47,43 @@ await fs.write('documents/readme.txt', 'Hello from Drive');
 const content = await fs.read('documents/readme.txt');
 ```
 
-Supports OAuth2, service account keys, and short-lived access tokens. Google Docs native formats are automatically exported (Docs → text, Sheets → CSV, etc.).
+Supports OAuth2, service account keys, and short-lived access tokens. Google Docs native formats are automatically exported (Docs → text, Sheets → CSV, etc.) for the legacy path API.
+
+### Drive catalog discovery and pinned acquisition
+
+`GoogleDriveProvider` also exposes ID-based Drive operations for catalog
+adapters. `listMetadataPage()` performs metadata-only, one-folder pagination;
+persist the returned `nextPageToken` and enqueue folder IDs yourself for a
+resumable traversal. It never requests media or exports content.
+
+```typescript
+import { GoogleDriveProvider } from '@happyvertical/files';
+
+const drive = new GoogleDriveProvider({
+  type: 'gdrive',
+  accessToken: process.env.DRIVE_READ_TOKEN,
+  folderId: 'configured-source-root',
+  // Optional additional source roots and shared-drive support:
+  allowedFolderIds: ['configured-source-root'],
+  sharedDriveId: 'shared-drive-id',
+});
+
+const page = await drive.listMetadataPage({ pageToken: checkpoint });
+// page.entries include stable id, revisionId, parents, driveId, and shortcut metadata.
+
+const snapshot = await drive.acquireById(page.entries[0].id, {
+  expectedRevision: page.entries[0].revisionId,
+  maxBytes: 25 * 1024 * 1024,
+  // Native Docs/Sheets/Slides require an intentional export format.
+  exportMimeType: 'application/pdf',
+});
+```
+
+`acquireById()` validates ancestor scope against `allowedFolderIds`, validates
+shortcut targets independently, streams with a hard byte bound, checks the
+Drive revision before and after acquisition, and returns a SHA-256 content hash.
+Use `application/pdf` for native files that need layout-preserving printing.
+It never stores credentials in returned metadata.
 
 ### File Operations
 
