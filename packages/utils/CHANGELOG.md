@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.105.4
+
+### Patch Changes
+
+- ### Features
+
+  - scope Stripe direct charges (#1411) (payments)
+
 ## 0.105.3
 
 ### Patch Changes
