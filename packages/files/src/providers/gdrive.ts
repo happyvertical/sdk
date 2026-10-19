@@ -113,16 +113,13 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
   private pathCacheTTL: number;
   private pageSize: number;
   private allowedFolderIds: Set<string>;
-  private rootsCanonicalized = false;
-  private readonly needsRootCanonicalization: boolean;
+  private rootsCanonicalization?: Promise<void>;
 
   constructor(private options: GoogleDriveOptions) {
     super(options);
     this.rootFolderId = options.folderId || 'root';
     this.pathCacheTTL = options.pathCacheTTL ?? 300_000;
     this.pageSize = options.pageSize ?? 100;
-    this.needsRootCanonicalization =
-      !options.folderId && !options.allowedFolderIds?.length;
     this.allowedFolderIds = new Set(
       options.allowedFolderIds?.length
         ? options.allowedFolderIds
@@ -510,20 +507,38 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
   }
 
   private async canonicalizeRoots(): Promise<void> {
-    if (this.rootsCanonicalized) return;
-    this.rootsCanonicalized = true;
-    if (!this.needsRootCanonicalization || !this.allowedFolderIds.has('root')) {
+    if (this.rootFolderId !== 'root' && !this.allowedFolderIds.has('root'))
       return;
+    if (!this.rootsCanonicalization) {
+      const pending = (async () => {
+        const root = await this.getMetadataUnchecked('root');
+        if (root.trashed) throw new FileNotFoundError('root', 'gdrive');
+        if (
+          !root.id ||
+          root.id === 'root' ||
+          root.mimeType !== 'application/vnd.google-apps.folder'
+        ) {
+          throw new DriveScopeError('root');
+        }
+        // Publish only after successful validation. Concurrent callers await the
+        // same lookup; a failed lookup never poisons future authorization reads.
+        if (this.allowedFolderIds.has('root')) {
+          this.allowedFolderIds.delete('root');
+          this.allowedFolderIds.add(root.id);
+        }
+        if (this.rootFolderId === 'root') this.rootFolderId = root.id;
+      })();
+      this.rootsCanonicalization = pending;
+      pending.catch(() => {
+        if (this.rootsCanonicalization === pending)
+          this.rootsCanonicalization = undefined;
+      });
     }
-    const root = await this.getMetadataUnchecked('root');
-    if (root.trashed) throw new FileNotFoundError('root', 'gdrive');
-    this.allowedFolderIds.delete('root');
-    this.allowedFolderIds.add(root.id);
+    await this.rootsCanonicalization;
   }
 
   private async assertAllowedId(fileId: string): Promise<void> {
     await this.canonicalizeRoots();
-    if (this.allowedFolderIds.has(fileId)) return;
     await this.assertAllowedMetadata(await this.getMetadataUnchecked(fileId));
   }
 
@@ -537,11 +552,11 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     while (pending.length > 0) {
       const parentId = pending.pop();
       if (!parentId) continue;
-      if (this.allowedFolderIds.has(parentId)) return;
       if (visited.has(parentId)) continue;
       visited.add(parentId);
       const parent = await this.getMetadataUnchecked(parentId);
       if (parent.trashed) throw new FileNotFoundError(parent.id, 'gdrive');
+      if (this.allowedFolderIds.has(parent.id)) return;
       pending.push(...parent.parents);
     }
     throw new DriveScopeError(metadata.id);
