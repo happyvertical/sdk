@@ -316,7 +316,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
   private invalidateCache(path: string): void {
     const normalized = this.normalizePath(path);
     for (const key of this.pathCache.keys()) {
-      if (key === normalized || key.startsWith(normalized + '/')) {
+      if (key === normalized || key.startsWith(`${normalized}/`)) {
         this.pathCache.delete(key);
       }
     }
