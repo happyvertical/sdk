@@ -63,6 +63,7 @@ describe('GoogleDriveProvider', () => {
       clientId: 'test-client-id',
       clientSecret: 'test-client-secret',
       refreshToken: 'test-refresh-token',
+      allowedFolderIds: ['root'],
     });
   });
 
@@ -612,6 +613,7 @@ describe('GoogleDriveProvider', () => {
         type: 'gdrive',
         accessToken: 'token',
         sharedDriveId: 'shared-drive',
+        allowedFolderIds: ['root'],
       });
       mockFilesList.mockResolvedValueOnce({ data: { files: [] } });
 
@@ -772,6 +774,7 @@ describe('GoogleDriveProvider', () => {
         clientId: 'id',
         clientSecret: 'secret',
         refreshToken: 'token',
+        allowedFolderIds: ['root'],
       });
 
       mockFilesList.mockResolvedValueOnce({
@@ -788,6 +791,7 @@ describe('GoogleDriveProvider', () => {
         clientId: 'id',
         clientSecret: 'secret',
         refreshToken: 'token',
+        allowedFolderIds: ['root'],
       });
 
       mockFilesList.mockResolvedValueOnce({
@@ -807,6 +811,7 @@ describe('GoogleDriveProvider', () => {
         clientId: 'id',
         clientSecret: 'secret',
         refreshToken: 'token',
+        allowedFolderIds: ['root'],
       });
 
       mockFilesList.mockResolvedValueOnce({

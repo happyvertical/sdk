@@ -534,6 +534,7 @@ export interface DriveFileMetadata {
   revisionId?: string;
   /** Checksum supplied by Drive for binary files. Native Google files omit it. */
   md5Checksum?: string;
+  trashed?: boolean;
   parents: string[];
   driveId?: string;
   shortcutDetails?: {

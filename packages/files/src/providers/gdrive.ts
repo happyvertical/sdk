@@ -69,7 +69,7 @@ const GOOGLE_EXPORT_MIMES: Record<string, string> = {
 
 const GOOGLE_NATIVE_MIME_PREFIX = 'application/vnd.google-apps.';
 const DRIVE_METADATA_FIELDS =
-  'id,name,mimeType,size,createdTime,modifiedTime,headRevisionId,md5Checksum,parents,driveId,shortcutDetails(targetId,targetMimeType,targetResourceKey)';
+  'id,name,mimeType,size,createdTime,modifiedTime,headRevisionId,version,md5Checksum,trashed,parents,driveId,shortcutDetails(targetId,targetMimeType,targetResourceKey)';
 
 /** Lightweight type for Drive API responses */
 interface DriveResponse<T = any> {
@@ -113,12 +113,16 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
   private pathCacheTTL: number;
   private pageSize: number;
   private allowedFolderIds: Set<string>;
+  private rootsCanonicalized = false;
+  private readonly needsRootCanonicalization: boolean;
 
   constructor(private options: GoogleDriveOptions) {
     super(options);
     this.rootFolderId = options.folderId || 'root';
     this.pathCacheTTL = options.pathCacheTTL ?? 300_000;
     this.pageSize = options.pageSize ?? 100;
+    this.needsRootCanonicalization =
+      !options.folderId && !options.allowedFolderIds?.length;
     this.allowedFolderIds = new Set(
       options.allowedFolderIds?.length
         ? options.allowedFolderIds
@@ -150,8 +154,9 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
       size: file.size === undefined ? undefined : Number(file.size),
       createdTime: file.createdTime ? new Date(file.createdTime) : undefined,
       modifiedTime: file.modifiedTime ? new Date(file.modifiedTime) : undefined,
-      revisionId: file.headRevisionId,
+      revisionId: file.headRevisionId ?? file.version,
       md5Checksum: file.md5Checksum,
+      trashed: file.trashed,
       parents: file.parents ?? [],
       driveId: file.driveId,
       shortcutDetails: file.shortcutDetails
@@ -397,6 +402,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
 
   /** Gets stable metadata by ID after validating its configured source scope. */
   async getMetadataById(fileId: string): Promise<DriveFileMetadata> {
+    await this.canonicalizeRoots();
     const metadata = await this.getMetadataUnchecked(fileId);
     await this.assertAllowedMetadata(metadata);
     return metadata;
@@ -439,6 +445,9 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
         target.id,
         'gdrive',
       );
+    }
+    if (isNative && !target.revisionId) {
+      throw new DriveRevisionChangedError(target.id);
     }
 
     const drive = await this.getDrive();
@@ -500,7 +509,20 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     return this.toMetadata(res.data);
   }
 
+  private async canonicalizeRoots(): Promise<void> {
+    if (this.rootsCanonicalized) return;
+    this.rootsCanonicalized = true;
+    if (!this.needsRootCanonicalization || !this.allowedFolderIds.has('root')) {
+      return;
+    }
+    const root = await this.getMetadataUnchecked('root');
+    if (root.trashed) throw new FileNotFoundError('root', 'gdrive');
+    this.allowedFolderIds.delete('root');
+    this.allowedFolderIds.add(root.id);
+  }
+
   private async assertAllowedId(fileId: string): Promise<void> {
+    await this.canonicalizeRoots();
     if (this.allowedFolderIds.has(fileId)) return;
     await this.assertAllowedMetadata(await this.getMetadataUnchecked(fileId));
   }
@@ -508,6 +530,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
   private async assertAllowedMetadata(
     metadata: DriveFileMetadata,
   ): Promise<void> {
+    if (metadata.trashed) throw new FileNotFoundError(metadata.id, 'gdrive');
     if (this.allowedFolderIds.has(metadata.id)) return;
     const visited = new Set<string>();
     const pending = [...metadata.parents];
@@ -518,6 +541,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
       if (visited.has(parentId)) continue;
       visited.add(parentId);
       const parent = await this.getMetadataUnchecked(parentId);
+      if (parent.trashed) throw new FileNotFoundError(parent.id, 'gdrive');
       pending.push(...parent.parents);
     }
     throw new DriveScopeError(metadata.id);
