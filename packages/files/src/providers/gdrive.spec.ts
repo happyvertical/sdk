@@ -749,6 +749,45 @@ describe('GoogleDriveProvider', () => {
         provider.acquireById('file-id', { maxBytes: 10 }),
       ).rejects.toBeInstanceOf(DriveRevisionChangedError);
     });
+
+    it('uses native Drive version and rejects native files without one', async () => {
+      const native = {
+        id: 'doc',
+        name: 'Doc',
+        mimeType: 'application/vnd.google-apps.document',
+        version: '1',
+        parents: ['root'],
+      };
+      mockFilesGet.mockResolvedValueOnce({ data: native });
+      mockFilesExport.mockResolvedValueOnce({
+        data: Readable.from([Buffer.from('pdf')]),
+      });
+      mockFilesGet.mockResolvedValueOnce({ data: { ...native, version: '2' } });
+      await expect(
+        provider.acquireById('doc', {
+          maxBytes: 10,
+          exportMimeType: 'application/pdf',
+        }),
+      ).rejects.toBeInstanceOf(DriveRevisionChangedError);
+      mockFilesGet.mockResolvedValueOnce({
+        data: { ...native, version: undefined },
+      });
+      await expect(
+        provider.acquireById('doc', {
+          maxBytes: 10,
+          exportMimeType: 'application/pdf',
+        }),
+      ).rejects.toBeInstanceOf(DriveRevisionChangedError);
+    });
+
+    it('rejects trashed metadata before and after acquisition', async () => {
+      mockFilesGet.mockResolvedValueOnce({
+        data: { ...fileMetadata, trashed: true },
+      });
+      await expect(
+        provider.acquireById('file-id', { maxBytes: 10 }),
+      ).rejects.toThrow(FileNotFoundError);
+    });
   });
 
   // -------------------------------------------------------------------------
