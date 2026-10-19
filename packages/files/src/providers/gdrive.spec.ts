@@ -711,6 +711,36 @@ describe('GoogleDriveProvider', () => {
         }),
       );
     });
+    it('uses explicit shared-drive roots without requiring My Drive access', async () => {
+      const shared = new GoogleDriveProvider({
+        type: 'gdrive',
+        accessToken: 'token',
+        sharedDriveId: 'shared-drive',
+        allowedFolderIds: ['nested-folder'],
+      });
+      mockRootGet.mockRejectedValue({
+        code: 403,
+        message: 'My Drive unavailable',
+      });
+      nestedResponses();
+      expect((await shared.getMetadataById(file.id)).id).toBe(file.id);
+      expect(
+        (await shared.listMetadataPage({ folderId: folder.id })).entries[0].id,
+      ).toBe(file.id);
+      expect(
+        (
+          await shared.acquireById(file.id, {
+            maxBytes: 10,
+            expectedRevision: 'r1',
+          })
+        ).bytes.toString(),
+      ).toBe('pdf');
+      await expect(shared.listMetadataPage()).rejects.toBeInstanceOf(
+        DriveScopeError,
+      );
+      expect(mockRootGet).not.toHaveBeenCalled();
+    });
+
     it('shares pending resolution and retries after a transient failure', async () => {
       let rejectRoot!: (reason: Error) => void;
       mockRootGet.mockImplementationOnce(

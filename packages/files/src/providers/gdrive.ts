@@ -507,8 +507,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
   }
 
   private async canonicalizeRoots(): Promise<void> {
-    if (this.rootFolderId !== 'root' && !this.allowedFolderIds.has('root'))
-      return;
+    if (!this.allowedFolderIds.has('root')) return;
     if (!this.rootsCanonicalization) {
       const pending = (async () => {
         const root = await this.getMetadataUnchecked('root');
@@ -539,6 +538,8 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
 
   private async assertAllowedId(fileId: string): Promise<void> {
     await this.canonicalizeRoots();
+    if (fileId === 'root' && this.rootFolderId === 'root')
+      throw new DriveScopeError(fileId);
     await this.assertAllowedMetadata(await this.getMetadataUnchecked(fileId));
   }
 
