@@ -141,8 +141,21 @@ const { event, account, owner } = await platform.resolveConnectWebhookEvent(
 
 if (event.connect?.type === 'account.updated') {
   await owner.saveStripeCapabilities(event.connect.account);
+} else if (event.quoteId && event.status === 'confirmed') {
+  // The connected account chose quoteId; settle only the owner's own quote.
+  const quote = await owner.findQuote(event.quoteId);
+  if (!quote) throw new Error('quote does not belong to this account');
+  await quote.markPaid(event);
 }
 ```
+
+**Bind quotes to the account before settling.** A connected account controls
+the Checkout Sessions and PaymentIntents it creates, so the `quoteId` on a
+Connect event is whatever that account chose, including another tenant's quote
+id. Resolving `account` proves only who sent the event. Before marking a quote
+paid, check that `event.quoteId` belongs to the resolved `owner` (reject the
+event in `resolveAccount`, which receives it, or check it before settling), and
+compare amount and currency with the stored quote.
 
 `parseConnectWebhookEvent` performs the same verification without the
 resolver and returns a `StripeConnectWebhookEvent` whose `account` is always

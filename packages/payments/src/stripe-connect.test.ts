@@ -336,6 +336,33 @@ describe('StripeAdapter.resolveConnectWebhookEvent', () => {
     expect(again.event.duplicate).toBe(true);
   });
 
+  it('lets the resolver reject a quote that does not belong to the account owner', async () => {
+    const { adapter } = createAdapter();
+    // A connected account can stamp any quote id on objects it creates.
+    const payload = JSON.stringify({
+      ...fixtureJson('event-connect-checkout-completed'),
+      account: 'acct_1TestCoop0001',
+    });
+    const quotesByOwner = new Map([['tenant-1', new Set(['quote-own-1'])]]);
+
+    await expect(
+      adapter.resolveConnectWebhookEvent(
+        payload,
+        sign(payload, connectSecret),
+        {
+          resolveAccount: (account, event) => {
+            const owner = owners.get(account);
+            return owner &&
+              (event.quoteId === undefined ||
+                quotesByOwner.get(owner.tenantId)?.has(event.quoteId))
+              ? owner
+              : undefined;
+          },
+        },
+      ),
+    ).rejects.toThrow(PaymentNotOwnedError);
+  });
+
   it('propagates resolver failures', async () => {
     const { adapter } = createAdapter();
     const payload = fixture('event-account-updated');

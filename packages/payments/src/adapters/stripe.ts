@@ -1060,6 +1060,8 @@ export class StripeAdapter implements PaymentBackend {
    * then parse it. The signature is checked before the payload is parsed, and
    * an event without a connected `account` is rejected. When this adapter is
    * scoped to a `stripeAccount`, events for any other account are rejected.
+   * The payload, including `quoteId`, is controlled by the connected account:
+   * bind `quoteId` to `account` before acting on it.
    */
   parseConnectWebhookEvent(
     payload: string,
@@ -1077,6 +1079,13 @@ export class StripeAdapter implements PaymentBackend {
    * no fallback to the platform account. The event is recorded for duplicate
    * detection only after it resolves, so a retried delivery that failed to
    * resolve is not reported as a duplicate.
+   *
+   * Security: a connected account controls the objects it creates, so a
+   * Connect event's `quoteId` (and every other payload field) is chosen by
+   * that account. Resolving the account proves only who sent the event. The
+   * host must check that `event.quoteId` belongs to the resolved owner (for
+   * example inside `resolveAccount`, which receives the event, or before
+   * settling) and must never settle another owner's quote from it.
    */
   async resolveConnectWebhookEvent<TOwner>(
     payload: string,
