@@ -1,0 +1,25 @@
+{
+  "id": "evt_1TestConnectCheckout",
+  "object": "event",
+  "account": "acct_1TestCoop0001",
+  "api_version": "2024-06-20",
+  "created": 1792000400,
+  "data": {
+    "object": {
+      "id": "cs_test_connect_1",
+      "object": "checkout.session",
+      "amount_total": 10000,
+      "client_reference_id": "quote-coop-1",
+      "currency": "usd",
+      "metadata": {
+        "quoteId": "quote-coop-1"
+      },
+      "payment_intent": "pi_test_connect_1",
+      "payment_status": "paid",
+      "status": "complete"
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "type": "checkout.session.completed"
+}

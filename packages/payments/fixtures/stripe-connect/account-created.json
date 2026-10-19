@@ -1,0 +1,21 @@
+{
+  "id": "acct_1TestCoop0002",
+  "object": "account",
+  "capabilities": {},
+  "charges_enabled": false,
+  "country": "CA",
+  "created": 1792000100,
+  "default_currency": "cad",
+  "details_submitted": false,
+  "metadata": {
+    "tenant": "tenant-test-2"
+  },
+  "payouts_enabled": false,
+  "requirements": {
+    "currently_due": ["business_profile.url", "external_account", "tos_acceptance.date"],
+    "disabled_reason": "requirements.past_due",
+    "eventually_due": ["business_profile.url", "external_account", "tos_acceptance.date"],
+    "past_due": ["external_account"]
+  },
+  "type": "standard"
+}

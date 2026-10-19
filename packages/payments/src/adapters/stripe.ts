@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
   PaymentConfigurationError,
+  PaymentNotOwnedError,
   PaymentProviderError,
   PaymentVerificationError,
 } from '../errors.js';
@@ -64,6 +65,12 @@ export interface StripeAdapterOptions {
   cancelUrl?: string;
   checkoutMode?: string;
   webhookSecret?: string;
+  /**
+   * Signing secret of the Stripe Connect webhook endpoint. Stripe signs
+   * connected-account events with a different secret from the platform
+   * endpoint; see {@link StripeAdapter.parseConnectWebhookEvent}.
+   */
+  connectWebhookSecret?: string;
   pollIntervalMs?: number;
   maxStoredPaymentOptions?: number;
   maxStoredWebhookEventIds?: number;
@@ -130,7 +137,120 @@ export interface StripeWebhookEvent extends PaymentWebhookEvent {
   status: PaymentStatus;
   quoteId?: string;
   providerPaymentId?: string;
+  /**
+   * Connected account (`acct_...`) the event originated from. Set only on
+   * events verified through {@link StripeAdapter.parseConnectWebhookEvent};
+   * platform-endpoint events never carry it.
+   */
+  account?: string;
+  /** Typed Connect payload for `account.updated` and `application_fee.*`. */
+  connect?: StripeConnectEventDetail;
   raw: unknown;
+}
+
+/** A Connect endpoint event: always scoped to a connected account. */
+export interface StripeConnectWebhookEvent extends StripeWebhookEvent {
+  account: string;
+}
+
+export type StripeConnectEventDetail =
+  | {
+      type: 'account.updated';
+      account: StripeConnectAccountStatus;
+    }
+  | {
+      type: 'application_fee.created' | 'application_fee.refunded';
+      applicationFee: StripeApplicationFee;
+    };
+
+/** Connected account onboarding and capability state. */
+export interface StripeConnectAccountStatus {
+  accountId: string;
+  /** Stripe account type (`standard`, `express`, `custom`) when reported. */
+  type?: string;
+  /** Stripe `charges_enabled`. */
+  chargesEnabled: boolean;
+  /** Stripe `details_submitted`. */
+  detailsSubmitted: boolean;
+  /** Stripe `payouts_enabled`. */
+  payoutsEnabled: boolean;
+  /** Per-capability state, e.g. `{ card_payments: 'active' }`. */
+  capabilities: Record<string, string>;
+  requirements: {
+    currentlyDue: string[];
+    eventuallyDue: string[];
+    pastDue: string[];
+    disabledReason?: string;
+  };
+  country?: string;
+  defaultCurrency?: string;
+  raw: unknown;
+}
+
+export interface StripeApplicationFee {
+  id: string;
+  /** Connected account the fee was collected from. */
+  account?: string;
+  /** Fee amount in integer minor units. */
+  amount?: number;
+  /** Refunded portion in integer minor units. */
+  amountRefunded?: number;
+  currency?: string;
+  refunded: boolean;
+  charge?: string;
+  livemode?: boolean;
+  raw: unknown;
+}
+
+export interface StripeCreateStandardAccountInput {
+  /** Two-letter ISO country code of the account holder. */
+  country?: string;
+  /** Prefills the account holder's email in Stripe onboarding. */
+  email?: string;
+  businessType?: 'individual' | 'company' | 'non_profit' | 'government_entity';
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+  idempotencyKey?: string;
+}
+
+export interface StripeOnboardingLink {
+  /** Single-use Stripe-hosted onboarding URL; treat it as a bearer secret. */
+  url: string;
+  expiresAt?: Date;
+  raw: unknown;
+}
+
+export interface StripeCreateOnboardingLinkOptions {
+  /** Which requirements to collect up front; Stripe defaults to `currently_due`. */
+  collect?: 'currently_due' | 'eventually_due';
+  idempotencyKey?: string;
+}
+
+/**
+ * Host mapping from a connected account to its owner. Return `undefined` or
+ * `null` for an account the host does not recognize; the event is then
+ * rejected with {@link PaymentNotOwnedError}.
+ */
+export type StripeConnectAccountResolver<TOwner> = (
+  account: string,
+  event: StripeWebhookEvent,
+) => TOwner | null | undefined | Promise<TOwner | null | undefined>;
+
+export interface StripeResolveConnectWebhookOptions<TOwner> {
+  resolveAccount: StripeConnectAccountResolver<TOwner>;
+  /**
+   * Endpoint the delivery arrived on. `connect` (default) verifies with
+   * `connectWebhookSecret` and routes by the event's `account`. `platform`
+   * verifies with `webhookSecret` and routes `application_fee.*` events by the
+   * fee's connected account; other platform events are rejected.
+   */
+  endpoint?: 'connect' | 'platform';
+}
+
+export interface StripeResolvedConnectWebhookEvent<TOwner> {
+  event: StripeWebhookEvent;
+  /** Connected account the event was routed by. */
+  account: string;
+  owner: TOwner;
 }
 
 export class StripeAdapter implements PaymentBackend {
@@ -144,6 +264,7 @@ export class StripeAdapter implements PaymentBackend {
   private readonly supportedCurrencies: Set<string>;
   private readonly checkoutMode: string;
   private readonly webhookSecret: string | undefined;
+  private readonly connectWebhookSecret: string | undefined;
   private readonly stripeAccount: string | undefined;
   private readonly maxStoredPaymentOptions: number;
   private readonly maxStoredWebhookEventIds: number;
@@ -155,19 +276,8 @@ export class StripeAdapter implements PaymentBackend {
       throw new PaymentConfigurationError('StripeAdapter requires secretKey.');
     }
 
-    if (options.webhookSecret !== undefined) {
-      if (typeof options.webhookSecret !== 'string') {
-        throw new PaymentConfigurationError(
-          'StripeAdapter webhookSecret must be a string when configured.',
-        );
-      }
-
-      if (!options.webhookSecret.trim()) {
-        throw new PaymentConfigurationError(
-          'StripeAdapter webhookSecret must not be empty when configured.',
-        );
-      }
-    }
+    assertOptionalSecret(options.webhookSecret, 'webhookSecret');
+    assertOptionalSecret(options.connectWebhookSecret, 'connectWebhookSecret');
 
     if (options.apiBaseUrl !== undefined) {
       if (typeof options.apiBaseUrl !== 'string') {
@@ -217,6 +327,7 @@ export class StripeAdapter implements PaymentBackend {
     }
 
     this.webhookSecret = options.webhookSecret?.trim();
+    this.connectWebhookSecret = options.connectWebhookSecret?.trim();
     this.stripeAccount = normalizeOptionalStripeAccount(
       options.stripeAccount,
       'StripeAdapter stripeAccount',
@@ -933,10 +1044,220 @@ export class StripeAdapter implements PaymentBackend {
     };
   }
 
+  /**
+   * Verify and parse a delivery to the platform webhook endpoint. Events that
+   * carry a connected `account` are rejected: they belong to the Connect
+   * endpoint and must never be processed as platform-account events.
+   */
   parseWebhookEvent(payload: string, signature?: string): StripeWebhookEvent {
-    if (!this.webhookSecret) {
+    const event = this.verifyWebhookEvent(payload, signature, 'platform');
+    this.recordWebhookEvent(event);
+    return event;
+  }
+
+  /**
+   * Verify a Stripe Connect endpoint delivery with `connectWebhookSecret`,
+   * then parse it. The signature is checked before the payload is parsed, and
+   * an event without a connected `account` is rejected. When this adapter is
+   * scoped to a `stripeAccount`, events for any other account are rejected.
+   * The payload, including `quoteId`, is controlled by the connected account:
+   * bind `quoteId` to `account` before acting on it.
+   */
+  parseConnectWebhookEvent(
+    payload: string,
+    signature?: string,
+  ): StripeConnectWebhookEvent {
+    const event = this.verifyWebhookEvent(payload, signature, 'connect');
+    this.recordWebhookEvent(event);
+    return event as StripeConnectWebhookEvent;
+  }
+
+  /**
+   * Verify a webhook delivery, then map its connected account to an owner
+   * (for example a tenant) with the host's resolver. An account the resolver
+   * does not recognize is rejected with {@link PaymentNotOwnedError}; there is
+   * no fallback to the platform account. The event is recorded for duplicate
+   * detection only after it resolves, so a retried delivery that failed to
+   * resolve is not reported as a duplicate.
+   *
+   * Security: a connected account controls the objects it creates, so a
+   * Connect event's `quoteId` (and every other payload field) is chosen by
+   * that account. Resolving the account proves only who sent the event. The
+   * host must check that `event.quoteId` belongs to the resolved owner (for
+   * example inside `resolveAccount`, which receives the event, or before
+   * settling) and must never settle another owner's quote from it.
+   */
+  async resolveConnectWebhookEvent<TOwner>(
+    payload: string,
+    signature: string | undefined,
+    options: StripeResolveConnectWebhookOptions<TOwner>,
+  ): Promise<StripeResolvedConnectWebhookEvent<TOwner>> {
+    if (typeof options?.resolveAccount !== 'function') {
       throw new PaymentConfigurationError(
-        'StripeAdapter parseWebhookEvent requires webhookSecret.',
+        'Stripe resolveConnectWebhookEvent requires a resolveAccount function.',
+      );
+    }
+
+    const endpoint = options.endpoint ?? 'connect';
+
+    if (endpoint !== 'connect' && endpoint !== 'platform') {
+      throw new PaymentConfigurationError(
+        'Stripe resolveConnectWebhookEvent endpoint must be connect or platform.',
+      );
+    }
+
+    const event = this.verifyWebhookEvent(payload, signature, endpoint);
+    const account =
+      endpoint === 'connect'
+        ? event.account
+        : event.connect?.type === 'application_fee.created' ||
+            event.connect?.type === 'application_fee.refunded'
+          ? event.connect.applicationFee.account
+          : undefined;
+
+    if (account === undefined) {
+      throw new PaymentNotOwnedError(
+        `Stripe webhook event ${event.id} (${event.type}) has no connected account to route by.`,
+      );
+    }
+
+    this.assertAdapterAccount(account);
+    const owner = await options.resolveAccount(account, event);
+
+    if (owner === undefined || owner === null) {
+      throw new PaymentNotOwnedError(
+        `Stripe connected account ${account} is not mapped to an owner.`,
+      );
+    }
+
+    this.recordWebhookEvent(event);
+    return { event, account, owner };
+  }
+
+  /**
+   * Create a Stripe Connect **Standard** account. The account holder owns the
+   * Stripe relationship and dashboard; the platform only connects to it.
+   * Always issued on the platform account, never on a connected account.
+   */
+  async createStandardAccount(
+    input: StripeCreateStandardAccountInput = {},
+  ): Promise<StripeConnectAccountStatus> {
+    const country =
+      input.country === undefined
+        ? undefined
+        : normalizeStripeCountry(input.country);
+    const email =
+      input.email === undefined
+        ? undefined
+        : normalizeNonEmptyString(input.email, 'Stripe account email');
+    const account = await this.stripeRequest<Record<string, unknown>>(
+      '/accounts',
+      {
+        method: 'POST',
+        idempotencyKey: input.idempotencyKey,
+        body: formEncode({
+          type: 'standard',
+          country,
+          email,
+          ...Object.fromEntries([['business_type', input.businessType]]),
+          ...flattenStripeMetadata(input.metadata),
+        }),
+      },
+    );
+
+    return mapStripeConnectAccount(account, 'Stripe account response');
+  }
+
+  /**
+   * Create a single-use Account Link that sends the account holder through
+   * Stripe-hosted onboarding. `refreshUrl` is visited when the link expires or
+   * is reused, and should mint a new link; `returnUrl` does not mean
+   * onboarding finished, so read {@link getAccountCapabilities} afterwards.
+   */
+  async createOnboardingLink(
+    accountId: string,
+    returnUrl: string,
+    refreshUrl: string,
+    options: StripeCreateOnboardingLinkOptions = {},
+  ): Promise<StripeOnboardingLink> {
+    const account = normalizeStripeConnectedAccountId(accountId);
+    const link = await this.stripeRequest<Record<string, unknown>>(
+      '/account_links',
+      {
+        method: 'POST',
+        idempotencyKey: options.idempotencyKey,
+        body: formEncode({
+          account,
+          type: 'account_onboarding',
+          collect: options.collect,
+          ...Object.fromEntries([
+            ['return_url', normalizeUrlString(returnUrl, 'Stripe returnUrl')],
+            [
+              'refresh_url',
+              normalizeUrlString(refreshUrl, 'Stripe refreshUrl'),
+            ],
+          ]),
+        }),
+      },
+    );
+    const url = normalizeOptionalProviderString(
+      readProviderString(link, 'url'),
+    );
+
+    if (!url) {
+      throw new PaymentProviderError(
+        'Stripe Account Link response did not include a url.',
+      );
+    }
+
+    const expiresAtSeconds = readSafeInteger(link, 'expires_at');
+
+    return {
+      url,
+      expiresAt:
+        expiresAtSeconds === undefined
+          ? undefined
+          : new Date(expiresAtSeconds * 1_000),
+      raw: link,
+    };
+  }
+
+  /**
+   * Read a connected account's onboarding and capability state
+   * (`charges_enabled`, `details_submitted`, `payouts_enabled`, per-capability
+   * status, and outstanding requirements).
+   */
+  async getAccountCapabilities(
+    accountId: string,
+  ): Promise<StripeConnectAccountStatus> {
+    const account = normalizeStripeConnectedAccountId(accountId);
+    const response = await this.stripeRequest<Record<string, unknown>>(
+      `/accounts/${encodeURIComponent(account)}`,
+    );
+    const status = mapStripeConnectAccount(response, 'Stripe account response');
+
+    if (status.accountId !== account) {
+      throw new PaymentVerificationError(
+        `Stripe account response ${status.accountId} did not match ${account}.`,
+      );
+    }
+
+    return status;
+  }
+
+  private verifyWebhookEvent(
+    payload: string,
+    signature: string | undefined,
+    endpoint: 'connect' | 'platform',
+  ): StripeWebhookEvent {
+    const secret =
+      endpoint === 'connect' ? this.connectWebhookSecret : this.webhookSecret;
+
+    if (!secret) {
+      throw new PaymentConfigurationError(
+        endpoint === 'connect'
+          ? 'StripeAdapter parseConnectWebhookEvent requires connectWebhookSecret.'
+          : 'StripeAdapter parseWebhookEvent requires webhookSecret.',
       );
     }
 
@@ -944,7 +1265,8 @@ export class StripeAdapter implements PaymentBackend {
       throw new PaymentProviderError('Missing Stripe webhook signature.');
     }
 
-    verifyStripeWebhookSignature(payload, signature, this.webhookSecret);
+    // Authenticate the raw bytes before anything reads the payload.
+    verifyStripeWebhookSignature(payload, signature, secret);
 
     const event = parseStripeWebhookPayload(payload);
     const id = readRequiredWebhookString(
@@ -957,25 +1279,39 @@ export class StripeAdapter implements PaymentBackend {
       'type',
       'Stripe webhook event type',
     );
+    const rawAccount = event.account;
+    let account: string | undefined;
 
-    const duplicate = this.seenWebhookEventIds.has(id);
+    if (endpoint === 'connect') {
+      account = typeof rawAccount === 'string' ? rawAccount.trim() : undefined;
 
-    if (!duplicate) {
-      this.seenWebhookEventIds.add(id);
-      while (this.seenWebhookEventIds.size > this.maxStoredWebhookEventIds) {
-        const oldest = this.seenWebhookEventIds.values().next().value;
-
-        if (oldest === undefined) {
-          break;
-        }
-
-        this.seenWebhookEventIds.delete(oldest);
+      if (!account || !STRIPE_CONNECTED_ACCOUNT_ID.test(account)) {
+        throw new PaymentVerificationError(
+          'Stripe Connect webhook event did not include a valid connected account.',
+        );
       }
+
+      this.assertAdapterAccount(account);
+    } else if (rawAccount !== undefined && rawAccount !== null) {
+      throw new PaymentVerificationError(
+        'Stripe connected-account event received on the platform webhook endpoint; verify it with parseConnectWebhookEvent.',
+      );
     }
 
     const data = (
       event.data as { object?: Record<string, unknown> } | undefined
     )?.object;
+    const connect = mapStripeConnectEventDetail(type, data);
+
+    if (
+      account !== undefined &&
+      connect?.type === 'account.updated' &&
+      connect.account.accountId !== account
+    ) {
+      throw new PaymentVerificationError(
+        'Stripe account.updated webhook object did not match the event account.',
+      );
+    }
 
     return {
       id,
@@ -996,9 +1332,38 @@ export class StripeAdapter implements PaymentBackend {
           ),
       ),
       providerPaymentId: normalizeOptionalWebhookString(readString(data, 'id')),
-      duplicate,
+      duplicate: this.seenWebhookEventIds.has(id),
+      ...(account === undefined ? {} : { account }),
+      ...(connect === undefined ? {} : { connect }),
       raw: event,
     };
+  }
+
+  private recordWebhookEvent(event: StripeWebhookEvent): void {
+    if (this.seenWebhookEventIds.has(event.id)) {
+      event.duplicate = true;
+      return;
+    }
+
+    event.duplicate = false;
+    this.seenWebhookEventIds.add(event.id);
+    while (this.seenWebhookEventIds.size > this.maxStoredWebhookEventIds) {
+      const oldest = this.seenWebhookEventIds.values().next().value;
+
+      if (oldest === undefined) {
+        break;
+      }
+
+      this.seenWebhookEventIds.delete(oldest);
+    }
+  }
+
+  private assertAdapterAccount(account: string): void {
+    if (this.stripeAccount !== undefined && account !== this.stripeAccount) {
+      throw new PaymentNotOwnedError(
+        `Stripe connected account ${account} does not match this adapter's account scope.`,
+      );
+    }
   }
 
   private async stripeRequest<T>(
@@ -1089,6 +1454,168 @@ export class StripeAdapter implements PaymentBackend {
     }
     return undefined;
   }
+}
+
+function assertOptionalSecret(value: unknown, name: string): void {
+  if (value === undefined) return;
+
+  if (typeof value !== 'string') {
+    throw new PaymentConfigurationError(
+      `StripeAdapter ${name} must be a string when configured.`,
+    );
+  }
+
+  if (!value.trim()) {
+    throw new PaymentConfigurationError(
+      `StripeAdapter ${name} must not be empty when configured.`,
+    );
+  }
+}
+
+const STRIPE_CONNECTED_ACCOUNT_ID = /^acct_[A-Za-z0-9]+$/;
+
+function normalizeStripeConnectedAccountId(value: unknown): string {
+  const account = typeof value === 'string' ? value.trim() : undefined;
+
+  if (!account || !STRIPE_CONNECTED_ACCOUNT_ID.test(account)) {
+    throw new PaymentConfigurationError(
+      'Stripe connected account id must look like acct_...',
+    );
+  }
+
+  return account;
+}
+
+function normalizeStripeCountry(value: string): string {
+  const country = typeof value === 'string' ? value.trim().toUpperCase() : '';
+
+  if (!/^[A-Z]{2}$/.test(country)) {
+    throw new PaymentConfigurationError(
+      'Stripe account country must be a two-letter ISO country code.',
+    );
+  }
+
+  return country;
+}
+
+function readStringArray(
+  value: Record<string, unknown> | undefined,
+  key: string,
+): string[] {
+  const item = value?.[key];
+
+  return Array.isArray(item)
+    ? item.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
+
+function mapStripeConnectAccount(
+  account: Record<string, unknown> | undefined,
+  context: string,
+): StripeConnectAccountStatus {
+  const accountId = readProviderString(account, 'id')?.trim();
+
+  if (!account || !accountId || !STRIPE_CONNECTED_ACCOUNT_ID.test(accountId)) {
+    throw new PaymentProviderError(`${context} did not include an account id.`);
+  }
+
+  const capabilities: Record<string, string> = {};
+
+  for (const [name, state] of Object.entries(
+    readObject(account, 'capabilities') ?? {},
+  )) {
+    if (typeof state === 'string') {
+      capabilities[name] = state;
+    }
+  }
+
+  const requirements = readObject(account, 'requirements');
+  const disabledReason = normalizeOptionalProviderString(
+    readProviderString(requirements, 'disabled_reason'),
+  );
+  const defaultCurrency = readProviderString(account, 'default_currency');
+
+  return {
+    accountId,
+    type: normalizeOptionalProviderString(readProviderString(account, 'type')),
+    chargesEnabled: account.charges_enabled === true,
+    detailsSubmitted: account.details_submitted === true,
+    payoutsEnabled: account.payouts_enabled === true,
+    capabilities,
+    requirements: {
+      currentlyDue: readStringArray(requirements, 'currently_due'),
+      eventuallyDue: readStringArray(requirements, 'eventually_due'),
+      pastDue: readStringArray(requirements, 'past_due'),
+      ...(disabledReason === undefined ? {} : { disabledReason }),
+    },
+    country: normalizeOptionalProviderString(
+      readProviderString(account, 'country'),
+    ),
+    defaultCurrency: defaultCurrency?.toUpperCase(),
+    raw: account,
+  };
+}
+
+function mapStripeApplicationFee(
+  fee: Record<string, unknown> | undefined,
+): StripeApplicationFee {
+  const id = normalizeOptionalProviderString(readProviderString(fee, 'id'));
+
+  if (!fee || !id) {
+    throw new PaymentProviderError(
+      'Stripe application_fee webhook object did not include an id.',
+    );
+  }
+
+  const account = normalizeOptionalProviderString(
+    readProviderString(fee, 'account'),
+  );
+
+  if (account !== undefined && !STRIPE_CONNECTED_ACCOUNT_ID.test(account)) {
+    throw new PaymentProviderError(
+      'Stripe application_fee webhook object has an invalid account id.',
+    );
+  }
+  const livemode = fee.livemode;
+
+  return {
+    id,
+    account,
+    amount: readSafeInteger(fee, 'amount'),
+    amountRefunded: readSafeInteger(fee, 'amount_refunded'),
+    currency: readStripeResultCurrency(fee),
+    refunded: fee.refunded === true,
+    charge: normalizeOptionalProviderString(
+      readProviderString(fee, 'charge') ??
+        readProviderString(readObject(fee, 'charge'), 'id'),
+    ),
+    livemode: typeof livemode === 'boolean' ? livemode : undefined,
+    raw: fee,
+  };
+}
+
+function mapStripeConnectEventDetail(
+  type: string,
+  object: Record<string, unknown> | undefined,
+): StripeConnectEventDetail | undefined {
+  if (type === 'account.updated') {
+    return {
+      type,
+      account: mapStripeConnectAccount(
+        object,
+        'Stripe account.updated webhook object',
+      ),
+    };
+  }
+
+  if (
+    type === 'application_fee.created' ||
+    type === 'application_fee.refunded'
+  ) {
+    return { type, applicationFee: mapStripeApplicationFee(object) };
+  }
+
+  return undefined;
 }
 
 function readStripeOptionAccount(

@@ -34,7 +34,8 @@ import { StripeAdapter } from '@happyvertical/payments/stripe';
   Greenfield client for billing integrations — see
   [BTCPay Greenfield client](#btcpay-greenfield-client).
 - `StripeAdapter`: Stripe Checkout URL settlement, webhook verification,
-  refunds, Stripe Connect Standard direct charges, transfers, saved payment methods / card-on-file
+  refunds, Stripe Connect Standard direct charges, Connect onboarding and
+  account-routed Connect webhooks, transfers, saved payment methods / card-on-file
   (`createSetupSession` / `getSetupResult`), and the manual-capture card
   lifecycle (`authorizePayment` / `capturePayment` / `voidPayment`).
 
@@ -77,6 +78,107 @@ the matching platform allocation so it is never a second payable. The SDK only
 propagates provider flags and account scope; it does not calculate allocations
 or post accounting entries. `refundApplicationFee` and `reverseTransfer` are
 sent only when explicitly requested.
+
+### Stripe Connect onboarding and webhooks
+
+Connect onboarding uses **Standard** accounts: the account holder (for example
+a co-op tenant) owns its Stripe relationship and dashboard, and the platform
+only connects to it. Onboarding and capability reads are platform calls; they
+never send `Stripe-Account`, even on an account-scoped adapter.
+
+```ts
+const platform = new StripeAdapter({
+  secretKey: process.env.STRIPE_SECRET_KEY!,
+  webhookSecret: process.env.STRIPE_WEBHOOK_SECRET!, // platform endpoint
+  connectWebhookSecret: process.env.STRIPE_CONNECT_WEBHOOK_SECRET!, // Connect endpoint
+});
+
+// 1. Create the Standard account once and persist accountId with the tenant.
+const account = await platform.createStandardAccount({
+  country: 'CA',
+  email: treasurerEmail,
+  metadata: { tenant: tenantId },
+  idempotencyKey: `connect-account:${tenantId}`,
+});
+
+// 2. Send the account holder through Stripe-hosted onboarding. Links are
+//    single use and short lived; refreshUrl should mint a new one.
+const link = await platform.createOnboardingLink(
+  account.accountId,
+  'https://app.example/connect/return',
+  'https://app.example/connect/refresh',
+);
+
+// 3. On return (which does not mean onboarding finished), and on every
+//    account.updated webhook, read the capability state.
+const state = await platform.getAccountCapabilities(account.accountId);
+state.chargesEnabled; // charges_enabled
+state.detailsSubmitted; // details_submitted
+state.payoutsEnabled; // payouts_enabled
+state.capabilities; // { card_payments: 'active', ... }
+state.requirements; // { currentlyDue, eventuallyDue, pastDue, disabledReason }
+```
+
+Treat the onboarding `url` as a bearer secret: redirect to it, but do not log
+or store it.
+
+Stripe delivers connected-account events to a separate **Connect** webhook
+endpoint signed with its own secret. Route that endpoint through
+`resolveConnectWebhookEvent`, which verifies the signature before reading the
+payload, requires the event's `account`, and then calls your resolver to map
+the account to its owner. An account the resolver does not recognize (it
+returns `undefined` or `null`) is rejected with `PaymentNotOwnedError`; there
+is no fallback to the platform account. An account-scoped adapter
+(`stripeAccount` set) also rejects events for any other account.
+
+```ts
+// POST /webhooks/stripe/connect
+const { event, account, owner } = await platform.resolveConnectWebhookEvent(
+  rawBody,
+  request.headers.get('Stripe-Signature') ?? undefined,
+  { resolveAccount: (account) => tenants.findByStripeAccount(account) },
+);
+
+if (event.connect?.type === 'account.updated') {
+  await owner.saveStripeCapabilities(event.connect.account);
+} else if (event.quoteId && event.status === 'confirmed') {
+  // The connected account chose quoteId; settle only the owner's own quote.
+  const quote = await owner.findQuote(event.quoteId);
+  if (!quote) throw new Error('quote does not belong to this account');
+  await quote.markPaid(event);
+}
+```
+
+**Bind quotes to the account before settling.** A connected account controls
+the Checkout Sessions and PaymentIntents it creates, so the `quoteId` on a
+Connect event is whatever that account chose, including another tenant's quote
+id. Resolving `account` proves only who sent the event. Before marking a quote
+paid, check that `event.quoteId` belongs to the resolved `owner` (reject the
+event in `resolveAccount`, which receives it, or check it before settling), and
+compare amount and currency with the stored quote.
+
+`parseConnectWebhookEvent` performs the same verification without the
+resolver and returns a `StripeConnectWebhookEvent` whose `account` is always
+set. The platform endpoint (`parseWebhookEvent`) rejects any event carrying a
+connected `account`, so a misrouted Connect delivery fails closed instead of
+being processed as a platform payment.
+
+Typed Connect payloads arrive on `event.connect`:
+
+- `account.updated` (Connect endpoint): `{ type, account }` with the same
+  `StripeConnectAccountStatus` shape as `getAccountCapabilities`.
+- `application_fee.created` / `application_fee.refunded` (platform endpoint,
+  because the fee belongs to the platform): `{ type, applicationFee }` with
+  `id`, `account` (the connected account charged), `amount`, `amountRefunded`,
+  `currency`, `refunded`, and `charge`. Route them with
+  `resolveConnectWebhookEvent(rawBody, signature, { endpoint: 'platform',
+  resolveAccount })`, which uses the fee's account and rejects platform events
+  that have none.
+
+These events report `status: 'processing'`; they never mark a customer payment
+refunded or failed. Duplicate detection records an event only after it
+resolves, so a delivery rejected for an unmapped account is not reported as a
+duplicate when Stripe retries it.
 
 ### BTCPay Greenfield client
 
@@ -249,6 +351,11 @@ divisible by 100.
 Webhook parsing now requires configured secrets. Callers that previously parsed
 Stripe or BTCPay webhooks without `webhookSecret` must configure the provider
 secret or handle trusted test fixtures outside `parseWebhookEvent`.
+
+`StripeAdapter.parseWebhookEvent` now rejects events that carry a connected
+`account` with `PaymentVerificationError`. Stripe sends those only to Connect
+endpoints; verify them with `connectWebhookSecret` through
+`parseConnectWebhookEvent` or `resolveConnectWebhookEvent`.
 
 Webhook parsing is fail-closed. `StripeAdapter.parseWebhookEvent` and
 `BtcAdapter.parseWebhookEvent` require a configured `webhookSecret` and a valid

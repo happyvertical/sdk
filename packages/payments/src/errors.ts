@@ -56,3 +56,15 @@ export class PaymentVerificationError extends PaymentError {
     this.name = 'PaymentVerificationError';
   }
 }
+
+/**
+ * The payment, event, or provider account does not belong to any party the
+ * caller recognizes (for example a Stripe Connect webhook for an account the
+ * host has not mapped to a tenant).
+ */
+export class PaymentNotOwnedError extends PaymentError {
+  constructor(message: string, options: { cause?: unknown } = {}) {
+    super(message, 'PAYMENT_NOT_OWNED', options);
+    this.name = 'PaymentNotOwnedError';
+  }
+}
