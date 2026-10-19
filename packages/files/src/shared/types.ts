@@ -500,6 +500,72 @@ export interface GoogleDriveOptions extends BaseProviderOptions {
   pathCacheTTL?: number;
   /** Page size for list pagination (default 100) */
   pageSize?: number;
+  /**
+   * Drive folder IDs that may be discovered or acquired by ID. Defaults to
+   * `folderId` (or `root` when no folder is configured).
+   */
+  allowedFolderIds?: string[];
+  /**
+   * Shared drive ID. When supplied, Drive requests opt into shared-drive
+   * semantics and are restricted to this drive.
+   */
+  sharedDriveId?: string;
+}
+
+/** One metadata-only page from a Google Drive folder. */
+export interface DriveMetadataPageOptions {
+  /** Folder ID to enumerate. Defaults to the provider's configured root. */
+  folderId?: string;
+  /** Durable Drive cursor returned by a preceding page. */
+  pageToken?: string;
+  /** Number of entries requested from Drive. */
+  pageSize?: number;
+}
+
+/** Stable Drive metadata used for catalog discovery and acquisition. */
+export interface DriveFileMetadata {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: number;
+  createdTime?: Date;
+  modifiedTime?: Date;
+  /** Google Drive head revision; absent for resources that do not expose one. */
+  revisionId?: string;
+  /** Checksum supplied by Drive for binary files. Native Google files omit it. */
+  md5Checksum?: string;
+  trashed?: boolean;
+  parents: string[];
+  driveId?: string;
+  shortcutDetails?: {
+    targetId: string;
+    targetMimeType?: string;
+    targetResourceKey?: string;
+  };
+}
+
+export interface DriveMetadataPage {
+  entries: DriveFileMetadata[];
+  nextPageToken?: string;
+}
+
+/** Options for an explicit, bounded acquisition by stable Drive ID. */
+export interface DriveAcquisitionOptions {
+  /** Reject the read if the current Drive revision differs. */
+  expectedRevision?: string;
+  /** Maximum response bytes. The provider stops the stream at this boundary. */
+  maxBytes: number;
+  /** Required for native Google files; e.g. application/pdf for printable layout. */
+  exportMimeType?: string;
+}
+
+/** Bytes and the metadata that pinned their source version. */
+export interface DriveAcquisition {
+  bytes: Buffer;
+  metadata: DriveFileMetadata;
+  /** SHA-256 of returned bytes, including native exports without a Drive checksum. */
+  contentHash: string;
+  exportMimeType?: string;
 }
 
 /**
@@ -557,6 +623,45 @@ export class FileNotFoundError extends FilesystemError {
   constructor(path: string, provider?: string) {
     super(`File not found: ${path}`, 'ENOENT', path, provider);
     this.name = 'FileNotFoundError';
+  }
+}
+
+/** The requested Drive resource is not reachable from a configured source root. */
+export class DriveScopeError extends FilesystemError {
+  constructor(fileId: string) {
+    super(
+      `Google Drive file ${fileId} is outside the configured source roots`,
+      'EACCES',
+      fileId,
+      'gdrive',
+    );
+    this.name = 'DriveScopeError';
+  }
+}
+
+/** A Drive resource changed while it was being acquired. */
+export class DriveRevisionChangedError extends FilesystemError {
+  constructor(fileId: string) {
+    super(
+      `Google Drive file ${fileId} changed during acquisition`,
+      'EAGAIN',
+      fileId,
+      'gdrive',
+    );
+    this.name = 'DriveRevisionChangedError';
+  }
+}
+
+/** A Drive acquisition exceeded its caller-provided byte bound. */
+export class DriveAcquisitionLimitError extends FilesystemError {
+  constructor(fileId: string, maxBytes: number) {
+    super(
+      `Google Drive file ${fileId} exceeds the ${maxBytes}-byte acquisition limit`,
+      'EFBIG',
+      fileId,
+      'gdrive',
+    );
+    this.name = 'DriveAcquisitionLimitError';
   }
 }
 

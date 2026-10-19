@@ -1,5 +1,9 @@
+import { Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  DriveAcquisitionLimitError,
+  DriveRevisionChangedError,
+  DriveScopeError,
   FileNotFoundError,
   FilesystemError,
   PermissionError,
@@ -11,6 +15,7 @@ import {
 
 const mockFilesList = vi.fn();
 const mockFilesGet = vi.fn();
+const mockRootGet = vi.fn();
 const mockFilesCreate = vi.fn();
 const mockFilesUpdate = vi.fn();
 const mockFilesCopy = vi.fn();
@@ -28,7 +33,10 @@ vi.mock('googleapis', () => {
       drive: vi.fn().mockReturnValue({
         files: {
           list: (...args: any[]) => mockFilesList(...args),
-          get: (...args: any[]) => mockFilesGet(...args),
+          get: (...args: any[]) =>
+            ['root', 'drive-root'].includes(args[0].fileId) && !args[0].alt
+              ? mockRootGet(...args)
+              : mockFilesGet(...args),
           create: (...args: any[]) => mockFilesCreate(...args),
           update: (...args: any[]) => mockFilesUpdate(...args),
           copy: (...args: any[]) => mockFilesCopy(...args),
@@ -53,6 +61,25 @@ describe('GoogleDriveProvider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    for (const mock of [
+      mockFilesList,
+      mockFilesGet,
+      mockRootGet,
+      mockFilesCreate,
+      mockFilesUpdate,
+      mockFilesCopy,
+      mockFilesExport,
+    ])
+      mock.mockReset();
+    mockRootGet.mockResolvedValue({
+      data: {
+        id: 'drive-root',
+        name: 'My Drive',
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [],
+        trashed: false,
+      },
+    });
 
     provider = new GoogleDriveProvider({
       type: 'gdrive',
@@ -560,6 +587,459 @@ describe('GoogleDriveProvider', () => {
 
       // Should have been called twice because cache expired
       expect(mockFilesList).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Durable catalog discovery and stable-ID acquisition
+  // -------------------------------------------------------------------------
+
+  describe('catalog discovery', () => {
+    it('returns a metadata-only checkpoint page with stable IDs and revisions', async () => {
+      mockFilesList.mockResolvedValueOnce({
+        data: {
+          nextPageToken: 'page-2',
+          files: [
+            {
+              id: 'lesson-id',
+              name: 'Lesson.pdf',
+              mimeType: 'application/pdf',
+              size: '42',
+              headRevisionId: 'rev-1',
+              md5Checksum: 'abc',
+              parents: ['drive-root'],
+            },
+          ],
+        },
+      });
+
+      const page = await provider.listMetadataPage({ pageSize: 25 });
+
+      expect(page).toEqual({
+        entries: [
+          expect.objectContaining({
+            id: 'lesson-id',
+            revisionId: 'rev-1',
+            md5Checksum: 'abc',
+            parents: ['drive-root'],
+          }),
+        ],
+        nextPageToken: 'page-2',
+      });
+      expect(mockFilesGet).not.toHaveBeenCalled();
+      expect(mockFilesExport).not.toHaveBeenCalled();
+    });
+
+    it('uses Drive shared-drive flags for metadata pages', async () => {
+      const shared = new GoogleDriveProvider({
+        type: 'gdrive',
+        accessToken: 'token',
+        sharedDriveId: 'shared-drive',
+      });
+      mockFilesList.mockResolvedValueOnce({ data: { files: [] } });
+
+      await shared.listMetadataPage();
+
+      expect(mockFilesList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          driveId: 'shared-drive',
+          corpora: 'drive',
+          includeItemsFromAllDrives: true,
+          supportsAllDrives: true,
+        }),
+      );
+    });
+  });
+
+  describe('canonical Drive root boundaries', () => {
+    const folder = {
+      id: 'nested-folder',
+      name: 'Nested',
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: ['drive-root'],
+    };
+    const file = {
+      id: 'nested-file',
+      name: 'Page.pdf',
+      mimeType: 'application/pdf',
+      parents: ['nested-folder'],
+      size: '3',
+      headRevisionId: 'r1',
+    };
+    function nestedResponses() {
+      mockFilesGet.mockImplementation(async ({ fileId, alt }) => ({
+        data:
+          alt === 'media'
+            ? Readable.from([Buffer.from('pdf')])
+            : fileId === folder.id
+              ? folder
+              : file,
+      }));
+      mockFilesList.mockResolvedValue({ data: { files: [file] } });
+    }
+    it.each([
+      ['default', {}],
+      ['folder alias', { folderId: 'root' }],
+      ['allowlist alias', { allowedFolderIds: ['root'] }],
+    ] as const)('authorizes nested concrete-root discovery and acquisition with %s', async (_label, options) => {
+      const drive = new GoogleDriveProvider({
+        type: 'gdrive',
+        accessToken: 'token',
+        ...options,
+        ...('allowedFolderIds' in options
+          ? { allowedFolderIds: [...options.allowedFolderIds] }
+          : {}),
+      });
+      nestedResponses();
+      expect(
+        (await drive.listMetadataPage({ folderId: folder.id })).entries[0].id,
+      ).toBe(file.id);
+      expect(
+        (
+          await drive.acquireById(file.id, {
+            maxBytes: 10,
+            expectedRevision: 'r1',
+          })
+        ).bytes.toString(),
+      ).toBe('pdf');
+      expect(
+        mockRootGet.mock.calls.filter(([input]) => input.fileId === 'root'),
+      ).toHaveLength(1);
+      expect(mockFilesList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: "'nested-folder' in parents and trashed = false",
+        }),
+      );
+    });
+    it('uses explicit shared-drive roots without requiring My Drive access', async () => {
+      const shared = new GoogleDriveProvider({
+        type: 'gdrive',
+        accessToken: 'token',
+        sharedDriveId: 'shared-drive',
+        allowedFolderIds: ['nested-folder'],
+      });
+      mockRootGet.mockRejectedValue({
+        code: 403,
+        message: 'My Drive unavailable',
+      });
+      nestedResponses();
+      expect((await shared.getMetadataById(file.id)).id).toBe(file.id);
+      expect(
+        (await shared.listMetadataPage({ folderId: folder.id })).entries[0].id,
+      ).toBe(file.id);
+      expect(
+        (
+          await shared.acquireById(file.id, {
+            maxBytes: 10,
+            expectedRevision: 'r1',
+          })
+        ).bytes.toString(),
+      ).toBe('pdf');
+      await expect(shared.listMetadataPage()).rejects.toBeInstanceOf(
+        DriveScopeError,
+      );
+      expect(mockRootGet).not.toHaveBeenCalled();
+    });
+
+    it('shares pending resolution and retries after a transient failure', async () => {
+      let rejectRoot!: (reason: Error) => void;
+      mockRootGet.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectRoot = reject;
+          }),
+      );
+      nestedResponses();
+      const first = provider.getMetadataById(file.id);
+      const second = provider.listMetadataPage({ folderId: folder.id });
+      const outcomes = Promise.allSettled([first, second]);
+      await vi.waitFor(() => expect(mockRootGet).toHaveBeenCalledTimes(1));
+      expect(mockFilesGet).not.toHaveBeenCalled();
+      expect(mockFilesList).not.toHaveBeenCalled();
+      rejectRoot(new Error('temporary lookup failure'));
+      expect((await outcomes).map((result) => result.status)).toEqual([
+        'rejected',
+        'rejected',
+      ]);
+      expect((await provider.getMetadataById(file.id)).id).toBe(file.id);
+      expect(
+        mockRootGet.mock.calls.filter(([input]) => input.fileId === 'root'),
+      ).toHaveLength(2);
+    });
+    it('does not let a concurrent caller authorize before canonical lookup completes', async () => {
+      let resolveRoot!: (value: unknown) => void;
+      mockRootGet.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRoot = resolve;
+          }),
+      );
+      nestedResponses();
+      const first = provider.getMetadataById(file.id);
+      const second = provider.getMetadataById(file.id);
+      await vi.waitFor(() => expect(mockRootGet).toHaveBeenCalledTimes(1));
+      expect(mockFilesGet).not.toHaveBeenCalled();
+      resolveRoot({
+        data: {
+          id: 'drive-root',
+          mimeType: 'application/vnd.google-apps.folder',
+          parents: [],
+        },
+      });
+      expect(
+        (await Promise.all([first, second])).map((metadata) => metadata.id),
+      ).toEqual([file.id, file.id]);
+    });
+    it('rejects trashed ancestors, including an allowed root trashed after resolution', async () => {
+      nestedResponses();
+      await provider.getMetadataById(file.id);
+      mockFilesGet
+        .mockResolvedValueOnce({ data: file })
+        .mockResolvedValueOnce({ data: { ...folder, trashed: true } });
+      await expect(
+        provider.acquireById(file.id, { maxBytes: 10 }),
+      ).rejects.toThrow(FileNotFoundError);
+      mockRootGet.mockResolvedValue({
+        data: {
+          id: 'drive-root',
+          mimeType: 'application/vnd.google-apps.folder',
+          trashed: true,
+        },
+      });
+      await expect(
+        provider.listMetadataPage({ folderId: folder.id }),
+      ).rejects.toThrow(FileNotFoundError);
+      await expect(
+        provider.listMetadataPage({ folderId: 'drive-root' }),
+      ).rejects.toThrow(FileNotFoundError);
+    });
+  });
+
+  describe('stable-ID acquisition', () => {
+    const fileMetadata = {
+      id: 'file-id',
+      name: 'worksheet.pdf',
+      mimeType: 'application/pdf',
+      size: '3',
+      headRevisionId: 'rev-1',
+      parents: ['drive-root'],
+    };
+
+    it('streams bounded bytes and rechecks the revision after acquisition', async () => {
+      mockFilesGet
+        .mockResolvedValueOnce({ data: fileMetadata })
+        .mockResolvedValueOnce({ data: Readable.from([Buffer.from('pdf')]) })
+        .mockResolvedValueOnce({ data: fileMetadata });
+
+      const acquired = await provider.acquireById('file-id', {
+        expectedRevision: 'rev-1',
+        maxBytes: 10,
+      });
+
+      expect(acquired.bytes.toString()).toBe('pdf');
+      expect(acquired.contentHash).toHaveLength(64);
+      expect(mockFilesGet).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ fileId: 'file-id', alt: 'media' }),
+        { responseType: 'stream' },
+      );
+    });
+
+    it('rejects resources outside configured roots and shortcut targets separately', async () => {
+      mockFilesGet
+        .mockResolvedValueOnce({
+          data: {
+            id: 'shortcut-id',
+            name: 'outside shortcut',
+            mimeType: 'application/vnd.google-apps.shortcut',
+            parents: ['drive-root'],
+            shortcutDetails: { targetId: 'outside-id' },
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: 'outside-id',
+            name: 'outside',
+            mimeType: 'application/pdf',
+            parents: ['outside-parent'],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: 'outside-parent',
+            name: 'outside folder',
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [],
+          },
+        });
+
+      await expect(
+        provider.acquireById('shortcut-id', { maxBytes: 10 }),
+      ).rejects.toBeInstanceOf(DriveScopeError);
+      expect(mockFilesExport).not.toHaveBeenCalled();
+    });
+
+    it('requires an explicit native export and returns its independently hashed bytes', async () => {
+      const native = {
+        id: 'sheet-id',
+        name: 'Worksheet',
+        mimeType: 'application/vnd.google-apps.spreadsheet',
+        headRevisionId: 'rev-1',
+        parents: ['drive-root'],
+      };
+      mockFilesGet.mockResolvedValueOnce({ data: native });
+      await expect(
+        provider.acquireById('sheet-id', { maxBytes: 10 }),
+      ).rejects.toThrow(/explicit exportMimeType/);
+
+      mockFilesGet
+        .mockResolvedValueOnce({ data: native })
+        .mockResolvedValueOnce({ data: native });
+      mockFilesExport.mockResolvedValueOnce({
+        data: Readable.from([Buffer.from('%PDF')]),
+      });
+      const acquired = await provider.acquireById('sheet-id', {
+        maxBytes: 10,
+        exportMimeType: 'application/pdf',
+      });
+
+      expect(acquired.exportMimeType).toBe('application/pdf');
+      expect(mockFilesExport).toHaveBeenCalledWith(
+        expect.objectContaining({ mimeType: 'application/pdf' }),
+        { responseType: 'stream' },
+      );
+    });
+
+    it('stops an oversized transport stream before returning bytes', async () => {
+      mockFilesGet
+        .mockResolvedValueOnce({ data: fileMetadata })
+        .mockResolvedValueOnce({
+          data: Readable.from([Buffer.from('1234'), Buffer.from('5678')]),
+        });
+
+      await expect(
+        provider.acquireById('file-id', { maxBytes: 5 }),
+      ).rejects.toBeInstanceOf(DriveAcquisitionLimitError);
+    });
+
+    it('rejects a changed revision after streaming bytes', async () => {
+      mockFilesGet
+        .mockResolvedValueOnce({ data: fileMetadata })
+        .mockResolvedValueOnce({ data: Readable.from([Buffer.from('pdf')]) })
+        .mockResolvedValueOnce({
+          data: { ...fileMetadata, headRevisionId: 'rev-2' },
+        });
+
+      await expect(
+        provider.acquireById('file-id', { maxBytes: 10 }),
+      ).rejects.toBeInstanceOf(DriveRevisionChangedError);
+    });
+
+    it('uses native Drive version and rejects native files without one', async () => {
+      const native = {
+        id: 'doc',
+        name: 'Doc',
+        mimeType: 'application/vnd.google-apps.document',
+        version: '1',
+        parents: ['drive-root'],
+      };
+      mockFilesGet.mockResolvedValueOnce({ data: native });
+      mockFilesExport.mockResolvedValueOnce({
+        data: Readable.from([Buffer.from('pdf')]),
+      });
+      mockFilesGet.mockResolvedValueOnce({ data: { ...native, version: '2' } });
+      await expect(
+        provider.acquireById('doc', {
+          maxBytes: 10,
+          exportMimeType: 'application/pdf',
+        }),
+      ).rejects.toBeInstanceOf(DriveRevisionChangedError);
+      mockFilesGet.mockResolvedValueOnce({
+        data: { ...native, version: undefined },
+      });
+      await expect(
+        provider.acquireById('doc', {
+          maxBytes: 10,
+          exportMimeType: 'application/pdf',
+        }),
+      ).rejects.toBeInstanceOf(DriveRevisionChangedError);
+    });
+
+    it('rejects a target trashed while its bytes stream', async () => {
+      mockFilesGet
+        .mockResolvedValueOnce({ data: fileMetadata })
+        .mockResolvedValueOnce({ data: Readable.from([Buffer.from('pdf')]) })
+        .mockResolvedValueOnce({ data: { ...fileMetadata, trashed: true } });
+      await expect(
+        provider.acquireById('file-id', { maxBytes: 10 }),
+      ).rejects.toThrow(FileNotFoundError);
+      expect(mockFilesGet).toHaveBeenCalledWith(
+        expect.objectContaining({ alt: 'media' }),
+        { responseType: 'stream' },
+      );
+    });
+    it('rejects a trashed shortcut target without downloading it', async () => {
+      mockFilesGet
+        .mockResolvedValueOnce({
+          data: {
+            id: 'shortcut',
+            mimeType: 'application/vnd.google-apps.shortcut',
+            parents: ['drive-root'],
+            shortcutDetails: { targetId: fileMetadata.id },
+          },
+        })
+        .mockResolvedValueOnce({ data: { ...fileMetadata, trashed: true } });
+      await expect(
+        provider.acquireById('shortcut', { maxBytes: 10 }),
+      ).rejects.toThrow(FileNotFoundError);
+      expect(
+        mockFilesGet.mock.calls.some(([input]) => input.alt === 'media'),
+      ).toBe(false);
+      expect(mockFilesExport).not.toHaveBeenCalled();
+    });
+    it('pins a stable native version and rejects a version missing after export', async () => {
+      const native = {
+        id: 'doc',
+        mimeType: 'application/vnd.google-apps.document',
+        parents: ['drive-root'],
+        version: 'v1',
+      };
+      mockFilesGet
+        .mockResolvedValueOnce({ data: native })
+        .mockResolvedValueOnce({ data: native });
+      mockFilesExport.mockResolvedValueOnce({
+        data: Readable.from([Buffer.from('pdf')]),
+      });
+      expect(
+        (
+          await provider.acquireById('doc', {
+            maxBytes: 10,
+            exportMimeType: 'application/pdf',
+            expectedRevision: 'v1',
+          })
+        ).metadata.revisionId,
+      ).toBe('v1');
+      mockFilesGet
+        .mockResolvedValueOnce({ data: native })
+        .mockResolvedValueOnce({ data: { ...native, version: undefined } });
+      mockFilesExport.mockResolvedValueOnce({
+        data: Readable.from([Buffer.from('pdf')]),
+      });
+      await expect(
+        provider.acquireById('doc', {
+          maxBytes: 10,
+          exportMimeType: 'application/pdf',
+        }),
+      ).rejects.toBeInstanceOf(DriveRevisionChangedError);
+    });
+
+    it('rejects a trashed target before acquisition', async () => {
+      mockFilesGet.mockResolvedValueOnce({
+        data: { ...fileMetadata, trashed: true },
+      });
+      await expect(
+        provider.acquireById('file-id', { maxBytes: 10 }),
+      ).rejects.toThrow(FileNotFoundError);
     });
   });
 
