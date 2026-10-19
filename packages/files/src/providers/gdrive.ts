@@ -1,9 +1,18 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
 import { BaseFilesystemProvider } from '../shared/base';
 import {
   type CreateDirOptions,
   type DownloadOptions,
+  type DriveAcquisition,
+  DriveAcquisitionLimitError,
+  type DriveAcquisitionOptions,
+  type DriveFileMetadata,
+  type DriveMetadataPage,
+  type DriveMetadataPageOptions,
+  DriveRevisionChangedError,
+  DriveScopeError,
   type FileInfo,
   FileNotFoundError,
   type FileStats,
@@ -58,6 +67,10 @@ const GOOGLE_EXPORT_MIMES: Record<string, string> = {
   'application/vnd.google-apps.drawing': 'image/png',
 };
 
+const GOOGLE_NATIVE_MIME_PREFIX = 'application/vnd.google-apps.';
+const DRIVE_METADATA_FIELDS =
+  'id,name,mimeType,size,createdTime,modifiedTime,headRevisionId,md5Checksum,parents,driveId,shortcutDetails(targetId,targetMimeType,targetResourceKey)';
+
 /** Lightweight type for Drive API responses */
 interface DriveResponse<T = any> {
   data: T;
@@ -99,12 +112,56 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
   private pathCache = new Map<string, CacheEntry>();
   private pathCacheTTL: number;
   private pageSize: number;
+  private allowedFolderIds: Set<string>;
 
   constructor(private options: GoogleDriveOptions) {
     super(options);
     this.rootFolderId = options.folderId || 'root';
     this.pathCacheTTL = options.pathCacheTTL ?? 300_000;
     this.pageSize = options.pageSize ?? 100;
+    this.allowedFolderIds = new Set(
+      options.allowedFolderIds?.length
+        ? options.allowedFolderIds
+        : [this.rootFolderId],
+    );
+  }
+
+  /** Shared-drive flags accepted by files.list. */
+  private get driveListOptions(): Record<string, unknown> {
+    if (!this.options.sharedDriveId) return {};
+    return {
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: 'drive',
+      driveId: this.options.sharedDriveId,
+    };
+  }
+
+  /** Shared-drive flag accepted by files.get and files.export. */
+  private get driveFileOptions(): Record<string, unknown> {
+    return this.options.sharedDriveId ? { supportsAllDrives: true } : {};
+  }
+
+  private toMetadata(file: any): DriveFileMetadata {
+    return {
+      id: file.id,
+      name: file.name,
+      mimeType: file.mimeType,
+      size: file.size === undefined ? undefined : Number(file.size),
+      createdTime: file.createdTime ? new Date(file.createdTime) : undefined,
+      modifiedTime: file.modifiedTime ? new Date(file.modifiedTime) : undefined,
+      revisionId: file.headRevisionId,
+      md5Checksum: file.md5Checksum,
+      parents: file.parents ?? [],
+      driveId: file.driveId,
+      shortcutDetails: file.shortcutDetails
+        ? {
+            targetId: file.shortcutDetails.targetId,
+            targetMimeType: file.shortcutDetails.targetMimeType,
+            targetResourceKey: file.shortcutDetails.targetResourceKey,
+          }
+        : undefined,
+    };
   }
 
   /**
@@ -187,6 +244,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
             q,
             fields: 'files(id, name)',
             pageSize: 1,
+            ...this.driveListOptions,
           }),
         path,
       );
@@ -310,6 +368,213 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     }
   }
 
+  /**
+   * Returns one metadata-only page. Callers persist `nextPageToken` as their
+   * checkpoint and schedule recursive folder traversal themselves.
+   */
+  async listMetadataPage(
+    options: DriveMetadataPageOptions = {},
+  ): Promise<DriveMetadataPage> {
+    const folderId = options.folderId ?? this.rootFolderId;
+    await this.assertAllowedId(folderId);
+    const drive = await this.getDrive();
+    const res = await this.wrapApiCall(
+      () =>
+        drive.files.list({
+          q: `'${folderId}' in parents and trashed = false`,
+          fields: `nextPageToken,files(${DRIVE_METADATA_FIELDS})`,
+          pageSize: options.pageSize ?? this.pageSize,
+          pageToken: options.pageToken,
+          ...this.driveListOptions,
+        }),
+      folderId,
+    );
+    return {
+      entries: (res.data.files ?? []).map((file: any) => this.toMetadata(file)),
+      nextPageToken: res.data.nextPageToken ?? undefined,
+    };
+  }
+
+  /** Gets stable metadata by ID after validating its configured source scope. */
+  async getMetadataById(fileId: string): Promise<DriveFileMetadata> {
+    const metadata = await this.getMetadataUnchecked(fileId);
+    await this.assertAllowedMetadata(metadata);
+    return metadata;
+  }
+
+  /**
+   * Acquires a stable ID with an explicit byte bound. Native Google files must
+   * name an export MIME type so callers choose fidelity deliberately.
+   */
+  async acquireById(
+    fileId: string,
+    options: DriveAcquisitionOptions,
+  ): Promise<DriveAcquisition> {
+    if (!Number.isSafeInteger(options.maxBytes) || options.maxBytes < 0) {
+      throw new FilesystemError(
+        'Google Drive acquisition maxBytes must be a non-negative safe integer',
+        'EINVAL',
+        fileId,
+        'gdrive',
+      );
+    }
+
+    const requested = await this.getMetadataById(fileId);
+    const target = await this.resolveAcquisitionTarget(requested);
+    if (
+      options.expectedRevision !== undefined &&
+      target.revisionId !== options.expectedRevision
+    ) {
+      throw new DriveRevisionChangedError(fileId);
+    }
+    if (target.size !== undefined && target.size > options.maxBytes) {
+      throw new DriveAcquisitionLimitError(target.id, options.maxBytes);
+    }
+
+    const isNative = target.mimeType.startsWith(GOOGLE_NATIVE_MIME_PREFIX);
+    if (isNative && !options.exportMimeType) {
+      throw new FilesystemError(
+        'Google Drive native files require an explicit exportMimeType for acquisition',
+        'EINVAL',
+        target.id,
+        'gdrive',
+      );
+    }
+
+    const drive = await this.getDrive();
+    const response = isNative
+      ? await this.wrapApiCall(
+          () =>
+            drive.files.export(
+              {
+                fileId: target.id,
+                mimeType: options.exportMimeType,
+                ...this.driveFileOptions,
+              },
+              { responseType: 'stream' },
+            ),
+          target.id,
+        )
+      : await this.wrapApiCall(
+          () =>
+            drive.files.get(
+              { fileId: target.id, alt: 'media', ...this.driveFileOptions },
+              { responseType: 'stream' },
+            ),
+          target.id,
+        );
+    const bytes = await this.readBoundedResponse(
+      response.data,
+      target.id,
+      options.maxBytes,
+    );
+
+    // Re-read metadata after bytes are streamed: a changed head revision makes
+    // an otherwise successful response unsuitable as a pinned source snapshot.
+    const after = await this.getMetadataById(target.id);
+    if (after.revisionId !== target.revisionId) {
+      throw new DriveRevisionChangedError(target.id);
+    }
+
+    return {
+      bytes,
+      metadata: after,
+      contentHash: createHash('sha256').update(bytes).digest('hex'),
+      exportMimeType: isNative ? options.exportMimeType : undefined,
+    };
+  }
+
+  private async getMetadataUnchecked(
+    fileId: string,
+  ): Promise<DriveFileMetadata> {
+    const drive = await this.getDrive();
+    const res = await this.wrapApiCall(
+      () =>
+        drive.files.get({
+          fileId,
+          fields: DRIVE_METADATA_FIELDS,
+          ...this.driveFileOptions,
+        }),
+      fileId,
+    );
+    return this.toMetadata(res.data);
+  }
+
+  private async assertAllowedId(fileId: string): Promise<void> {
+    if (this.allowedFolderIds.has(fileId)) return;
+    await this.assertAllowedMetadata(await this.getMetadataUnchecked(fileId));
+  }
+
+  private async assertAllowedMetadata(
+    metadata: DriveFileMetadata,
+  ): Promise<void> {
+    if (this.allowedFolderIds.has(metadata.id)) return;
+    const visited = new Set<string>();
+    const pending = [...metadata.parents];
+    while (pending.length > 0) {
+      const parentId = pending.pop();
+      if (!parentId) continue;
+      if (this.allowedFolderIds.has(parentId)) return;
+      if (visited.has(parentId)) continue;
+      visited.add(parentId);
+      const parent = await this.getMetadataUnchecked(parentId);
+      pending.push(...parent.parents);
+    }
+    throw new DriveScopeError(metadata.id);
+  }
+
+  private async resolveAcquisitionTarget(
+    metadata: DriveFileMetadata,
+  ): Promise<DriveFileMetadata> {
+    const visited = new Set<string>();
+    let target = metadata;
+    while (target.shortcutDetails) {
+      if (visited.has(target.id)) throw new DriveScopeError(target.id);
+      visited.add(target.id);
+      target = await this.getMetadataById(target.shortcutDetails.targetId);
+    }
+    return target;
+  }
+
+  private async readBoundedResponse(
+    body: unknown,
+    fileId: string,
+    maxBytes: number,
+  ): Promise<Buffer> {
+    if (Buffer.isBuffer(body) || body instanceof Uint8Array) {
+      if (body.byteLength > maxBytes) {
+        throw new DriveAcquisitionLimitError(fileId, maxBytes);
+      }
+      return Buffer.from(body);
+    }
+    if (
+      !body ||
+      typeof (body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] !==
+        'function'
+    ) {
+      throw new FilesystemError(
+        'Google Drive acquisition did not return a readable stream',
+        'EIO',
+        fileId,
+        'gdrive',
+      );
+    }
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of body as AsyncIterable<Uint8Array>) {
+      const bytes = Buffer.from(chunk);
+      total += bytes.byteLength;
+      if (total > maxBytes) {
+        if (typeof (body as { destroy?: () => void }).destroy === 'function') {
+          (body as { destroy: () => void }).destroy();
+        }
+        throw new DriveAcquisitionLimitError(fileId, maxBytes);
+      }
+      chunks.push(bytes);
+    }
+    return Buffer.concat(chunks, total);
+  }
+
   // ---------------------------------------------------------------------------
   // FilesystemInterface implementation
   // ---------------------------------------------------------------------------
@@ -334,7 +599,12 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
 
     // Get file metadata to check if it's a Google Docs type
     const meta = await this.wrapApiCall(
-      () => drive.files.get({ fileId, fields: 'mimeType' }),
+      () =>
+        drive.files.get({
+          fileId,
+          fields: 'mimeType',
+          ...this.driveFileOptions,
+        }),
       path,
     );
 
@@ -347,7 +617,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
       const res = await this.wrapApiCall(
         () =>
           drive.files.export(
-            { fileId, mimeType: exportMime },
+            { fileId, mimeType: exportMime, ...this.driveFileOptions },
             { responseType: 'arraybuffer' },
           ),
         path,
@@ -358,7 +628,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
       const res = await this.wrapApiCall(
         () =>
           drive.files.get(
-            { fileId, alt: 'media' },
+            { fileId, alt: 'media', ...this.driveFileOptions },
             { responseType: 'arraybuffer' },
           ),
         path,
@@ -594,6 +864,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
               'nextPageToken, files(id, name, mimeType, size, modifiedTime)',
             pageSize: this.pageSize,
             pageToken,
+            ...this.driveListOptions,
           }),
         path,
       );
@@ -659,6 +930,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
         drive.files.get({
           fileId,
           fields: 'id, name, mimeType, size, createdTime, modifiedTime',
+          ...this.driveFileOptions,
         }),
       path,
     );
