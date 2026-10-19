@@ -34,12 +34,49 @@ import { StripeAdapter } from '@happyvertical/payments/stripe';
   Greenfield client for billing integrations — see
   [BTCPay Greenfield client](#btcpay-greenfield-client).
 - `StripeAdapter`: Stripe Checkout URL settlement, webhook verification,
-  refunds, Stripe Connect transfers, saved payment methods / card-on-file
+  refunds, Stripe Connect Standard direct charges, transfers, saved payment methods / card-on-file
   (`createSetupSession` / `getSetupResult`), and the manual-capture card
   lifecycle (`authorizePayment` / `capturePayment` / `voidPayment`).
 
 The package does not depend on SMRT or a database. Consumers own quote
 persistence, webhook routing, and operational policy.
+
+### Stripe Connect Standard direct charges
+
+Pass `stripeAccount` to a `StripeAdapter` for a fixed connected-account scope,
+or to an individual Checkout, PaymentIntent, refund, status, or setup
+call. The adapter sends it as Stripe's `Stripe-Account` header. With no account
+configured or supplied, requests retain platform-account behavior.
+
+```ts
+const workerCoopPayments = new StripeAdapter({
+  secretKey: process.env.STRIPE_SECRET_KEY!,
+  stripeAccount: 'acct_worker_coop',
+  successUrl,
+  cancelUrl,
+});
+
+await workerCoopPayments.createPaymentOption({
+  quoteId: 'project-revenue-42',
+  amount: 10_000,
+  currency: 'USD',
+  expiresAt,
+  applicationFeeAmount: 500,
+});
+
+await workerCoopPayments.refundPayment({
+  paymentId: 'pi_123',
+  amount: 10_000,
+  refundApplicationFee: true,
+});
+```
+
+Amounts, including `applicationFeeAmount`, are integer minor units. The fee is
+collected by Stripe from the direct charge; downstream accounting must offset
+the matching platform allocation so it is never a second payable. The SDK only
+propagates provider flags and account scope; it does not calculate allocations
+or post accounting entries. `refundApplicationFee` and `reverseTransfer` are
+sent only when explicitly requested.
 
 ### BTCPay Greenfield client
 
