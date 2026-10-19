@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.105.5
+
+### Patch Changes
+
+- ### Features
+
+  - add Stripe Connect webhooks, Standard onboarding and capabilities (#1427) (payments)
+
 ## 0.105.4
 
 ### Patch Changes
