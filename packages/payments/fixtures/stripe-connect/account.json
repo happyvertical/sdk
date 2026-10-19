@@ -1,0 +1,35 @@
+{
+  "id": "acct_1TestCoop0001",
+  "object": "account",
+  "business_type": "company",
+  "capabilities": {
+    "card_payments": "active",
+    "transfers": "active",
+    "us_bank_account_ach_payments": "pending"
+  },
+  "charges_enabled": true,
+  "controller": {
+    "is_controller": true,
+    "type": "application"
+  },
+  "country": "US",
+  "created": 1792000000,
+  "default_currency": "usd",
+  "details_submitted": true,
+  "email": "treasurer@coop.example",
+  "metadata": {
+    "tenant": "tenant-test-1"
+  },
+  "payouts_enabled": false,
+  "requirements": {
+    "alternatives": [],
+    "current_deadline": null,
+    "currently_due": ["external_account"],
+    "disabled_reason": null,
+    "errors": [],
+    "eventually_due": ["external_account", "company.tax_id"],
+    "past_due": [],
+    "pending_verification": []
+  },
+  "type": "standard"
+}
