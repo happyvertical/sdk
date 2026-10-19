@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.105.3
+
+### Patch Changes
+
+- ### Features
+
+  - support Drive catalog discovery and bounded acquisition (#1423) (files)
+
 ## 0.105.2
 
 ### Patch Changes
