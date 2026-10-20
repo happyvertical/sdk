@@ -1,5 +1,11 @@
 # @happyvertical/speech
 
+## 0.105.11
+
+### Patch Changes
+
+- 42b737b: Suppress only correlated already-finished cancellation errors once.
+
 ## 0.105.10
 
 ### Patch Changes
