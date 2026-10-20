@@ -1,5 +1,11 @@
 # @happyvertical/speech
 
+## 0.105.7
+
+### Patch Changes
+
+- 6248da0: Allow appending bounded assistant context without requesting a voice reply. The concrete OpenAI WebRTC factory exposes this capability through an extended return type while preserving existing VoiceSession implementations.
+
 ## 0.105.6
 
 ### Patch Changes
