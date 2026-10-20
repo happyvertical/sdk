@@ -5,6 +5,7 @@ import {
 import type {
   OpenAIWebRTCVoiceOptions,
   VoiceSession,
+  VoiceSessionEventMetadata,
   VoiceSessionEvents,
   VoiceSessionState,
   VoiceTranscript,
@@ -33,7 +34,7 @@ export function createOpenAIWebRTCVoiceSession(
   const abort = new AbortController();
   const listeners = new Map<
     keyof VoiceSessionEvents,
-    Set<(value: never) => void>
+    Set<(value: never, metadata?: VoiceSessionEventMetadata) => void>
   >();
   const turns = new Map<string, VoiceTranscript>();
   const disposers: (() => void)[] = [];
@@ -41,8 +42,12 @@ export function createOpenAIWebRTCVoiceSession(
   function emit<E extends keyof VoiceSessionEvents>(
     event: E,
     value: VoiceSessionEvents[E],
+    metadata?: VoiceSessionEventMetadata,
   ): void {
-    for (const listener of listeners.get(event) ?? []) listener(value as never);
+    for (const listener of listeners.get(event) ?? []) {
+      if (metadata) listener(value as never, metadata);
+      else listener(value as never);
+    }
   }
   function change(next: VoiceSessionState): void {
     state = next;
@@ -189,10 +194,20 @@ export function createOpenAIWebRTCVoiceSession(
         transcript(event.item_id, 'assistant', event.text, true);
         break;
       case 'input_audio_buffer.speech_started':
-        emit('inputSpeech', true);
+        emit('inputSpeech', true, {
+          itemId:
+            typeof event.item_id === 'string' && event.item_id
+              ? event.item_id
+              : undefined,
+        });
         break;
       case 'input_audio_buffer.speech_stopped':
-        emit('inputSpeech', false);
+        emit('inputSpeech', false, {
+          itemId:
+            typeof event.item_id === 'string' && event.item_id
+              ? event.item_id
+              : undefined,
+        });
         break;
       case 'output_audio_buffer.started':
         playback(!outputMuted);
@@ -499,10 +514,20 @@ export function createOpenAIWebRTCVoiceSession(
     },
     on(event, listener) {
       const set = listeners.get(event) ?? new Set();
-      set.add(listener as (value: never) => void);
+      set.add(
+        listener as (
+          value: never,
+          metadata?: VoiceSessionEventMetadata,
+        ) => void,
+      );
       listeners.set(event, set);
       return () => {
-        set.delete(listener as (value: never) => void);
+        set.delete(
+          listener as (
+            value: never,
+            metadata?: VoiceSessionEventMetadata,
+          ) => void,
+        );
       };
     },
   };

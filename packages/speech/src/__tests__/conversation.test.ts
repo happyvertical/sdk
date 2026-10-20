@@ -425,6 +425,60 @@ describe('OpenAI conversational WebRTC session', () => {
     f.session.close();
     expect(() => f.session.interrupt()).not.toThrow();
   });
+  it('preserves speech item identity before tools and late transcripts without changing boolean listeners', async () => {
+    const f = fixture();
+    const speech: unknown[] = [];
+    const legacy: boolean[] = [];
+    const turns: unknown[] = [];
+    f.session.on('inputSpeech', (active, metadata) =>
+      speech.push({ active, metadata }),
+    );
+    f.session.on('inputSpeech', (active) => legacy.push(active));
+    f.session.on('transcript', (turn) => turns.push(turn));
+    await f.session.connect();
+    f.event({ type: 'input_audio_buffer.speech_started', item_id: 'older' });
+    f.event({ type: 'input_audio_buffer.speech_stopped', item_id: 'older' });
+    f.event({ type: 'input_audio_buffer.speech_started', item_id: 'current' });
+    f.event({
+      type: 'response.function_call_arguments.done',
+      call_id: 'c',
+      name: 'navigate',
+      arguments: '{}',
+    });
+    expect(speech.at(-1)).toEqual({
+      active: true,
+      metadata: { itemId: 'current' },
+    });
+    expect(turns).toEqual([]);
+    f.event({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'older',
+      transcript: 'Earlier request',
+    });
+    f.event({ type: 'input_audio_buffer.speech_stopped', item_id: 'current' });
+    f.event({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'current',
+      transcript: 'Yes',
+    });
+    expect(turns).toEqual([
+      { itemId: 'older', role: 'user', text: 'Earlier request', final: true },
+      { itemId: 'current', role: 'user', text: 'Yes', final: true },
+    ]);
+    expect(speech.at(-1)).toEqual({
+      active: false,
+      metadata: { itemId: 'current' },
+    });
+    expect(legacy).toEqual([true, false, true, false]);
+    for (const itemId of [undefined, null, 42, {}, '']) {
+      f.event({ type: 'input_audio_buffer.speech_started', item_id: itemId });
+      expect(speech.at(-1)).toEqual({
+        active: true,
+        metadata: { itemId: undefined },
+      });
+    }
+    f.session.close();
+  });
   it('distinguishes actual playback, input speech and response generation; forwards usage and tools', async () => {
     const f = fixture();
     const speaking: boolean[] = [];
