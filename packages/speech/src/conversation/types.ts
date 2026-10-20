@@ -42,7 +42,17 @@ export interface VoiceSessionEvents {
   /** Actual remote playback, rather than model response generation. */
   speaking: boolean;
   inputSpeech: boolean;
-  response: { active: boolean; responseId?: string };
+  response: {
+    active: boolean;
+    responseId?: string;
+    /** Safe terminal fields from response.done; unknown provider values are omitted. */
+    status?: 'completed' | 'incomplete' | 'cancelled' | 'failed';
+    statusReason?:
+      | 'max_output_tokens'
+      | 'content_filter'
+      | 'turn_detected'
+      | 'client_cancelled';
+  };
   usage: Record<string, unknown>;
   toolCall: { callId: string; name: string; arguments: string };
   /** Recoverable protocol/playback errors also use this event. */

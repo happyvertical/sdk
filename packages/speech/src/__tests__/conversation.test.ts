@@ -717,6 +717,68 @@ describe('OpenAI conversational WebRTC session', () => {
     expect(f.track.stop).toHaveBeenCalledOnce();
     f.session.close();
   });
+  it('exposes only safe completion status and reason from response.done', async () => {
+    const f = fixture();
+    const responses: unknown[] = [];
+    f.session.on('response', (value) => responses.push(value));
+    await f.session.connect();
+    for (const [status, reason] of [
+      ['completed', undefined],
+      ['incomplete', 'max_output_tokens'],
+      ['incomplete', 'content_filter'],
+      ['cancelled', 'turn_detected'],
+      ['cancelled', 'client_cancelled'],
+      ['failed', undefined],
+    ]) {
+      f.event({
+        type: 'response.created',
+        response: { id: 'r', status, status_details: { reason } },
+      });
+      expect(responses.at(-1)).toEqual({ active: true, responseId: 'r' });
+      f.event({
+        type: 'response.done',
+        response: {
+          id: 'r',
+          status,
+          status_details: { reason, error: { message: 'private error' } },
+          instructions: 'private instructions',
+        },
+      });
+      expect(responses.at(-1)).toEqual({
+        active: false,
+        responseId: 'r',
+        status,
+        ...(reason ? { statusReason: reason } : {}),
+      });
+    }
+    for (const status of [undefined, null, 42, {}, 'unknown']) {
+      f.event({
+        type: 'response.done',
+        response: { status, status_details: { reason: 'max_output_tokens' } },
+      });
+      expect(responses.at(-1)).toEqual({ active: false, responseId: 'r' });
+    }
+    for (const reason of [
+      undefined,
+      null,
+      42,
+      {},
+      'private unknown',
+      'client_cancelled',
+    ]) {
+      f.event({
+        type: 'response.done',
+        response: { status: 'incomplete', status_details: { reason } },
+      });
+      expect(responses.at(-1)).toEqual({
+        active: false,
+        responseId: 'r',
+        status: 'incomplete',
+      });
+    }
+    expect(JSON.stringify(responses)).not.toContain('private');
+    f.session.close();
+  });
   it('distinguishes actual playback, input speech and response generation; forwards usage and tools', async () => {
     const f = fixture();
     const speaking: boolean[] = [];
