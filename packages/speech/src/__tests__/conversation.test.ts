@@ -572,6 +572,151 @@ describe('OpenAI conversational WebRTC session', () => {
     expect(fresh.session.state).toBe('connected');
     fresh.session.close();
   });
+  it('preserves provider response identity across generation and overlapping playback', async () => {
+    const f = fixture();
+    const playback: unknown[] = [];
+    const legacy: boolean[] = [];
+    const turns: unknown[] = [];
+    f.session.on('speaking', (active, metadata) =>
+      playback.push({ active, metadata }),
+    );
+    f.session.on('speaking', (active) => legacy.push(active));
+    f.session.on('transcript', (turn) => turns.push(turn));
+    await f.session.connect();
+    f.event({ type: 'output_audio_buffer.started', response_id: 'A' });
+    f.event({ type: 'output_audio_buffer.started', response_id: 'A' });
+    f.event({ type: 'response.done', response: { id: 'A' } });
+    f.event({ type: 'response.created', response: { id: 'B' } });
+    f.event({
+      type: 'response.output_audio_transcript.delta',
+      response_id: 'A',
+      item_id: 'a',
+      delta: 'Still playing',
+    });
+    f.event({
+      type: 'response.output_audio_transcript.done',
+      response_id: 'B',
+      item_id: 'b',
+      transcript: 'New reply',
+    });
+    expect(turns).toEqual([
+      {
+        itemId: 'a',
+        role: 'assistant',
+        text: 'Still playing',
+        final: false,
+        responseId: 'A',
+      },
+      {
+        itemId: 'b',
+        role: 'assistant',
+        text: 'New reply',
+        final: true,
+        responseId: 'B',
+      },
+    ]);
+    f.event({ type: 'output_audio_buffer.started', response_id: 'B' });
+    f.event({ type: 'output_audio_buffer.stopped', response_id: 'A' });
+    f.event({ type: 'output_audio_buffer.cleared', response_id: 'A' });
+    f.session.interrupt();
+    expect(playback).toEqual([
+      { active: true, metadata: { responseId: 'A', reason: 'started' } },
+      { active: true, metadata: { responseId: 'B', reason: 'started' } },
+      { active: true, metadata: { responseId: 'A', reason: 'stopped' } },
+      { active: true, metadata: { responseId: 'A', reason: 'cleared' } },
+      { active: false, metadata: { responseId: 'B', reason: 'interrupted' } },
+    ]);
+    expect(legacy).toEqual([true, true, true, true, false]);
+    f.session.close();
+  });
+  it('uses only playback identity for local mute and close, leaving malformed provider IDs absent', async () => {
+    for (const action of ['muted', 'closed'] as const) {
+      const f = fixture();
+      const events: unknown[] = [];
+      f.session.on('speaking', (active, metadata) =>
+        events.push({ active, metadata }),
+      );
+      await f.session.connect();
+      f.event({ type: 'output_audio_buffer.started', response_id: 'A' });
+      f.event({ type: 'response.created', response: { id: 'B' } });
+      if (action === 'muted') f.session.setOutputMuted(true);
+      else f.session.close();
+      expect(events.at(-1)).toEqual({
+        active: false,
+        metadata: { responseId: 'A', reason: action },
+      });
+      f.session.close();
+    }
+    const f = fixture();
+    const events: unknown[] = [];
+    const turns: unknown[] = [];
+    f.session.on('speaking', (active, metadata) =>
+      events.push({ active, metadata }),
+    );
+    f.session.on('transcript', (turn) => turns.push(turn));
+    await f.session.connect();
+    for (const [index, responseId] of [undefined, null, 42, {}, ''].entries()) {
+      f.event({ type: 'output_audio_buffer.started', response_id: responseId });
+      f.event({ type: 'output_audio_buffer.stopped', response_id: responseId });
+      f.event({
+        type: 'response.output_text.done',
+        response_id: responseId,
+        item_id: `unknown-${index}`,
+        text: 'Text',
+      });
+    }
+    expect(events).toEqual(
+      Array.from({ length: 5 }, () => [
+        { active: true, metadata: { reason: 'started' } },
+        { active: false, metadata: { reason: 'stopped' } },
+      ]).flat(),
+    );
+    expect(
+      turns.every((turn) => !(turn as Record<string, unknown>).responseId),
+    ).toBe(true);
+    f.session.close();
+  });
+  it('keeps muted provider playback identity changes silent for legacy listeners', async () => {
+    const f = fixture();
+    const speaking = vi.fn();
+    f.session.on('speaking', speaking);
+    await f.session.connect();
+    f.session.setOutputMuted(true);
+    f.event({ type: 'output_audio_buffer.started', response_id: 'a' });
+    f.event({ type: 'output_audio_buffer.started', response_id: 'b' });
+    f.event({ type: 'output_audio_buffer.stopped', response_id: 'b' });
+    expect(speaking).not.toHaveBeenCalled();
+    f.session.setOutputMuted(false);
+    f.event({ type: 'output_audio_buffer.started', response_id: 'c' });
+    expect(speaking).toHaveBeenCalledExactlyOnceWith(true, {
+      responseId: 'c',
+      reason: 'started',
+    });
+    f.session.close();
+  });
+  it.each([
+    'peer',
+    'channel',
+    'microphone',
+  ] as const)('does not label %s failure cleanup as an intentional close', async (failure) => {
+    const f = fixture();
+    const speaking = vi.fn();
+    f.session.on('speaking', speaking);
+    await f.session.connect();
+    f.event({ type: 'output_audio_buffer.started', response_id: 'playing' });
+    if (failure === 'peer') {
+      f.peer.connectionState = 'failed';
+      f.peer.onconnectionstatechange?.();
+    } else if (failure === 'channel') {
+      f.channel.onerror?.();
+    } else {
+      f.endMicrophone();
+    }
+    expect(f.session.state).toBe('failed');
+    expect(speaking).toHaveBeenLastCalledWith(false, { responseId: 'playing' });
+    expect(f.track.stop).toHaveBeenCalledOnce();
+    f.session.close();
+  });
   it('distinguishes actual playback, input speech and response generation; forwards usage and tools', async () => {
     const f = fixture();
     const speaking: boolean[] = [];

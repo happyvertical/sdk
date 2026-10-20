@@ -8,5 +8,6 @@ export type {
   VoiceSessionEventMetadata,
   VoiceSessionEvents,
   VoiceSessionState,
+  VoiceSpeakingMetadata,
   VoiceTranscript,
 } from './conversation/types.js';
