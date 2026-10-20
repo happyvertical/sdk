@@ -8,6 +8,7 @@ import type {
   VoiceSessionEventMetadata,
   VoiceSessionEvents,
   VoiceSessionState,
+  VoiceSpeakingMetadata,
   VoiceTranscript,
 } from './types.js';
 
@@ -31,6 +32,7 @@ export function createOpenAIWebRTCVoiceSession(
   let responseQueued = false;
   let queuedResponseInstructions: string | undefined;
   let speaking = false;
+  let playbackResponseId: string | undefined;
   const abort = new AbortController();
   const listeners = new Map<
     keyof VoiceSessionEvents,
@@ -53,12 +55,32 @@ export function createOpenAIWebRTCVoiceSession(
     state = next;
     emit('state', next);
   }
-  function playback(value: boolean): void {
-    if (speaking === value) return;
+  function playback(
+    value: boolean,
+    metadata?: VoiceSpeakingMetadata,
+    identityChanged = false,
+  ): void {
+    if (speaking === value && !identityChanged) return;
     speaking = value;
-    emit('speaking', value);
+    emit('speaking', value, metadata);
   }
-  function cleanup(): void {
+  function playbackEvent(
+    active: boolean,
+    reason: 'started' | 'stopped' | 'cleared',
+    providerId: unknown,
+  ): void {
+    const id = identity(providerId);
+    const metadata = { ...(id ? { responseId: id } : {}), reason };
+    if (!active && id && playbackResponseId && id !== playbackResponseId) {
+      // A late drain for A does not stop the current B playback.
+      emit('speaking', speaking, metadata);
+      return;
+    }
+    const changed = active && id !== playbackResponseId;
+    playbackResponseId = active ? id : undefined;
+    playback(active && !outputMuted, metadata, changed && !outputMuted);
+  }
+  function cleanup(reason?: 'closed'): void {
     abort.abort();
     for (const dispose of disposers.splice(0)) dispose();
     microphone?.getTracks().forEach((track) => {
@@ -81,7 +103,11 @@ export function createOpenAIWebRTCVoiceSession(
       audio.pause();
       audio.srcObject = null;
     }
-    playback(false);
+    playback(false, {
+      ...(playbackResponseId ? { responseId: playbackResponseId } : {}),
+      ...(reason ? { reason } : {}),
+    });
+    playbackResponseId = undefined;
     responseActive = false;
     pendingResponseCreateEventId = undefined;
     responseQueued = false;
@@ -143,6 +169,7 @@ export function createOpenAIWebRTCVoiceSession(
     text: unknown,
     final: boolean,
     delta = false,
+    providerResponseId?: unknown,
   ): void {
     if (typeof itemId !== 'string' || typeof text !== 'string') return;
     const prior = turns.get(itemId);
@@ -153,6 +180,9 @@ export function createOpenAIWebRTCVoiceSession(
       role,
       text: delta ? (prior?.text ?? '') + text : text,
       final,
+      ...((identity(providerResponseId) ?? prior?.responseId)
+        ? { responseId: identity(providerResponseId) ?? prior?.responseId }
+        : {}),
     };
     turns.set(itemId, turn);
     emit('transcript', turn);
@@ -182,16 +212,44 @@ export function createOpenAIWebRTCVoiceSession(
         );
         break;
       case 'response.output_audio_transcript.delta':
-        transcript(event.item_id, 'assistant', event.delta, false, true);
+        transcript(
+          event.item_id,
+          'assistant',
+          event.delta,
+          false,
+          true,
+          event.response_id,
+        );
         break;
       case 'response.output_audio_transcript.done':
-        transcript(event.item_id, 'assistant', event.transcript, true);
+        transcript(
+          event.item_id,
+          'assistant',
+          event.transcript,
+          true,
+          false,
+          event.response_id,
+        );
         break;
       case 'response.output_text.delta':
-        transcript(event.item_id, 'assistant', event.delta, false, true);
+        transcript(
+          event.item_id,
+          'assistant',
+          event.delta,
+          false,
+          true,
+          event.response_id,
+        );
         break;
       case 'response.output_text.done':
-        transcript(event.item_id, 'assistant', event.text, true);
+        transcript(
+          event.item_id,
+          'assistant',
+          event.text,
+          true,
+          false,
+          event.response_id,
+        );
         break;
       case 'input_audio_buffer.speech_started':
         emit('inputSpeech', true, {
@@ -210,11 +268,13 @@ export function createOpenAIWebRTCVoiceSession(
         });
         break;
       case 'output_audio_buffer.started':
-        playback(!outputMuted);
+        playbackEvent(true, 'started', event.response_id);
         break;
       case 'output_audio_buffer.stopped':
+        playbackEvent(false, 'stopped', event.response_id);
+        break;
       case 'output_audio_buffer.cleared':
-        playback(false);
+        playbackEvent(false, 'cleared', event.response_id);
         break;
       case 'response.created': {
         const response = record(event.response);
@@ -499,7 +559,11 @@ export function createOpenAIWebRTCVoiceSession(
           ...(responseId ? { response_id: responseId } : {}),
         });
       send({ type: 'output_audio_buffer.clear' });
-      playback(false);
+      playback(false, {
+        ...(playbackResponseId ? { responseId: playbackResponseId } : {}),
+        reason: 'interrupted',
+      });
+      playbackResponseId = undefined;
     },
     setMicMuted(muted) {
       micMuted = muted;
@@ -512,7 +576,11 @@ export function createOpenAIWebRTCVoiceSession(
     setOutputMuted(muted) {
       outputMuted = muted;
       if (audio) audio.muted = muted;
-      if (muted) playback(false);
+      if (muted)
+        playback(false, {
+          ...(playbackResponseId ? { responseId: playbackResponseId } : {}),
+          reason: 'muted',
+        });
     },
     submitToolResult(callId, result) {
       send({
@@ -527,7 +595,7 @@ export function createOpenAIWebRTCVoiceSession(
     close() {
       if (state === 'closed') return;
       state = 'closed';
-      cleanup();
+      cleanup('closed');
       emit('state', state);
       listeners.clear();
     },
@@ -551,6 +619,10 @@ export function createOpenAIWebRTCVoiceSession(
     },
   };
   return session;
+}
+
+function identity(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
 }
 
 function record(value: unknown): Record<string, unknown> {

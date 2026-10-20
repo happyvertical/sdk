@@ -11,6 +11,8 @@ export interface VoiceTranscript {
   role: 'user' | 'assistant';
   text: string;
   final: boolean;
+  /** Response identity supplied by the provider for assistant output. */
+  responseId?: string;
 }
 
 /** Provider identity for an input utterance; absent when not supplied. */
@@ -18,7 +20,21 @@ export interface VoiceInputSpeechMetadata {
   itemId?: string;
 }
 
-export interface VoiceSessionEventMetadata extends VoiceInputSpeechMetadata {}
+/** Playback event identity; it never comes from the latest generation response. */
+export interface VoiceSpeakingMetadata {
+  responseId?: string;
+  reason?:
+    | 'started'
+    | 'stopped'
+    | 'cleared'
+    | 'interrupted'
+    | 'muted'
+    | 'closed';
+}
+
+export interface VoiceSessionEventMetadata
+  extends VoiceInputSpeechMetadata,
+    VoiceSpeakingMetadata {}
 
 export interface VoiceSessionEvents {
   state: VoiceSessionState;
