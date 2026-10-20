@@ -519,6 +519,59 @@ describe('OpenAI conversational WebRTC session', () => {
     );
     expect(f.negotiate).toHaveBeenCalledOnce();
   });
+  it('owns a granted stream before close can race the acquisition continuation', async () => {
+    const f = fixture();
+    let grant!: (stream: MediaStream) => void;
+    const permission = new Promise<MediaStream>((resolve) => {
+      grant = resolve;
+    });
+    const session = createOpenAIWebRTCVoiceSession({
+      getMicrophone: () => permission,
+      negotiate: f.negotiate,
+    });
+    const connection = session.connect();
+    const rejection = expect(connection).rejects.toBeDefined();
+    // Acquisition's first callback runs, then close, before the await resumes.
+    void permission.then(() => session.close());
+    grant(f.stream);
+    await rejection;
+    expect(session.state).toBe('closed');
+    expect(f.track.stop).toHaveBeenCalledOnce();
+    expect(f.negotiate).not.toHaveBeenCalled();
+    await expect(session.connect()).rejects.toThrow('new voice session');
+    const fresh = fixture();
+    await fresh.session.connect();
+    expect(fresh.session.state).toBe('connected');
+    fresh.session.close();
+    expect(fresh.track.stop).toHaveBeenCalledOnce();
+  });
+  it('times out pending permission, disposes a late grant and permits a fresh session', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    let grant!: (stream: MediaStream) => void;
+    const session = createOpenAIWebRTCVoiceSession({
+      getMicrophone: () =>
+        new Promise((resolve) => {
+          grant = resolve;
+        }),
+      negotiate: f.negotiate,
+      connectTimeoutMs: 25,
+    });
+    const connection = session.connect();
+    const rejection = expect(connection).rejects.toBeDefined();
+    await vi.advanceTimersByTimeAsync(25);
+    await rejection;
+    expect(session.state).toBe('failed');
+    grant(f.stream);
+    await Promise.resolve();
+    expect(f.track.stop).toHaveBeenCalledOnce();
+    expect(f.negotiate).not.toHaveBeenCalled();
+    await expect(session.connect()).rejects.toThrow('new voice session');
+    const fresh = fixture();
+    await fresh.session.connect();
+    expect(fresh.session.state).toBe('connected');
+    fresh.session.close();
+  });
   it('distinguishes actual playback, input speech and response generation; forwards usage and tools', async () => {
     const f = fixture();
     const speaking: boolean[] = [];

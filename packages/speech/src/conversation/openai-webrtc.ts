@@ -331,11 +331,11 @@ export function createOpenAIWebRTCVoiceSession(
               stream.getTracks().forEach((track) => {
                 track.stop();
               });
+            else microphone = stream;
             return stream;
           });
           const stream = await abortable(acquisition, signal);
           signal.throwIfAborted();
-          microphone = stream;
           stream.getAudioTracks().forEach((track) => {
             track.enabled = !micMuted;
             const ended = () =>

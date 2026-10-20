@@ -529,4 +529,6 @@ The concrete `createOpenAIWebRTCVoiceSession()` factory returns `OpenAIWebRTCVoi
 
 `appendAssistantContext(text)` appends a trimmed, nonempty assistant text item (up to 16000 characters) to the connected provider conversation and returns its item ID. It does not emit a transcript or request a reply; hosts can use it for application-confirmed receipts already shown in their UI, then call `respond()` separately when needed. Disconnected calls throw without reconnecting.
 
+Connection timeout includes microphone permission acquisition. Closing or timing out settles that wait; any stream granted during cancellation or afterward is released. The session owns the stream before acquisition continuation can race cleanup. Retry uses a fresh session.
+
 Protocol reference: [OpenAI WebRTC](https://developers.openai.com/api/docs/guides/voice-webrtc), [server controls](https://developers.openai.com/api/docs/guides/voice-server-controls). Real media behavior still requires browser QA; deterministic transport tests do not prove microphone permissions or echo cancellation.
