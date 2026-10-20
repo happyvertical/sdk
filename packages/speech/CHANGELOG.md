@@ -1,5 +1,11 @@
 # @happyvertical/speech
 
+## 0.105.6
+
+### Patch Changes
+
+- da312bf: Preserve optional input speech item identity in callback metadata.
+
 ## 0.105.5
 
 ## 0.105.4
