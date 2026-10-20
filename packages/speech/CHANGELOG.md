@@ -1,5 +1,11 @@
 # @happyvertical/speech
 
+## 0.105.9
+
+### Patch Changes
+
+- 229c75b: Preserve provider response identity across transcripts and playback events.
+
 ## 0.105.8
 
 ### Patch Changes
