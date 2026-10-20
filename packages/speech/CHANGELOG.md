@@ -1,5 +1,11 @@
 # @happyvertical/speech
 
+## 0.105.8
+
+### Patch Changes
+
+- c4d6a85: Own granted microphone streams before cancellation can race acquisition continuation.
+
 ## 0.105.7
 
 ### Patch Changes
