@@ -289,7 +289,29 @@ export function createOpenAIWebRTCVoiceSession(
         const wasActive = responseActive;
         pendingResponseCreateEventId = undefined;
         responseActive = false;
-        emit('response', { active: false, responseId });
+        const status = response.status;
+        const safeStatus =
+          status === 'completed' ||
+          status === 'incomplete' ||
+          status === 'cancelled' ||
+          status === 'failed'
+            ? status
+            : undefined;
+        const reason = record(response.status_details).reason;
+        const safeReason =
+          (status === 'incomplete' &&
+            (reason === 'max_output_tokens' || reason === 'content_filter')) ||
+          (status === 'cancelled' &&
+            (reason === 'turn_detected' || reason === 'client_cancelled'))
+            ? reason
+            : undefined;
+        emit('response', {
+          active: false,
+          responseId,
+          ...(safeStatus ? { status: safeStatus } : {}),
+          ...(safeReason ? { statusReason: safeReason } : {}),
+        });
+
         if (response.usage && typeof response.usage === 'object')
           emit('usage', record(response.usage));
         if (response.status === 'failed' || response.status === 'incomplete')
