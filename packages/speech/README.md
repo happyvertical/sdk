@@ -525,4 +525,8 @@ Transcript events contain `itemId`, `role`, full accumulated `text` and `final`.
 
 `inputSpeech` keeps its boolean first callback argument and supplies optional second metadata `{ itemId?: string }` from provider speech-start/stop events. Match that identity to `transcript.itemId` when correlating asynchronous transcription; absent identity does not establish which utterance a late transcript belongs to.
 
+The concrete `createOpenAIWebRTCVoiceSession()` factory returns `OpenAIWebRTCVoiceSession`, which extends the baseline `VoiceSession` contract with `appendAssistantContext`. Existing adapters implementing `VoiceSession` do not need this provider-specific capability. Keep the concrete factory return type (or explicitly use `OpenAIWebRTCVoiceSession`) when storing sessions that append context.
+
+`appendAssistantContext(text)` appends a trimmed, nonempty assistant text item (up to 16000 characters) to the connected provider conversation and returns its item ID. It does not emit a transcript or request a reply; hosts can use it for application-confirmed receipts already shown in their UI, then call `respond()` separately when needed. Disconnected calls throw without reconnecting.
+
 Protocol reference: [OpenAI WebRTC](https://developers.openai.com/api/docs/guides/voice-webrtc), [server controls](https://developers.openai.com/api/docs/guides/voice-server-controls). Real media behavior still requires browser QA; deterministic transport tests do not prove microphone permissions or echo cancellation.

@@ -60,6 +60,12 @@ export interface VoiceSession {
   ): () => void;
 }
 
+/** OpenAI WebRTC capabilities; legacy VoiceSession implementations remain compatible. */
+export interface OpenAIWebRTCVoiceSession extends VoiceSession {
+  /** Append nonempty assistant text (up to 16000 characters) to provider history, without emitting a transcript or requesting a response. */
+  appendAssistantContext(text: string): string;
+}
+
 export interface OpenAIWebRTCVoiceOptions {
   /** Host-authenticated negotiation: post the offer to your server, return its answer. */
   negotiate(offer: string, signal: AbortSignal): Promise<string>;
