@@ -88,6 +88,8 @@ export interface VoiceSession {
 
 /** OpenAI WebRTC capabilities; legacy VoiceSession implementations remain compatible. */
 export interface OpenAIWebRTCVoiceSession extends VoiceSession {
+  /** Append a user text item and transcript; request a reply unless respond is false. */
+  sendText(text: string, respond?: boolean): string;
   /** Append nonempty assistant text (up to 16000 characters) to provider history, without emitting a transcript or requesting a response. */
   appendAssistantContext(text: string): string;
 }

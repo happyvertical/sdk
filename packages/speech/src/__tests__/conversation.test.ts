@@ -871,6 +871,63 @@ describe('OpenAI conversational WebRTC session', () => {
     expect(f.session.state).toBe('connected');
     f.session.close();
   });
+  it('appends a host-owned typed turn without scheduling generation', async () => {
+    const f = fixture();
+    await f.session.connect();
+    const turns: unknown[] = [];
+    f.session.on('transcript', (turn) => turns.push(turn));
+    f.session.respond('intro');
+    f.event({ type: 'response.created', response: { id: 'intro' } });
+    f.session.interrupt();
+    const id = f.session.sendText(' host-owned turn ', false);
+    f.event({
+      type: 'response.done',
+      response: { id: 'intro', status: 'cancelled' },
+    });
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(1);
+    expect(f.sent.some((event) => event.type === 'response.cancel')).toBe(true);
+    expect(
+      f.sent.some((event) => event.type === 'output_audio_buffer.clear'),
+    ).toBe(true);
+    expect(turns).toEqual([
+      { itemId: id, role: 'user', text: 'host-owned turn', final: true },
+    ]);
+    f.session.respond('trusted host intake accepted');
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(2);
+    f.session.close();
+  });
+  it('keeps VAD and asynchronous empty ASR independent of host generation', async () => {
+    const f = fixture();
+    await f.session.connect();
+    const input: boolean[] = [];
+    f.session.on('inputSpeech', (active) => input.push(active));
+    f.event({
+      type: 'input_audio_buffer.speech_started',
+      item_id: 'utterance',
+    });
+    f.event({
+      type: 'input_audio_buffer.speech_stopped',
+      item_id: 'utterance',
+    });
+    f.event({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'utterance',
+      transcript: '',
+    });
+    expect(input).toEqual([true, false]);
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(0);
+    f.session.respond('accepted later');
+    expect(
+      f.sent.filter((event) => event.type === 'response.create'),
+    ).toHaveLength(1);
+    f.session.close();
+  });
   it('distinguishes actual playback, input speech and response generation; forwards usage and tools', async () => {
     const f = fixture();
     const speaking: boolean[] = [];
@@ -968,6 +1025,39 @@ describe('server call lifecycle', () => {
         turnDetection: { type: 'future' } as never,
       }),
     ).toThrow('Unknown');
+  });
+  it.each([
+    'server_vad',
+    'semantic_vad',
+  ] as const)('opts out of automatic %s replies while preserving boundaries and interruption', (type) => {
+    for (const automaticResponse of [undefined, true, false]) {
+      expect(
+        openAIConversationConfig({
+          model: 'm',
+          turnDetection: { type },
+          automaticResponse,
+          transcriptionModel: 'asr',
+        }),
+      ).toMatchObject({
+        audio: {
+          input: {
+            turn_detection: {
+              type,
+              create_response: automaticResponse !== false,
+              interrupt_response: true,
+            },
+            transcription: { model: 'asr' },
+          },
+        },
+      });
+    }
+    expect(
+      openAIConversationConfig({
+        model: 'm',
+        automaticResponse: false,
+        turnDetection: { type: 'manual' },
+      }),
+    ).toMatchObject({ audio: { input: { turn_detection: null } } });
   });
   it.each([
     '',

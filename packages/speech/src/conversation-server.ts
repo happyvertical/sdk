@@ -15,6 +15,8 @@ export interface OpenAIVoiceCallOptions {
   instructions?: string;
   transcriptionModel?: string;
   turnDetection?: StreamingTurnDetection;
+  /** Automatically reply to VAD turns. Default true; false keeps VAD and interruption enabled for host-owned response scheduling. */
+  automaticResponse?: boolean;
   maxOutputTokens?: number;
   tools?: Array<{
     type: 'function';
@@ -42,6 +44,7 @@ export function openAIConversationConfig(
     | 'instructions'
     | 'transcriptionModel'
     | 'turnDetection'
+    | 'automaticResponse'
     | 'maxOutputTokens'
     | 'tools'
   >,
@@ -61,7 +64,7 @@ export function openAIConversationConfig(
       turnDetection = {
         type: 'semantic_vad',
         eagerness: detection.eagerness ?? 'auto',
-        create_response: true,
+        create_response: options.automaticResponse ?? true,
         interrupt_response: true,
       };
       break;
@@ -77,7 +80,7 @@ export function openAIConversationConfig(
         ...(detection.silenceDurationMs === undefined
           ? {}
           : { silence_duration_ms: detection.silenceDurationMs }),
-        create_response: true,
+        create_response: options.automaticResponse ?? true,
         interrupt_response: true,
       };
       break;

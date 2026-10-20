@@ -537,7 +537,7 @@ export function createOpenAIWebRTCVoiceSession(
       });
       return pending;
     },
-    sendText(text) {
+    sendText(text, respond = true) {
       const trimmed = text.trim();
       if (!trimmed || trimmed.length > 16_000)
         throw new SpeechConfigurationError(
@@ -555,7 +555,7 @@ export function createOpenAIWebRTCVoiceSession(
         },
       });
       transcript(id, 'user', trimmed, true);
-      session.respond();
+      if (respond) session.respond();
       return id;
     },
     appendAssistantContext(text) {

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 
-it('compiles an unchanged baseline adapter and guarantees assistant context on the concrete factory', () => {
+it('compiles an unchanged baseline adapter and requires concrete capabilities for assistant context and reply suppression', () => {
   const directory = mkdtempSync(join(tmpdir(), 'speech-consumer-'));
   const entry = fileURLToPath(new URL('../conversation.js', import.meta.url));
   const source = `
@@ -32,6 +32,11 @@ const concrete = createOpenAIWebRTCVoiceSession({
 });
 const receiptId: string = concrete.appendAssistantContext('Confirmed receipt');
 const compatible: VoiceSession = concrete;
+legacy.sendText('normal');
+// @ts-expect-error Legacy adapters cannot promise reply suppression.
+legacy.sendText('requires host approval', false);
+const typedItemId: string = concrete.sendText('requires host approval', false);
+void typedItemId;
 void [legacy, receiptId, compatible];
 `;
   try {
