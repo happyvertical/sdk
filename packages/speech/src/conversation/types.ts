@@ -13,6 +13,13 @@ export interface VoiceTranscript {
   final: boolean;
 }
 
+/** Provider identity for an input utterance; absent when not supplied. */
+export interface VoiceInputSpeechMetadata {
+  itemId?: string;
+}
+
+export interface VoiceSessionEventMetadata extends VoiceInputSpeechMetadata {}
+
 export interface VoiceSessionEvents {
   state: VoiceSessionState;
   transcript: VoiceTranscript;
@@ -43,9 +50,13 @@ export interface VoiceSession {
   submitToolResult(callId: string, result: unknown): void;
   /** Idempotently releases tracks, peer connection, playback and listeners. */
   close(): void;
+  /** Optional callback metadata carries provider input item identity. */
   on<E extends keyof VoiceSessionEvents>(
     event: E,
-    listener: (value: VoiceSessionEvents[E]) => void,
+    listener: (
+      value: VoiceSessionEvents[E],
+      metadata?: VoiceSessionEventMetadata,
+    ) => void,
   ): () => void;
 }
 
