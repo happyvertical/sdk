@@ -4,7 +4,7 @@ import {
 } from '../shared/errors.js';
 import type {
   OpenAIWebRTCVoiceOptions,
-  VoiceSession,
+  OpenAIWebRTCVoiceSession,
   VoiceSessionEventMetadata,
   VoiceSessionEvents,
   VoiceSessionState,
@@ -16,7 +16,7 @@ const ADAPTER = 'openai-conversation';
 /** Browser WebRTC transport. No credentials, Node dependencies or globals are read at import. */
 export function createOpenAIWebRTCVoiceSession(
   options: OpenAIWebRTCVoiceOptions,
-): VoiceSession {
+): OpenAIWebRTCVoiceSession {
   let state: VoiceSessionState = 'idle';
   let pending: Promise<void> | undefined;
   let peer: RTCPeerConnection | undefined;
@@ -285,7 +285,7 @@ export function createOpenAIWebRTCVoiceSession(
     }
   }
 
-  const session: VoiceSession = {
+  const session: OpenAIWebRTCVoiceSession = {
     get state() {
       return state;
     },
@@ -463,6 +463,25 @@ export function createOpenAIWebRTCVoiceSession(
       });
       transcript(id, 'user', trimmed, true);
       session.respond();
+      return id;
+    },
+    appendAssistantContext(text) {
+      const trimmed = text.trim();
+      if (!trimmed || trimmed.length > 16_000)
+        throw new SpeechConfigurationError(
+          'Text must contain 1–16000 characters',
+          ADAPTER,
+        );
+      const id = `hv_${crypto.randomUUID().replaceAll('-', '').slice(0, 24)}`;
+      send({
+        type: 'conversation.item.create',
+        item: {
+          id,
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: trimmed }],
+        },
+      });
       return id;
     },
     commitInput(respond = true) {

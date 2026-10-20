@@ -2,6 +2,7 @@
 export { createOpenAIWebRTCVoiceSession } from './conversation/openai-webrtc.js';
 export type {
   OpenAIWebRTCVoiceOptions,
+  OpenAIWebRTCVoiceSession,
   VoiceInputSpeechMetadata,
   VoiceSession,
   VoiceSessionEventMetadata,

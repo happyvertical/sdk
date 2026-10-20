@@ -479,6 +479,46 @@ describe('OpenAI conversational WebRTC session', () => {
     }
     f.session.close();
   });
+  it('appends bounded assistant context without transcripts, responses or implicit reconnects', async () => {
+    const f = fixture();
+    const turns: unknown[] = [];
+    f.session.on('transcript', (turn) => turns.push(turn));
+    expect(() => f.session.appendAssistantContext('receipt')).toThrow(
+      'not connected',
+    );
+    expect(f.negotiate).not.toHaveBeenCalled();
+    await f.session.connect();
+    f.event({ type: 'response.created', response: { id: 'active' } });
+    const before = f.sent.length;
+    const id = f.session.appendAssistantContext('  Verified receipt.  ');
+    expect(id).toMatch(/^hv_[a-f0-9]{24}$/);
+    expect(f.sent.slice(before)).toEqual([
+      {
+        type: 'conversation.item.create',
+        item: {
+          id,
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Verified receipt.' }],
+        },
+      },
+    ]);
+    expect(turns).toEqual([]);
+    for (const text of ['', '   ', 'a'.repeat(16_001)])
+      expect(() => f.session.appendAssistantContext(text)).toThrow('1–16000');
+    expect(f.sent).toHaveLength(before + 1);
+    const boundary = f.session.appendAssistantContext('a'.repeat(16_000));
+    expect(boundary).not.toBe(id);
+    f.event({ type: 'response.done', response: { id: 'active' } });
+    expect(f.sent.filter((event) => event.type === 'response.create')).toEqual(
+      [],
+    );
+    f.session.close();
+    expect(() => f.session.appendAssistantContext('receipt')).toThrow(
+      'not connected',
+    );
+    expect(f.negotiate).toHaveBeenCalledOnce();
+  });
   it('distinguishes actual playback, input speech and response generation; forwards usage and tools', async () => {
     const f = fixture();
     const speaking: boolean[] = [];
