@@ -535,4 +535,6 @@ Assistant transcripts expose optional provider `responseId`. `speaking` retains 
 
 Terminal `response.done` callbacks add optional allowlisted `status` (`completed`, `incomplete`, `cancelled`, `failed`) and `statusReason` (`max_output_tokens` or `content_filter` for incomplete; `turn_detected` or `client_cancelled` for cancelled). Unknown, malformed or mismatched values are omitted. Raw provider errors are never copied; transcript finalization remains distinct from playback completion.
 
+An already-finished cancellation (`response_cancel_not_active`) is ignored only when nested `error.event_id` matches an outstanding cancellation issued by this session. Correlation is consumed once, bounded to the latest 32 requests, and cleared on close. Missing, unmatched, replayed, evicted or other errors remain visible.
+
 Protocol reference: [OpenAI WebRTC](https://developers.openai.com/api/docs/guides/voice-webrtc), [server controls](https://developers.openai.com/api/docs/guides/voice-server-controls). Real media behavior still requires browser QA; deterministic transport tests do not prove microphone permissions or echo cancellation.

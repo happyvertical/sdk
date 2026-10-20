@@ -13,6 +13,7 @@ import type {
 } from './types.js';
 
 const ADAPTER = 'openai-conversation';
+const MAX_PENDING_CANCELLATIONS = 32;
 
 /** Browser WebRTC transport. No credentials, Node dependencies or globals are read at import. */
 export function createOpenAIWebRTCVoiceSession(
@@ -29,6 +30,7 @@ export function createOpenAIWebRTCVoiceSession(
   let responseId: string | undefined;
   let responseActive = false;
   let pendingResponseCreateEventId: string | undefined;
+  const pendingCancellations = new Set<string>();
   let responseQueued = false;
   let queuedResponseInstructions: string | undefined;
   let speaking = false;
@@ -114,6 +116,7 @@ export function createOpenAIWebRTCVoiceSession(
     responseId = undefined;
     queuedResponseInstructions = undefined;
     turns.clear();
+    pendingCancellations.clear();
   }
   function fail(message: string): void {
     if (state === 'closed' || state === 'failed') return;
@@ -344,6 +347,14 @@ export function createOpenAIWebRTCVoiceSession(
         break;
       case 'error': {
         const error = record(event.error);
+        // Only nested error.event_id identifies the client request; the outer
+        // event_id identifies the server event and grants no correlation.
+        const ownCancellation =
+          typeof error.event_id === 'string' &&
+          pendingCancellations.delete(error.event_id);
+        if (ownCancellation && error.code === 'response_cancel_not_active')
+          break;
+
         const rejectedPendingResponse =
           pendingResponseCreateEventId !== undefined &&
           error.event_id === pendingResponseCreateEventId;
@@ -575,11 +586,19 @@ export function createOpenAIWebRTCVoiceSession(
     },
     interrupt() {
       if (state !== 'connected') return;
-      if (responseActive)
+      if (responseActive) {
+        const eventId = `hv_${crypto.randomUUID().replaceAll('-', '').slice(0, 24)}`;
         send({
+          event_id: eventId,
           type: 'response.cancel',
           ...(responseId ? { response_id: responseId } : {}),
         });
+        pendingCancellations.add(eventId);
+        if (pendingCancellations.size > MAX_PENDING_CANCELLATIONS) {
+          const oldest = pendingCancellations.values().next().value;
+          if (oldest) pendingCancellations.delete(oldest);
+        }
+      }
       send({ type: 'output_audio_buffer.clear' });
       playback(false, {
         ...(playbackResponseId ? { responseId: playbackResponseId } : {}),

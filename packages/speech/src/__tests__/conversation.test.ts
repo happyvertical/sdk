@@ -418,6 +418,7 @@ describe('OpenAI conversational WebRTC session', () => {
     f.event({ type: 'response.created', response: { id: 'r' } });
     f.session.interrupt();
     expect(f.sent).toContainEqual({
+      event_id: expect.any(String),
       type: 'response.cancel',
       response_id: 'r',
     });
@@ -777,6 +778,97 @@ describe('OpenAI conversational WebRTC session', () => {
       });
     }
     expect(JSON.stringify(responses)).not.toContain('private');
+    f.session.close();
+  });
+  it('suppresses only one exact benign error correlated to its own cancellation', async () => {
+    const f = fixture();
+    const errors: Error[] = [];
+    f.session.on('error', (error) => errors.push(error));
+    await f.session.connect();
+    f.session.respond();
+    f.session.interrupt();
+    const cancel = f.sent.find((event) => event.type === 'response.cancel');
+    expect(cancel?.event_id).toEqual(expect.any(String));
+    f.event({ type: 'response.done', response: { status: 'cancelled' } });
+    const benign = {
+      type: 'invalid_request_error',
+      code: 'response_cancel_not_active',
+      event_id: cancel?.event_id,
+    };
+    f.event({ type: 'error', event_id: 'server-event', error: benign });
+    expect(errors).toEqual([]);
+    expect(f.session.state).toBe('connected');
+    // Consumed IDs cannot suppress replay, nor can a top-level server event ID.
+    f.event({ type: 'error', error: benign });
+    f.event({
+      type: 'error',
+      event_id: cancel?.event_id,
+      error: { code: 'response_cancel_not_active' },
+    });
+    for (const eventId of [undefined, null, 42, {}, 'forged'])
+      f.event({
+        type: 'error',
+        error: { code: 'response_cancel_not_active', event_id: eventId },
+      });
+    expect(errors).toHaveLength(7);
+    f.session.respond();
+    f.session.interrupt();
+    const next = f.sent
+      .filter((event) => event.type === 'response.cancel')
+      .at(-1);
+    f.event({
+      type: 'error',
+      error: {
+        code: 'server_error',
+        event_id: next?.event_id,
+        message: 'private',
+      },
+    });
+    f.event({
+      type: 'error',
+      error: { code: 'response_cancel_not_active', event_id: next?.event_id },
+    });
+    expect(errors).toHaveLength(9);
+    expect(
+      errors.every(
+        (error) =>
+          error.message === 'Realtime provider rejected a conversation event',
+      ),
+    ).toBe(true);
+    f.session.close();
+  });
+  it('bounds cancellation correlation and keeps evicted IDs visible', async () => {
+    const f = fixture();
+    const errors: Error[] = [];
+    f.session.on('error', (error) => errors.push(error));
+    await f.session.connect();
+    f.session.respond();
+    for (let index = 0; index < 33; index++) f.session.interrupt();
+    const cancels = f.sent.filter((event) => event.type === 'response.cancel');
+    expect(new Set(cancels.map((event) => event.event_id)).size).toBe(33);
+    f.event({
+      type: 'error',
+      error: {
+        code: 'response_cancel_not_active',
+        event_id: cancels[0].event_id,
+      },
+    });
+    f.event({
+      type: 'error',
+      error: {
+        code: 'response_cancel_not_active',
+        event_id: cancels[1].event_id,
+      },
+    });
+    f.event({
+      type: 'error',
+      error: {
+        code: 'response_cancel_not_active',
+        event_id: cancels[32].event_id,
+      },
+    });
+    expect(errors).toHaveLength(1);
+    expect(f.session.state).toBe('connected');
     f.session.close();
   });
   it('distinguishes actual playback, input speech and response generation; forwards usage and tools', async () => {
