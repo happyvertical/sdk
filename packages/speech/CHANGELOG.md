@@ -1,5 +1,11 @@
 # @happyvertical/speech
 
+## 0.105.10
+
+### Patch Changes
+
+- 15db25f: Expose safe allowlisted realtime response completion status and reason.
+
 ## 0.105.9
 
 ### Patch Changes

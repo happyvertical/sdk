@@ -1,5 +1,12 @@
 # @happyvertical/github-actions
 
+## 0.105.10
+
+### Patch Changes
+
+- @happyvertical/projects@0.105.10
+- @happyvertical/repos@0.105.10
+
 ## 0.105.9
 
 ### Patch Changes

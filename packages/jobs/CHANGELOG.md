@@ -1,5 +1,12 @@
 # @happyvertical/jobs
 
+## 0.105.10
+
+### Patch Changes
+
+- @happyvertical/sql@0.105.10
+- @happyvertical/utils@0.105.10
+
 ## 0.105.9
 
 ### Patch Changes
