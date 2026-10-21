@@ -1,3 +1,9 @@
+import {
+  type AggregateJoin,
+  type AggregateOperand,
+  type ExpressionContext,
+  renderAggregateExpression,
+} from './aggregate-expression.js';
 import type { WhereClause } from './shared/types.js';
 import {
   buildWhere,
@@ -26,9 +32,19 @@ export type AggregateFunction =
 
 export type AggregateSelectExpr =
   | { column: string; as?: string }
+  /** A row expression used as a grouping key (a computed column of each row). */
+  | { expr: AggregateOperand; as: string }
   | {
       fn: AggregateFunction;
       column?: string;
+      /** A row expression to aggregate in place of `column` (not both). */
+      expr?: AggregateOperand;
+      /**
+       * Aggregate only the rows this predicate holds for (a filtered count or
+       * sum). Rows where it is false or NULL are skipped. With `count` and no
+       * column or expression it counts the matching rows.
+       */
+      filter?: AggregateOperand;
       as: string;
       distinct?: boolean;
     }
@@ -40,8 +56,17 @@ export type AggregateSelectExpr =
 
 export interface AggregateSpec {
   from: string;
+  /** Alias for `from`, so its columns can be qualified (`o.total`) beside joined tables. */
+  fromAlias?: string;
+  /**
+   * Tables joined to `from`, in order. With joins, a column naming a table must
+   * be qualified by `from`, `fromAlias` or a join alias.
+   */
+  joins?: AggregateJoin[];
   select: AggregateSelectExpr[];
   where?: WhereClause;
+  /** A row predicate built from expression nodes, ANDed with `where`. */
+  whereExpr?: AggregateOperand;
   groupBy?: string[];
   having?: WhereClause;
   orderBy?: string | string[];
@@ -54,6 +79,7 @@ export interface AggregateBuildResult {
   values: any[];
 }
 
+const EXPRESSION_AGGREGATES = new Set(['count', 'sum', 'avg', 'min', 'max']);
 const VALID_DIRECTIONS = new Set(['ASC', 'DESC']);
 const VALID_BUCKET_UNITS = new Set<AggregateTimeBucketUnit>([
   'minute',
@@ -117,43 +143,125 @@ export function bucketExpr(
   }
 }
 
+/** What a select expression, join and predicate share while one query is built. */
+interface BuildState {
+  ctx: ExpressionContext;
+  /** Table names and aliases a qualified column may name; undefined without joins. */
+  scope: Set<string> | undefined;
+}
+
+function checkColumn(state: BuildState, column: string): string {
+  const { scope } = state;
+  if (scope && column.includes('.')) {
+    const parts = column.split('.');
+    if (parts.length !== 2 || !scope.has(parts[0])) {
+      throw new Error(
+        `Aggregate column ${column} must be qualified by the from table or a join alias`,
+      );
+    }
+  }
+  return column;
+}
+
+function validateColumn(state: BuildState, column: string): string {
+  return checkColumn(state, validateSqlIdentifier(column));
+}
+
+function renderExpression(state: BuildState, node: AggregateOperand): string {
+  return renderAggregateExpression(node, state.ctx);
+}
+
 function aggregateExpression(
   expr: Extract<AggregateSelectExpr, { fn: AggregateFunction }>,
+  state: BuildState,
 ): string {
   const normalizedFn = String(expr.fn).toLowerCase();
   const fn = validateSqlIdentifier(String(expr.fn)).toUpperCase();
-  if (normalizedFn === 'count' && !expr.column) {
+  if (expr.column !== undefined && expr.expr !== undefined) {
+    throw new Error(`Aggregate ${expr.fn} takes a column or an expr, not both`);
+  }
+  // `fn` is free-form for plain columns (existing behaviour), but an expression
+  // or filter can feed it bound values, so it must be a real aggregate there.
+  if (
+    (expr.expr !== undefined || expr.filter !== undefined) &&
+    !EXPRESSION_AGGREGATES.has(normalizedFn)
+  ) {
+    throw new Error(
+      `Aggregate ${expr.fn} cannot take an expr or filter; use count, sum, avg, min or max`,
+    );
+  }
+  const hasArgument = Boolean(expr.column) || expr.expr !== undefined;
+  // Rendered first so a filter's parameters are numbered before the argument's.
+  const filter =
+    expr.filter !== undefined
+      ? renderExpression(state, expr.filter)
+      : undefined;
+
+  if (normalizedFn === 'count' && !hasArgument) {
     if (expr.distinct) {
       throw new Error(`Aggregate ${expr.fn} with distinct requires a column`);
     }
-    return 'COUNT(*)';
+    return filter ? `COUNT(CASE WHEN ${filter} THEN 1 END)` : 'COUNT(*)';
   }
-  if (!expr.column) {
+  if (!hasArgument) {
     throw new Error(`Aggregate ${expr.fn} requires a column`);
   }
-  const col = validateSqlIdentifier(expr.column);
+  const argument =
+    expr.expr !== undefined
+      ? renderExpression(state, expr.expr)
+      : validateColumn(state, expr.column as string);
   const distinct = expr.distinct ? 'DISTINCT ' : '';
-  return `${fn}(${distinct}${col})`;
+  // CASE WHEN rather than FILTER (WHERE ...): it means the same on every
+  // dialect and every SQLite version.
+  const inner = filter ? `CASE WHEN ${filter} THEN ${argument} END` : argument;
+  return `${fn}(${distinct}${inner})`;
 }
 
 function selectExpression(
   expr: AggregateSelectExpr,
   adapterType: SqlAdapterType | undefined,
-): { expression: string; alias: string; groupingCandidate: boolean } {
-  if ('column' in expr && !('fn' in expr) && !('bucket' in expr)) {
-    const column = validateSqlIdentifier(expr.column);
-    const alias = validateSqlIdentifier(expr.as ?? expr.column);
-    return { expression: column, alias, groupingCandidate: true };
+  state: BuildState,
+): {
+  expression: string;
+  alias: string;
+  groupingCandidate: boolean;
+  computed: boolean;
+} {
+  if (
+    ['fn' in expr, 'expr' in expr && !('fn' in expr), 'bucket' in expr].filter(
+      Boolean,
+    ).length > 1
+  ) {
+    throw new Error('Aggregate select item mixes fn, bucket and expr');
   }
-  if ('bucket' in expr) {
-    const expression = bucketExpr(adapterType, expr.bucket, expr.column);
+  if ('fn' in expr) {
+    const expression = aggregateExpression(expr, state);
     const alias = validateSqlIdentifier(expr.as);
-    return { expression, alias, groupingCandidate: true };
+    return { expression, alias, groupingCandidate: false, computed: false };
   }
-
-  const expression = aggregateExpression(expr);
-  const alias = validateSqlIdentifier(expr.as);
-  return { expression, alias, groupingCandidate: false };
+  if ('expr' in expr) {
+    const expression = renderExpression(state, expr.expr);
+    const alias = validateSqlIdentifier(expr.as);
+    return { expression, alias, groupingCandidate: true, computed: true };
+  }
+  if ('column' in expr && !('bucket' in expr)) {
+    const column = validateColumn(state, expr.column);
+    // A qualified column (`wo.title`) is named by its column part, not the dotted path.
+    const alias = validateSqlIdentifier(
+      expr.as ?? expr.column.split('.').pop() ?? expr.column,
+    );
+    return {
+      expression: column,
+      alias,
+      groupingCandidate: true,
+      computed: false,
+    };
+  }
+  const column = validateColumn(state, (expr as { column: string }).column);
+  const bucket = (expr as { bucket: AggregateTimeBucketUnit }).bucket;
+  const expression = bucketExpr(adapterType, bucket, column);
+  const alias = validateSqlIdentifier((expr as { as: string }).as);
+  return { expression, alias, groupingCandidate: true, computed: false };
 }
 
 function expandHavingKey(
@@ -212,7 +320,11 @@ function buildHaving(
   };
 }
 
-function buildOrderBy(orderBy: string | string[] | undefined): string {
+function buildOrderBy(
+  orderBy: string | string[] | undefined,
+  state: BuildState,
+  aliases: ReadonlySet<string>,
+): string {
   if (!orderBy) return '';
   const items = Array.isArray(orderBy) ? orderBy : [orderBy];
   const parts = items.map((item) => {
@@ -221,10 +333,67 @@ function buildOrderBy(orderBy: string | string[] | undefined): string {
     if (!VALID_DIRECTIONS.has(normalizedDirection)) {
       throw new Error(`Invalid aggregate order direction: ${direction}`);
     }
-    const orderExpr = validateSqlIdentifier(field);
+    const orderExpr = aliases.has(field)
+      ? validateSqlIdentifier(field)
+      : validateColumn(state, field);
     return `${orderExpr} ${normalizedDirection}`;
   });
   return `ORDER BY ${parts.join(', ')}`;
+}
+
+const VALID_JOIN_TYPES = new Set(['inner', 'left']);
+const JOIN_ALIAS = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function buildScope(
+  fromAlias: string | undefined,
+  joins: AggregateJoin[],
+  from: string,
+): Set<string> | undefined {
+  if (joins.length === 0 && fromAlias === undefined) return undefined;
+  const scope = new Set<string>();
+  const claim = (name: string, what: string) => {
+    // A non-string could pass the pattern once and render differently later.
+    if (typeof name !== 'string' || !JOIN_ALIAS.test(name)) {
+      throw new Error(`Invalid aggregate ${what}: ${name}`);
+    }
+    if (scope.has(name)) {
+      throw new Error(`Duplicate aggregate table name or alias: ${name}`);
+    }
+    scope.add(name);
+  };
+  if (fromAlias !== undefined) {
+    claim(fromAlias, 'from alias');
+  } else {
+    if (from.includes('.')) {
+      throw new Error(
+        'AggregateSpec.fromAlias is required when joining a schema-qualified from table',
+      );
+    }
+    claim(from, 'from table');
+  }
+  for (const join of joins) {
+    claim(join.alias, 'join alias');
+  }
+  return scope;
+}
+
+function joinSql(state: BuildState, joins: AggregateJoin[]): string[] {
+  return joins.map((join) => {
+    const type = join.type ?? 'inner';
+    if (!VALID_JOIN_TYPES.has(type)) {
+      throw new Error(`Invalid aggregate join type: ${type}`);
+    }
+    if (join.on === undefined) {
+      throw new Error(`Aggregate join ${join.alias} requires an on condition`);
+    }
+    const table = validateSqlIdentifier(join.table);
+    const alias = join.alias;
+    if (typeof alias !== 'string' || !JOIN_ALIAS.test(alias)) {
+      throw new Error(`Invalid aggregate join alias: ${String(alias)}`);
+    }
+    const on = renderExpression(state, join.on);
+    return `${type === 'left' ? 'LEFT' : 'INNER'} JOIN ${table} AS ${alias} ON ${on}`;
+  });
 }
 
 export function buildAggregate(
@@ -238,31 +407,80 @@ export function buildAggregate(
       'AggregateSpec.select must contain at least one expression',
     );
   }
+  if (spec.joins !== undefined && !Array.isArray(spec.joins)) {
+    throw new Error('AggregateSpec.joins must be an array');
+  }
+
+  // Every bound value is numbered in the order it is built (select, joins,
+  // where, whereExpr, having, paging) and listed in that order in `values`.
+  const values: any[] = [];
+  const ctx: ExpressionContext = {
+    adapterType,
+    nextIndex: startIndex,
+    values,
+    identifier: validateSqlIdentifier,
+  };
+  // Read once: the validated string is the one rendered.
+  const fromAlias = spec.fromAlias;
+  const joins: AggregateJoin[] = (spec.joins ?? []).map((join) => ({
+    table: join.table,
+    alias: join.alias,
+    type: join.type,
+    on: join.on,
+  }));
+  const state: BuildState = {
+    ctx,
+    scope: buildScope(fromAlias, joins, from),
+  };
+  ctx.onColumn = (column) => {
+    checkColumn(state, column);
+  };
 
   const expressionByAlias = new Map<string, string>();
+  const ordinalByAlias = new Map<string, number>();
   const groupingAliases: string[] = [];
-  const selectSql = spec.select.map((expr) => {
-    const selected = selectExpression(expr, adapterType);
+  const selectSql = spec.select.map((expr, position) => {
+    const selected = selectExpression(expr, adapterType, state);
+    if (expressionByAlias.has(selected.alias)) {
+      throw new Error(`Duplicate aggregate select alias: ${selected.alias}`);
+    }
     expressionByAlias.set(selected.alias, selected.expression);
+    // A computed key is grouped by its position in the select list, so a bound
+    // parameter in it is not repeated in the GROUP BY.
+    if (selected.computed) ordinalByAlias.set(selected.alias, position + 1);
     if (selected.groupingCandidate) {
       groupingAliases.push(selected.alias);
     }
     return `${selected.expression} AS ${selected.alias}`;
   });
 
+  const joinParts = joinSql(state, joins);
+
   const where = spec.where
-    ? buildWhere(spec.where, startIndex, adapterType)
+    ? buildWhere(spec.where, ctx.nextIndex, adapterType)
     : { sql: '', values: [] };
-  let nextParamIndex = startIndex + where.values.length;
+  values.push(...where.values);
+  ctx.nextIndex += where.values.length;
+
+  let whereSql = where.sql;
+  if (spec.whereExpr !== undefined) {
+    const predicate = renderExpression(state, spec.whereExpr);
+    // `where` may hold OR groups; parenthesise it so whereExpr constrains all of them.
+    whereSql = whereSql
+      ? `WHERE (${whereSql.replace(/^WHERE /, '')}) AND ${predicate}`
+      : `WHERE ${predicate}`;
+  }
 
   const groupByItems = spec.groupBy ?? groupingAliases;
   const groupBySql =
     groupByItems.length > 0
       ? `GROUP BY ${groupByItems
           .map((item) =>
-            expressionByAlias.has(item)
-              ? expressionByAlias.get(item)
-              : validateSqlIdentifier(item),
+            ordinalByAlias.has(item)
+              ? String(ordinalByAlias.get(item))
+              : expressionByAlias.has(item)
+                ? expressionByAlias.get(item)
+                : validateColumn(state, item),
           )
           .join(', ')}`
       : '';
@@ -270,18 +488,22 @@ export function buildAggregate(
   const having = buildHaving(
     spec.having,
     expressionByAlias,
-    nextParamIndex,
+    ctx.nextIndex,
     adapterType,
   );
-  nextParamIndex += having.values.length;
+  values.push(...having.values);
+  ctx.nextIndex += having.values.length;
 
-  const orderBySql = buildOrderBy(spec.orderBy);
+  const orderBySql = buildOrderBy(
+    spec.orderBy,
+    state,
+    new Set(expressionByAlias.keys()),
+  );
 
-  const pagingValues: any[] = [];
   const pagingSql: string[] = [];
   if (spec.limit !== undefined) {
-    pagingSql.push(`LIMIT ${placeholder(nextParamIndex++)}`);
-    pagingValues.push(spec.limit);
+    pagingSql.push(`LIMIT ${placeholder(ctx.nextIndex++)}`);
+    values.push(spec.limit);
   } else if (
     spec.offset !== undefined &&
     normalizeAdapter(adapterType) === 'sqlite'
@@ -289,14 +511,17 @@ export function buildAggregate(
     pagingSql.push('LIMIT -1');
   }
   if (spec.offset !== undefined) {
-    pagingSql.push(`OFFSET ${placeholder(nextParamIndex++)}`);
-    pagingValues.push(spec.offset);
+    pagingSql.push(`OFFSET ${placeholder(ctx.nextIndex++)}`);
+    values.push(spec.offset);
   }
 
+  const fromSql =
+    spec.fromAlias !== undefined ? `${from} AS ${fromAlias}` : from;
   const sql = [
     `SELECT ${selectSql.join(', ')}`,
-    `FROM ${from}`,
-    where.sql,
+    `FROM ${fromSql}`,
+    ...joinParts,
+    whereSql,
     groupBySql,
     having.sql,
     orderBySql,
@@ -305,8 +530,5 @@ export function buildAggregate(
     .filter(Boolean)
     .join(' ');
 
-  return {
-    sql,
-    values: [...where.values, ...having.values, ...pagingValues],
-  };
+  return { sql, values };
 }
