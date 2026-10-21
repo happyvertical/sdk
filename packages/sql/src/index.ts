@@ -140,6 +140,14 @@ function _isValidTableName(name: string): boolean {
 // Driver-independent helpers live in ./query (also `@happyvertical/sql/query`).
 import { buildWhere, raw, syncSchema, tableExists } from './query.js';
 
+export type {
+  AggregateArithmeticOp,
+  AggregateComparisonOp,
+  AggregateExpression,
+  AggregateJoin,
+  AggregateLiteral,
+  AggregateOperand,
+} from './aggregate-expression';
 // Generic database integrity-check framework
 export {
   checkExpectedTables,

@@ -636,6 +636,85 @@ semantics for `where` and `having`, and maps time buckets per adapter:
 PostgreSQL, DuckDB, and JSON use `date_trunc(...)`; SQLite uses portable
 `strftime(...)`/`date(...)` expressions.
 
+#### Joins, row expressions and filtered aggregates
+
+A spec can join tables, aggregate a computed value, and count or sum only the
+rows a predicate holds for. All three are structured data (never SQL text), so
+a spec built from untrusted input still cannot carry SQL.
+
+```typescript
+const aggregate = buildAggregate(
+  {
+    from: 'time_entries',
+    fromAlias: 'te',
+    joins: [
+      {
+        table: 'work_orders',
+        alias: 'wo',
+        type: 'left', // 'inner' (default) or 'left'
+        on: {
+          op: 'and',
+          operands: [
+            { op: 'eq', left: { col: 'te.work_order_id' }, right: { col: 'wo.id' } },
+            // Put the tenant equality in ON so ids that collide across tenants never match.
+            { op: 'eq', left: { col: 'te.tenant_id' }, right: { col: 'wo.tenant_id' } },
+          ],
+        },
+      },
+    ],
+    select: [
+      { column: 'wo.title', as: 'title' },
+      { column: 'wo.estimated_hours', as: 'estimated_hours' },
+      { fn: 'sum', column: 'te.hours', as: 'booked' },
+      // Filtered count: rows where the predicate is true (false and NULL are skipped).
+      {
+        fn: 'count',
+        filter: { op: 'gt', left: { col: 'te.hours' }, right: { value: 8 } },
+        as: 'long_days',
+      },
+      // A row expression, aggregated.
+      {
+        fn: 'avg',
+        expr: { op: 'secondsBetween', later: { col: 'te.ended_at' }, earlier: { col: 'te.started_at' } },
+        as: 'avg_seconds',
+      },
+    ],
+    where: { 'te.tenant_id': tenantId },
+  },
+  1,
+  'postgres',
+);
+```
+
+- **Joins.** `from` takes an optional `fromAlias`; each join has a `table`, a
+  unique `alias` (letters, digits, underscore) and a required `on` expression.
+  With joins, a table-qualified column must be `alias.column` where the alias
+  is `from`, `fromAlias` or a join alias; anything else is rejected. The
+  builder does not know what a tenant is: the caller puts the tenant condition
+  in `on` and in `where`.
+- **Expressions.** Operands are `{ col }`, `{ value }` or a node:
+  `add | sub | mul | div` (`div` is fractional and returns NULL for a zero
+  divisor), `secondsBetween` (timestamp difference in seconds),
+  `eq | ne | lt | lte | gt | gte` (`eq`/`ne` against a NULL literal compare with
+  `IS [NOT] NULL`), `and | or | not`, `isNull | isNotNull` and `coalesce`.
+  Numbers, booleans and null are inlined after validation; strings and dates
+  are bound as parameters. Expressions are limited to depth 24 and 256 nodes.
+- **Where an expression goes.** `{ expr, as }` in `select` is a grouping key
+  (grouped by its position, so a bound value is not repeated); `expr` on an
+  aggregate replaces `column`; `filter` on an aggregate restricts its rows
+  (rendered as `CASE WHEN`, the same on every dialect); `whereExpr` is a row
+  predicate ANDed with `where`. `having` and `orderBy` refer to any of them by
+  alias, as before.
+- **Parameters.** Values are numbered in build order (select, joins, `where`,
+  `whereExpr`, `having`, paging) and returned in that order. A parameter used
+  by a select expression is referenced again, with the same number, when
+  `having` names its alias; adapters that rewrite `$N` must resolve each
+  occurrence by number (the bundled ones do).
+- Date literals follow `buildWhere`: DuckDB and JSON bind them as `CAST($N AS
+  TIMESTAMP)`, which is read in the session time zone, so compare a
+  `TIMESTAMPTZ` column against a date there with the zone in mind.
+- Specs without these fields produce exactly the SQL they always did.
+
 ### Schema Synchronization
 
 ```typescript
