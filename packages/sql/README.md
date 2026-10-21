@@ -639,8 +639,13 @@ PostgreSQL, DuckDB, and JSON use `date_trunc(...)`; SQLite uses portable
 #### Joins, row expressions and filtered aggregates
 
 A spec can join tables, aggregate a computed value, and count or sum only the
-rows a predicate holds for. All three are structured data (never SQL text), so
-a spec built from untrusted input still cannot carry SQL.
+rows a predicate holds for. All three are structured data (never SQL text):
+identifiers are validated, strings and dates are bound, and an aggregate that
+takes an `expr` or `filter` must be `count`, `sum`, `avg`, `min` or `max`.
+Other parts of an `AggregateSpec` predate this and are not hardened for
+untrusted input: `fn` is free-form for a plain column, and `raw()` keys in
+`where`/`having` use a string prefix that JSON can forge. Validate specs built
+from untrusted input before passing them in.
 
 ```typescript
 const aggregate = buildAggregate(
@@ -698,22 +703,26 @@ const aggregate = buildAggregate(
   `eq | ne | lt | lte | gt | gte` (`eq`/`ne` against a NULL literal compare with
   `IS [NOT] NULL`), `and | or | not`, `isNull | isNotNull` and `coalesce`.
   Numbers, booleans and null are inlined after validation; strings and dates
-  are bound as parameters. Expressions are limited to depth 24 and 256 nodes.
+  are bound as parameters. Expressions are limited to depth 24 and 1024 nodes per spec.
 - **Where an expression goes.** `{ expr, as }` in `select` is a grouping key
   (grouped by its position, so a bound value is not repeated); `expr` on an
   aggregate replaces `column`; `filter` on an aggregate restricts its rows
   (rendered as `CASE WHEN`, the same on every dialect); `whereExpr` is a row
-  predicate ANDed with `where`. `having` and `orderBy` refer to any of them by
+  predicate ANDed with the whole of `where` (OR groups included). `having` and `orderBy` refer to any of them by
   alias, as before.
 - **Parameters.** Values are numbered in build order (select, joins, `where`,
   `whereExpr`, `having`, paging) and returned in that order. A parameter used
   by a select expression is referenced again, with the same number, when
   `having` names its alias; adapters that rewrite `$N` must resolve each
   occurrence by number (the bundled ones do).
-- Date literals follow `buildWhere`: DuckDB and JSON bind them as `CAST($N AS
+- Date literals follow `buildWhere`: PostgreSQL binds them as `CAST($N AS
+  TIMESTAMPTZ)`; DuckDB and JSON bind them as `CAST($N AS
   TIMESTAMP)`, which is read in the session time zone, so compare a
   `TIMESTAMPTZ` column against a date there with the zone in mind.
-- Specs without these fields produce exactly the SQL they always did.
+- Specs without these fields produce the SQL they always did, except that a
+  dotted column with no `as` (`t.region`, which used to alias to the invalid
+  `t.region`) now aliases to its last segment. Two select items that resolve to
+  the same alias are rejected.
 
 ### Schema Synchronization
 

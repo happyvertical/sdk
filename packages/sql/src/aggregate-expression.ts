@@ -69,7 +69,8 @@ export interface AggregateJoin {
 }
 
 const MAX_DEPTH = 24;
-const MAX_NODES = 256;
+/** Node budget for a whole spec (every select item, join, filter and predicate together). */
+const MAX_NODES = 1024;
 
 const ARITHMETIC: Record<AggregateArithmeticOp, string> = {
   add: '+',
@@ -97,11 +98,12 @@ export interface ExpressionContext {
   identifier: (identifier: string) => string;
   /** Called with each column reference so the caller can check its table alias. */
   onColumn?: (column: string) => void;
+  /** Nodes rendered so far across every expression of one build; capped at {@link MAX_NODES}. */
+  nodeCount?: number;
 }
 
 interface RenderState {
   ctx: ExpressionContext;
-  nodes: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -126,10 +128,15 @@ function literal(value: unknown, state: RenderState): string {
     }
     const placeholder = `$${ctx.nextIndex++}`;
     ctx.values.push(value.toISOString());
-    // DuckDB/JSON cannot infer a timestamp from a bound string (issue #540).
-    return ctx.adapterType === 'duckdb' || ctx.adapterType === 'json'
-      ? `CAST(${placeholder} AS TIMESTAMP)`
-      : placeholder;
+    // DuckDB/JSON cannot infer a timestamp from a bound string (issue #540),
+    // and Postgres cannot type two bare parameters (`$1 - $2`).
+    if (ctx.adapterType === 'duckdb' || ctx.adapterType === 'json') {
+      return `CAST(${placeholder} AS TIMESTAMP)`;
+    }
+    if (ctx.adapterType === 'postgres') {
+      return `CAST(${placeholder} AS TIMESTAMPTZ)`;
+    }
+    return placeholder;
   }
   if (typeof value === 'string') {
     const placeholder = `$${ctx.nextIndex++}`;
@@ -147,7 +154,8 @@ function secondsBetween(
   earlier: string,
 ): string {
   if (adapterType === 'postgres') {
-    return `EXTRACT(EPOCH FROM (${later} - ${earlier}))`;
+    // A float like the other dialects: EXTRACT returns numeric, which drivers hand back as a string.
+    return `CAST(EXTRACT(EPOCH FROM (${later} - ${earlier})) AS DOUBLE PRECISION)`;
   }
   if (adapterType === 'duckdb' || adapterType === 'json') {
     return `epoch(${later}) - epoch(${earlier})`;
@@ -165,7 +173,8 @@ function renderOperand(
   if (depth > MAX_DEPTH) {
     throw new Error(`Aggregate expression is nested deeper than ${MAX_DEPTH}`);
   }
-  if (++state.nodes > MAX_NODES) {
+  state.ctx.nodeCount = (state.ctx.nodeCount ?? 0) + 1;
+  if (state.ctx.nodeCount > MAX_NODES) {
     throw new Error(`Aggregate expression has more than ${MAX_NODES} nodes`);
   }
   if (!isRecord(node)) {
@@ -260,5 +269,5 @@ export function renderAggregateExpression(
   node: AggregateOperand,
   ctx: ExpressionContext,
 ): string {
-  return renderOperand(node, { ctx, nodes: 0 }, 0);
+  return renderOperand(node, { ctx }, 0);
 }

@@ -79,6 +79,7 @@ export interface AggregateBuildResult {
   values: any[];
 }
 
+const EXPRESSION_AGGREGATES = new Set(['count', 'sum', 'avg', 'min', 'max']);
 const VALID_DIRECTIONS = new Set(['ASC', 'DESC']);
 const VALID_BUCKET_UNITS = new Set<AggregateTimeBucketUnit>([
   'minute',
@@ -178,6 +179,16 @@ function aggregateExpression(
   const fn = validateSqlIdentifier(String(expr.fn)).toUpperCase();
   if (expr.column !== undefined && expr.expr !== undefined) {
     throw new Error(`Aggregate ${expr.fn} takes a column or an expr, not both`);
+  }
+  // `fn` is free-form for plain columns (existing behaviour), but an expression
+  // or filter can feed it bound values, so it must be a real aggregate there.
+  if (
+    (expr.expr !== undefined || expr.filter !== undefined) &&
+    !EXPRESSION_AGGREGATES.has(normalizedFn)
+  ) {
+    throw new Error(
+      `Aggregate ${expr.fn} cannot take an expr or filter; use count, sum, avg, min or max`,
+    );
   }
   const hasArgument = Boolean(expr.column) || expr.expr !== undefined;
   // Rendered first so a filter's parameters are numbered before the argument's.
@@ -334,11 +345,11 @@ const VALID_JOIN_TYPES = new Set(['inner', 'left']);
 const JOIN_ALIAS = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function buildScope(
-  spec: AggregateSpec,
+  fromAlias: string | undefined,
+  joins: AggregateJoin[],
   from: string,
 ): Set<string> | undefined {
-  const joins = spec.joins ?? [];
-  if (joins.length === 0 && spec.fromAlias === undefined) return undefined;
+  if (joins.length === 0 && fromAlias === undefined) return undefined;
   const scope = new Set<string>();
   const claim = (name: string, what: string) => {
     // A non-string could pass the pattern once and render differently later.
@@ -350,8 +361,8 @@ function buildScope(
     }
     scope.add(name);
   };
-  if (spec.fromAlias !== undefined) {
-    claim(spec.fromAlias, 'from alias');
+  if (fromAlias !== undefined) {
+    claim(fromAlias, 'from alias');
   } else {
     if (from.includes('.')) {
       throw new Error(
@@ -409,7 +420,18 @@ export function buildAggregate(
     values,
     identifier: validateSqlIdentifier,
   };
-  const state: BuildState = { ctx, scope: buildScope(spec, from) };
+  // Read once: the validated string is the one rendered.
+  const fromAlias = spec.fromAlias;
+  const joins: AggregateJoin[] = (spec.joins ?? []).map((join) => ({
+    table: join.table,
+    alias: join.alias,
+    type: join.type,
+    on: join.on,
+  }));
+  const state: BuildState = {
+    ctx,
+    scope: buildScope(fromAlias, joins, from),
+  };
   ctx.onColumn = (column) => {
     checkColumn(state, column);
   };
@@ -419,6 +441,9 @@ export function buildAggregate(
   const groupingAliases: string[] = [];
   const selectSql = spec.select.map((expr, position) => {
     const selected = selectExpression(expr, adapterType, state);
+    if (expressionByAlias.has(selected.alias)) {
+      throw new Error(`Duplicate aggregate select alias: ${selected.alias}`);
+    }
     expressionByAlias.set(selected.alias, selected.expression);
     // A computed key is grouped by its position in the select list, so a bound
     // parameter in it is not repeated in the GROUP BY.
@@ -429,7 +454,7 @@ export function buildAggregate(
     return `${selected.expression} AS ${selected.alias}`;
   });
 
-  const joinParts = joinSql(state, spec.joins ?? []);
+  const joinParts = joinSql(state, joins);
 
   const where = spec.where
     ? buildWhere(spec.where, ctx.nextIndex, adapterType)
@@ -440,7 +465,10 @@ export function buildAggregate(
   let whereSql = where.sql;
   if (spec.whereExpr !== undefined) {
     const predicate = renderExpression(state, spec.whereExpr);
-    whereSql = whereSql ? `${whereSql} AND ${predicate}` : `WHERE ${predicate}`;
+    // `where` may hold OR groups; parenthesise it so whereExpr constrains all of them.
+    whereSql = whereSql
+      ? `WHERE (${whereSql.replace(/^WHERE /, '')}) AND ${predicate}`
+      : `WHERE ${predicate}`;
   }
 
   const groupByItems = spec.groupBy ?? groupingAliases;
@@ -488,9 +516,7 @@ export function buildAggregate(
   }
 
   const fromSql =
-    spec.fromAlias !== undefined
-      ? `${from} AS ${validateSqlIdentifier(spec.fromAlias)}`
-      : from;
+    spec.fromAlias !== undefined ? `${from} AS ${fromAlias}` : from;
   const sql = [
     `SELECT ${selectSql.join(', ')}`,
     `FROM ${fromSql}`,

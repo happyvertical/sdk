@@ -103,7 +103,7 @@ describe('aggregate joins, row expressions and filtered aggregates: SQL', () => 
       'postgres',
     );
     expect(sql).toBe(
-      'SELECT COUNT(CASE WHEN (kind = $3) THEN 1 END) AS xs, SUM(n) AS total FROM a WHERE status = $4 AND (region = $5) HAVING SUM(n) > $6 LIMIT $7 OFFSET $8',
+      'SELECT COUNT(CASE WHEN (kind = $3) THEN 1 END) AS xs, SUM(n) AS total FROM a WHERE (status = $4) AND (region = $5) HAVING SUM(n) > $6 LIMIT $7 OFFSET $8',
     );
     expect(values).toEqual(['x', 'open', 'west', 5, 10, 20]);
   });
@@ -161,7 +161,7 @@ describe('aggregate joins, row expressions and filtered aggregates: SQL', () => 
       'SELECT AVG(((julianday(claimed_at) - julianday(created_at)) * 86400.0)) AS response FROM e',
     );
     expect(per('postgres')).toBe(
-      'SELECT AVG(EXTRACT(EPOCH FROM (claimed_at - created_at))) AS response FROM e',
+      'SELECT AVG(CAST(EXTRACT(EPOCH FROM (claimed_at - created_at)) AS DOUBLE PRECISION)) AS response FROM e',
     );
     expect(per('duckdb')).toBe(
       'SELECT AVG(epoch(claimed_at) - epoch(created_at)) AS response FROM e',
@@ -406,11 +406,77 @@ describe('aggregate joins, row expressions and filtered aggregates: SQL', () => 
       );
       const wide: AggregateExpression = {
         op: 'and',
-        operands: Array.from({ length: 300 }, () => eq(col('x'), val(1))),
+        operands: Array.from({ length: 400 }, () => eq(col('x'), val(1))),
       };
       expect(() => buildAggregate(base({ whereExpr: wide }))).toThrow(
         /more than/,
       );
+    });
+
+    it('shares one node budget across every expression of a spec', () => {
+      const piece: AggregateExpression = {
+        op: 'and',
+        operands: Array.from({ length: 100 }, () => eq(col('x'), val(1))),
+      };
+      const select = Array.from({ length: 6 }, (_, i) => ({
+        fn: 'count' as const,
+        filter: piece,
+        as: `n${i}`,
+      }));
+      expect(() => buildAggregate(base({ select }))).toThrow(/more than/);
+    });
+
+    it('rejects an expr or filter on a non-aggregate function', () => {
+      for (const fn of ['pg_read_file', 'nextval', 'load_extension']) {
+        expect(() =>
+          buildAggregate(
+            base({ select: [{ fn, expr: val('/etc/passwd'), as: 'x' }] }),
+          ),
+        ).toThrow(/cannot take an expr or filter/);
+      }
+    });
+
+    it('rejects two select items with the same alias', () => {
+      expect(() =>
+        buildAggregate({
+          from: 'a',
+          fromAlias: 'a',
+          joins: [{ table: 'b', alias: 'b', on: eq(col('a.id'), col('b.id')) }],
+          select: [{ column: 'a.id' }, { column: 'b.id' }],
+        }),
+      ).toThrow(/Duplicate aggregate select alias/);
+    });
+
+    it('parenthesises where so whereExpr constrains every OR group', () => {
+      const { sql } = buildAggregate(
+        base({
+          where: [[{ a: 1 }], [{ b: 2 }]],
+          whereExpr: eq(col('tenant_id'), val('T1')),
+        }),
+      );
+      expect(sql).toMatch(/WHERE \(\(a = \$1\) OR \(b = \$2\)\) AND /);
+    });
+
+    it('casts date literals on Postgres so two bare parameters are typed', () => {
+      const { sql } = buildAggregate(
+        base({
+          select: [
+            {
+              fn: 'avg',
+              expr: {
+                op: 'secondsBetween',
+                later: val(new Date('2026-01-02T00:00:00Z')),
+                earlier: val(new Date('2026-01-01T00:00:00Z')),
+              },
+              as: 'n',
+            },
+          ],
+        }),
+        1,
+        'postgres',
+      );
+      expect(sql).toContain('CAST($1 AS TIMESTAMPTZ)');
+      expect(sql).toContain('CAST($2 AS TIMESTAMPTZ)');
     });
   });
 });
