@@ -1,5 +1,15 @@
 # @happyvertical/sql
 
+## 0.106.0
+
+### Minor Changes
+
+- 5122cff: Add aliased joins, closed row expressions, expression grouping keys, row predicates and filtered aggregates to `buildAggregate()`. Specs without the new fields compile as before. A dotted column with no `as` now aliases to its last segment, and duplicate select aliases are rejected.
+
+### Patch Changes
+
+- @happyvertical/utils@0.106.0
+
 ## 0.105.12
 
 ### Patch Changes
