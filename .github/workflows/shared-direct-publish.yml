@@ -31,7 +31,7 @@ on:
         description: 'Node.js version to use'
         required: false
         type: string
-        default: '24.18.0'
+        default: '24.22.1'
       registry-url:
         description: 'NPM registry URL'
         required: false

@@ -90,7 +90,7 @@ jobs:
           steps.skip-check.outputs.skip != 'true'
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
           install-deps: 'true'
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -230,7 +230,7 @@ jobs:
           env.VALIDATE_REVIEWED_HEAD == 'true')
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
 
       - name: Install commitlint dependencies
         if: >-
@@ -605,7 +605,7 @@ jobs:
         if: github.event_name == 'merge_group' || steps.changed-files.outputs.any_changed == 'true'
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build documentation site
