@@ -58,7 +58,7 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Validate CI scripts and shared test configuration

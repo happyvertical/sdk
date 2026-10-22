@@ -115,7 +115,7 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
           registry-url: 'https://registry.npmjs.org'
           auth-token: ${{ secrets.NPM_TOKEN }}
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
@@ -217,7 +217,7 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Pack and validate shard
         run: node scripts/validate-publish-packages.mjs
@@ -279,7 +279,7 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
           registry-url: 'https://registry.npmjs.org'
           auth-token: ${{ secrets.NPM_TOKEN }}
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
@@ -422,7 +422,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
           registry-url: 'https://registry.npmjs.org'
       - name: Mirror to npmjs
         id: mirror
@@ -467,7 +467,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
@@ -523,7 +523,7 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.1'
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build documentation
         run: pnpm run docs:site:build
