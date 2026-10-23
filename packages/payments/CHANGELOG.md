@@ -1,5 +1,11 @@
 # @happyvertical/payments
 
+## 0.107.0
+
+### Minor Changes
+
+- 64190b0: Normalize signed connected-account dispute events and expose scoped authoritative dispute retrieval with payment identities, environment context, and balance-transaction evidence.
+
 ## 0.106.1
 
 ## 0.106.0
