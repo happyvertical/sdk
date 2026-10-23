@@ -1276,7 +1276,7 @@ export class StripeAdapter implements PaymentBackend {
     options: StripeGetDisputeOptions = {},
   ): Promise<StripeDispute> {
     const id = normalizeNonEmptyString(disputeId, 'Stripe dispute id');
-    if (!/^du_[A-Za-z0-9_]+$/.test(id)) {
+    if (!/^(?:du|dp)_[A-Za-z0-9_]+$/.test(id)) {
       throw new PaymentConfigurationError('Stripe dispute id is invalid.');
     }
     const scope = this.resolveStripeAccount(options.stripeAccount);
@@ -1731,7 +1731,10 @@ function disputeId(value: unknown, prefix: string): string {
       : value,
     prefix,
   );
-  if (!new RegExp(`^${prefix}_[A-Za-z0-9_]+$`).test(id))
+  // Charge IDs include non-card py_ identities; legacy disputes can use dp_.
+  const prefixes =
+    prefix === 'ch' ? '(?:ch|py)' : prefix === 'du' ? '(?:du|dp)' : prefix;
+  if (!new RegExp(`^${prefixes}_[A-Za-z0-9_]+$`).test(id))
     return disputeError(prefix);
   return id;
 }

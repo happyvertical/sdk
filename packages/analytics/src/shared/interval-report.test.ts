@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IntervalReportOptions, IntervalReportResult } from '../index.js';
 import { validateIntervalReport } from './interval-report.js';
 import { GA4Provider } from './providers/ga4.js';
@@ -19,7 +19,13 @@ const matomo = () =>
     baseUrl: 'https://matomo.example',
     tokenAuth: 'test',
   });
-afterEach(() => vi.unstubAllGlobals());
+beforeEach(() =>
+  vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2027-01-02T00:00:00Z')),
+);
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 function mockMatomo(timeZone: string | undefined, response: unknown) {
   const provider = matomo();
@@ -144,6 +150,28 @@ describe('exact interval aggregates', () => {
         })
       ).status,
     ).toBe('unsupported');
+  });
+  it.each([
+    '2026-09-30T12:00:00Z',
+    '2026-10-23T12:00:00Z',
+    '2026-12-31T23:59:59Z',
+  ])('refuses unfinished measurement at %s', async (now) => {
+    vi.mocked(Date.now).mockReturnValue(Date.parse(now));
+    const { provider, fetchMock } = mockMatomo('UTC', { nb_pageviews: 0 });
+    expect(await provider.runIntervalReport('1', options)).toEqual({
+      status: 'unavailable',
+      interval: options.interval,
+      reason: 'interval-incomplete',
+    });
+    expect(provider.getProperty).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('accepts an interval exactly at its completed exclusive end', async () => {
+    vi.mocked(Date.now).mockReturnValue(Date.parse(options.interval.endTime));
+    const { provider } = mockMatomo('UTC', { nb_pageviews: 0 });
+    expect((await provider.runIntervalReport('1', options)).status).toBe(
+      'available',
+    );
   });
   it('propagates upstream failure', async () => {
     const { provider, fetchMock } = mockMatomo('UTC', {});

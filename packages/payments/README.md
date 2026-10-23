@@ -219,7 +219,9 @@ uses the explicit account or adapter's default account (otherwise platform),
 and refuses an override of a fixed adapter account. The caller must select an
 owned account; Stripe authenticates the read within that account. A reread
 requests an expanded charge to recover `paymentIntentId` when absent on the
-dispute. Some charges genuinely have no PaymentIntent: that field remains
+dispute. Both card `ch_` and non-card `py_` charge identities are accepted, as are
+current `du_` and legacy `dp_` dispute identities. Some charges genuinely have no
+PaymentIntent: that field remains
 optional, and consumers must resolve charge ownership themselves or quarantine
 unroutable snapshots. Conflicting expanded references are rejected.
 

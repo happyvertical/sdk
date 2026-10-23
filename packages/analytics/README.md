@@ -39,7 +39,9 @@ Check `getCapabilities().timestampIntervalReporting` and the optional method
 before calling; absent capabilities/methods mean unsupported. Matomo advertises
 `{ precision: 'utc-calendar-days', metrics: ['screenPageViews'] }`. It verifies
 the property's timezone from provider metadata and supports only UTC properties
-with both instants at UTC midnight. It requests `Actions.get` once for the
+with both instants at UTC midnight. Intervals ending after the current time
+return unavailable (`interval-incomplete`) without a provider report. It requests
+`Actions.get` once for the
 inclusive calendar range ending the day before the exclusive boundary. This
 supports reproducible whole-day or quarterly pageview totals without summing
 visitor counts. Non-UTC properties, DST days, partial days and other metrics
@@ -57,8 +59,8 @@ const capabilities = await analytics.getCapabilities();
 if (capabilities.timestampIntervalReporting && analytics.runIntervalReport) {
   const result = await analytics.runIntervalReport('site-id', {
     interval: {
-      startTime: '2026-10-01T00:00:00Z',
-      endTime: '2027-01-01T00:00:00Z',
+      startTime: '2026-07-01T00:00:00Z',
+      endTime: '2026-10-01T00:00:00Z',
       timeZone: 'UTC',
     },
     metrics: [{ name: 'screenPageViews' }],

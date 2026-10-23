@@ -286,6 +286,9 @@ export class MatomoProvider implements AnalyticsInterface {
       end.toISOString().slice(11) !== '00:00:00.000Z'
     )
       return unsupported;
+    if (end.getTime() > Date.now()) {
+      return { status: 'unavailable', interval, reason: 'interval-incomplete' };
+    }
     const property = await this.getProperty(propertyId);
     if (!property.timeZone)
       return {

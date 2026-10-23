@@ -383,6 +383,24 @@ describe('authoritative Stripe dispute reads', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    'du_noncard',
+    'dp_legacy',
+  ])('accepts valid non-card charge identity with dispute %s', async (id) => {
+    const payload = dispute({ id, charge: 'py_noncard', payment_intent: null });
+    expect(parse(event(payload)).dispute).toMatchObject({
+      id,
+      chargeId: 'py_noncard',
+    });
+    const { client, fetch } = retrieval(payload);
+    expect(
+      await client.getDispute(id, { stripeAccount: account }),
+    ).toMatchObject({ id, chargeId: 'py_noncard', account });
+    expect(String(fetch.mock.calls[0]?.[0])).toContain(
+      `/disputes/${id}?expand[]=charge`,
+    );
+  });
+
   it('rejects malformed identifiers and accounts before requesting', async () => {
     const { client, fetch } = retrieval();
     await expect(client.getDispute('du_bad/path')).rejects.toThrow();
