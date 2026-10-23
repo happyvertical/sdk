@@ -114,6 +114,51 @@ export interface PaymentEvent extends PaymentStatusResult {
   event: 'status' | 'confirmed' | 'failed' | 'expired' | 'refunded' | 'timeout';
 }
 
+/** Provider lifecycle state; unknown values never imply settlement or money movement. */
+export type PaymentDisputeStatus =
+  | 'warning_needs_response'
+  | 'warning_under_review'
+  | 'warning_closed'
+  | 'needs_response'
+  | 'under_review'
+  | 'won'
+  | 'lost'
+  | 'prevented'
+  | 'unknown';
+
+/** Actual provider balance evidence, not a posting instruction. */
+export interface PaymentDisputeBalanceTransaction {
+  id: string;
+  /** Signed integer minor units in this transaction's currency. */
+  amount: number;
+  /** Signed integer minor units in this transaction's currency. */
+  fee: number;
+  /** Signed integer minor units; amount minus fee. */
+  net: number;
+  currency: string;
+  createdAt: Date;
+  /** Provider value, retained without assigning accounting semantics. */
+  type: string;
+  reportingCategory?: string;
+}
+
+/** Read-only dispute snapshot. Consumers own routing, ledger, retries and ordering. */
+export interface PaymentDispute {
+  id: string;
+  chargeId: string;
+  paymentIntentId?: string;
+  /** Non-negative safe integer minor units in currency. */
+  amount: number;
+  currency: string;
+  status: PaymentDisputeStatus;
+  /** Original status; quarantine unknown statuses before business decisions. */
+  providerStatus: string;
+  livemode: boolean;
+  createdAt: Date;
+  /** Complete validated evidence; [] means no balance transactions reported. */
+  balanceTransactions: PaymentDisputeBalanceTransaction[];
+}
+
 export interface PaymentWebhookEvent {
   id?: string;
   deliveryId?: string;
@@ -123,6 +168,8 @@ export interface PaymentWebhookEvent {
   status: PaymentStatus;
   providerPaymentId?: string;
   duplicate?: boolean;
+  /** Typed dispute evidence when supported by the provider. */
+  dispute?: PaymentDispute;
   raw: unknown;
 }
 
