@@ -913,6 +913,12 @@ All providers implement `AIInterface`:
 
 All extend `AIError`: `AuthenticationError`, `RateLimitError`, `ModelNotFoundError`, `ContextLengthError`, `ContentFilterError`, `WebGPUUnavailableError`, `WebLLMPeerMissingError`.
 
+OpenAI and compatible providers (including Bifrost) return `ContextLengthError`
+for HTTP 413, the structured `context_length_exceeded` code, and HTTP 400
+responses identifying an exceeded input token or context window limit. Other
+HTTP 400 failures remain API errors; callers can use the error type to skip or
+shorten oversized inputs without treating unrelated provider failures as overflow.
+
 - `AIError.retryable` distinguishes retryable failures from terminal ones
 - `RateLimitError.retryAfter` exposes provider retry hints in seconds when available
 - `RateLimitError.reason` keeps the provider's own text (for example

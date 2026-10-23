@@ -54,7 +54,8 @@ export class IMAPAdapter extends BaseEmailClient {
   }
 
   /**
-   * Create ImapFlow client
+   * Create ImapFlow client. Socket errors can arrive separately from a pending
+   * operation's rejection, including after authentication fails.
    */
   private createClient(): ImapFlow {
     const config: ImapFlowOptions = {
@@ -73,7 +74,12 @@ export class IMAPAdapter extends BaseEmailClient {
         : false,
     };
 
-    return new ImapFlow(config);
+    const client = new ImapFlow(config);
+    client.on('error', () => {
+      // Do not log protocol details or credentials, or consume operation failures.
+      this.logger.error('IMAP connection error');
+    });
+    return client;
   }
 
   getAdapter(): AdapterType {

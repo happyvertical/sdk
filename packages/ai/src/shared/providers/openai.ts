@@ -1241,6 +1241,15 @@ export class OpenAIProvider implements AIInterface {
 
   private mapError(error: unknown): AIError {
     if (error instanceof OpenAI.APIError) {
+      if (
+        error.code === 'context_length_exceeded' ||
+        (error.status === 400 &&
+          /input tokens exceed the configured limit|maximum context length is \d+ tokens|input exceeds the context window/i.test(
+            error.message,
+          ))
+      ) {
+        return new ContextLengthError(this.profile.providerName);
+      }
       switch (error.status) {
         case 401:
           return new AuthenticationError(this.profile.providerName);
