@@ -31,6 +31,8 @@ import type {
   GetSetupResultInput,
   PaymentBackend,
   PaymentBackendCapabilities,
+  PaymentDispute,
+  PaymentDisputeStatus,
   PaymentEvent,
   PaymentOption,
   PaymentStatus,
@@ -143,7 +145,11 @@ export interface StripeWebhookEvent extends PaymentWebhookEvent {
    * platform-endpoint events never carry it.
    */
   account?: string;
-  /** Typed Connect payload for `account.updated` and `application_fee.*`. */
+  /** Verified event environment and timestamp (required for dispute events). */
+  livemode?: boolean;
+  createdAt?: Date;
+  dispute?: StripeDispute;
+  /** Typed Connect account, application-fee, and dispute payloads. */
   connect?: StripeConnectEventDetail;
   raw: unknown;
 }
@@ -161,7 +167,26 @@ export type StripeConnectEventDetail =
   | {
       type: 'application_fee.created' | 'application_fee.refunded';
       applicationFee: StripeApplicationFee;
-    };
+    }
+  | { type: StripeDisputeEventType; dispute: StripeDispute };
+
+export type StripeDisputeEventType =
+  | 'charge.dispute.created'
+  | 'charge.dispute.updated'
+  | 'charge.dispute.closed'
+  | 'charge.dispute.funds_withdrawn'
+  | 'charge.dispute.funds_reinstated';
+
+export interface StripeDispute extends PaymentDispute {
+  /** Verified webhook origin or authenticated request scope; absent for platform. */
+  account?: string;
+  raw: unknown;
+}
+
+export interface StripeGetDisputeOptions extends StripeAccountScope {
+  /** Reject an authoritative reread from a different environment. */
+  expectedLivemode?: boolean;
+}
 
 /** Connected account onboarding and capability state. */
 export interface StripeConnectAccountStatus {
@@ -1245,6 +1270,46 @@ export class StripeAdapter implements PaymentBackend {
     return status;
   }
 
+  /** Authoritative read. No request or adapter account scope means platform. */
+  async getDispute(
+    disputeId: string,
+    options: StripeGetDisputeOptions = {},
+  ): Promise<StripeDispute> {
+    const id = normalizeNonEmptyString(disputeId, 'Stripe dispute id');
+    if (!/^(?:du|dp)_[A-Za-z0-9_]+$/.test(id)) {
+      throw new PaymentConfigurationError('Stripe dispute id is invalid.');
+    }
+    const scope = this.resolveStripeAccount(options.stripeAccount);
+    const account =
+      scope === undefined
+        ? undefined
+        : normalizeStripeConnectedAccountId(scope);
+    if (account !== undefined) this.assertAdapterAccount(account);
+    if (
+      options.expectedLivemode !== undefined &&
+      typeof options.expectedLivemode !== 'boolean'
+    ) {
+      throw new PaymentConfigurationError(
+        'Stripe expectedLivemode must be boolean.',
+      );
+    }
+    const response = await this.stripeRequest<Record<string, unknown>>(
+      `/disputes/${encodeURIComponent(id)}?expand[]=charge`,
+      { stripeAccount: account },
+    );
+    const dispute = mapStripeDispute(response, account);
+    if (
+      dispute.id !== id ||
+      (options.expectedLivemode !== undefined &&
+        dispute.livemode !== options.expectedLivemode)
+    ) {
+      throw new PaymentVerificationError(
+        'Stripe dispute response identity or environment did not match the request.',
+      );
+    }
+    return dispute;
+  }
+
   private verifyWebhookEvent(
     payload: string,
     signature: string | undefined,
@@ -1301,7 +1366,27 @@ export class StripeAdapter implements PaymentBackend {
     const data = (
       event.data as { object?: Record<string, unknown> } | undefined
     )?.object;
-    const connect = mapStripeConnectEventDetail(type, data);
+    const dispute = type.startsWith('charge.dispute.')
+      ? mapStripeDispute(data, account)
+      : undefined;
+    let disputeType: StripeDisputeEventType | undefined;
+    if (dispute !== undefined) {
+      disputeType = readStripeDisputeEventType(type);
+      if (
+        typeof event.livemode !== 'boolean' ||
+        event.livemode !== dispute.livemode
+      ) {
+        throw new PaymentVerificationError(
+          'Stripe dispute event environment is missing or inconsistent.',
+        );
+      }
+    }
+    const createdAt =
+      dispute === undefined ? undefined : disputeDate(event.created);
+    const connect: StripeConnectEventDetail | undefined =
+      disputeType && dispute
+        ? { type: disputeType, dispute }
+        : mapStripeConnectEventDetail(type, data);
 
     if (
       account !== undefined &&
@@ -1335,6 +1420,9 @@ export class StripeAdapter implements PaymentBackend {
       duplicate: this.seenWebhookEventIds.has(id),
       ...(account === undefined ? {} : { account }),
       ...(connect === undefined ? {} : { connect }),
+      ...(dispute === undefined
+        ? {}
+        : { dispute, livemode: dispute.livemode, createdAt }),
       raw: event,
     };
   }
@@ -1591,6 +1679,177 @@ function mapStripeApplicationFee(
     ),
     livemode: typeof livemode === 'boolean' ? livemode : undefined,
     raw: fee,
+  };
+}
+
+const STRIPE_DISPUTE_STATUSES: ReadonlySet<string> = new Set([
+  'warning_needs_response',
+  'warning_under_review',
+  'warning_closed',
+  'needs_response',
+  'under_review',
+  'won',
+  'lost',
+  'prevented',
+]);
+
+function readStripeDisputeEventType(type: string): StripeDisputeEventType {
+  switch (type) {
+    case 'charge.dispute.created':
+    case 'charge.dispute.updated':
+    case 'charge.dispute.closed':
+    case 'charge.dispute.funds_withdrawn':
+    case 'charge.dispute.funds_reinstated':
+      return type;
+    default:
+      throw new PaymentProviderError('Unsupported Stripe dispute event type.');
+  }
+}
+
+function disputeError(field: string): never {
+  throw new PaymentProviderError(
+    `Stripe dispute has invalid or missing ${field}.`,
+  );
+}
+
+function disputeRecord(value: unknown, field: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return disputeError(field);
+  return value as Record<string, unknown>;
+}
+
+function disputeString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim() || value !== value.trim())
+    return disputeError(field);
+  return value;
+}
+
+function disputeId(value: unknown, prefix: string): string {
+  const id = disputeString(
+    typeof value === 'object' && value !== null
+      ? disputeRecord(value, prefix).id
+      : value,
+    prefix,
+  );
+  // Charge IDs include non-card py_ identities; legacy disputes can use dp_.
+  const prefixes =
+    prefix === 'ch' ? '(?:ch|py)' : prefix === 'du' ? '(?:du|dp)' : prefix;
+  if (!new RegExp(`^${prefixes}_[A-Za-z0-9_]+$`).test(id))
+    return disputeError(prefix);
+  return id;
+}
+
+function disputeInteger(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value))
+    return disputeError(field);
+  return value;
+}
+
+function disputeDate(value: unknown): Date {
+  const seconds = disputeInteger(value, 'created');
+  const date = new Date(seconds * 1000);
+  if (
+    seconds < 0 ||
+    !Number.isSafeInteger(seconds * 1000) ||
+    !Number.isFinite(date.getTime())
+  )
+    return disputeError('created');
+  return date;
+}
+
+function disputeCurrency(value: unknown): string {
+  if (typeof value !== 'string' || !/^[a-z]{3}$/.test(value))
+    return disputeError('currency');
+  return value.toUpperCase();
+}
+
+function mapStripeDispute(value: unknown, account?: string): StripeDispute {
+  const object = disputeRecord(value, 'object');
+  if (object.object !== 'dispute') return disputeError('object');
+  const id = disputeId(object.id, 'du');
+  const chargeId = disputeId(object.charge, 'ch');
+  const expandedCharge =
+    typeof object.charge === 'object'
+      ? disputeRecord(object.charge, 'charge')
+      : undefined;
+  const paymentIntent = object.payment_intent ?? expandedCharge?.payment_intent;
+  const paymentIntentId =
+    paymentIntent == null ? undefined : disputeId(paymentIntent, 'pi');
+  if (
+    object.payment_intent != null &&
+    expandedCharge?.payment_intent != null &&
+    paymentIntentId !== disputeId(expandedCharge.payment_intent, 'pi')
+  )
+    return disputeError('payment_intent');
+  const amount = disputeInteger(object.amount, 'amount');
+  if (amount < 0) return disputeError('amount');
+  const currency = disputeCurrency(object.currency);
+  const providerStatus = disputeString(object.status, 'status');
+  const status: PaymentDisputeStatus = STRIPE_DISPUTE_STATUSES.has(
+    providerStatus,
+  )
+    ? (providerStatus as PaymentDisputeStatus)
+    : 'unknown';
+  if (typeof object.livemode !== 'boolean') return disputeError('livemode');
+  // Stripe objects normally omit account; when supplied it must agree with the
+  // authenticated scope, never replace it with a payload-provided account.
+  if (object.account !== undefined && object.account !== account)
+    return disputeError('account');
+  if (
+    expandedCharge?.livemode !== undefined &&
+    expandedCharge.livemode !== object.livemode
+  )
+    return disputeError('charge.livemode');
+  if (!Array.isArray(object.balance_transactions))
+    return disputeError('balance_transactions');
+  const ids = new Set<string>();
+  const balanceTransactions = object.balance_transactions.map(
+    (value: unknown) => {
+      const transaction = disputeRecord(value, 'balance_transaction');
+      if (transaction.object !== 'balance_transaction')
+        return disputeError('balance_transaction.object');
+      const id = disputeId(transaction.id, 'txn');
+      if (ids.has(id)) return disputeError('duplicate balance_transaction');
+      ids.add(id);
+      const amount = disputeInteger(
+        transaction.amount,
+        'balance_transaction.amount',
+      );
+      const fee = disputeInteger(transaction.fee, 'balance_transaction.fee');
+      const net = disputeInteger(transaction.net, 'balance_transaction.net');
+      if (!Number.isSafeInteger(amount - fee) || amount - fee !== net)
+        return disputeError('balance_transaction.net');
+      return {
+        id,
+        amount,
+        fee,
+        net,
+        currency: disputeCurrency(transaction.currency),
+        createdAt: disputeDate(transaction.created),
+        type: disputeString(transaction.type, 'balance_transaction.type'),
+        reportingCategory:
+          transaction.reporting_category === undefined
+            ? undefined
+            : disputeString(
+                transaction.reporting_category,
+                'balance_transaction.reporting_category',
+              ),
+      };
+    },
+  );
+  return {
+    id,
+    chargeId,
+    paymentIntentId,
+    amount,
+    currency,
+    status,
+    providerStatus,
+    livemode: object.livemode,
+    createdAt: disputeDate(object.created),
+    balanceTransactions,
+    ...(account === undefined ? {} : { account }),
+    raw: object,
   };
 }
 

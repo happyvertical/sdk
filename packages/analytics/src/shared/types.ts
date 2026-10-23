@@ -399,6 +399,41 @@ export interface DateRange {
   name?: string;
 }
 
+/** Exact half-open [startTime, endTime) interval. No calendar-date coercion. */
+export interface TimestampInterval {
+  /** RFC 3339 instant with seconds, explicit offset, and up to millisecond precision. */
+  startTime: string;
+  /** Exclusive RFC 3339 instant; must be later than startTime. */
+  endTime: string;
+  /** Explicit IANA timezone for interpretation/display; offsets define the instants. */
+  timeZone: string;
+}
+
+/** Aggregate metrics only: no grouping, pagination, or implicit calendar ranges. */
+export interface IntervalReportOptions {
+  interval: TimestampInterval;
+  metrics: Metric[];
+}
+
+/** Only available results carry values; absence must never be treated as zero. */
+export type IntervalReportResult =
+  | {
+      status: 'available';
+      interval: TimestampInterval;
+      /** Exactly the requested metrics over the entire interval, including measured zeros. */
+      metrics: { name: string; value: string }[];
+    }
+  | {
+      status: 'unsupported';
+      interval: TimestampInterval;
+      reason: 'timestamp-precision';
+    }
+  | {
+      status: 'unavailable';
+      interval: TimestampInterval;
+      reason: string;
+    };
+
 /**
  * Dimension specification for reports
  */
@@ -787,6 +822,14 @@ export interface AnalyticsCapabilities {
   keyEvents: boolean;
   /** Whether reporting is supported */
   reporting: boolean;
+  /** Exact timestamp-interval aggregates; absent means unsupported. */
+  timestampIntervalReporting?:
+    | false
+    | {
+        /** Only UTC-property whole-day boundaries are currently supported. */
+        precision: 'utc-calendar-days';
+        metrics: string[];
+      };
   /** Whether realtime reporting is supported */
   realtimeReporting: boolean;
   /** Whether server-side tracking is supported */
@@ -934,6 +977,16 @@ export interface AnalyticsInterface {
    * Run a report query
    */
   runReport(propertyId: string, options: ReportOptions): Promise<ReportResult>;
+
+  /**
+   * Exact half-open interval aggregate. Optional for third-party providers;
+   * absence or a false/missing capability means unsupported, never zero.
+   * Invalid inputs reject with RangeError. Provider failures reject normally.
+   */
+  runIntervalReport?(
+    propertyId: string,
+    options: IntervalReportOptions,
+  ): Promise<IntervalReportResult>;
 
   /**
    * Run a realtime report query

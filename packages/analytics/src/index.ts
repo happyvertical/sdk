@@ -79,6 +79,8 @@ export type {
   GA4Options,
   GetAnalyticsOptions,
   InListFilter,
+  IntervalReportOptions,
+  IntervalReportResult,
   KeyEvent,
   KeyEventOptions,
   ListPropertiesOptions,
@@ -110,6 +112,7 @@ export type {
   StringFilter,
   StringMatchType,
   // Event tracking types
+  TimestampInterval,
   TrackEvent,
   // Snippet types
   TrackingSnippet,

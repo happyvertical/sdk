@@ -180,6 +180,86 @@ refunded or failed. Duplicate detection records an event only after it
 resolves, so a delivery rejected for an unmapped account is not reported as a
 duplicate when Stripe retries it.
 
+### Disputes: verified snapshots and authoritative rereads
+
+Stripe normalizes `charge.dispute.created`, `.updated`, `.closed`,
+`.funds_withdrawn`, and `.funds_reinstated` into `event.dispute` and
+`event.connect = { type, dispute }` on both endpoint parsers. Connect events
+retain the verified `account`; dispute events require a boolean event
+`livemode` matching the object's environment and expose `createdAt` and
+`livemode` without reading `raw`. Their generic payment `status` stays
+`processing`: a dispute never marks the original payment refunded or failed.
+Existing non-dispute event behavior is unchanged.
+
+```ts
+const { event, owner, account } = await platform.resolveConnectWebhookEvent(
+  rawBody, signature, { resolveAccount: findAccountOwner },
+);
+if (event.dispute) {
+  if (event.livemode !== owner.stripeLivemode) throw new Error('wrong environment');
+  // Authenticate/route the delivery first; reread after out-of-order delivery or
+  // restart. The request scope is preserved in current.account even though
+  // Stripe's dispute object normally omits it.
+  const current = await platform.getDispute(event.dispute.id, {
+    stripeAccount: account,
+    expectedLivemode: owner.stripeLivemode,
+  });
+  if (current.status === 'unknown') throw new Error('unsupported dispute status');
+  await owner.reconcileDispute(current); // consumer-owned durable/idempotent ledger
+}
+```
+
+`PaymentDispute`, `PaymentDisputeStatus`, and
+`PaymentDisputeBalanceTransaction` are root type exports. The Stripe subpath
+exports `StripeDispute`, `StripeDisputeEventType`, and
+`StripeGetDisputeOptions`. A dispute supplies `id`, `chargeId`, optional
+`paymentIntentId`, `amount`, `currency`, `status`, `providerStatus`, `livemode`,
+`createdAt`, and `balanceTransactions`. `getDispute(id, options?)` is a GET,
+uses the explicit account or adapter's default account (otherwise platform),
+and refuses an override of a fixed adapter account. The caller must select an
+owned account; Stripe authenticates the read within that account. A reread
+requests an expanded charge to recover `paymentIntentId` when absent on the
+dispute. Both card `ch_` and non-card `py_` charge identities are accepted, as are
+current `du_` and legacy `dp_` dispute identities. Some charges genuinely have no
+PaymentIntent: that field remains
+optional, and consumers must resolve charge ownership themselves or quarantine
+unroutable snapshots. Conflicting expanded references are rejected.
+
+All amounts are safe integers in minor units. Disputed `amount` is
+non-negative. Balance evidence contains transaction `id`, signed `amount`,
+`fee`, signed `net` (`amount - fee`), `currency`, `createdAt`, provider `type`,
+and optional `reportingCategory`. Its currency may differ from the dispute's
+after FX; do not combine currencies or silently apply the dispute's amount.
+The transaction identifiers and actual deltas are the evidence for accounting;
+statuses and event suffixes alone never prove an amount moved. A `won` or
+`lost` status does not synthesize a credit or debit. Stripe describes zero,
+one, or two balance transactions showing withdrawals and reinstatements.
+
+A validated empty `balanceTransactions` means Stripe reported no balance
+transactions in that snapshot. Missing/incomplete/malformed balance evidence
+throws `PaymentProviderError`; it never becomes an empty array. Known core
+fields with malformed values, unsafe amounts, duplicate transaction IDs,
+inconsistent net values, missing environments, or mismatched identities fail
+closed. Additional unrelated provider fields are ignored. Future lifecycle
+statuses become `status: 'unknown'` with their original `providerStatus`;
+consumers must quarantine those business decisions. Future `charge.dispute.*`
+event types throw rather than falling through as an ignored payment.
+
+Webhook signature verification occurs before parsing; Connect ownership
+resolution occurs before the duplicate marker is recorded. Duplicate and older
+events retain their original evidence; the adapter does not merge snapshots,
+suppress stale events, journal funds, or guarantee durable deduplication.
+Persist event and balance transaction identifiers in the consumer and reread
+authoritatively for retry/crash recovery. Provider/transport errors propagate;
+no dispute writes are exposed. Do not persist `raw`, which may contain PII.
+
+Semantics checked against Stripe's official
+[dispute object](https://docs.stripe.com/api/disputes/object),
+[event types](https://docs.stripe.com/api/events/types),
+[dispute retrieval](https://docs.stripe.com/api/disputes/retrieve), and
+[balance transaction object](https://docs.stripe.com/api/balance_transactions/object)
+on 2026-10-23.
+
 ### BTCPay Greenfield client
 
 `BtcpayClient` is a stateless client for one BTCPay Server store (Greenfield

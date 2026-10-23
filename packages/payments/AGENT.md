@@ -30,3 +30,16 @@ pnpm --filter @happyvertical/payments clean
 - Requires: @noble/curves, @noble/hashes, @scure/bip32
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
+
+
+## Dispute transport
+
+StripeAdapter verifies dispute webhooks before exposing `event.dispute` and
+`event.connect.dispute`. `getDispute(id, { stripeAccount, expectedLivemode })`
+is an authoritative scoped GET, preserving account/environment context and
+expanded charge/PaymentIntent identities. Root `PaymentDispute` types expose
+validated safe minor-unit amounts and balance transaction evidence without raw
+parsing. Missing evidence throws; an empty array is valid. Unknown lifecycle
+statuses map to `unknown`, unknown dispute event types throw. Never infer money
+movement from lifecycle status; consumers own ledger postings, ownership,
+durable deduplication, ordering, and recovery. See README dispute documentation.
