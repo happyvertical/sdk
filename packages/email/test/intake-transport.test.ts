@@ -12,6 +12,7 @@ const transport = vi.hoisted(() => ({
 
 vi.mock('imapflow', () => ({
   ImapFlow: class {
+    on = vi.fn();
     connect = async () => {};
     logout = async () => {};
     search = transport.search;
