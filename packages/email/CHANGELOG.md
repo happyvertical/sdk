@@ -1,5 +1,13 @@
 # @happyvertical/email
 
+## 0.106.1
+
+### Patch Changes
+
+- bca6f50: Handle IMAP socket error events after authentication failures without losing the operation rejection or terminating the process.
+  - @happyvertical/logger@0.106.1
+  - @happyvertical/utils@0.106.1
+
 ## 0.106.0
 
 ### Patch Changes

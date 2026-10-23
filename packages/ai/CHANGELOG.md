@@ -1,5 +1,12 @@
 # @happyvertical/ai
 
+## 0.106.1
+
+### Patch Changes
+
+- bca6f50: Classify OpenAI and compatible gateway context-length errors from structured error codes and known HTTP 400 overflow messages as ContextLengthError.
+  - @happyvertical/utils@0.106.1
+
 ## 0.106.0
 
 ### Patch Changes
