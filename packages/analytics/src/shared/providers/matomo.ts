@@ -16,6 +16,9 @@
  * the GA4-shaped methods.
  */
 
+import { validateIntervalReport } from '../interval-report.js';
+import type { IntervalReportOptions, IntervalReportResult } from '../types.js';
+
 import {
   type AnalyticsCapabilities,
   type AnalyticsInterface,
@@ -125,6 +128,10 @@ export class MatomoProvider implements AnalyticsInterface {
       customMetrics: false,
       keyEvents: false,
       reporting: true,
+      timestampIntervalReporting: {
+        precision: 'utc-calendar-days',
+        metrics: ['screenPageViews'],
+      },
       realtimeReporting: true,
       serverSideTracking: false,
       clientSideSnippet: true,
@@ -261,6 +268,76 @@ export class MatomoProvider implements AnalyticsInterface {
   deleteKeyEvent(_propertyId: string, _eventId: string): Promise<void> {
     throw new NotSupportedError('keyEvents', PROVIDER);
   }
+  async runIntervalReport(
+    propertyId: string,
+    options: IntervalReportOptions,
+  ): Promise<IntervalReportResult> {
+    const interval = validateIntervalReport(options);
+    const unsupported = {
+      status: 'unsupported',
+      interval,
+      reason: 'timestamp-precision',
+    } as const;
+    const start = new Date(interval.startTime);
+    const end = new Date(interval.endTime);
+    if (
+      options.metrics.some((metric) => metric.name !== 'screenPageViews') ||
+      start.toISOString().slice(11) !== '00:00:00.000Z' ||
+      end.toISOString().slice(11) !== '00:00:00.000Z'
+    )
+      return unsupported;
+    const property = await this.getProperty(propertyId);
+    if (!property.timeZone)
+      return {
+        status: 'unavailable',
+        interval,
+        reason: 'property-timezone-unknown',
+      };
+    try {
+      if (
+        new Intl.DateTimeFormat('en', {
+          timeZone: property.timeZone,
+        }).resolvedOptions().timeZone !== 'UTC'
+      )
+        return unsupported;
+    } catch {
+      return {
+        status: 'unavailable',
+        interval,
+        reason: 'property-timezone-unknown',
+      };
+    }
+    // Matomo range dates are inclusive in the verified property's timezone.
+    // Subtract one millisecond only after proving both UTC-midnight boundaries.
+    const response = await this.reportingTransport.call<unknown>(
+      'Actions.get',
+      {
+        idSite: propertyId,
+        period: 'range',
+        date: `${start.toISOString().slice(0, 10)},${new Date(end.getTime() - 1).toISOString().slice(0, 10)}`,
+        columns: 'nb_pageviews',
+      },
+    );
+    const value = isRecord(response) ? response.nb_pageviews : undefined;
+    if (
+      (typeof value !== 'number' && typeof value !== 'string') ||
+      (typeof value === 'string' && !/^\d+$/.test(value)) ||
+      !Number.isSafeInteger(Number(value)) ||
+      Number(value) < 0
+    ) {
+      return {
+        status: 'unavailable',
+        interval,
+        reason: 'pageviews-missing-or-invalid',
+      };
+    }
+    return {
+      status: 'available',
+      interval,
+      metrics: [{ name: 'screenPageViews', value: String(value) }],
+    };
+  }
+
   async runReport(
     propertyId: string,
     options: ReportOptions,

@@ -7,6 +7,7 @@
  * - Events API: Server-side event tracking
  */
 
+import { unsupportedIntervalReport } from '../interval-report.js';
 import type {
   AnalyticsCapabilities,
   AnalyticsInterface,
@@ -19,6 +20,8 @@ import type {
   CustomMetricOptions,
   DataStream,
   DimensionMetadata,
+  IntervalReportOptions,
+  IntervalReportResult,
   KeyEvent,
   KeyEventOptions,
   ListPropertiesOptions,
@@ -301,6 +304,13 @@ export class PlausibleProvider implements AnalyticsInterface {
   // ===========================================================================
   // Reporting (Stats API v2)
   // ===========================================================================
+
+  async runIntervalReport(
+    _propertyId: string,
+    options: IntervalReportOptions,
+  ): Promise<IntervalReportResult> {
+    return unsupportedIntervalReport(options);
+  }
 
   async runReport(
     propertyId: string,
@@ -680,6 +690,7 @@ export class PlausibleProvider implements AnalyticsInterface {
       customMetrics: false,
       keyEvents: true, // Goals
       reporting: true,
+      timestampIntervalReporting: false,
       realtimeReporting: true,
       serverSideTracking: true,
       clientSideSnippet: true,

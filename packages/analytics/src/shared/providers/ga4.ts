@@ -13,7 +13,7 @@ import {
   type analyticsdata_v1beta,
   google,
 } from 'googleapis';
-
+import { unsupportedIntervalReport } from '../interval-report.js';
 import type {
   AnalyticsCapabilities,
   AnalyticsInterface,
@@ -27,6 +27,8 @@ import type {
   DataStream,
   DimensionMetadata,
   GA4Options,
+  IntervalReportOptions,
+  IntervalReportResult,
   KeyEvent,
   KeyEventOptions,
   ListPropertiesOptions,
@@ -710,6 +712,13 @@ export class GA4Provider implements AnalyticsInterface {
   // Reporting
   // ===========================================================================
 
+  async runIntervalReport(
+    _propertyId: string,
+    options: IntervalReportOptions,
+  ): Promise<IntervalReportResult> {
+    return unsupportedIntervalReport(options);
+  }
+
   async runReport(
     propertyId: string,
     options: ReportOptions,
@@ -1127,6 +1136,7 @@ export class GA4Provider implements AnalyticsInterface {
       customMetrics: true,
       keyEvents: true,
       reporting: true,
+      timestampIntervalReporting: false,
       realtimeReporting: true,
       serverSideTracking: true,
       clientSideSnippet: true,
