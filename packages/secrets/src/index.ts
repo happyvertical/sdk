@@ -36,6 +36,7 @@
  * @packageDocumentation
  */
 
+export { DatabaseCustodyLedger } from './adapters/custody-database.js';
 // Direct adapter exports (for advanced usage)
 export { DatabaseSecretStore } from './adapters/database.js';
 export type {

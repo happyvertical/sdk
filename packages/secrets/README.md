@@ -358,3 +358,45 @@ and redacted details; underlying provider causes are intentionally not retained.
 ## License
 
 MIT
+
+### Durable custody recovery with SQLite
+
+`DatabaseCustodyLedger` persists receipt and lifecycle metadata in an existing
+SDK SQL database. It is validated with local SQLite on Node.js 24+. Keep this
+runtime database outside Git and outside your encrypted credential file; secret
+values continue to belong to the configured secret sink/finalizer.
+
+```typescript
+import { getDatabase } from '@happyvertical/sql';
+import { DatabaseCustodyLedger } from '@happyvertical/secrets';
+
+// Provision a current-user-owned 0700 runtime parent first.
+const db = await getDatabase({
+  type: 'sqlite',
+  url: '/private/runtime/custody.sqlite',
+  secureFile: { driver: 'node:sqlite', custody: 'trusted-parent' },
+});
+const ledger = new DatabaseCustodyLedger({ db, ledgerId: 'operator' });
+await ledger.initialize();
+// Pass ledger to CredentialCustody; the caller owns the database lifetime.
+```
+
+Initialization creates a versioned state row per `ledgerId` and validates any
+existing history. Each mutation reads and validates that history, applies the
+same transition checks as `InMemoryCustodyLedger`, then atomically updates the
+row with a revision comparison inside the supplied database transaction. A fresh
+process can list the original receipts and events and run custody recovery.
+Concurrent writers either commit against the current revision or fail; retry
+failed/busy writes after reloading. Exact event retries are idempotent, while
+conflicting event IDs and changed issuance followups fail before mutation. The
+original followup association, including its absence, survives reload. Every
+proposed mutation must replay successfully before it can be committed.
+
+Malformed or unsupported state fails closed; initialization never resets an
+existing ledger. Snapshot validation rejects unknown fields, non-data objects
+(including `SecretMaterial`), malformed public fields and recognized credential
+text. All text fields are limited to 4096 characters. Receipt metadata must
+contain only nonsecret strings: arbitrary opaque secrets cannot be distinguished
+from legitimate identifiers. Signatures are preserved as public receipt data;
+ledger loading does not replace receipt attestation verification. Retain the
+private database for recovery and audit; this adapter does not compact history.

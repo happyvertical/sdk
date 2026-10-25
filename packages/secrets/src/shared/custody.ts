@@ -385,15 +385,26 @@ export interface CustodyLedger {
   listEvents(): Promise<CustodyEvent[]>;
 }
 
+/** Internal recovery metadata binding an issuance to its original transaction. */
+export interface CustodyIssuanceCommit {
+  receiptId: string;
+  eventId: string;
+  followupEventId: string | null;
+}
+
 export class InMemoryCustodyLedger implements CustodyLedger {
   readonly #receipts: CustodyReceipt[] = [];
   readonly #events: CustodyEvent[] = [];
+  readonly #issuanceCommits = new Map<string, CustodyIssuanceCommit>();
 
   async recordIssuance(
     receipt: CustodyReceipt,
     event: CustodyEvent,
   ): Promise<void> {
-    if (event.type !== 'finalization-pending') {
+    if (
+      event.type !== 'finalization-pending' ||
+      event.receiptId !== receipt.receiptId
+    ) {
       throw new CustodyError(
         'INVALID_CUSTODY_EVENT',
         'record',
@@ -443,23 +454,34 @@ export class InMemoryCustodyLedger implements CustodyLedger {
         );
       }
     }
+    if (this.#assertEventIdentity(event)) {
+      throw new CustodyError(
+        'CUSTODY_EVENT_ID_CONFLICT',
+        'record',
+        'Prepared event already exists',
+      );
+    }
     this.#receipts.push(structuredClone(receipt));
     this.#events.push(structuredClone(event));
   }
 
-  async appendEvent(event: CustodyEvent): Promise<void> {
+  #assertEventIdentity(event: CustodyEvent): boolean {
     const existing = this.#events.find(
       (item) => item.eventId === event.eventId,
     );
-    if (existing) {
-      if (sameCustodyEvent(existing, event)) return;
-      throw new CustodyError(
-        'CUSTODY_EVENT_ID_CONFLICT',
-        'record',
-        'Custody event ID is already bound to different content',
-      );
+    if (!existing) return false;
+    if (sameCustodyEvent(existing, event)) return true;
+    throw new CustodyError(
+      'CUSTODY_EVENT_ID_CONFLICT',
+      'record',
+      'Custody event ID is already bound to different content',
+    );
+  }
+
+  async appendEvent(event: CustodyEvent): Promise<void> {
+    if (!this.#assertEventIdentity(event)) {
+      this.#events.push(structuredClone(event));
     }
-    this.#events.push(structuredClone(event));
   }
 
   async commitIssuance(
@@ -469,6 +491,7 @@ export class InMemoryCustodyLedger implements CustodyLedger {
   ): Promise<void> {
     if (
       event.type !== 'issued' ||
+      event.receiptId !== receiptId ||
       (followup !== undefined && followup.type !== 'retirement-pending')
     ) {
       throw new CustodyError(
@@ -484,14 +507,58 @@ export class InMemoryCustodyLedger implements CustodyLedger {
         'Prepared custody receipt was not found',
       );
     }
-    if (
-      !this.#events.some(
-        (item) => item.receiptId === receiptId && item.type === 'issued',
-      )
-    ) {
-      this.#events.push(structuredClone(event));
-      if (followup) this.#events.push(structuredClone(followup));
+    const existing = this.#assertEventIdentity(event);
+    if (followup) {
+      this.#assertEventIdentity(followup);
+      if (followup.eventId === event.eventId) {
+        throw new CustodyError(
+          'CUSTODY_EVENT_ID_CONFLICT',
+          'record',
+          'Issuance events require distinct IDs',
+        );
+      }
     }
+    const issued = this.#events.find(
+      (item) => item.receiptId === receiptId && item.type === 'issued',
+    );
+    if (issued && !sameCustodyEvent(issued, event)) {
+      throw new CustodyError(
+        'CUSTODY_EVENT_ID_CONFLICT',
+        'record',
+        'Receipt issuance is already committed',
+      );
+    }
+    const binding: CustodyIssuanceCommit = {
+      receiptId,
+      eventId: event.eventId,
+      followupEventId: followup?.eventId ?? null,
+    };
+    const original = this.#issuanceCommits.get(receiptId);
+    if (
+      original &&
+      (original.eventId !== binding.eventId ||
+        original.followupEventId !== binding.followupEventId)
+    ) {
+      throw new CustodyError(
+        'CUSTODY_EVENT_ID_CONFLICT',
+        'record',
+        'Committed issuance requires its original followup association',
+      );
+    }
+    const nextEvent = existing ? undefined : structuredClone(event);
+    const nextFollowup =
+      followup &&
+      !this.#events.some((item) => item.eventId === followup.eventId)
+        ? structuredClone(followup)
+        : undefined;
+    if (nextEvent) this.#events.push(nextEvent);
+    if (nextFollowup) this.#events.push(nextFollowup);
+    this.#issuanceCommits.set(receiptId, binding);
+  }
+
+  /** @internal Snapshot metadata for durable ledger recovery. */
+  async listIssuanceCommits(): Promise<CustodyIssuanceCommit[]> {
+    return structuredClone([...this.#issuanceCommits.values()]);
   }
 
   async listReceipts(): Promise<CustodyReceipt[]> {
