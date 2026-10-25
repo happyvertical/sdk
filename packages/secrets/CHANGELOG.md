@@ -1,5 +1,16 @@
 # @happyvertical/secrets
 
+## 0.108.0
+
+### Minor Changes
+
+- 02ed09a: Add DatabaseCustodyLedger for durable SQLite custody recovery using transactional SDK SQL persistence. Validate metadata snapshots and preserve atomic event identity checks in both ledger implementations.
+
+### Patch Changes
+
+- @happyvertical/sql@0.108.0
+- @happyvertical/utils@0.108.0
+
 ## 0.107.0
 
 ### Patch Changes
