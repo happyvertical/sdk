@@ -1,6 +1,7 @@
 import {
   CustodyError,
   type CustodyEvent,
+  type CustodyIssuanceCommit,
   type CustodyReceipt,
   redactCredentialText,
 } from './custody.js';
@@ -100,7 +101,8 @@ function receipt(value: unknown): void {
   ]);
   optional(row, ['verificationId', 'replacesReceiptId']);
   if (
-    !['ephemeral', 'durable'].includes(String(row.mode)) ||
+    typeof row.mode !== 'string' ||
+    !['ephemeral', 'durable'].includes(row.mode) ||
     row.verificationState !== 'verified'
   )
     invalid();
@@ -181,7 +183,8 @@ function event(value: unknown): void {
     ],
   );
   text(row.eventId);
-  if (!EVENT_TYPES.includes(String(row.type))) invalid();
+  if (typeof row.type !== 'string' || !EVENT_TYPES.includes(row.type))
+    invalid();
   timestamp(row.occurredAt);
   optional(row, [
     'receiptId',
@@ -202,15 +205,22 @@ export function validateCustodySnapshot(value: unknown): {
   schema: 1;
   receipts: CustodyReceipt[];
   events: CustodyEvent[];
+  issuanceCommits: CustodyIssuanceCommit[];
 } {
-  const row = object(value, ['schema', 'receipts', 'events']);
+  const row = object(value, [
+    'schema',
+    'receipts',
+    'events',
+    'issuanceCommits',
+  ]);
   if (
     row.schema !== 1 ||
     !Array.isArray(row.receipts) ||
-    !Array.isArray(row.events)
+    !Array.isArray(row.events) ||
+    !Array.isArray(row.issuanceCommits)
   )
     invalid();
-  for (const entries of [row.receipts, row.events]) {
+  for (const entries of [row.receipts, row.events, row.issuanceCommits]) {
     if (
       Object.getPrototypeOf(entries) !== Array.prototype ||
       Reflect.ownKeys(entries).length !== entries.length + 1
@@ -224,10 +234,20 @@ export function validateCustodySnapshot(value: unknown): {
   }
   for (const entry of row.receipts) receipt(entry);
   for (const entry of row.events) event(entry);
+  for (const entry of row.issuanceCommits) {
+    const binding = object(entry, ['receiptId', 'eventId', 'followupEventId']);
+    strings(binding, ['receiptId', 'eventId']);
+    if (binding.followupEventId !== null) text(binding.followupEventId);
+  }
   if (
     new Set(row.receipts.map((entry) => entry.receiptId)).size !==
       row.receipts.length ||
-    new Set(row.events.map((entry) => entry.eventId)).size !== row.events.length
+    new Set(row.events.map((entry) => entry.eventId)).size !==
+      row.events.length ||
+    new Set(row.issuanceCommits.map((entry) => entry.receiptId)).size !==
+      row.issuanceCommits.length ||
+    new Set(row.issuanceCommits.map((entry) => entry.eventId)).size !==
+      row.issuanceCommits.length
   )
     invalid();
   // Snapshot once: callers cannot mutate inputs while awaiting a transaction.

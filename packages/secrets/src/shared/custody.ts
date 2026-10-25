@@ -385,9 +385,17 @@ export interface CustodyLedger {
   listEvents(): Promise<CustodyEvent[]>;
 }
 
+/** Internal recovery metadata binding an issuance to its original transaction. */
+export interface CustodyIssuanceCommit {
+  receiptId: string;
+  eventId: string;
+  followupEventId: string | null;
+}
+
 export class InMemoryCustodyLedger implements CustodyLedger {
   readonly #receipts: CustodyReceipt[] = [];
   readonly #events: CustodyEvent[] = [];
+  readonly #issuanceCommits = new Map<string, CustodyIssuanceCommit>();
 
   async recordIssuance(
     receipt: CustodyReceipt,
@@ -520,24 +528,37 @@ export class InMemoryCustodyLedger implements CustodyLedger {
         'Receipt issuance is already committed',
       );
     }
+    const binding: CustodyIssuanceCommit = {
+      receiptId,
+      eventId: event.eventId,
+      followupEventId: followup?.eventId ?? null,
+    };
+    const original = this.#issuanceCommits.get(receiptId);
     if (
-      existing &&
-      followup &&
-      !this.#events.some((item) => item.eventId === followup.eventId)
+      original &&
+      (original.eventId !== binding.eventId ||
+        original.followupEventId !== binding.followupEventId)
     ) {
       throw new CustodyError(
         'CUSTODY_EVENT_ID_CONFLICT',
         'record',
-        'Committed issuance cannot acquire a new followup',
+        'Committed issuance requires its original followup association',
       );
     }
-    if (!existing) this.#events.push(structuredClone(event));
-    if (
+    const nextEvent = existing ? undefined : structuredClone(event);
+    const nextFollowup =
       followup &&
       !this.#events.some((item) => item.eventId === followup.eventId)
-    ) {
-      this.#events.push(structuredClone(followup));
-    }
+        ? structuredClone(followup)
+        : undefined;
+    if (nextEvent) this.#events.push(nextEvent);
+    if (nextFollowup) this.#events.push(nextFollowup);
+    this.#issuanceCommits.set(receiptId, binding);
+  }
+
+  /** @internal Snapshot metadata for durable ledger recovery. */
+  async listIssuanceCommits(): Promise<CustodyIssuanceCommit[]> {
+    return structuredClone([...this.#issuanceCommits.values()]);
   }
 
   async listReceipts(): Promise<CustodyReceipt[]> {

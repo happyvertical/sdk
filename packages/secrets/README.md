@@ -388,7 +388,9 @@ row with a revision comparison inside the supplied database transaction. A fresh
 process can list the original receipts and events and run custody recovery.
 Concurrent writers either commit against the current revision or fail; retry
 failed/busy writes after reloading. Exact event retries are idempotent, while
-conflicting event IDs and changed issuance followups fail before mutation.
+conflicting event IDs and changed issuance followups fail before mutation. The
+original followup association, including its absence, survives reload. Every
+proposed mutation must replay successfully before it can be committed.
 
 Malformed or unsupported state fails closed; initialization never resets an
 existing ledger. Snapshot validation rejects unknown fields, non-data objects

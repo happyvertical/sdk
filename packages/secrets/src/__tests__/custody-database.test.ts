@@ -126,6 +126,35 @@ for (const kind of ['memory', 'database'] as const) {
       ).rejects.toThrow();
       expect(await ledger.listEvents()).toHaveLength(3);
     });
+    it('binds the original followup including absence and rejects already-recorded substitutes', async () => {
+      const ledger = await setupLedger();
+      await ledger.recordIssuance(receipt(), event('finalization-pending'));
+      const issued = event('issued');
+      const original = event('retirement-pending', 'prior-a');
+      const substitute = event('retirement-pending', 'prior-b');
+      await ledger.appendEvent(substitute);
+      await ledger.commitIssuance('receipt-1', issued, original);
+      const before = await ledger.listEvents();
+      await expect(
+        ledger.commitIssuance('receipt-1', issued),
+      ).rejects.toThrow();
+      await expect(
+        ledger.commitIssuance('receipt-1', issued, substitute),
+      ).rejects.toThrow();
+      await ledger.commitIssuance('receipt-1', issued, original);
+      expect(await ledger.listEvents()).toEqual(before);
+
+      await ledger.recordIssuance(
+        receipt('no-followup'),
+        event('finalization-pending', 'no-followup'),
+      );
+      const noFollowupIssued = event('issued', 'no-followup');
+      await ledger.commitIssuance('no-followup', noFollowupIssued);
+      await expect(
+        ledger.commitIssuance('no-followup', noFollowupIssued, substitute),
+      ).rejects.toThrow();
+      await ledger.commitIssuance('no-followup', noFollowupIssued);
+    });
     it('preflights followup collisions before issuing and enforces receipt identity', async () => {
       const ledger = await setupLedger();
       await ledger.recordIssuance(receipt(), event('finalization-pending'));
@@ -426,6 +455,97 @@ describe('DatabaseCustodyLedger durability', () => {
     expect(await ledger.listReceipts()).toHaveLength(2);
     await other.appendEvent(event('orphan-detected', 'orphan'));
     expect(await ledger.listEvents()).toHaveLength(4);
+  });
+  it('preserves the exact commit association after reopening the database ledger', async () => {
+    const { db, ledger } = await setup();
+    await ledger.recordIssuance(receipt(), event('finalization-pending'));
+    const issued = event('issued');
+    const original = event('retirement-pending', 'prior-a');
+    const substitute = event('retirement-pending', 'prior-b');
+    await ledger.appendEvent(substitute);
+    await ledger.commitIssuance('receipt-1', issued, original);
+    const reopened = new DatabaseCustodyLedger({ db });
+    await reopened.initialize();
+    const before = await db.query(
+      'SELECT revision, payload FROM custody_ledger_state',
+    );
+    await expect(
+      reopened.commitIssuance('receipt-1', issued),
+    ).rejects.toThrow();
+    await expect(
+      reopened.commitIssuance('receipt-1', issued, substitute),
+    ).rejects.toThrow();
+    expect(
+      await db.query('SELECT revision, payload FROM custody_ledger_state'),
+    ).toEqual(before);
+    await reopened.commitIssuance('receipt-1', issued, original);
+    expect(await reopened.listEvents()).toEqual(await ledger.listEvents());
+  });
+  it('rejects an unreplayable append atomically while keeping another receipt recoverable', async () => {
+    const { db, ledger } = await setup();
+    await ledger.recordIssuance(receipt(), event('finalization-pending'));
+    const before = await db.query(
+      'SELECT revision, payload FROM custody_ledger_state',
+    );
+    await expect(
+      ledger.appendEvent(event('finalization-pending', 'missing-receipt')),
+    ).rejects.toThrow('history is invalid');
+    expect(
+      await db.query('SELECT revision, payload FROM custody_ledger_state'),
+    ).toEqual(before);
+    const reopened = new DatabaseCustodyLedger({ db });
+    await reopened.initialize();
+    expect(await reopened.listReceipts()).toEqual([receipt()]);
+    expect(await reopened.listEvents()).toEqual([
+      event('finalization-pending'),
+    ]);
+    await reopened.commitIssuance('receipt-1', event('issued'));
+    expect((await reopened.listEvents()).map((entry) => entry.type)).toEqual([
+      'finalization-pending',
+      'issued',
+    ]);
+  });
+  it('rejects coercible non-string enums on write and when loading persisted JSON', async () => {
+    const { db, ledger } = await setup();
+    await expect(
+      ledger.recordIssuance(
+        { ...receipt(), mode: ['ephemeral'] } as unknown as CustodyReceipt,
+        event('finalization-pending'),
+      ),
+    ).rejects.toThrow('schema-valid');
+    await expect(
+      ledger.appendEvent({
+        ...event('orphan-detected'),
+        type: ['orphan-detected'],
+      } as unknown as CustodyEvent),
+    ).rejects.toThrow('schema-valid');
+    expect(await ledger.listReceipts()).toEqual([]);
+    expect(await ledger.listEvents()).toEqual([]);
+    const corruptStates = [
+      {
+        schema: 1,
+        receipts: [{ ...receipt(), mode: ['ephemeral'] }],
+        events: [event('finalization-pending')],
+        issuanceCommits: [],
+      },
+      {
+        schema: 1,
+        receipts: [],
+        events: [{ ...event('orphan-detected'), type: ['orphan-detected'] }],
+        issuanceCommits: [],
+      },
+    ];
+    for (const state of corruptStates) {
+      const payload = JSON.stringify(state);
+      await db.query('UPDATE custody_ledger_state SET payload = ?', payload);
+      await expect(
+        new DatabaseCustodyLedger({ db }).initialize(),
+      ).rejects.toThrow('state is invalid');
+      expect(
+        (await db.query('SELECT payload FROM custody_ledger_state')).rows[0]
+          .payload,
+      ).toBe(payload);
+    }
   });
   it('isolates named ledgers and rejects unsafe IDs', async () => {
     const { db, ledger } = await setup();

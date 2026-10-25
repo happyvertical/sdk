@@ -2,6 +2,7 @@ import type { DatabaseInterface } from '@happyvertical/sql';
 import {
   CustodyError,
   type CustodyEvent,
+  type CustodyIssuanceCommit,
   type CustodyLedger,
   type CustodyReceipt,
   InMemoryCustodyLedger,
@@ -13,6 +14,7 @@ interface Snapshot {
   schema: 1;
   receipts: CustodyReceipt[];
   events: CustodyEvent[];
+  issuanceCommits: CustodyIssuanceCommit[];
 }
 
 /**
@@ -58,7 +60,12 @@ export class DatabaseCustodyLedger implements CustodyLedger {
       'INSERT INTO custody_ledger_state (ledger_id, revision, payload) VALUES (?, ?, ?) ON CONFLICT (ledger_id) DO NOTHING',
       this.#ledgerId,
       0,
-      JSON.stringify({ schema: 1, receipts: [], events: [] }),
+      JSON.stringify({
+        schema: 1,
+        receipts: [],
+        events: [],
+        issuanceCommits: [],
+      }),
     );
     // Existing state must be readable before initialization can succeed.
     await this.#load(this.#db);
@@ -95,10 +102,18 @@ export class DatabaseCustodyLedger implements CustodyLedger {
         'Custody ledger state is invalid',
       );
     }
+    return { ledger: await this.#restore(state), revision: row.revision };
+  }
+
+  async #restore(state: Snapshot): Promise<InMemoryCustodyLedger> {
     const ledger = new InMemoryCustodyLedger();
     const receipts = new Map(
       state.receipts.map((receipt) => [receipt.receiptId, receipt]),
     );
+    const commits = new Map(
+      state.issuanceCommits.map((binding) => [binding.eventId, binding]),
+    );
+    const events = new Map(state.events.map((event) => [event.eventId, event]));
     try {
       for (const event of state.events) {
         if (event.type === 'finalization-pending') {
@@ -108,11 +123,29 @@ export class DatabaseCustodyLedger implements CustodyLedger {
           if (!receipt) throw new Error('Missing receipt');
           await ledger.recordIssuance(receipt, event);
           receipts.delete(receipt.receiptId);
+        } else if (event.type === 'issued' && commits.has(event.eventId)) {
+          const binding = commits.get(event.eventId);
+          if (!binding) throw new Error('Missing commit');
+          const followup =
+            binding.followupEventId === null
+              ? undefined
+              : events.get(binding.followupEventId);
+          if (binding.followupEventId !== null && !followup)
+            throw new Error('Missing followup');
+          await ledger.commitIssuance(binding.receiptId, event, followup);
+          commits.delete(event.eventId);
         } else {
           await ledger.appendEvent(event);
         }
       }
-      if (receipts.size) throw new Error('Missing issuance');
+      if (receipts.size || commits.size) throw new Error('Missing issuance');
+      const replayed = await ledger.listEvents();
+      if (
+        replayed.some(
+          (event, index) => event.eventId !== state.events[index]?.eventId,
+        )
+      )
+        throw new Error('Invalid transaction order');
     } catch {
       throw new CustodyError(
         'INVALID_CUSTODY_LEDGER_STATE',
@@ -120,7 +153,7 @@ export class DatabaseCustodyLedger implements CustodyLedger {
         'Custody ledger history is invalid',
       );
     }
-    return { ledger, revision: row.revision };
+    return ledger;
   }
 
   #assertInitialized(): void {
@@ -149,7 +182,10 @@ export class DatabaseCustodyLedger implements CustodyLedger {
         schema: 1,
         receipts: await ledger.listReceipts(),
         events: await ledger.listEvents(),
+        issuanceCommits: await ledger.listIssuanceCommits(),
       });
+      // A successful write must remain recoverable by the same load path.
+      await this.#restore(state);
       if (revision >= Number.MAX_SAFE_INTEGER)
         throw new CustodyError(
           'CUSTODY_LEDGER_REVISION_EXHAUSTED',
@@ -181,6 +217,7 @@ export class DatabaseCustodyLedger implements CustodyLedger {
       schema: 1,
       receipts: [receipt],
       events: [event],
+      issuanceCommits: [],
     });
     await this.#mutate((ledger) =>
       ledger.recordIssuance(state.receipts[0], state.events[0]),
@@ -196,6 +233,7 @@ export class DatabaseCustodyLedger implements CustodyLedger {
       schema: 1,
       receipts: [],
       events: followup ? [event, followup] : [event],
+      issuanceCommits: [],
     });
     await this.#mutate((ledger) =>
       ledger.commitIssuance(receiptId, state.events[0], state.events[1]),
@@ -207,6 +245,7 @@ export class DatabaseCustodyLedger implements CustodyLedger {
       schema: 1,
       receipts: [],
       events: [event],
+      issuanceCommits: [],
     });
     await this.#mutate((ledger) => ledger.appendEvent(state.events[0]));
   }
