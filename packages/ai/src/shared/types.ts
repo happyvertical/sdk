@@ -420,6 +420,28 @@ export interface ChatOptions extends AIRequestControls {
   onFinishReason?: (reason: AIFinishReason) => void;
 
   /**
+   * Called by streaming adapters when the reply ends, with the reasoning
+   * text accumulated from the stream's reasoning deltas (vLLM
+   * `reasoning_content`/`reasoning`, Ollama `thinking`). Not called when the
+   * server sent no reasoning. `chat()` returns the same text as
+   * {@link AIResponse.reasoning}.
+   */
+  onReasoning?: (reasoning: string) => void;
+
+  /**
+   * Extra chat-template arguments sent as `chat_template_kwargs` by the
+   * OpenAI-compatible providers (`openai`, `litellm`, `bifrost`), for servers
+   * such as vLLM and SGLang that apply them to the model's chat template, e.g.
+   * `{ enable_thinking: false }` to switch thinking off for one request.
+   * Must be a plain JSON object (at most 8192 bytes serialized, 4 levels
+   * deep, 32 entries per object or array); invalid values throw
+   * `AI_INVALID_CHAT_TEMPLATE_KWARGS` before any request is sent. An empty
+   * object is not sent. Servers that do not support the field may reject
+   * it, so set it only for backends that do. Other providers ignore it.
+   */
+  chatTemplateKwargs?: Record<string, unknown>;
+
+  /**
    * Continue a reply that stopped on its output limit and return the stitched
    * text. Off by default; ignored for tools and JSON output. Each part is a
    * separate request bounded by the output ceiling.
@@ -1453,9 +1475,21 @@ export interface AIResponse {
   model?: string;
 
   /**
-   * Finish reason
+   * Why generation stopped. The OpenAI-compatible providers always set it,
+   * falling back to `'stop'` for an absent or unrecognised server value, and
+   * report `'tool_calls'` whenever the reply carries tool calls (unless it
+   * stopped on `'length'`).
    */
   finishReason?: AIFinishReason;
+
+  /**
+   * Reasoning ("thinking") text the server returned separately from
+   * `content`: vLLM/SGLang `reasoning_content` or `reasoning` on
+   * OpenAI-compatible providers, `thinking` on Ollama. Absent when the server
+   * sent none. A reply whose `content` is empty but whose `reasoning` is not
+   * usually means the answer was parsed into the reasoning channel.
+   */
+  reasoning?: string;
 
   /**
    * Tool calls made by the model

@@ -8,6 +8,7 @@
  */
 
 import OpenAI from 'openai';
+import { prepareChatTemplateKwargs } from '../chat-template-kwargs';
 import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
@@ -18,6 +19,7 @@ import {
 } from '../safety';
 import type {
   AICapabilities,
+  AIFinishReason,
   AIInterface,
   AIMessage,
   AIModel,
@@ -53,6 +55,23 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { emitUsage } from './usage';
+
+/**
+ * Reasoning text an OpenAI-compatible server returned beside the answer.
+ * vLLM's reasoning parsers emit `reasoning_content` (older releases) or
+ * `reasoning` (newer releases) on the message and on stream deltas; SGLang and
+ * several gateways use the same names. Only string values count, so a
+ * structured `reasoning` object from another gateway is ignored.
+ */
+function readReasoningText(source: unknown): string | undefined {
+  if (!source || typeof source !== 'object') return undefined;
+  const record = source as { reasoning_content?: unknown; reasoning?: unknown };
+  if (typeof record.reasoning_content === 'string' && record.reasoning_content)
+    return record.reasoning_content;
+  if (typeof record.reasoning === 'string' && record.reasoning)
+    return record.reasoning;
+  return undefined;
+}
 
 /**
  * Determines whether a model uses OpenAI's newer reasoning-model request
@@ -328,6 +347,7 @@ export class OpenAIProvider implements AIInterface {
           max_tokens?: number;
           include_thoughts?: boolean;
         };
+        chat_template_kwargs?: Record<string, unknown>;
       };
       if (
         (this.profile.providerName === 'openai' ||
@@ -347,6 +367,12 @@ export class OpenAIProvider implements AIInterface {
           include_thoughts: options.reasoning?.includeThoughts,
         };
       }
+      const chatTemplateKwargs = prepareChatTemplateKwargs(
+        options.chatTemplateKwargs,
+        this.profile.providerName,
+        model,
+      );
+      if (chatTemplateKwargs) request.chat_template_kwargs = chatTemplateKwargs;
       const response = await this.client.chat.completions.create(request, {
         signal: controls.signal,
         timeout: controls.timeout,
@@ -372,21 +398,30 @@ export class OpenAIProvider implements AIInterface {
         options.usageTags,
       );
 
+      const toolCalls = choice.message.tool_calls
+        ?.filter((call) => call.type === 'function')
+        .map((call) => ({
+          id: call.id,
+          type: 'function' as const,
+          function: {
+            name: call.function.name,
+            arguments: call.function.arguments,
+          },
+        }));
+      let finishReason = this.mapFinishReason(choice.finish_reason);
+      // Some servers report 'stop' (or nothing) on a tool-call turn; callers
+      // branch on finishReason, so a reply with tool calls says so.
+      if (toolCalls?.length && finishReason === 'stop') {
+        finishReason = 'tool_calls';
+      }
+      const reasoning = readReasoningText(choice.message);
       return {
         content: choice.message.content || '',
         usage,
         model: response.model,
-        finishReason: this.mapFinishReason(choice.finish_reason),
-        toolCalls: choice.message.tool_calls
-          ?.filter((call) => call.type === 'function')
-          .map((call) => ({
-            id: call.id,
-            type: 'function' as const,
-            function: {
-              name: call.function.name,
-              arguments: call.function.arguments,
-            },
-          })),
+        finishReason,
+        ...(reasoning !== undefined ? { reasoning } : {}),
+        toolCalls,
       };
     } catch (error) {
       if (controls?.didTimeout()) {
@@ -904,6 +939,7 @@ export class OpenAIProvider implements AIInterface {
           max_tokens?: number;
           include_thoughts?: boolean;
         };
+        chat_template_kwargs?: Record<string, unknown>;
       };
       if (
         (this.profile.providerName === 'openai' ||
@@ -923,14 +959,22 @@ export class OpenAIProvider implements AIInterface {
           include_thoughts: options.reasoning?.includeThoughts,
         };
       }
+      const chatTemplateKwargs = prepareChatTemplateKwargs(
+        options.chatTemplateKwargs,
+        this.profile.providerName,
+        model,
+      );
+      if (chatTemplateKwargs) request.chat_template_kwargs = chatTemplateKwargs;
       const stream = await this.client.chat.completions.create(request, {
         signal: controls.signal,
         timeout: controls.timeout,
       });
 
       let streamFinish: string | null = null;
+      let reasoning = '';
       for await (const chunk of stream) {
         streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
+        reasoning += readReasoningText(chunk.choices[0]?.delta) ?? '';
         const content = chunk.choices[0]?.delta?.content;
         if (content) {
           if (options.onProgress) {
@@ -939,7 +983,8 @@ export class OpenAIProvider implements AIInterface {
           yield content;
         }
       }
-      options.onFinishReason?.(this.mapFinishReason(streamFinish) ?? 'stop');
+      if (reasoning) options.onReasoning?.(reasoning);
+      options.onFinishReason?.(this.mapFinishReason(streamFinish));
 
       emitUsage(
         this.options,
@@ -1211,13 +1256,14 @@ export class OpenAIProvider implements AIInterface {
    * @returns Internal finish reason
    * @private
    */
-  private mapFinishReason(reason: string | null): AIResponse['finishReason'] {
+  private mapFinishReason(reason: string | null): AIFinishReason {
     switch (reason) {
       case 'stop':
         return 'stop';
       case 'length':
         return 'length';
       case 'tool_calls':
+      case 'function_call':
         return 'tool_calls';
       case 'content_filter':
         return 'content_filter';

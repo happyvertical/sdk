@@ -157,6 +157,7 @@ export async function chatWithContinuation(
   const { onProgress, ...partOptions } = options;
   let content = first.content;
   let usage = first.usage;
+  let reasoning = first.reasoning ?? '';
   let last = first;
   let parts = 1;
 
@@ -168,6 +169,7 @@ export async function chatWithContinuation(
     });
     parts++;
     usage = addUsage(usage, next.usage);
+    reasoning += next.reasoning ?? '';
     last = next;
     const addition = continuationAddition(content, next.content);
     if (!addition) break; // no new text: stop looping
@@ -175,9 +177,11 @@ export async function chatWithContinuation(
     if (onProgress) onProgress(addition);
   }
 
+  const { reasoning: _lastReasoning, ...lastFields } = last;
   return {
-    ...last,
+    ...lastFields,
     content,
+    ...(reasoning ? { reasoning } : {}),
     usage,
     model: last.model ?? first.model,
     parts,
@@ -205,8 +209,10 @@ export async function* streamWithContinuation(
     return;
   }
 
-  const { onProgress, onFinishReason, ...rest } = options;
+  const { onProgress, onFinishReason, onReasoning, ...rest } = options;
   let accumulated = '';
+  // Each part reports its own reasoning; the caller gets it once, joined.
+  let reasoning = '';
   // Reported once, for the last part: an earlier part's 'length' is not the
   // reply's finish reason.
   let reason: AIFinishReason = 'stop';
@@ -216,6 +222,9 @@ export async function* streamWithContinuation(
       ...rest,
       onFinishReason: (value) => {
         finish.reason = value;
+      },
+      onReasoning: (value) => {
+        reasoning += value;
       },
     };
     if (part > 0) throwIfAborted(options.signal);
@@ -254,6 +263,7 @@ export async function* streamWithContinuation(
     // (see chatWithContinuation).
     if (reason !== 'length' || !accumulated.trim()) break;
   }
+  if (reasoning) onReasoning?.(reasoning);
   onFinishReason?.(reason);
 }
 

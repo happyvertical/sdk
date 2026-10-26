@@ -718,6 +718,54 @@ effective token ceilings plus sanitized `usageTags`; prompts, responses, and
 credentials are never included. Legacy `thinkingLevel` options remain available
 as deprecated aliases and are normalized through the reasoning ceiling.
 
+## Reasoning Text, Finish Reasons, and Chat-Template Arguments
+
+Servers that run a reasoning parser return the model's thinking separately
+from its answer. The SDK surfaces it as `AIResponse.reasoning` from `chat()`
+and through `ChatOptions.onReasoning` from `stream()` (called once at the end
+with the accumulated reasoning deltas). It is absent, and `onReasoning` is not
+called, when the server sends none.
+
+```typescript
+const ai = await getAI({ type: 'openai', baseUrl: 'http://vllm:8000/v1', apiKey: 'local' });
+const reply = await ai.chat(messages, {
+  // Forwarded as chat_template_kwargs, e.g. to turn Gemma/Qwen thinking off
+  // for this request without restarting the server.
+  chatTemplateKwargs: { enable_thinking: false },
+});
+if (!reply.content.trim() && reply.reasoning) {
+  // The answer landed in the reasoning channel: retry or fall back.
+}
+
+for await (const text of ai.stream(messages, {
+  onReasoning: (reasoning) => log.debug({ reasoningChars: reasoning.length }),
+  onFinishReason: (reason) => log.debug({ reason }),
+})) process.stdout.write(text);
+```
+
+| Provider | `reasoning` source | `chatTemplateKwargs` |
+| --- | --- | --- |
+| `openai`, `litellm`, `bifrost` (OpenAI-compatible, incl. vLLM/SGLang) | message/delta `reasoning_content`, else a string `reasoning` | sent as `chat_template_kwargs` |
+| `ollama` | `message.thinking` (`/api/generate` `thinking` for `complete`) | ignored (use `reasoning` / `think`) |
+| `anthropic` | not populated; signed thinking is replayed through `toolCalls[0].thinkingBlocks` | ignored |
+| `gemini` | not populated; thought summaries are not split out of `content` | ignored |
+| others (incl. `bedrock`) | not populated | ignored |
+
+- The OpenAI-compatible providers always set `finishReason`: `stop`, `length`,
+  `tool_calls` (also for legacy `function_call`, and for a reply that carries
+  tool calls but reports `stop`), or `content_filter`; an absent or unknown
+  server value (e.g. vLLM `abort`) becomes `stop`. Streams report the same
+  value through `onFinishReason`.
+- `chatTemplateKwargs` must be a plain JSON object: at most 8,192 bytes
+  serialized, 4 levels deep, and 32 keys per object or items per array, with
+  finite numbers and no `__proto__`/`constructor`/`prototype` keys. Anything
+  else throws `AI_INVALID_CHAT_TEMPLATE_KWARGS` before a request is sent; the
+  error names the offending path, never a value. An empty object is not sent,
+  and a detached copy is sent so later mutation of the caller's object has no
+  effect. OpenAI's hosted API does not document the field and may reject it,
+  so set it only for servers that accept it.
+- With `continueOnLength`, reasoning from every part is joined and reported once.
+
 ## Continuing Truncated Replies
 
 When a reply stops because it hit its output limit (`finishReason: 'length'`:

@@ -883,6 +883,9 @@ export class OllamaProvider implements AIInterface {
           toolCalls && toolCalls.length > 0
             ? 'tool_calls'
             : mapFinishReason(response.done_reason),
+        ...(response.message?.thinking
+          ? { reasoning: response.message.thinking }
+          : {}),
         toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
@@ -966,6 +969,7 @@ export class OllamaProvider implements AIInterface {
 
       return {
         content: response.response || '',
+        ...(response.thinking ? { reasoning: response.thinking } : {}),
         model: response.model || model,
         usage,
         finishReason: mapFinishReason(response.done_reason),
@@ -1248,12 +1252,17 @@ export class OllamaProvider implements AIInterface {
       let finalUsage: TokenUsage | undefined;
       let finalModel = model;
       let streamFinish: AIResponse['finishReason'] = 'stop';
+      let reasoning = '';
 
       for await (const chunk of this.parseNdjson<OllamaChatResponse>(
         response,
       )) {
         if (chunk.model) {
           finalModel = chunk.model;
+        }
+
+        if (typeof chunk.message?.thinking === 'string') {
+          reasoning += chunk.message.thinking;
         }
 
         if (
@@ -1271,6 +1280,7 @@ export class OllamaProvider implements AIInterface {
           streamFinish = mapFinishReason(chunk.done_reason);
         }
       }
+      if (reasoning) options.onReasoning?.(reasoning);
       options.onFinishReason?.(streamFinish ?? 'stop');
 
       emitUsage(
