@@ -13,12 +13,18 @@ export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
  *
  * Provider instances merge partial overrides with the exported safe defaults.
  */
-/** Why a generation stopped, normalised across providers. */
+/**
+ * Why a generation stopped, normalised across providers. `'other'` means the
+ * server reported a reason outside this set (e.g. vLLM `abort`): treat the
+ * reply as possibly incomplete. Only the OpenAI-compatible providers report
+ * it today; see {@link AIResponse.rawFinishReason} for the server's value.
+ */
 export type AIFinishReason =
   | 'stop'
   | 'length'
   | 'tool_calls'
-  | 'content_filter';
+  | 'content_filter'
+  | 'other';
 
 /**
  * Automatic continuation when a reply stops on its output limit. `true`
@@ -420,11 +426,13 @@ export interface ChatOptions extends AIRequestControls {
   onFinishReason?: (reason: AIFinishReason) => void;
 
   /**
-   * Called by streaming adapters when the reply ends, with the reasoning
-   * text accumulated from the stream's reasoning deltas (vLLM
-   * `reasoning_content`/`reasoning`, Ollama `thinking`). Not called when the
-   * server sent no reasoning. `chat()` returns the same text as
-   * {@link AIResponse.reasoning}.
+   * Called by streaming adapters once when the stream ends, with the
+   * reasoning text accumulated from its reasoning deltas (vLLM
+   * `reasoning_content`/`reasoning`, Ollama `thinking`). It also runs when
+   * the stream fails, is aborted, or the consumer stops iterating early, with
+   * whatever arrived first, so it is a diagnostic, not a completion signal.
+   * Not called when no reasoning arrived. Errors it throws are swallowed.
+   * `chat()` returns the same text as {@link AIResponse.reasoning}.
    */
   onReasoning?: (reasoning: string) => void;
 
@@ -435,9 +443,11 @@ export interface ChatOptions extends AIRequestControls {
    * `{ enable_thinking: false }` to switch thinking off for one request.
    * Must be a plain JSON object (at most 8192 bytes serialized, 4 levels
    * deep, 32 entries per object or array); invalid values throw
-   * `AI_INVALID_CHAT_TEMPLATE_KWARGS` before any request is sent. An empty
-   * object is not sent. Servers that do not support the field may reject
-   * it, so set it only for backends that do. Other providers ignore it.
+   * `AI_INVALID_CHAT_TEMPLATE_KWARGS` before any request is sent (the error
+   * locates the entry by position, never by key name or value). An empty
+   * object is not sent. The `openai` provider throws `AI_UNSUPPORTED_OPTION`
+   * when its resolved base URL is the hosted `api.openai.com`, which does not
+   * accept the field. Other providers ignore it.
    */
   chatTemplateKwargs?: Record<string, unknown>;
 
@@ -1475,12 +1485,18 @@ export interface AIResponse {
   model?: string;
 
   /**
-   * Why generation stopped. The OpenAI-compatible providers always set it,
-   * falling back to `'stop'` for an absent or unrecognised server value, and
-   * report `'tool_calls'` whenever the reply carries tool calls (unless it
-   * stopped on `'length'`).
+   * Why generation stopped. The OpenAI-compatible providers always set it:
+   * an absent server value is `'stop'`, an unrecognised one is `'other'`, and
+   * a reply that carries tool calls but reports `'stop'` is `'tool_calls'`
+   * (`'length'` and `'content_filter'` are kept as reported).
    */
   finishReason?: AIFinishReason;
+
+  /**
+   * The server's own finish reason when `finishReason` is `'other'`, e.g.
+   * `'abort'` from vLLM or legacy `'function_call'`.
+   */
+  rawFinishReason?: string;
 
   /**
    * Reasoning ("thinking") text the server returned separately from

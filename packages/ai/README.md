@@ -722,9 +722,14 @@ as deprecated aliases and are normalized through the reasoning ceiling.
 
 Servers that run a reasoning parser return the model's thinking separately
 from its answer. The SDK surfaces it as `AIResponse.reasoning` from `chat()`
-and through `ChatOptions.onReasoning` from `stream()` (called once at the end
-with the accumulated reasoning deltas). It is absent, and `onReasoning` is not
-called, when the server sends none.
+and through `ChatOptions.onReasoning` from `stream()`. It is absent, and
+`onReasoning` is not called, when the server sends none.
+
+`onReasoning` is called once with the accumulated reasoning deltas when the
+stream ends, including when it fails, is aborted, or the consumer stops
+iterating early (it then gets whatever arrived first), so treat it as a
+diagnostic rather than a completion signal. An error it throws is swallowed and
+cannot break the stream or replace the stream's own error.
 
 ```typescript
 const ai = await getAI({ type: 'openai', baseUrl: 'http://vllm:8000/v1', apiKey: 'local' });
@@ -752,18 +757,26 @@ for await (const text of ai.stream(messages, {
 | others (incl. `bedrock`) | not populated | ignored |
 
 - The OpenAI-compatible providers always set `finishReason`: `stop`, `length`,
-  `tool_calls` (also for legacy `function_call`, and for a reply that carries
-  tool calls but reports `stop`), or `content_filter`; an absent or unknown
-  server value (e.g. vLLM `abort`) becomes `stop`. Streams report the same
-  value through `onFinishReason`.
+  `tool_calls` (also for a reply that carries tool calls but reports `stop`),
+  or `content_filter`, kept as the server reported them. An absent value is
+  `stop`; any other value (e.g. vLLM `abort`, or legacy `function_call`, which
+  carries no `toolCalls`) is `other`, with the server's value in
+  `rawFinishReason`, so a partial reply is not mistaken for a complete one.
+  Streams report the same normalised value through `onFinishReason`.
 - `chatTemplateKwargs` must be a plain JSON object: at most 8,192 bytes
   serialized, 4 levels deep, and 32 keys per object or items per array, with
   finite numbers and no `__proto__`/`constructor`/`prototype` keys. Anything
-  else throws `AI_INVALID_CHAT_TEMPLATE_KWARGS` before a request is sent; the
-  error names the offending path, never a value. An empty object is not sent,
-  and a detached copy is sent so later mutation of the caller's object has no
-  effect. OpenAI's hosted API does not document the field and may reject it,
-  so set it only for servers that accept it.
+  else throws `AI_INVALID_CHAT_TEMPLATE_KWARGS` before a request is sent. The
+  error locates the entry by position (`chatTemplateKwargs{#2}[0]` is the
+  first item under the third key) and never includes a key name or a value.
+  Each property is read once into the copy that is sent, so getters cannot
+  answer differently between validation and transport, and later mutation of
+  the caller's object has no effect. An empty object is not sent.
+- The `openai` provider throws `AI_UNSUPPORTED_OPTION` for a non-empty
+  `chatTemplateKwargs` when its resolved base URL is `api.openai.com` (the
+  default when neither `baseUrl` nor `OPENAI_BASE_URL` is set): the hosted API
+  does not accept the field, and dropping it silently would lose a template
+  switch the caller asked for. LiteLLM and Bifrost forward it to their gateway.
 - With `continueOnLength`, reasoning from every part is joined and reported once.
 
 ## Continuing Truncated Replies

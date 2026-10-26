@@ -1,11 +1,14 @@
 /**
  * Validation for the per-request `chatTemplateKwargs` chat option.
  *
- * The value is forwarded verbatim as the `chat_template_kwargs` request field
- * that vLLM (and SGLang) apply to the model's chat template, for example
- * `{ enable_thinking: false }`. It is caller data, so it is bounded and
- * snapshotted here, and error messages name the offending path but never echo
- * a value.
+ * The value is forwarded as the `chat_template_kwargs` request field that
+ * vLLM (and SGLang) apply to the model's chat template, for example
+ * `{ enable_thinking: false }`. It is caller data, so it is bounded and copied
+ * here in one pass: every property is read exactly once, and the value that is
+ * validated is the value that is sent, so a getter cannot answer differently
+ * between validation and transport. Error messages locate the offending entry
+ * by position (`{#2}` is an object's third key, `[0]` an array's first item)
+ * and never include a key name or a value.
  */
 import { AIError } from './types';
 
@@ -17,6 +20,15 @@ export const MAX_CHAT_TEMPLATE_KWARGS_DEPTH = 4;
 export const MAX_CHAT_TEMPLATE_KWARGS_ENTRIES = 32;
 
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const ROOT = 'chatTemplateKwargs';
+
+type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -35,32 +47,33 @@ function invalid(reason: string, provider?: string, model?: string): AIError {
   );
 }
 
-function check(
+/** Validate `value` and return its JSON copy, reading each property once. */
+function copy(
   value: unknown,
   path: string,
   depth: number,
   provider?: string,
   model?: string,
-): void {
+): JsonValue {
   if (
     value === null ||
     typeof value === 'string' ||
     typeof value === 'boolean'
   ) {
-    return;
+    return value;
   }
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
       throw invalid(`${path} must be a finite number`, provider, model);
     }
-    return;
+    return value;
   }
   if (typeof value !== 'object') {
     throw invalid(`${path} must be JSON data`, provider, model);
   }
   if (depth > MAX_CHAT_TEMPLATE_KWARGS_DEPTH) {
     throw invalid(
-      `nests deeper than ${MAX_CHAT_TEMPLATE_KWARGS_DEPTH} levels`,
+      `${path} nests deeper than ${MAX_CHAT_TEMPLATE_KWARGS_DEPTH} levels`,
       provider,
       model,
     );
@@ -73,10 +86,13 @@ function check(
         model,
       );
     }
-    value.forEach((item, index) => {
-      check(item, `${path}[${index}]`, depth + 1, provider, model);
-    });
-    return;
+    const items: JsonValue[] = [];
+    for (let index = 0; index < value.length; index++) {
+      items.push(
+        copy(value[index], `${path}[${index}]`, depth + 1, provider, model),
+      );
+    }
+    return items;
   }
   if (!isPlainObject(value)) {
     throw invalid(`${path} must be a plain JSON object`, provider, model);
@@ -89,12 +105,15 @@ function check(
       model,
     );
   }
-  for (const key of keys) {
+  const result: { [key: string]: JsonValue } = {};
+  keys.forEach((key, index) => {
+    const entryPath = `${path}{#${index}}`;
     if (FORBIDDEN_KEYS.has(key)) {
-      throw invalid(`${path} uses a reserved key`, provider, model);
+      throw invalid(`${entryPath} uses a reserved key`, provider, model);
     }
-    check(value[key], `${path}.${key}`, depth + 1, provider, model);
-  }
+    result[key] = copy(value[key], entryPath, depth + 1, provider, model);
+  });
+  return result;
 }
 
 /**
@@ -113,18 +132,17 @@ export function prepareChatTemplateKwargs(
   if (!isPlainObject(value)) {
     throw invalid('must be a plain JSON object', provider, model);
   }
-  check(value, 'chatTemplateKwargs', 1, provider, model);
-  if (Object.keys(value).length === 0) return undefined;
-  const serialized = JSON.stringify(value);
-  if (
-    new TextEncoder().encode(serialized).byteLength >
-    MAX_CHAT_TEMPLATE_KWARGS_BYTES
-  ) {
+  const prepared = copy(value, ROOT, 1, provider, model) as {
+    [key: string]: JsonValue;
+  };
+  if (Object.keys(prepared).length === 0) return undefined;
+  const bytes = new TextEncoder().encode(JSON.stringify(prepared)).byteLength;
+  if (bytes > MAX_CHAT_TEMPLATE_KWARGS_BYTES) {
     throw invalid(
       `exceeds ${MAX_CHAT_TEMPLATE_KWARGS_BYTES} bytes of JSON`,
       provider,
       model,
     );
   }
-  return JSON.parse(serialized) as Record<string, unknown>;
+  return prepared;
 }

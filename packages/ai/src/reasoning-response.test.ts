@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getAI } from './index';
 import {
   MAX_CHAT_TEMPLATE_KWARGS_BYTES,
+  MAX_CHAT_TEMPLATE_KWARGS_ENTRIES,
   prepareChatTemplateKwargs,
 } from './shared/chat-template-kwargs';
 import type { AIFinishReason, AIMessage, ChatOptions } from './shared/types';
@@ -14,6 +15,8 @@ import type { AIFinishReason, AIMessage, ChatOptions } from './shared/types';
 type Reply =
   | { kind: 'json'; body: unknown }
   | { kind: 'sse'; events: unknown[] }
+  /** Sends the events, then holds the connection open without [DONE]. */
+  | { kind: 'sse-open'; events: unknown[] }
   | { kind: 'ndjson'; lines: unknown[] };
 
 let server: Server;
@@ -41,6 +44,13 @@ beforeEach(async () => {
       response.writeHead(200, { 'content-type': 'text/event-stream' });
       response.end(
         `${reply.events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`,
+      );
+    } else if (reply.kind === 'sse-open') {
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.write(
+        reply.events
+          .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+          .join(''),
       );
     } else {
       response.writeHead(200, { 'content-type': 'application/x-ndjson' });
@@ -232,9 +242,9 @@ describe('OpenAI-compatible finishReason', () => {
     ['stop', 'stop'],
     ['length', 'length'],
     ['tool_calls', 'tool_calls'],
-    ['function_call', 'tool_calls'],
+    ['function_call', 'other'],
     ['content_filter', 'content_filter'],
-    ['abort', 'stop'],
+    ['abort', 'other'],
     [null, 'stop'],
   ];
   for (const [wire, expected] of cases) {
@@ -245,8 +255,64 @@ describe('OpenAI-compatible finishReason', () => {
         continueOnLength: false,
       });
       expect(response.finishReason).toBe(expected);
+      if (expected === 'other') expect(response.rawFinishReason).toBe(wire);
+      else expect(response).not.toHaveProperty('rawFinishReason');
     });
   }
+
+  it('does not invent tool calls for a legacy function_call reply', async () => {
+    reply = {
+      kind: 'json',
+      body: completion(
+        {
+          content: null,
+          function_call: { name: 'lookup', arguments: '{}' },
+        },
+        'function_call',
+      ),
+    };
+    const response = await (await vllm()).chat(messages, { model: MODEL });
+    expect(response.finishReason).toBe('other');
+    expect(response.rawFinishReason).toBe('function_call');
+    expect(response.toolCalls).toBeUndefined();
+  });
+
+  for (const wire of ['length', 'content_filter'] as const) {
+    it(`keeps ${wire} on a reply that also carries tool calls`, async () => {
+      reply = {
+        kind: 'json',
+        body: completion(
+          {
+            content: null,
+            tool_calls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'lookup', arguments: '{"q":' },
+              },
+            ],
+          },
+          wire,
+        ),
+      };
+      const response = await (await vllm()).chat(messages, {
+        model: MODEL,
+        continueOnLength: false,
+      });
+      expect(response.finishReason).toBe(wire);
+      expect(response.toolCalls).toHaveLength(1);
+    });
+  }
+
+  it('stream reports other for an aborted generation', async () => {
+    reply = {
+      kind: 'sse',
+      events: [chunk({ content: 'partial' }), chunk({}, 'abort')],
+    };
+    const result = await collect('openai');
+    expect(result.content).toBe('partial');
+    expect(result.finish).toBe('other');
+  });
 
   it('reports tool_calls when a reply with tool calls says stop', async () => {
     reply = {
@@ -273,6 +339,102 @@ describe('OpenAI-compatible finishReason', () => {
   it('stream reports stop when the server never sends a finish reason', async () => {
     reply = { kind: 'sse', events: [chunk({ content: 'ok' })] };
     expect((await collect('openai')).finish).toBe('stop');
+  });
+});
+
+describe('onReasoning delivery', () => {
+  it('a throwing onReasoning cannot break the stream', async () => {
+    reply = {
+      kind: 'sse',
+      events: [
+        chunk({ reasoning_content: 'why' }),
+        chunk({ content: 'ok' }, 'stop'),
+      ],
+    };
+    const ai = await vllm();
+    let content = '';
+    let finish: AIFinishReason | undefined;
+    let calls = 0;
+    for await (const part of ai.stream(messages, {
+      model: MODEL,
+      onReasoning: () => {
+        calls++;
+        throw new Error('callback failure');
+      },
+      onFinishReason: (reason) => {
+        finish = reason;
+      },
+    }))
+      content += part;
+    expect(content).toBe('ok');
+    expect(finish).toBe('stop');
+    expect(calls).toBe(1);
+  });
+
+  it('delivers partial reasoning when the consumer stops early', async () => {
+    reply = {
+      kind: 'sse-open',
+      events: [chunk({ reasoning: 'half a thought' }), chunk({ content: 'a' })],
+    };
+    const ai = await vllm();
+    const seen: string[] = [];
+    for await (const _part of ai.stream(messages, {
+      model: MODEL,
+      onReasoning: (text) => seen.push(text),
+    }))
+      break;
+    expect(seen).toEqual(['half a thought']);
+  });
+
+  it('delivers partial reasoning when the stream is aborted', async () => {
+    reply = {
+      kind: 'sse-open',
+      events: [chunk({ reasoning: 'half a thought' }), chunk({ content: 'a' })],
+    };
+    const ai = await vllm();
+    const controller = new AbortController();
+    const seen: string[] = [];
+    const error = await (async () => {
+      for await (const _part of ai.stream(messages, {
+        model: MODEL,
+        signal: controller.signal,
+        continueOnLength: false,
+        onReasoning: (text) => {
+          seen.push(text);
+          throw new Error('callback failure must not mask the abort');
+        },
+      }))
+        controller.abort();
+    })().catch((caught: unknown) => caught);
+    expect(error).toBeUndefined();
+    expect(seen).toEqual(['half a thought']);
+  });
+
+  it('continued streams deliver joined reasoning on early stop', async () => {
+    queue = [
+      {
+        kind: 'sse',
+        events: [
+          chunk({ reasoning: 'one ' }),
+          chunk({ content: 'First half' }, 'length'),
+        ],
+      },
+    ];
+    reply = { kind: 'sse-open', events: [chunk({ reasoning: 'two' })] };
+    const ai = await vllm();
+    const seen: string[] = [];
+    const controller = new AbortController();
+    await (async () => {
+      for await (const _part of ai.stream(messages, {
+        model: MODEL,
+        signal: controller.signal,
+        continueOnLength: true,
+        onReasoning: (text) => seen.push(text),
+      })) {
+        setTimeout(() => controller.abort(), 50);
+      }
+    })().catch(() => undefined);
+    expect(seen).toEqual(['one two']);
   });
 });
 
@@ -386,6 +548,155 @@ describe('chatTemplateKwargs', () => {
     expect(requests).toHaveLength(0);
   });
 
+  it('rejects chatTemplateKwargs on the hosted OpenAI API', async () => {
+    const saved = process.env.OPENAI_BASE_URL;
+    delete process.env.OPENAI_BASE_URL;
+    try {
+      for (const configured of [undefined, 'https://API.openai.com/v1']) {
+        const ai = await getAI({
+          type: 'openai',
+          apiKey: 'local-fixture',
+          ...(configured ? { baseUrl: configured } : {}),
+          defaultModel: MODEL,
+          maxRetries: 0,
+        });
+        const error = await ai
+          .chat(messages, {
+            model: MODEL,
+            chatTemplateKwargs: { enable_thinking: false },
+          })
+          .catch((caught: unknown) => caught);
+        expect(error).toMatchObject({ code: 'AI_UNSUPPORTED_OPTION' });
+        const streamError = await (async () => {
+          for await (const _part of ai.stream(messages, {
+            model: MODEL,
+            chatTemplateKwargs: { enable_thinking: false },
+          }));
+        })().catch((caught: unknown) => caught);
+        expect(streamError).toMatchObject({ code: 'AI_UNSUPPORTED_OPTION' });
+        // Without the option the hosted API is not touched by this check.
+      }
+    } finally {
+      if (saved === undefined) delete process.env.OPENAI_BASE_URL;
+      else process.env.OPENAI_BASE_URL = saved;
+    }
+  });
+
+  it('honours OPENAI_BASE_URL when baseUrl is unset', async () => {
+    const saved = process.env.OPENAI_BASE_URL;
+    process.env.OPENAI_BASE_URL = `${baseUrl}/v1`;
+    try {
+      reply = { kind: 'json', body: completion({ content: 'ok' }) };
+      const ai = await getAI({
+        type: 'openai',
+        apiKey: 'local-fixture',
+        defaultModel: MODEL,
+        maxRetries: 0,
+      });
+      await ai.chat(messages, {
+        model: MODEL,
+        chatTemplateKwargs: { enable_thinking: false },
+      });
+      expect(requests.at(-1)?.body.chat_template_kwargs).toEqual({
+        enable_thinking: false,
+      });
+    } finally {
+      if (saved === undefined) delete process.env.OPENAI_BASE_URL;
+      else process.env.OPENAI_BASE_URL = saved;
+    }
+  });
+
+  it('LiteLLM and Bifrost send it to their configured gateway', async () => {
+    for (const type of ['litellm', 'bifrost'] as const) {
+      reply = { kind: 'json', body: completion({ content: 'ok' }) };
+      await (await vllm(type)).chat(messages, {
+        model: MODEL,
+        chatTemplateKwargs: { enable_thinking: false },
+      });
+      expect(requests.at(-1)?.body.chat_template_kwargs).toEqual({
+        enable_thinking: false,
+      });
+    }
+  });
+
+  it('never echoes key names in errors', () => {
+    const secret = 'sk-key-name-secret';
+    for (const value of [
+      { [secret]: () => 1 },
+      { ok: { [secret]: Number.POSITIVE_INFINITY } },
+      { list: [{ [secret]: undefined }] },
+    ]) {
+      let message = '';
+      try {
+        prepareChatTemplateKwargs(value);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toMatch(/^chatTemplateKwargs /);
+      expect(message).not.toContain(secret);
+    }
+    expect(() => prepareChatTemplateKwargs({ a: [0, { b: 1n }] })).toThrow(
+      'chatTemplateKwargs{#0}[1]{#0} must be JSON data',
+    );
+  });
+
+  it('accepts exactly the byte limit and rejects one byte more', () => {
+    // {"k":"..."} is 8 bytes of framing around the string.
+    const fits = { k: 'x'.repeat(MAX_CHAT_TEMPLATE_KWARGS_BYTES - 8) };
+    expect(JSON.stringify(fits)).toHaveLength(MAX_CHAT_TEMPLATE_KWARGS_BYTES);
+    expect(prepareChatTemplateKwargs(fits)).toEqual(fits);
+    const over = { k: 'x'.repeat(MAX_CHAT_TEMPLATE_KWARGS_BYTES - 7) };
+    expect(() => prepareChatTemplateKwargs(over)).toThrow(/exceeds 8192 bytes/);
+    // Multi-byte characters count as UTF-8 bytes, not string length.
+    const wide = {
+      k: 'é'.repeat((MAX_CHAT_TEMPLATE_KWARGS_BYTES - 8) / 2 + 1),
+    };
+    expect(() => prepareChatTemplateKwargs(wide)).toThrow(/exceeds/);
+  });
+
+  it('accepts 4 levels of nesting and rejects 5', () => {
+    const four = { a: { b: { c: { d: 1 } } } };
+    expect(prepareChatTemplateKwargs(four)).toEqual(four);
+    const fourWithArray = { a: { b: [1, 2] } };
+    expect(prepareChatTemplateKwargs(fourWithArray)).toEqual(fourWithArray);
+    expect(() =>
+      prepareChatTemplateKwargs({ a: { b: { c: { d: {} } } } }),
+    ).toThrow(/nests deeper than 4/);
+    expect(() =>
+      prepareChatTemplateKwargs({ a: { b: { c: { d: [1] } } } }),
+    ).toThrow(/nests deeper than 4/);
+  });
+
+  it('accepts 32 entries and rejects 33, for objects and arrays', () => {
+    const keys = (count: number) =>
+      Object.fromEntries(Array.from({ length: count }, (_, i) => [`k${i}`, i]));
+    const items = (count: number) => Array.from({ length: count }, (_, i) => i);
+    expect(
+      prepareChatTemplateKwargs(keys(MAX_CHAT_TEMPLATE_KWARGS_ENTRIES)),
+    ).toEqual(keys(32));
+    expect(() => prepareChatTemplateKwargs(keys(33))).toThrow(
+      /more than 32 keys/,
+    );
+    expect(prepareChatTemplateKwargs({ list: items(32) })).toEqual({
+      list: items(32),
+    });
+    expect(() => prepareChatTemplateKwargs({ list: items(33) })).toThrow(
+      /more than 32 items/,
+    );
+  });
+
+  it('reads each property once, so validation and send see one value', () => {
+    let reads = 0;
+    const value = {
+      get flip() {
+        reads++;
+        return reads === 1 ? false : () => 'not json';
+      },
+    };
+    expect(prepareChatTemplateKwargs(value)).toEqual({ flip: false });
+    expect(reads).toBe(1);
+  });
+
   it('sends a detached copy of the caller object', () => {
     const value = { enable_thinking: false, nested: { list: [1, 'two'] } };
     const prepared = prepareChatTemplateKwargs(value);
@@ -429,6 +740,41 @@ describe('Ollama thinking text', () => {
       },
     };
     const response = await (await ollama()).chat(messages, {
+      model: 'gemma4',
+    });
+    expect(response).not.toHaveProperty('reasoning');
+  });
+
+  it('complete maps /api/generate thinking to reasoning', async () => {
+    reply = {
+      kind: 'json',
+      body: {
+        model: 'gemma4',
+        response: 'ok',
+        thinking: 'pondered',
+        done: true,
+        done_reason: 'stop',
+      },
+    };
+    const response = await (await ollama()).complete('hello', {
+      model: 'gemma4',
+    });
+    expect(requests.at(-1)?.url).toBe('/api/generate');
+    expect(response.content).toBe('ok');
+    expect(response.reasoning).toBe('pondered');
+  });
+
+  it('complete leaves reasoning absent without thinking', async () => {
+    reply = {
+      kind: 'json',
+      body: {
+        model: 'gemma4',
+        response: 'ok',
+        done: true,
+        done_reason: 'stop',
+      },
+    };
+    const response = await (await ollama()).complete('hello', {
       model: 'gemma4',
     });
     expect(response).not.toHaveProperty('reasoning');

@@ -9,6 +9,7 @@
 import { ValidationError } from '@happyvertical/utils';
 import { resolveContinuation } from '../continuation';
 import { rateLimitErrorFrom } from '../rate-limit';
+import { reportReasoning } from '../reasoning';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -1220,6 +1221,10 @@ export class OllamaProvider implements AIInterface {
   ): AsyncIterable<string> {
     const startTime = Date.now();
     let controls: PreparedRequestControls | undefined;
+    // Delivered in `finally`, so a failed, aborted, or abandoned stream still
+    // reports the thinking that arrived before it ended.
+    let reasoning = '';
+    const onReasoning = options.onReasoning;
     try {
       options = normalizeChatOptions(
         this.options,
@@ -1252,7 +1257,6 @@ export class OllamaProvider implements AIInterface {
       let finalUsage: TokenUsage | undefined;
       let finalModel = model;
       let streamFinish: AIResponse['finishReason'] = 'stop';
-      let reasoning = '';
 
       for await (const chunk of this.parseNdjson<OllamaChatResponse>(
         response,
@@ -1280,7 +1284,6 @@ export class OllamaProvider implements AIInterface {
           streamFinish = mapFinishReason(chunk.done_reason);
         }
       }
-      if (reasoning) options.onReasoning?.(reasoning);
       options.onFinishReason?.(streamFinish ?? 'stop');
 
       emitUsage(
@@ -1311,6 +1314,7 @@ export class OllamaProvider implements AIInterface {
       }
       throw this.mapError(error);
     } finally {
+      reportReasoning(onReasoning, reasoning);
       controls?.cleanup();
     }
   }

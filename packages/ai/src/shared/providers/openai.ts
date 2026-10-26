@@ -10,6 +10,7 @@
 import OpenAI from 'openai';
 import { prepareChatTemplateKwargs } from '../chat-template-kwargs';
 import { rateLimitErrorFrom } from '../rate-limit';
+import { readReasoningText, reportReasoning } from '../reasoning';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -55,23 +56,6 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { emitUsage } from './usage';
-
-/**
- * Reasoning text an OpenAI-compatible server returned beside the answer.
- * vLLM's reasoning parsers emit `reasoning_content` (older releases) or
- * `reasoning` (newer releases) on the message and on stream deltas; SGLang and
- * several gateways use the same names. Only string values count, so a
- * structured `reasoning` object from another gateway is ignored.
- */
-function readReasoningText(source: unknown): string | undefined {
-  if (!source || typeof source !== 'object') return undefined;
-  const record = source as { reasoning_content?: unknown; reasoning?: unknown };
-  if (typeof record.reasoning_content === 'string' && record.reasoning_content)
-    return record.reasoning_content;
-  if (typeof record.reasoning === 'string' && record.reasoning)
-    return record.reasoning;
-  return undefined;
-}
 
 /**
  * Determines whether a model uses OpenAI's newer reasoning-model request
@@ -372,7 +356,10 @@ export class OpenAIProvider implements AIInterface {
         this.profile.providerName,
         model,
       );
-      if (chatTemplateKwargs) request.chat_template_kwargs = chatTemplateKwargs;
+      if (chatTemplateKwargs) {
+        this.assertChatTemplateKwargsSupported(model);
+        request.chat_template_kwargs = chatTemplateKwargs;
+      }
       const response = await this.client.chat.completions.create(request, {
         signal: controls.signal,
         timeout: controls.timeout,
@@ -410,7 +397,8 @@ export class OpenAIProvider implements AIInterface {
         }));
       let finishReason = this.mapFinishReason(choice.finish_reason);
       // Some servers report 'stop' (or nothing) on a tool-call turn; callers
-      // branch on finishReason, so a reply with tool calls says so.
+      // branch on finishReason, so a reply with tool calls says so. 'length'
+      // and the other non-stop reasons are kept: they say more.
       if (toolCalls?.length && finishReason === 'stop') {
         finishReason = 'tool_calls';
       }
@@ -420,6 +408,9 @@ export class OpenAIProvider implements AIInterface {
         usage,
         model: response.model,
         finishReason,
+        ...(finishReason === 'other' && choice.finish_reason
+          ? { rawFinishReason: String(choice.finish_reason) }
+          : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         toolCalls,
       };
@@ -909,6 +900,10 @@ export class OpenAIProvider implements AIInterface {
   ): AsyncIterable<string> {
     const startTime = Date.now();
     let controls: PreparedRequestControls | undefined;
+    // Delivered in `finally`, so a failed, aborted, or abandoned stream still
+    // reports the reasoning that arrived before it ended.
+    let reasoning = '';
+    const onReasoning = options.onReasoning;
     try {
       const model =
         options.model || this.options.defaultModel || this.profile.defaultModel;
@@ -964,14 +959,16 @@ export class OpenAIProvider implements AIInterface {
         this.profile.providerName,
         model,
       );
-      if (chatTemplateKwargs) request.chat_template_kwargs = chatTemplateKwargs;
+      if (chatTemplateKwargs) {
+        this.assertChatTemplateKwargsSupported(model);
+        request.chat_template_kwargs = chatTemplateKwargs;
+      }
       const stream = await this.client.chat.completions.create(request, {
         signal: controls.signal,
         timeout: controls.timeout,
       });
 
       let streamFinish: string | null = null;
-      let reasoning = '';
       for await (const chunk of stream) {
         streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
         reasoning += readReasoningText(chunk.choices[0]?.delta) ?? '';
@@ -983,7 +980,6 @@ export class OpenAIProvider implements AIInterface {
           yield content;
         }
       }
-      if (reasoning) options.onReasoning?.(reasoning);
       options.onFinishReason?.(this.mapFinishReason(streamFinish));
 
       emitUsage(
@@ -1014,6 +1010,7 @@ export class OpenAIProvider implements AIInterface {
       }
       throw this.mapError(error);
     } finally {
+      reportReasoning(onReasoning, reasoning);
       controls?.cleanup();
     }
   }
@@ -1251,24 +1248,55 @@ export class OpenAIProvider implements AIInterface {
   }
 
   /**
-   * Maps OpenAI finish reason to internal finish reason format
+   * Reject `chatTemplateKwargs` on the hosted OpenAI API, which does not
+   * accept `chat_template_kwargs`. Throwing (rather than dropping the field)
+   * keeps a caller from silently losing a template switch it asked for, such
+   * as `enable_thinking: false`, and fails before the request is billed.
+   * The resolved client URL is checked, so `OPENAI_BASE_URL` pointing at a
+   * vLLM server still works when `baseUrl` is unset.
+   * @private
+   */
+  private assertChatTemplateKwargsSupported(model: string): void {
+    if (this.profile.providerName !== 'openai') return;
+    let host: string | undefined;
+    try {
+      host = new URL(this.client.baseURL).hostname.toLowerCase();
+    } catch {
+      return;
+    }
+    if (host === 'api.openai.com') {
+      throw new AIError(
+        'chatTemplateKwargs is not supported by the hosted OpenAI API; set baseUrl to a server that accepts chat_template_kwargs (e.g. vLLM)',
+        'AI_UNSUPPORTED_OPTION',
+        this.profile.providerName,
+        model,
+      );
+    }
+  }
+
+  /**
+   * Maps OpenAI finish reason to internal finish reason format. An absent
+   * reason is `'stop'`; a value outside the normalised set (e.g. vLLM
+   * `abort`, or legacy `function_call`, which carries no `tool_calls`) is
+   * `'other'` so a partial reply is not mistaken for a complete one.
    * @param reason - OpenAI finish reason from API response
    * @returns Internal finish reason
    * @private
    */
-  private mapFinishReason(reason: string | null): AIFinishReason {
+  private mapFinishReason(reason: string | null | undefined): AIFinishReason {
     switch (reason) {
+      case null:
+      case undefined:
       case 'stop':
         return 'stop';
       case 'length':
         return 'length';
       case 'tool_calls':
-      case 'function_call':
         return 'tool_calls';
       case 'content_filter':
         return 'content_filter';
       default:
-        return 'stop';
+        return 'other';
     }
   }
 
