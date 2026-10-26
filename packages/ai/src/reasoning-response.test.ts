@@ -410,6 +410,33 @@ describe('onReasoning delivery', () => {
     expect(seen).toEqual(['half a thought']);
   });
 
+  it('a mid-stream timeout raises AI_TIMEOUT and still delivers reasoning', async () => {
+    reply = {
+      kind: 'sse-open',
+      events: [chunk({ reasoning: 'half a thought' }), chunk({ content: 'a' })],
+    };
+    const ai = await vllm();
+    const seen: string[] = [];
+    let finish: AIFinishReason | undefined;
+    let content = '';
+    const error = await (async () => {
+      for await (const part of ai.stream(messages, {
+        model: MODEL,
+        timeout: 200,
+        continueOnLength: false,
+        onReasoning: (text) => seen.push(text),
+        onFinishReason: (reason) => {
+          finish = reason;
+        },
+      }))
+        content += part;
+    })().catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ code: 'AI_TIMEOUT' });
+    expect(content).toBe('a');
+    expect(seen).toEqual(['half a thought']);
+    expect(finish).toBeUndefined();
+  });
+
   it('continued streams deliver joined reasoning on early stop', async () => {
     queue = [
       {
@@ -695,6 +722,32 @@ describe('chatTemplateKwargs', () => {
     };
     expect(prepareChatTemplateKwargs(value)).toEqual({ flip: false });
     expect(reads).toBe(1);
+  });
+
+  it('accepts null-prototype objects and sends ordinary ones', () => {
+    const value = Object.assign(Object.create(null), {
+      enable_thinking: false,
+      nested: Object.assign(Object.create(null), { level: 1 }),
+    });
+    const prepared = prepareChatTemplateKwargs(value);
+    expect(prepared).toEqual({ enable_thinking: false, nested: { level: 1 } });
+    expect(Object.getPrototypeOf(prepared)).toBe(Object.prototype);
+    expect(Object.getPrototypeOf(prepared?.nested)).toBe(Object.prototype);
+  });
+
+  it('stops walking once the running size passes the limit', () => {
+    let reads = 0;
+    const value = {
+      big: 'x'.repeat(MAX_CHAT_TEMPLATE_KWARGS_BYTES),
+      get later() {
+        reads++;
+        return 1;
+      },
+    };
+    expect(() => prepareChatTemplateKwargs(value)).toThrow(
+      /exceeds 8192 bytes/,
+    );
+    expect(reads).toBe(0);
   });
 
   it('sends a detached copy of the caller object', () => {

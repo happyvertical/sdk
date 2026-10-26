@@ -47,25 +47,54 @@ function invalid(reason: string, provider?: string, model?: string): AIError {
   );
 }
 
+/**
+ * Running lower bound on the serialized size, so an oversized input is
+ * rejected while it is walked instead of after it is fully copied. It never
+ * overestimates (string length in UTF-16 units is at most its UTF-8 bytes,
+ * and separators are not counted); the exact size is checked at the end.
+ */
+interface Budget {
+  bytes: number;
+  provider?: string;
+  model?: string;
+}
+
+function spend(budget: Budget, bytes: number): void {
+  budget.bytes += bytes;
+  if (budget.bytes > MAX_CHAT_TEMPLATE_KWARGS_BYTES) {
+    throw tooLarge(budget.provider, budget.model);
+  }
+}
+
+function tooLarge(provider?: string, model?: string): AIError {
+  return invalid(
+    `exceeds ${MAX_CHAT_TEMPLATE_KWARGS_BYTES} bytes of JSON`,
+    provider,
+    model,
+  );
+}
+
 /** Validate `value` and return its JSON copy, reading each property once. */
 function copy(
   value: unknown,
   path: string,
   depth: number,
-  provider?: string,
-  model?: string,
+  budget: Budget,
 ): JsonValue {
-  if (
-    value === null ||
-    typeof value === 'string' ||
-    typeof value === 'boolean'
-  ) {
+  const { provider, model } = budget;
+  if (value === null || typeof value === 'boolean') {
+    spend(budget, value === false ? 5 : 4);
+    return value;
+  }
+  if (typeof value === 'string') {
+    spend(budget, value.length + 2);
     return value;
   }
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
       throw invalid(`${path} must be a finite number`, provider, model);
     }
+    spend(budget, 1);
     return value;
   }
   if (typeof value !== 'object') {
@@ -86,11 +115,10 @@ function copy(
         model,
       );
     }
+    spend(budget, 2);
     const items: JsonValue[] = [];
     for (let index = 0; index < value.length; index++) {
-      items.push(
-        copy(value[index], `${path}[${index}]`, depth + 1, provider, model),
-      );
+      items.push(copy(value[index], `${path}[${index}]`, depth + 1, budget));
     }
     return items;
   }
@@ -105,13 +133,15 @@ function copy(
       model,
     );
   }
+  spend(budget, 2);
   const result: { [key: string]: JsonValue } = {};
   keys.forEach((key, index) => {
     const entryPath = `${path}{#${index}}`;
     if (FORBIDDEN_KEYS.has(key)) {
       throw invalid(`${entryPath} uses a reserved key`, provider, model);
     }
-    result[key] = copy(value[key], entryPath, depth + 1, provider, model);
+    spend(budget, key.length + 3);
+    result[key] = copy(value[key], entryPath, depth + 1, budget);
   });
   return result;
 }
@@ -119,6 +149,8 @@ function copy(
 /**
  * Validate `chatTemplateKwargs` and return a detached JSON copy to send as
  * `chat_template_kwargs`, or `undefined` when the option is absent or empty.
+ * Objects may have `Object.prototype` or a null prototype
+ * (`Object.create(null)`); the copy is always an ordinary object.
  *
  * @throws {AIError} `AI_INVALID_CHAT_TEMPLATE_KWARGS` when the value is not a
  *   plain JSON object within the size, depth, and entry bounds.
@@ -132,17 +164,11 @@ export function prepareChatTemplateKwargs(
   if (!isPlainObject(value)) {
     throw invalid('must be a plain JSON object', provider, model);
   }
-  const prepared = copy(value, ROOT, 1, provider, model) as {
+  const prepared = copy(value, ROOT, 1, { bytes: 0, provider, model }) as {
     [key: string]: JsonValue;
   };
   if (Object.keys(prepared).length === 0) return undefined;
   const bytes = new TextEncoder().encode(JSON.stringify(prepared)).byteLength;
-  if (bytes > MAX_CHAT_TEMPLATE_KWARGS_BYTES) {
-    throw invalid(
-      `exceeds ${MAX_CHAT_TEMPLATE_KWARGS_BYTES} bytes of JSON`,
-      provider,
-      model,
-    );
-  }
+  if (bytes > MAX_CHAT_TEMPLATE_KWARGS_BYTES) throw tooLarge(provider, model);
   return prepared;
 }

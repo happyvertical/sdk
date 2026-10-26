@@ -731,6 +731,12 @@ iterating early (it then gets whatever arrived first), so treat it as a
 diagnostic rather than a completion signal. An error it throws is swallowed and
 cannot break the stream or replace the stream's own error.
 
+Aborting a stream through `signal`, or hitting its `timeout`, while you keep
+iterating now throws `AI_ABORTED` or `AI_TIMEOUT` on the OpenAI-compatible
+providers instead of ending quietly as if the reply were complete; in that case
+`onFinishReason` is not called. Breaking out of the loop still ends it without
+an error.
+
 ```typescript
 const ai = await getAI({ type: 'openai', baseUrl: 'http://vllm:8000/v1', apiKey: 'local' });
 const reply = await ai.chat(messages, {
@@ -769,6 +775,8 @@ for await (const text of ai.stream(messages, {
   else throws `AI_INVALID_CHAT_TEMPLATE_KWARGS` before a request is sent. The
   error locates the entry by position (`chatTemplateKwargs{#2}[0]` is the
   first item under the third key) and never includes a key name or a value.
+  Null-prototype objects (`Object.create(null)`) are accepted; the copy sent is
+  always an ordinary object. Oversized input is rejected while it is walked.
   Each property is read once into the copy that is sent, so getters cannot
   answer differently between validation and transport, and later mutation of
   the caller's object has no effect. An empty object is not sent.
