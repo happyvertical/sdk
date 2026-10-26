@@ -406,7 +406,7 @@ describe('onReasoning delivery', () => {
       }))
         controller.abort();
     })().catch((caught: unknown) => caught);
-    expect(error).toBeUndefined();
+    expect(error).toMatchObject({ code: 'AI_ABORTED' });
     expect(seen).toEqual(['half a thought']);
   });
 

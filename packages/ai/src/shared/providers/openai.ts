@@ -980,6 +980,9 @@ export class OpenAIProvider implements AIInterface {
           yield content;
         }
       }
+      // The OpenAI SDK ends a stream quietly when its signal aborts; surface
+      // the abort or timeout instead of reporting a cut-off reply as 'stop'.
+      if (controls.signal.aborted) throw controls.signal.reason;
       options.onFinishReason?.(this.mapFinishReason(streamFinish));
 
       emitUsage(
