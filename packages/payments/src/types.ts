@@ -439,6 +439,43 @@ export interface SavedPaymentMethod {
   raw?: unknown;
 }
 
+/** Evidence for a read-only reverse lookup of a hosted checkout. */
+export interface PaymentCheckoutLookupInput {
+  /** Supply at least one payment reference; when both exist they must agree. */
+  paymentIntentId?: string;
+  chargeId?: string;
+  /** Required expected environment, normally from a verified provider event. */
+  livemode: boolean;
+  /** Maximum provider pages to read (1–100, default 10). */
+  maxPages?: number;
+}
+
+export interface PaymentCheckoutLookupContext {
+  backendId: string;
+  /** Authenticated provider account; absent means the platform account. */
+  accountId?: string;
+  livemode: boolean;
+  paymentIntentId?: string;
+  chargeId?: string;
+}
+
+/** Only `no_match` proves complete absence. All other failures must be retried or investigated. */
+export type PaymentCheckoutLookupResult = PaymentCheckoutLookupContext &
+  (
+    | {
+        status: 'matched';
+        checkoutId: string;
+        paymentIntentId: string;
+        quoteId: string;
+        clientReferenceId?: string;
+      }
+    | { status: 'no_match' }
+    | {
+        status: 'indeterminate';
+        reason: 'pagination_limit' | 'ambiguous' | 'missing_quote';
+      }
+  );
+
 export interface PaymentBackend {
   readonly capabilities: PaymentBackendCapabilities;
 
@@ -491,6 +528,15 @@ export interface PaymentBackend {
    * fields (brand / last4 / expiry). Never returns raw card data.
    */
   getSetupResult?(input: GetSetupResultInput): Promise<SavedPaymentMethod>;
+
+  /**
+   * Resolve existing payment evidence to a hosted checkout without a local cache.
+   * Provider/identity failures throw; indeterminate is never proof of absence.
+   * Callers must bind the returned quote to their own owner/account records.
+   */
+  lookupCheckout?(
+    input: PaymentCheckoutLookupInput,
+  ): Promise<PaymentCheckoutLookupResult>;
 
   parseWebhookEvent?(payload: string, signature?: string): PaymentWebhookEvent;
 }

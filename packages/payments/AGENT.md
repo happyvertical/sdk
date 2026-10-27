@@ -43,3 +43,18 @@ parsing. Missing evidence throws; an empty array is valid. Unknown lifecycle
 statuses map to `unknown`, unknown dispute event types throw. Never infer money
 movement from lifecycle status; consumers own ledger postings, ownership,
 durable deduplication, ordering, and recovery. See README dispute documentation.
+
+
+## Checkout reverse reconciliation
+
+`lookupCheckout({ paymentIntentId?, chargeId?, livemode, stripeAccount?, maxPages? })`
+reads existing payment evidence and exhausts filtered Checkout Session pagination.
+Root `PaymentCheckoutLookupInput` / `PaymentCheckoutLookupResult` are generic;
+Stripe adds `StripeCheckoutLookupInput` account scope. Only `status: no_match`
+proves complete absence. `matched` returns validated session/PI/quote identity,
+`accountId` and environment, without raw payloads. `indeterminate` reasons are
+`pagination_limit`, `ambiguous`, `missing_quote`; never acknowledge these as
+unrelated. Provider/identity failures throw. The method is optional on
+PaymentBackend, preserving other integrations. Bind quote/account to local owner
+records and retain settlement-ordering retries; provider metadata is not
+application authorization. See README for exact pagination and identity rules.
