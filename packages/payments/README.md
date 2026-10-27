@@ -475,3 +475,53 @@ options.
 `pollPaymentStatus` emits `event: 'timeout'` when polling times out. The
 associated `status` remains the last observed status, or `pending` if no status
 was observed, rather than being coerced to `failed`.
+
+
+### Reverse checkout reconciliation (Stripe)
+
+`lookupCheckout` is an optional `PaymentBackend` method. Stripe implements it
+without relying on a cached create response or PaymentIntent metadata, including
+Checkout Sessions created by earlier SDK releases:
+
+```typescript
+const result = await stripe.lookupCheckout({
+  chargeId: dispute.chargeId,
+  paymentIntentId: dispute.paymentIntentId, // optional; if supplied, must agree
+  stripeAccount: verifiedAccount, // omit for platform scope
+  livemode: dispute.livemode, // required expected environment
+});
+if (result.status === 'matched') {
+  // result.checkoutId, paymentIntentId, quoteId, optional clientReferenceId
+  // Bind quoteId to YOUR persisted owner/account before deciding what to do.
+} else if (result.status === 'no_match') {
+  // Complete absence of a Checkout Session for this authenticated payment.
+} else {
+  // indeterminate: pagination_limit, ambiguous, or missing_quote.
+  // Retry/investigate; do not treat this as unrelated or acknowledge ownership.
+}
+```
+
+Supply a PaymentIntent id, a Charge id, or both. Every Charge/PaymentIntent is
+reread and validated for resource identity and environment; both supplied ids
+must agree. A Charge explicitly lacking a PaymentIntent returns `no_match`.
+Otherwise Stripe's [Checkout Session list PaymentIntent filter](https://docs.stripe.com/api/checkout/sessions/list)
+is paginated to completion (100 per page). `maxPages` defaults to 10 and accepts
+1–100; reaching the cap returns `indeterminate`, even after finding a candidate.
+Malformed pages, duplicate sessions/cursors, resource/linkage mismatch, wrong
+account/environment, and provider failures throw, never `no_match`.
+
+A unique Session in payment mode returns `matched` only with a nonempty quote
+from `metadata.quoteId` or `client_reference_id`; when both exist they must
+agree exactly. Missing both returns `indeterminate: missing_quote`; multiple
+Sessions return `indeterminate: ambiguous`. The result includes `backendId`,
+`livemode`, authenticated `accountId` (absent for platform), and available
+payment references. It exposes no raw provider payload. Adapter account scope
+cannot be overridden with another account. All reads use that same scope.
+
+This proves provider correlation, not application authorization or settlement.
+Connected account operators control their metadata: validate the quote against
+your own owner/account records. A matched quote with no local settlement can
+mean settlement is delayed or the create response was lost; retain a retry path.
+Only complete `no_match` proves no hosted Checkout Session, and it says nothing
+about payments created by another API (including manual authorization). A
+backend without this optional method supplies no absence evidence.

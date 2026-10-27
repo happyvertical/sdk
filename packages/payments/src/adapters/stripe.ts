@@ -31,6 +31,8 @@ import type {
   GetSetupResultInput,
   PaymentBackend,
   PaymentBackendCapabilities,
+  PaymentCheckoutLookupInput,
+  PaymentCheckoutLookupResult,
   PaymentDispute,
   PaymentDisputeStatus,
   PaymentEvent,
@@ -187,6 +189,10 @@ export interface StripeGetDisputeOptions extends StripeAccountScope {
   /** Reject an authoritative reread from a different environment. */
   expectedLivemode?: boolean;
 }
+
+export interface StripeCheckoutLookupInput
+  extends PaymentCheckoutLookupInput,
+    StripeAccountScope {}
 
 /** Connected account onboarding and capability state. */
 export interface StripeConnectAccountStatus {
@@ -1310,6 +1316,198 @@ export class StripeAdapter implements PaymentBackend {
     return dispute;
   }
 
+  /**
+   * Resolve existing PI/Charge evidence to a Checkout Session in the authenticated
+   * account and required environment. No local cache or new PI metadata needed.
+   * A quote is correlation evidence, not authorization: bind it to your owner.
+   */
+  async lookupCheckout(
+    input: StripeCheckoutLookupInput,
+  ): Promise<PaymentCheckoutLookupResult> {
+    if (!input || typeof input.livemode !== 'boolean') {
+      throw new PaymentConfigurationError('Stripe lookup requires livemode.');
+    }
+    const maxPages = input.maxPages ?? 10;
+    if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 100) {
+      throw new PaymentConfigurationError(
+        'Stripe lookup maxPages must be 1–100.',
+      );
+    }
+    const scope = this.resolveStripeAccount(input.stripeAccount);
+    const account =
+      scope === undefined
+        ? undefined
+        : normalizeStripeConnectedAccountId(scope);
+    if (account !== undefined) this.assertAdapterAccount(account);
+    const inputId = (value: string | undefined, prefix: string) => {
+      if (value === undefined) return undefined;
+      if (
+        typeof value !== 'string' ||
+        !new RegExp(`^${prefix}_[A-Za-z0-9_]+$`).test(value)
+      ) {
+        throw new PaymentConfigurationError(
+          'Stripe lookup payment reference is invalid.',
+        );
+      }
+      return value;
+    };
+    let paymentIntentId = inputId(input.paymentIntentId, 'pi');
+    const chargeId = inputId(input.chargeId, '(?:ch|py)');
+    if (paymentIntentId === undefined && chargeId === undefined) {
+      throw new PaymentConfigurationError(
+        'Stripe lookup requires paymentIntentId or chargeId.',
+      );
+    }
+    const read = async (path: string): Promise<unknown> => {
+      // Do not expose private provider payloads through errors from this API.
+      try {
+        return await this.stripeRequest<unknown>(path, {
+          stripeAccount: account,
+        });
+      } catch (error) {
+        throw new PaymentProviderError(
+          'Stripe checkout lookup request failed.',
+          {
+            retryable:
+              error instanceof PaymentProviderError ? error.retryable : true,
+          },
+        );
+      }
+    };
+    if (chargeId !== undefined) {
+      const charge = lookupRecord(
+        await read(`/charges/${encodeURIComponent(chargeId)}`),
+      );
+      assertLookupObject(charge, 'charge', chargeId, input.livemode, account);
+      // Stripe explicitly returns null for Charges made without a PaymentIntent.
+      if (charge.payment_intent === null) {
+        if (paymentIntentId !== undefined) lookupIdentityError();
+      } else {
+        const chargeIntentId = lookupReference(
+          charge.payment_intent,
+          'payment_intent',
+          'pi',
+          input.livemode,
+          account,
+        );
+        if (paymentIntentId !== undefined && paymentIntentId !== chargeIntentId)
+          lookupIdentityError();
+        paymentIntentId = chargeIntentId;
+      }
+    }
+    const context = {
+      backendId: STRIPE_BACKEND_ID,
+      ...(account === undefined ? {} : { accountId: account }),
+      livemode: input.livemode,
+      ...(paymentIntentId === undefined ? {} : { paymentIntentId }),
+      ...(chargeId === undefined ? {} : { chargeId }),
+    };
+    if (paymentIntentId === undefined)
+      return { ...context, status: 'no_match' };
+    const intent = lookupRecord(
+      await read(`/payment_intents/${encodeURIComponent(paymentIntentId)}`),
+    );
+    assertLookupObject(
+      intent,
+      'payment_intent',
+      paymentIntentId,
+      input.livemode,
+      account,
+    );
+    const seen = new Set<string>();
+    const matches: {
+      checkoutId: string;
+      quoteId?: string;
+      clientReferenceId?: string;
+    }[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < maxPages; page++) {
+      const params = new URLSearchParams({
+        payment_intent: paymentIntentId,
+        limit: '100',
+      });
+      if (cursor !== undefined) params.set('starting_after', cursor);
+      const list = lookupRecord(await read(`/checkout/sessions?${params}`));
+      if (
+        list.object !== 'list' ||
+        !Array.isArray(list.data) ||
+        typeof list.has_more !== 'boolean' ||
+        list.data.length > 100
+      )
+        lookupDataError();
+      for (const value of list.data) {
+        const session = lookupRecord(value);
+        const id = lookupReference(
+          session.id,
+          'checkout.session',
+          'cs',
+          input.livemode,
+          account,
+        );
+        assertLookupObject(
+          session,
+          'checkout.session',
+          id,
+          input.livemode,
+          account,
+        );
+        if (session.mode !== 'payment') lookupDataError();
+        if (
+          lookupReference(
+            session.payment_intent,
+            'payment_intent',
+            'pi',
+            input.livemode,
+            account,
+          ) !== paymentIntentId
+        )
+          lookupIdentityError();
+        if (seen.has(id)) lookupDataError();
+        seen.add(id);
+        const metadata =
+          session.metadata == null ? {} : lookupRecord(session.metadata);
+        const quote = lookupQuote(metadata.quoteId);
+        const clientReferenceId = lookupQuote(session.client_reference_id);
+        if (
+          quote !== undefined &&
+          clientReferenceId !== undefined &&
+          quote !== clientReferenceId
+        )
+          lookupIdentityError();
+        matches.push({
+          checkoutId: id,
+          quoteId: quote ?? clientReferenceId,
+          ...(clientReferenceId === undefined ? {} : { clientReferenceId }),
+        });
+        cursor = id;
+      }
+      if (!list.has_more) {
+        if (matches.length === 0) return { ...context, status: 'no_match' };
+        if (matches.length !== 1)
+          return { ...context, status: 'indeterminate', reason: 'ambiguous' };
+        const match = matches[0]!;
+        if (match.quoteId === undefined)
+          return {
+            ...context,
+            status: 'indeterminate',
+            reason: 'missing_quote',
+          };
+        return {
+          ...context,
+          status: 'matched',
+          checkoutId: match.checkoutId,
+          paymentIntentId,
+          quoteId: match.quoteId,
+          ...(match.clientReferenceId === undefined
+            ? {}
+            : { clientReferenceId: match.clientReferenceId }),
+        };
+      }
+      if (list.data.length === 0) lookupDataError();
+    }
+    return { ...context, status: 'indeterminate', reason: 'pagination_limit' };
+  }
+
   private verifyWebhookEvent(
     payload: string,
     signature: string | undefined,
@@ -1761,6 +1959,70 @@ function disputeCurrency(value: unknown): string {
   if (typeof value !== 'string' || !/^[a-z]{3}$/.test(value))
     return disputeError('currency');
   return value.toUpperCase();
+}
+
+function lookupDataError(): never {
+  throw new PaymentProviderError(
+    'Stripe checkout lookup returned malformed data.',
+  );
+}
+
+function lookupIdentityError(): never {
+  throw new PaymentVerificationError(
+    'Stripe checkout lookup identity or environment mismatch.',
+  );
+}
+
+function lookupRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return lookupDataError();
+  return value as Record<string, unknown>;
+}
+
+function assertLookupObject(
+  value: Record<string, unknown>,
+  object: string,
+  id: string,
+  livemode: boolean,
+  account: string | undefined,
+): void {
+  if (value.object !== object || typeof value.livemode !== 'boolean')
+    lookupDataError();
+  if (
+    value.id !== id ||
+    value.livemode !== livemode ||
+    (value.account !== undefined && value.account !== account)
+  )
+    lookupIdentityError();
+}
+
+function lookupReference(
+  value: unknown,
+  object: string,
+  prefix: string,
+  livemode: boolean,
+  account: string | undefined,
+): string {
+  const expanded =
+    typeof value === 'object' && value !== null
+      ? lookupRecord(value)
+      : undefined;
+  const id = expanded === undefined ? value : expanded.id;
+  if (
+    typeof id !== 'string' ||
+    !new RegExp(`^${prefix}_[A-Za-z0-9_]+$`).test(id)
+  )
+    return lookupDataError();
+  if (expanded !== undefined)
+    assertLookupObject(expanded, object, id, livemode, account);
+  return id;
+}
+
+function lookupQuote(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string' || value.length === 0 || value.trim() !== value)
+    return lookupDataError();
+  return value;
 }
 
 function mapStripeDispute(value: unknown, account?: string): StripeDispute {
