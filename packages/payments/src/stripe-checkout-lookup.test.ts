@@ -132,6 +132,46 @@ describe('Stripe checkout reverse reconciliation', () => {
     ).rejects.toBeInstanceOf(PaymentVerificationError);
   });
 
+  it.each([
+    undefined,
+    'pi_owned',
+  ])('reconciles bank-debit Charge py_ evidence with PI %s', async (paymentIntentId) => {
+    const { client, fetch } = fixture([
+      charge({ id: 'py_owned' }),
+      intent(),
+      list([session()]),
+    ]);
+    expect(
+      await client.lookupCheckout({
+        ...input,
+        paymentIntentId,
+        chargeId: 'py_owned',
+      }),
+    ).toMatchObject({
+      status: 'matched',
+      chargeId: 'py_owned',
+      paymentIntentId: 'pi_owned',
+    });
+    expect((fetch.mock.calls as unknown as [string][])[0]?.[0]).toContain(
+      '/charges/py_owned',
+    );
+  });
+
+  it.each([
+    { id: 'py_other' },
+    { id: 'ch_owned' },
+    { object: 'payment_intent' },
+    { livemode: true },
+    { account: 'acct_foreign' },
+    { payment_intent: 'pi_other' },
+  ])('refuses conflicting bank-debit Charge identity %j', async (fields) => {
+    const { client, fetch } = fixture([charge({ id: 'py_owned', ...fields })]);
+    await expect(
+      client.lookupCheckout({ ...input, chargeId: 'py_owned' }),
+    ).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('returns complete no_match for an external PI or a validated legacy Charge without PI', async () => {
     const external = fixture([intent(), list()]);
     expect(await external.client.lookupCheckout(input)).toMatchObject({
@@ -374,6 +414,8 @@ describe('Stripe checkout reverse reconciliation', () => {
     { ...input, livemode: 'false' },
     { ...input, paymentIntentId: 'ch_wrong' },
     { ...input, chargeId: 'invalid' },
+    { ...input, chargeId: 'py_' },
+    { ...input, chargeId: 'py_owned!' },
     { ...input, maxPages: 0 },
     { ...input, maxPages: 101 },
     { ...input, maxPages: 1.5 },

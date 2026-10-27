@@ -1352,7 +1352,7 @@ export class StripeAdapter implements PaymentBackend {
       return value;
     };
     let paymentIntentId = inputId(input.paymentIntentId, 'pi');
-    const chargeId = inputId(input.chargeId, 'ch');
+    const chargeId = inputId(input.chargeId, '(?:ch|py)');
     if (paymentIntentId === undefined && chargeId === undefined) {
       throw new PaymentConfigurationError(
         'Stripe lookup requires paymentIntentId or chargeId.',
