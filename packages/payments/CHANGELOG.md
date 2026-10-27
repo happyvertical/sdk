@@ -1,5 +1,11 @@
 # @happyvertical/payments
 
+## 0.109.0
+
+### Minor Changes
+
+- f16924f: Add optional typed reverse checkout reconciliation for existing Stripe PaymentIntent and Charge evidence, scoped to account and environment with fail-closed pagination and quote identity validation.
+
 ## 0.108.0
 
 ## 0.107.0
