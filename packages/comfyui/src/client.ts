@@ -8,6 +8,8 @@
 import { createLogger, type Logger } from '@happyvertical/logger';
 import { ValidationError } from '@happyvertical/utils';
 
+import { ComfyUIRequestError } from './errors.js';
+
 import type {
   ComfyUIClientOptions,
   ComfyWorkflow,
@@ -312,6 +314,9 @@ export class ComfyUIClient {
 
   /**
    * Make an HTTP request to ComfyUI
+   *
+   * @throws {ComfyUIRequestError} for a non-2xx response, with the status and
+   * the parsed body (for a rejected prompt, ComfyUI's `node_errors`)
    */
   private async request<T>(
     path: string,
@@ -342,9 +347,12 @@ export class ComfyUIClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `ComfyUI request failed: ${response.status} ${errorText}`,
-      );
+      throw new ComfyUIRequestError({
+        status: response.status,
+        method: options.method ?? 'GET',
+        path,
+        bodyText: errorText,
+      });
     }
 
     return response.json();
