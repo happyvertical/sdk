@@ -109,6 +109,15 @@ export interface WavExpectation {
   sampleRate?: number;
   /** Required channel count. */
   channels?: number;
+  /**
+   * Accept a streamed WAV whose RIFF and/or `data` size is the unknown-length
+   * sentinel `0xFFFFFFFF` (ffmpeg writing to a pipe, Kokoro-FastAPI
+   * `response_format: "wav"`). A sentinel RIFF size runs to the end of the
+   * buffer; a sentinel `data` size runs to the end of the RIFF, rounded down
+   * to whole frames, and ends the chunk walk. Every other check still
+   * applies. Off by default: leave it off for untrusted uploads.
+   */
+  allowUnknownLength?: boolean;
 }
 
 /** A validated 16-bit PCM WAV. */
@@ -230,7 +239,9 @@ function readFmt(
  * bits, a consistent header, and a declared data length that lies within the
  * buffer, is non-zero and is a whole number of frames. Nothing is clamped or
  * guessed. Every chunk inside the declared RIFF is bounds-checked, including
- * those after `data`; bytes beyond the RIFF are ignored.
+ * those after `data`; bytes beyond the RIFF are ignored. With
+ * `allowUnknownLength`, the `0xFFFFFFFF` streaming sentinel sizes are read as
+ * "to the end" (see {@link WavExpectation.allowUnknownLength}).
  */
 export function parseWavPcm16(
   bytes: Uint8Array,
@@ -244,7 +255,10 @@ export function parseWavPcm16(
     fail('not_riff', 'not a RIFF/WAVE file');
   }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const riffEnd = 8 + view.getUint32(4, true);
+  const unknownLength = expect.allowUnknownLength === true;
+  const riffSize = view.getUint32(4, true);
+  const riffEnd =
+    unknownLength && riffSize === MAX_UINT32 ? bytes.length : 8 + riffSize;
   if (riffEnd < 12) {
     fail('malformed_chunk', 'RIFF size is too small');
   }
@@ -264,8 +278,15 @@ export function parseWavPcm16(
       fail('malformed_chunk', 'chunk header runs past the end of the RIFF');
     }
     const id = tagAt(bytes, offset);
-    const size = view.getUint32(offset + 4, true);
+    let size = view.getUint32(offset + 4, true);
     const body = offset + 8;
+    // A streamed data chunk of unknown length is the rest of the RIFF, in
+    // whole frames; nothing after it can be located, so it ends the walk.
+    const streamedData = unknownLength && id === 'data' && size === MAX_UINT32;
+    if (streamedData) {
+      const frameBytes = fmt ? fmt.channels * 2 : 2;
+      size = riffEnd - body - ((riffEnd - body) % frameBytes);
+    }
     if (body + size > riffEnd) {
       fail(
         'truncated',
@@ -307,6 +328,7 @@ export function parseWavPcm16(
       }
       dataAt = body;
       dataSize = size;
+      if (streamedData) break;
     }
     // RIFF chunks are word aligned: an odd size is followed by one pad byte,
     // which must also lie inside the RIFF.

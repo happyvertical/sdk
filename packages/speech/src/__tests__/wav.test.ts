@@ -544,3 +544,104 @@ describe('resampleMono', () => {
     );
   });
 });
+
+describe('parseWavPcm16 allowUnknownLength (streamed WAV, #1354)', () => {
+  const UNKNOWN = 0xffff_ffff;
+  // What ffmpeg writes to a pipe and Kokoro-FastAPI returns for "wav":
+  // sentinel RIFF and data sizes, with a LIST chunk before data.
+  const streamed = (frames: number, extra: number[] = [], channels = 1) =>
+    Uint8Array.from([
+      ...build(
+        [
+          { id: 'fmt ', body: fmtBody({ channels, rate: 24000 }) },
+          { id: 'LIST', body: Uint8Array.from(tag('INFOISFT')) },
+          { id: 'data', body: dataBody(frames * channels), declared: UNKNOWN },
+        ],
+        { riffSize: UNKNOWN },
+      ),
+      ...extra,
+    ]);
+
+  it('rejects the sentinel sizes by default', () => {
+    expect(reasonOf(() => parseWavPcm16(streamed(8)))).toBe('truncated');
+  });
+
+  it('reads sentinel RIFF and data sizes to the end of the buffer', () => {
+    const parsed = parseWavPcm16(streamed(8), { allowUnknownLength: true });
+    expect(parsed).toMatchObject({ sampleRate: 24000, channels: 1, frames: 8 });
+    expect(Array.from(parsed.data)).toEqual(Array.from(dataBody(8)));
+  });
+
+  it('drops a trailing partial frame', () => {
+    const mono = parseWavPcm16(streamed(8, [0x11]), {
+      allowUnknownLength: true,
+    });
+    expect(mono.frames).toBe(8);
+    const stereo = parseWavPcm16(streamed(3, [1, 2, 3], 2), {
+      allowUnknownLength: true,
+      channels: 2,
+    });
+    expect(stereo.frames).toBe(3);
+    expect(stereo.samples).toHaveLength(6);
+  });
+
+  it('accepts a sentinel on only one of the two sizes', () => {
+    const riffOnly = build(good(), { riffSize: UNKNOWN });
+    expect(parseWavPcm16(riffOnly, { allowUnknownLength: true }).frames).toBe(
+      8,
+    );
+    // A sentinel RIFF spans the whole buffer, so trailing bytes are chunks.
+    expect(
+      reasonOf(() =>
+        parseWavPcm16(Uint8Array.from([...riffOnly, 9, 9, 9]), {
+          allowUnknownLength: true,
+        }),
+      ),
+    ).toBe('malformed_chunk');
+    const dataOnly = build([
+      { id: 'fmt ', body: fmtBody() },
+      { id: 'data', body: dataBody(8), declared: UNKNOWN },
+    ]);
+    expect(parseWavPcm16(dataOnly, { allowUnknownLength: true }).frames).toBe(
+      8,
+    );
+  });
+
+  it('keeps every other check', () => {
+    const opts = { allowUnknownLength: true };
+    const empty = build(
+      [
+        { id: 'fmt ', body: fmtBody() },
+        { id: 'data', body: new Uint8Array(0), declared: UNKNOWN },
+      ],
+      { riffSize: UNKNOWN },
+    );
+    expect(reasonOf(() => parseWavPcm16(empty, opts))).toBe('empty_data');
+    const noFmt = build(
+      [{ id: 'data', body: dataBody(8), declared: UNKNOWN }],
+      { riffSize: UNKNOWN },
+    );
+    expect(reasonOf(() => parseWavPcm16(noFmt, opts))).toBe('data_before_fmt');
+    expect(
+      reasonOf(() =>
+        parseWavPcm16(streamed(8), { ...opts, sampleRate: 16000 }),
+      ),
+    ).toBe('rate_mismatch');
+    const eightBit = build(
+      [
+        { id: 'fmt ', body: fmtBody({ bits: 8 }) },
+        { id: 'data', body: dataBody(8), declared: UNKNOWN },
+      ],
+      { riffSize: UNKNOWN },
+    );
+    expect(reasonOf(() => parseWavPcm16(eightBit, opts))).toBe(
+      'unsupported_bits',
+    );
+    // A real (non-sentinel) oversize declaration is still truncated.
+    const over = build([
+      { id: 'fmt ', body: fmtBody() },
+      { id: 'data', body: dataBody(8), declared: 1000 },
+    ]);
+    expect(reasonOf(() => parseWavPcm16(over, opts))).toBe('truncated');
+  });
+});
