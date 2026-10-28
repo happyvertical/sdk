@@ -10,6 +10,11 @@ import {
   resolveOpenAICompatibleUrl,
 } from '../shared/http.js';
 import {
+  modelsUrlFor,
+  type SpeechProbeOptions,
+  type SpeechProbeResult,
+} from '../shared/probe.js';
+import {
   resolveRetryOptions,
   type SpeechRetryOptions,
 } from '../shared/retry.js';
@@ -180,6 +185,19 @@ export class OpenAICompatibleTranscriber
         : undefined;
 
     return { model, responseFormat, timestampGranularities };
+  }
+
+  /** `GET <api root>/models`, confirming the configured `model` is listed. */
+  probe(options?: SpeechProbeOptions): Promise<SpeechProbeResult> {
+    return this.probeEndpoint(
+      {
+        adapter: this.type,
+        url: () => modelsUrlFor(this.endpoint, 'audio/transcriptions'),
+        listsModels: true,
+        model: this.model,
+      },
+      options,
+    );
   }
 }
 

@@ -1,4 +1,14 @@
-import { SpeechConfigurationError, SpeechProviderError } from './errors.js';
+import {
+  SpeechConfigurationError,
+  SpeechProviderError,
+  SpeechProviderUnavailableError,
+} from './errors.js';
+import {
+  type HttpProbeTarget,
+  probeHttpEndpoint,
+  type SpeechProbeOptions,
+  type SpeechProbeResult,
+} from './probe.js';
 import {
   parseRetryAfter,
   type SpeechRetryOptions,
@@ -142,6 +152,23 @@ export abstract class HttpSpeechAdapter {
     this.timeoutMs = options.timeoutMs;
   }
 
+  /** Runs a readiness probe with this adapter's fetch, auth and headers. */
+  protected probeEndpoint(
+    target: Omit<HttpProbeTarget, 'fetch' | 'apiKey' | 'headers' | 'timeoutMs'>,
+    options?: SpeechProbeOptions,
+  ): Promise<SpeechProbeResult> {
+    return probeHttpEndpoint(
+      {
+        ...target,
+        fetch: this.fetchImpl,
+        apiKey: this.apiKey,
+        headers: this.headers,
+        timeoutMs: this.timeoutMs,
+      },
+      options,
+    );
+  }
+
   /**
    * POSTs to `path` (relative to `baseUrl`, or an absolute URL). The optional
    * `retry` policy retries 429/5xx responses; `timeoutMs` applies per attempt.
@@ -182,9 +209,9 @@ export abstract class HttpSpeechAdapter {
     try {
       // Fail fast when the caller aborted before the request was sent.
       requestSignal.signal?.throwIfAborted();
-      const response = await this.fetchImpl(
-        resolveSpeechUrl(this.baseUrl, path),
-        {
+      let response: Response;
+      try {
+        response = await this.fetchImpl(resolveSpeechUrl(this.baseUrl, path), {
           ...init,
           method: 'POST',
           headers: mergeHeaders(
@@ -192,8 +219,17 @@ export abstract class HttpSpeechAdapter {
             init.headers,
           ),
           signal: requestSignal.signal,
-        },
-      );
+        });
+      } catch (error) {
+        // An abort or timeout keeps its own error; anything else means no
+        // response arrived. The message names no URL or credential.
+        if (requestSignal.signal?.aborted) throw error;
+        throw new SpeechProviderUnavailableError(
+          adapterName,
+          `${adapterName} speech service could not be reached`,
+          error,
+        );
+      }
       await assertOk(response, adapterName, this.apiKey);
       return await readResponse(response);
     } finally {

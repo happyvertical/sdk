@@ -5,7 +5,11 @@
  * multipart filename whose extension matches the MIME type.
  */
 
-import { SpeechConfigurationError } from './errors.js';
+import {
+  SpeechAudioTooLargeError,
+  SpeechConfigurationError,
+  SpeechInvalidAudioError,
+} from './errors.js';
 import type { AudioInput, AudioSource } from './types.js';
 
 /** OpenAI caps `/audio/transcriptions` uploads at 25 MB. */
@@ -127,7 +131,7 @@ export async function normalizeAudioInput(
   }
 
   if (blob.size === 0) {
-    throw new SpeechConfigurationError('Audio input is empty', adapter);
+    throw new SpeechInvalidAudioError('Audio input is empty', adapter);
   }
 
   const extension =
@@ -191,8 +195,9 @@ function assertWithinLimit(
   adapter: string | undefined,
 ): void {
   if (bytes > maxBytes) {
-    throw new SpeechConfigurationError(
+    throw new SpeechAudioTooLargeError(
       `Audio input exceeds maxBytes (${bytes} > ${maxBytes} bytes)`,
+      maxBytes,
       adapter,
     );
   }
@@ -225,8 +230,9 @@ async function readStreamWithLimit(
       total += chunkByteLength(value, adapter);
       if (total > maxBytes) {
         await reader.cancel().catch(() => undefined);
-        throw new SpeechConfigurationError(
+        throw new SpeechAudioTooLargeError(
           `Audio stream exceeds maxBytes (more than ${maxBytes} bytes)`,
+          maxBytes,
           adapter,
         );
       }

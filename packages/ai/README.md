@@ -718,6 +718,101 @@ effective token ceilings plus sanitized `usageTags`; prompts, responses, and
 credentials are never included. Legacy `thinkingLevel` options remain available
 as deprecated aliases and are normalized through the reasoning ceiling.
 
+### Stale-connection retry (OpenAI-compatible providers)
+
+`maxRetries` stays `0` by default, but the `openai`, `litellm`, and `bifrost`
+providers resend a `chat()` or `stream()` request **once, immediately** when it
+fails on a stale keep-alive socket: the OpenAI SDK's `APIConnectionError` (not
+its timeout subclass) or a cause chain carrying `ECONNRESET`, `EPIPE`,
+`UND_ERR_SOCKET`, or "socket hang up".
+
+- `chat()` retries only when the failure happens before the response status
+  and headers arrive. A reset while reading the body after headers surfaces
+  unchanged. Most servers send a non-streamed reply's headers only once the
+  generation is done, so a reset before headers is usually a stale socket that
+  never reached the server; but if a proxy or load balancer cuts a long
+  request mid-generation, the resend can re-run (and re-bill) a generation the
+  server had begun.
+- `stream()` also retries after headers, as long as no chunk has been yielded
+  to the caller. No content has been delivered, but the server may already
+  have started generating, so this can re-run (and re-bill) a generation the
+  server had begun.
+
+It never retries after an HTTP status response (including 5xx), a timeout, a
+caller abort, or once a streamed chunk has been yielded. The retry shares the
+call's timeout and signal; if it also fails, the same error surfaces as without
+it. A retry adds one to the `onRequest` event's `attempts`. It is independent
+of `maxRetries`; opt out per client with `retryConnectionErrors: false`.
+
+## Reasoning Text, Finish Reasons, and Chat-Template Arguments
+
+Servers that run a reasoning parser return the model's thinking separately
+from its answer. The SDK surfaces it as `AIResponse.reasoning` from `chat()`
+and through `ChatOptions.onReasoning` from `stream()`. It is absent, and
+`onReasoning` is not called, when the server sends none.
+
+`onReasoning` is called once with the accumulated reasoning deltas when the
+stream ends, including when it fails, is aborted, or the consumer stops
+iterating early (it then gets whatever arrived first), so treat it as a
+diagnostic rather than a completion signal. An error it throws is swallowed and
+cannot break the stream or replace the stream's own error.
+
+Aborting a stream through `signal`, or hitting its `timeout`, while you keep
+iterating now throws `AI_ABORTED` or `AI_TIMEOUT` on the OpenAI-compatible
+providers instead of ending quietly as if the reply were complete; in that case
+`onFinishReason` is not called. Breaking out of the loop still ends it without
+an error.
+
+```typescript
+const ai = await getAI({ type: 'openai', baseUrl: 'http://vllm:8000/v1', apiKey: 'local' });
+const reply = await ai.chat(messages, {
+  // Forwarded as chat_template_kwargs, e.g. to turn Gemma/Qwen thinking off
+  // for this request without restarting the server.
+  chatTemplateKwargs: { enable_thinking: false },
+});
+if (!reply.content.trim() && reply.reasoning) {
+  // The answer landed in the reasoning channel: retry or fall back.
+}
+
+for await (const text of ai.stream(messages, {
+  onReasoning: (reasoning) => log.debug({ reasoningChars: reasoning.length }),
+  onFinishReason: (reason) => log.debug({ reason }),
+})) process.stdout.write(text);
+```
+
+| Provider | `reasoning` source | `chatTemplateKwargs` |
+| --- | --- | --- |
+| `openai`, `litellm`, `bifrost` (OpenAI-compatible, incl. vLLM/SGLang) | message/delta `reasoning_content`, else a string `reasoning` | sent as `chat_template_kwargs` |
+| `ollama` | `message.thinking` (`/api/generate` `thinking` for `complete`) | ignored (use `reasoning` / `think`) |
+| `anthropic` | not populated; signed thinking is replayed through `toolCalls[0].thinkingBlocks` | ignored |
+| `gemini` | not populated; thought summaries are not split out of `content` | ignored |
+| others (incl. `bedrock`) | not populated | ignored |
+
+- The OpenAI-compatible providers always set `finishReason`: `stop`, `length`,
+  `tool_calls` (also for a reply that carries tool calls but reports `stop`),
+  or `content_filter`, kept as the server reported them. An absent value is
+  `stop`; any other value (e.g. vLLM `abort`, or legacy `function_call`, which
+  carries no `toolCalls`) is `other`, with the server's value in
+  `rawFinishReason`, so a partial reply is not mistaken for a complete one.
+  Streams report the same normalised value through `onFinishReason`.
+- `chatTemplateKwargs` must be a plain JSON object: at most 8,192 bytes
+  serialized, 4 levels deep, and 32 keys per object or items per array, with
+  finite numbers and no `__proto__`/`constructor`/`prototype` keys. Anything
+  else throws `AI_INVALID_CHAT_TEMPLATE_KWARGS` before a request is sent. The
+  error locates the entry by position (`chatTemplateKwargs{#2}[0]` is the
+  first item under the third key) and never includes a key name or a value.
+  Null-prototype objects (`Object.create(null)`) are accepted; the copy sent is
+  always an ordinary object. Oversized input is rejected while it is walked.
+  Each property is read once into the copy that is sent, so getters cannot
+  answer differently between validation and transport, and later mutation of
+  the caller's object has no effect. An empty object is not sent.
+- The `openai` provider throws `AI_UNSUPPORTED_OPTION` for a non-empty
+  `chatTemplateKwargs` when its resolved base URL is `api.openai.com` (the
+  default when neither `baseUrl` nor `OPENAI_BASE_URL` is set): the hosted API
+  does not accept the field, and dropping it silently would lose a template
+  switch the caller asked for. LiteLLM and Bifrost forward it to their gateway.
+- With `continueOnLength`, reasoning from every part is joined and reported once.
+
 ## Continuing Truncated Replies
 
 When a reply stops because it hit its output limit (`finishReason: 'length'`:

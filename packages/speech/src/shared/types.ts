@@ -1,4 +1,5 @@
 import type { LocalTranscriberSettings } from '../adapters/local/types.js';
+import type { SpeechProbeOptions, SpeechProbeResult } from './probe.js';
 import type { SpeechRetryOptions } from './retry.js';
 import type {
   GetStreamingTranscriberOptions,
@@ -158,11 +159,24 @@ export interface SynthesizedSpeech {
 export interface Transcriber {
   readonly type: TranscriberType;
   transcribe(request: TranscriptionRequest): Promise<TranscriptResult>;
+  /**
+   * Checks the configured endpoint is reachable, accepts the credentials and
+   * (where the server lists models) serves the model, without sending audio.
+   * Resolves with a typed result for every outcome except a caller abort.
+   * Present on the built-in HTTP and realtime adapters; optional for custom
+   * implementations and absent on `local`.
+   */
+  probe?(options?: SpeechProbeOptions): Promise<SpeechProbeResult>;
 }
 
 export interface SpeechSynthesizer {
   readonly type: SpeechSynthesizerType;
   synthesize(request: SynthesisRequest): Promise<SynthesizedSpeech>;
+  /**
+   * Checks the configured endpoint without synthesizing anything; see
+   * {@link Transcriber.probe}. Optional for custom implementations.
+   */
+  probe?(options?: SpeechProbeOptions): Promise<SpeechProbeResult>;
 }
 
 export interface Speech {

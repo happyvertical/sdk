@@ -3,9 +3,11 @@ import {
   appendOptionalFormValue,
   createHappyVerticalSynthesisForm,
   HttpSpeechAdapter,
+  normalizeBaseUrl,
   readSynthesizedSpeechResponse,
   readTranscriptResponse,
 } from '../shared/http.js';
+import type { SpeechProbeOptions, SpeechProbeResult } from '../shared/probe.js';
 import type {
   SpeechSynthesizer,
   StudioServerSpeechSynthesizerOptions,
@@ -52,6 +54,21 @@ export class StudioServerTranscriber
       (response) => readTranscriptResponse(response, this.type),
     );
   }
+
+  /**
+   * `GET` of `baseUrl`: Studio Server has no model list, so a success only
+   * shows a server answered (`checked: 'reachability'`).
+   */
+  probe(options?: SpeechProbeOptions): Promise<SpeechProbeResult> {
+    return this.probeEndpoint(
+      {
+        adapter: this.type,
+        url: () => normalizeBaseUrl(this.baseUrl),
+        listsModels: false,
+      },
+      options,
+    );
+  }
 }
 
 export class StudioServerSpeechSynthesizer
@@ -79,6 +96,21 @@ export class StudioServerSpeechSynthesizer
         signal: request.signal,
       },
       (response) => readSynthesizedSpeechResponse(response, this.type),
+    );
+  }
+
+  /**
+   * `GET` of `baseUrl`: Studio Server has no model list, so a success only
+   * shows a server answered (`checked: 'reachability'`).
+   */
+  probe(options?: SpeechProbeOptions): Promise<SpeechProbeResult> {
+    return this.probeEndpoint(
+      {
+        adapter: this.type,
+        url: () => normalizeBaseUrl(this.baseUrl),
+        listsModels: false,
+      },
+      options,
     );
   }
 }

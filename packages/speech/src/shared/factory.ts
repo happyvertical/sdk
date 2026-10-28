@@ -185,6 +185,7 @@ function getWrappedStreamingTranscriber(
         headers: options.headers,
         timeoutMs: options.timeoutMs,
         onUsage: options.onUsage,
+        fetch: options.fetch,
       }) as GetStreamingTranscriberOptions),
     },
     { env: context.env, headers: context.headers },

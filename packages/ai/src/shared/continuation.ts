@@ -1,3 +1,4 @@
+import { reportReasoning } from './reasoning';
 import type {
   AIFinishReason,
   AIInterface,
@@ -157,6 +158,7 @@ export async function chatWithContinuation(
   const { onProgress, ...partOptions } = options;
   let content = first.content;
   let usage = first.usage;
+  let reasoning = first.reasoning ?? '';
   let last = first;
   let parts = 1;
 
@@ -168,6 +170,7 @@ export async function chatWithContinuation(
     });
     parts++;
     usage = addUsage(usage, next.usage);
+    reasoning += next.reasoning ?? '';
     last = next;
     const addition = continuationAddition(content, next.content);
     if (!addition) break; // no new text: stop looping
@@ -175,9 +178,11 @@ export async function chatWithContinuation(
     if (onProgress) onProgress(addition);
   }
 
+  const { reasoning: _lastReasoning, ...lastFields } = last;
   return {
-    ...last,
+    ...lastFields,
     content,
+    ...(reasoning ? { reasoning } : {}),
     usage,
     model: last.model ?? first.model,
     parts,
@@ -205,56 +210,66 @@ export async function* streamWithContinuation(
     return;
   }
 
-  const { onProgress, onFinishReason, ...rest } = options;
+  const { onProgress, onFinishReason, onReasoning, ...rest } = options;
   let accumulated = '';
-  // Reported once, for the last part: an earlier part's 'length' is not the
-  // reply's finish reason.
-  let reason: AIFinishReason = 'stop';
-  for (let part = 0; part <= config.maxContinuations; part++) {
-    const finish: { reason?: AIFinishReason } = {};
-    const partOptions: ChatOptions = {
-      ...rest,
-      onFinishReason: (value) => {
-        finish.reason = value;
-      },
-    };
-    if (part > 0) throwIfAborted(options.signal);
-    const source = stream(
-      part === 0 ? messages : continuationMessages(messages, accumulated),
-      partOptions,
-    );
-    let pending = '';
-    let seam = part > 0;
-    const emit = (text: string) => {
-      if (!text) return null;
-      accumulated += text;
-      onProgress?.(text);
-      return text;
-    };
-    for await (const chunk of source) {
-      if (!seam) {
-        const out = emit(chunk);
-        if (out) yield out;
-        continue;
+  // Each part reports its own reasoning; the caller gets it once, joined.
+  let reasoning = '';
+  try {
+    // Reported once, for the last part: an earlier part's 'length' is not the
+    // reply's finish reason.
+    let reason: AIFinishReason = 'stop';
+    for (let part = 0; part <= config.maxContinuations; part++) {
+      const finish: { reason?: AIFinishReason } = {};
+      const partOptions: ChatOptions = {
+        ...rest,
+        onFinishReason: (value) => {
+          finish.reason = value;
+        },
+        onReasoning: (value) => {
+          reasoning += value;
+        },
+      };
+      if (part > 0) throwIfAborted(options.signal);
+      const source = stream(
+        part === 0 ? messages : continuationMessages(messages, accumulated),
+        partOptions,
+      );
+      let pending = '';
+      let seam = part > 0;
+      const emit = (text: string) => {
+        if (!text) return null;
+        accumulated += text;
+        onProgress?.(text);
+        return text;
+      };
+      for await (const chunk of source) {
+        if (!seam) {
+          const out = emit(chunk);
+          if (out) yield out;
+          continue;
+        }
+        pending += chunk;
+        if (pending.length >= MAX_OVERLAP + MIN_OVERLAP) {
+          seam = false;
+          const out = emit(continuationAddition(accumulated, pending));
+          if (out) yield out;
+          pending = '';
+        }
       }
-      pending += chunk;
-      if (pending.length >= MAX_OVERLAP + MIN_OVERLAP) {
-        seam = false;
+      if (seam && pending) {
         const out = emit(continuationAddition(accumulated, pending));
         if (out) yield out;
-        pending = '';
       }
+      reason = finish.reason ?? 'stop';
+      // Stop unless the part hit the limit and there is text to continue from
+      // (see chatWithContinuation).
+      if (reason !== 'length' || !accumulated.trim()) break;
     }
-    if (seam && pending) {
-      const out = emit(continuationAddition(accumulated, pending));
-      if (out) yield out;
-    }
-    reason = finish.reason ?? 'stop';
-    // Stop unless the part hit the limit and there is text to continue from
-    // (see chatWithContinuation).
-    if (reason !== 'length' || !accumulated.trim()) break;
+    onFinishReason?.(reason);
+  } finally {
+    // Also on failure, abort, or an early break (see reportReasoning).
+    reportReasoning(onReasoning, reasoning);
   }
-  onFinishReason?.(reason);
 }
 
 /**

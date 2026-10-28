@@ -13,12 +13,18 @@ export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
  *
  * Provider instances merge partial overrides with the exported safe defaults.
  */
-/** Why a generation stopped, normalised across providers. */
+/**
+ * Why a generation stopped, normalised across providers. `'other'` means the
+ * server reported a reason outside this set (e.g. vLLM `abort`): treat the
+ * reply as possibly incomplete. Only the OpenAI-compatible providers report
+ * it today; see {@link AIResponse.rawFinishReason} for the server's value.
+ */
 export type AIFinishReason =
   | 'stop'
   | 'length'
   | 'tool_calls'
-  | 'content_filter';
+  | 'content_filter'
+  | 'other';
 
 /**
  * Automatic continuation when a reply stops on its output limit. `true`
@@ -418,6 +424,32 @@ export interface ChatOptions extends AIRequestControls {
    * finish reason. Used for continuation; also useful to detect truncation.
    */
   onFinishReason?: (reason: AIFinishReason) => void;
+
+  /**
+   * Called by streaming adapters once when the stream ends, with the
+   * reasoning text accumulated from its reasoning deltas (vLLM
+   * `reasoning_content`/`reasoning`, Ollama `thinking`). It also runs when
+   * the stream fails, is aborted, or the consumer stops iterating early, with
+   * whatever arrived first, so it is a diagnostic, not a completion signal.
+   * Not called when no reasoning arrived. Errors it throws are swallowed.
+   * `chat()` returns the same text as {@link AIResponse.reasoning}.
+   */
+  onReasoning?: (reasoning: string) => void;
+
+  /**
+   * Extra chat-template arguments sent as `chat_template_kwargs` by the
+   * OpenAI-compatible providers (`openai`, `litellm`, `bifrost`), for servers
+   * such as vLLM and SGLang that apply them to the model's chat template, e.g.
+   * `{ enable_thinking: false }` to switch thinking off for one request.
+   * Must be a plain JSON object (at most 8192 bytes serialized, 4 levels
+   * deep, 32 entries per object or array); invalid values throw
+   * `AI_INVALID_CHAT_TEMPLATE_KWARGS` before any request is sent (the error
+   * locates the entry by position, never by key name or value). An empty
+   * object is not sent. The `openai` provider throws `AI_UNSUPPORTED_OPTION`
+   * when its resolved base URL is the hosted `api.openai.com`, which does not
+   * accept the field. Other providers ignore it.
+   */
+  chatTemplateKwargs?: Record<string, unknown>;
 
   /**
    * Continue a reply that stopped on its output limit and return the stitched
@@ -1453,9 +1485,27 @@ export interface AIResponse {
   model?: string;
 
   /**
-   * Finish reason
+   * Why generation stopped. The OpenAI-compatible providers always set it:
+   * an absent server value is `'stop'`, an unrecognised one is `'other'`, and
+   * a reply that carries tool calls but reports `'stop'` is `'tool_calls'`
+   * (`'length'` and `'content_filter'` are kept as reported).
    */
   finishReason?: AIFinishReason;
+
+  /**
+   * The server's own finish reason when `finishReason` is `'other'`, e.g.
+   * `'abort'` from vLLM or legacy `'function_call'`.
+   */
+  rawFinishReason?: string;
+
+  /**
+   * Reasoning ("thinking") text the server returned separately from
+   * `content`: vLLM/SGLang `reasoning_content` or `reasoning` on
+   * OpenAI-compatible providers, `thinking` on Ollama. Absent when the server
+   * sent none. A reply whose `content` is empty but whose `reasoning` is not
+   * usually means the answer was parsed into the reasoning channel.
+   */
+  reasoning?: string;
 
   /**
    * Tool calls made by the model
@@ -2074,6 +2124,17 @@ export interface OpenAIOptions extends BaseAIOptions {
   apiKey?: string;
   baseUrl?: string;
   organization?: string;
+  /**
+   * Retry once, immediately, when a request fails on a stale keep-alive
+   * connection (ECONNRESET, EPIPE, `UND_ERR_SOCKET`, "socket hang up", or the
+   * OpenAI SDK's `APIConnectionError`): `chat()` only before response
+   * headers arrive; `stream()` until the first chunk is yielded, which may
+   * re-run a generation the server had started. Independent of `maxRetries`;
+   * never retries after an HTTP status, a timeout, a caller abort, or a
+   * streamed chunk.
+   * @default true
+   */
+  retryConnectionErrors?: boolean;
 }
 
 /**
@@ -2115,6 +2176,17 @@ export interface LiteLLMOptions extends BaseAIOptions {
   apiKey?: string;
   baseUrl?: string;
   organization?: string;
+  /**
+   * Retry once, immediately, when a request fails on a stale keep-alive
+   * connection (ECONNRESET, EPIPE, `UND_ERR_SOCKET`, "socket hang up", or the
+   * OpenAI SDK's `APIConnectionError`): `chat()` only before response
+   * headers arrive; `stream()` until the first chunk is yielded, which may
+   * re-run a generation the server had started. Independent of `maxRetries`;
+   * never retries after an HTTP status, a timeout, a caller abort, or a
+   * streamed chunk.
+   * @default true
+   */
+  retryConnectionErrors?: boolean;
   adminApiKey?: string;
   adminBaseUrl?: string;
   adminUrl?: string;
@@ -2132,6 +2204,17 @@ export interface BifrostOptions extends BaseAIOptions {
   apiKey?: string;
   baseUrl?: string;
   organization?: string;
+  /**
+   * Retry once, immediately, when a request fails on a stale keep-alive
+   * connection (ECONNRESET, EPIPE, `UND_ERR_SOCKET`, "socket hang up", or the
+   * OpenAI SDK's `APIConnectionError`): `chat()` only before response
+   * headers arrive; `stream()` until the first chunk is yielded, which may
+   * re-run a generation the server had started. Independent of `maxRetries`;
+   * never retries after an HTTP status, a timeout, a caller abort, or a
+   * streamed chunk.
+   * @default true
+   */
+  retryConnectionErrors?: boolean;
   /**
    * Optional virtual key for admin routes. Bifrost OSS admin APIs typically use
    * username/password Basic auth instead; use `adminUser` / `adminPassword`

@@ -200,8 +200,10 @@ export function wrapStreamingTranscriber(
     );
   }
 
+  const probe = streaming.probe?.bind(streaming);
   return {
     type: streaming.type,
+    ...(probe ? { probe } : {}),
     async transcribe(request: TranscriptionRequest): Promise<TranscriptResult> {
       const audio = await normalizeAudioInput(request.audio, {
         mimeType: request.mimeType,

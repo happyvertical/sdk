@@ -9,6 +9,7 @@
 import { ValidationError } from '@happyvertical/utils';
 import { resolveContinuation } from '../continuation';
 import { rateLimitErrorFrom } from '../rate-limit';
+import { reportReasoning } from '../reasoning';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -883,6 +884,9 @@ export class OllamaProvider implements AIInterface {
           toolCalls && toolCalls.length > 0
             ? 'tool_calls'
             : mapFinishReason(response.done_reason),
+        ...(response.message?.thinking
+          ? { reasoning: response.message.thinking }
+          : {}),
         toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
@@ -966,6 +970,7 @@ export class OllamaProvider implements AIInterface {
 
       return {
         content: response.response || '',
+        ...(response.thinking ? { reasoning: response.thinking } : {}),
         model: response.model || model,
         usage,
         finishReason: mapFinishReason(response.done_reason),
@@ -1216,6 +1221,10 @@ export class OllamaProvider implements AIInterface {
   ): AsyncIterable<string> {
     const startTime = Date.now();
     let controls: PreparedRequestControls | undefined;
+    // Delivered in `finally`, so a failed, aborted, or abandoned stream still
+    // reports the thinking that arrived before it ended.
+    let reasoning = '';
+    const onReasoning = options.onReasoning;
     try {
       options = normalizeChatOptions(
         this.options,
@@ -1254,6 +1263,10 @@ export class OllamaProvider implements AIInterface {
       )) {
         if (chunk.model) {
           finalModel = chunk.model;
+        }
+
+        if (typeof chunk.message?.thinking === 'string') {
+          reasoning += chunk.message.thinking;
         }
 
         if (
@@ -1301,6 +1314,7 @@ export class OllamaProvider implements AIInterface {
       }
       throw this.mapError(error);
     } finally {
+      reportReasoning(onReasoning, reasoning);
       controls?.cleanup();
     }
   }

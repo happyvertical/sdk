@@ -15,6 +15,49 @@ import { AIError } from './types';
 export const DEFAULT_AI_TIMEOUT_MS = 120_000;
 export const DEFAULT_AI_MAX_RETRIES = 0;
 
+/**
+ * Internal per-call channel from a provider back to the observed client: a
+ * provider that transparently resends a request (the OpenAI-compatible
+ * stale-connection retry, #1467) bumps `connectionRetries` so the request
+ * event's `attempts` reflects it. Enumerable so option spreads keep it.
+ * @internal
+ */
+export const AI_ATTEMPT_RECORDER = Symbol.for(
+  '@happyvertical/ai:attempt-recorder',
+);
+
+/** @internal */
+export interface AIAttemptRecorder {
+  connectionRetries: number;
+}
+
+/** Operations whose providers may report transparent retries. */
+const ATTEMPT_RECORDING_OPERATIONS = new Set<AIRequestOperation>([
+  'chat',
+  'stream',
+]);
+
+function withAttemptRecorder(
+  operation: AIRequestOperation,
+  args: unknown[],
+): { args: unknown[]; recorder?: AIAttemptRecorder } {
+  if (!ATTEMPT_RECORDING_OPERATIONS.has(operation)) return { args };
+  const current = args[1];
+  if (
+    current !== undefined &&
+    (current === null || typeof current !== 'object')
+  ) {
+    return { args };
+  }
+  const recorder: AIAttemptRecorder = { connectionRetries: 0 };
+  const next = [...args];
+  next[1] = {
+    ...(current as object | undefined),
+    [AI_ATTEMPT_RECORDER]: recorder,
+  };
+  return { args: next, recorder };
+}
+
 export const DEFAULT_AI_GENERATION_LIMITS: Readonly<AIGenerationLimits> =
   Object.freeze({
     // Hard ceiling: a deployment-set value is enforced; the default sits above
@@ -504,6 +547,9 @@ export function createObservedAI<T extends AIInterface>(
         return async function* (...args: unknown[]) {
           const startedAt = Date.now();
           const callOptions = callOptionsFor(operation, args);
+          const recorded = withAttemptRecorder(operation, args);
+          const attempts = (event: { attempts: number }) =>
+            event.attempts + (recorded.recorder?.connectionRetries ?? 0);
           let base: ReturnType<typeof requestEventBase> | undefined;
           try {
             base = requestEventBase({
@@ -522,11 +568,12 @@ export function createObservedAI<T extends AIInterface>(
             const iterable = Reflect.apply(
               value,
               target,
-              args,
+              recorded.args,
             ) as AsyncIterable<string>;
             for await (const chunk of iterable) yield chunk;
             emitRequestEvent(providerOptions, {
               ...base,
+              attempts: attempts(base),
               status: 'succeeded',
               duration: Date.now() - startedAt,
             });
@@ -542,6 +589,7 @@ export function createObservedAI<T extends AIInterface>(
             });
             emitRequestEvent(providerOptions, {
               ...base,
+              attempts: attempts(base),
               ...failure,
               duration: Date.now() - startedAt,
             });
@@ -553,6 +601,9 @@ export function createObservedAI<T extends AIInterface>(
       return async (...args: unknown[]) => {
         const startedAt = Date.now();
         const callOptions = callOptionsFor(operation, args);
+        const recorded = withAttemptRecorder(operation, args);
+        const attempts = (event: { attempts: number }) =>
+          event.attempts + (recorded.recorder?.connectionRetries ?? 0);
         let base: ReturnType<typeof requestEventBase> | undefined;
         try {
           base = requestEventBase({
@@ -568,9 +619,10 @@ export function createObservedAI<T extends AIInterface>(
               callOptions,
             ),
           });
-          const result = await Reflect.apply(value, target, args);
+          const result = await Reflect.apply(value, target, recorded.args);
           emitRequestEvent(providerOptions, {
             ...base,
+            attempts: attempts(base),
             status: 'succeeded',
             duration: Date.now() - startedAt,
           });
@@ -587,6 +639,7 @@ export function createObservedAI<T extends AIInterface>(
           });
           emitRequestEvent(providerOptions, {
             ...base,
+            attempts: attempts(base),
             ...failure,
             duration: Date.now() - startedAt,
           });
