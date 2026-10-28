@@ -1,5 +1,15 @@
 # @happyvertical/sql
 
+## 0.110.0
+
+### Minor Changes
+
+- 8c5485b: `buildAggregate` expressions gain `{ op: 'asText', operand }`, a cast to the dialect's text type, so a join can compare a text reference with a native uuid id on PostgreSQL (#1465).
+
+### Patch Changes
+
+- @happyvertical/utils@0.110.0
+
 ## 0.109.0
 
 ### Patch Changes
