@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.110.1
+
+### Patch Changes
+
+- ### Features
+
+  - throw ComfyUIRequestError with status and parsed body (#1470) (comfyui)
+
 ## 0.110.0
 
 ## 0.109.0

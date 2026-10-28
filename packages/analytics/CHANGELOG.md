@@ -1,5 +1,12 @@
 # @happyvertical/analytics
 
+## 0.110.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.110.1
+
 ## 0.110.0
 
 ### Patch Changes
