@@ -1,5 +1,17 @@
 # @happyvertical/utils
 
+## 0.111.0
+
+### Minor Changes
+
+- ### Breaking Changes
+
+  - teamworks train: ai retry/reasoning, speech probe/errors/WAV (#1471) (ai,speech)
+
+  ### Features
+
+  - teamworks train: ai retry/reasoning, speech probe/errors/WAV (#1471) (ai,speech)
+
 ## 0.110.1
 
 ### Patch Changes
