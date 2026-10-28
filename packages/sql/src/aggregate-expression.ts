@@ -50,7 +50,14 @@ export type AggregateExpression =
   | { op: 'not'; operand: AggregateOperand }
   | { op: 'isNull' | 'isNotNull'; operand: AggregateOperand }
   /** The first operand that is not NULL. */
-  | { op: 'coalesce'; operands: AggregateOperand[] };
+  | { op: 'coalesce'; operands: AggregateOperand[] }
+  /**
+   * The operand as text (`CAST(x AS TEXT)`; `VARCHAR` on DuckDB/JSON), NULL
+   * stays NULL. Lets a join compare keys of different types, such as a text
+   * reference with a uuid id, without an error for a value that is not a uuid.
+   * Comparing a cast column cannot use that column's index.
+   */
+  | { op: 'asText'; operand: AggregateOperand };
 
 /** A table joined to the aggregate's `from`. */
 export interface AggregateJoin {
@@ -256,6 +263,13 @@ function renderOperand(
       );
     }
     return `COALESCE(${operands.map(child).join(', ')})`;
+  }
+  if (op === 'asText') {
+    const type =
+      ctx.adapterType === 'duckdb' || ctx.adapterType === 'json'
+        ? 'VARCHAR'
+        : 'TEXT';
+    return `CAST(${child(node.operand)} AS ${type})`;
   }
   throw new Error(`Unsupported aggregate expression operator: ${String(op)}`);
 }

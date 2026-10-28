@@ -214,6 +214,30 @@ describe('aggregate joins, row expressions and filtered aggregates: SQL', () => 
     );
   });
 
+  it('renders asText as a cast to the dialect text type', () => {
+    const on = eq(
+      { op: 'asText', operand: col('te.work_ref') },
+      { op: 'asText', operand: col('wo.id') },
+    );
+    const per = (adapter: SqlAdapterType) =>
+      buildAggregate(
+        {
+          from: 'te',
+          fromAlias: 'te',
+          joins: [{ table: 'wo', alias: 'wo', type: 'left', on }],
+          select: [{ column: 'wo.title' }, { fn: 'count', as: 'n' }],
+        },
+        1,
+        adapter,
+      ).sql;
+    const join = (type: string) =>
+      `SELECT wo.title AS title, COUNT(*) AS n FROM te AS te LEFT JOIN wo AS wo ON (CAST(te.work_ref AS ${type}) = CAST(wo.id AS ${type})) GROUP BY wo.title`;
+    expect(per('postgres')).toBe(join('TEXT'));
+    expect(per('sqlite')).toBe(join('TEXT'));
+    expect(per('duckdb')).toBe(join('VARCHAR'));
+    expect(per('json')).toBe(join('VARCHAR'));
+  });
+
   it('compares with a NULL literal as IS [NOT] NULL', () => {
     expect(
       buildAggregate({
@@ -389,6 +413,12 @@ describe('aggregate joins, row expressions and filtered aggregates: SQL', () => 
         /at least one operand/,
       );
       expect(filter(eq(col('x'), val(new Date('nope'))))).toThrow(/valid/);
+      expect(filter(eq({ op: 'asText' }, col('y')))).toThrow(
+        /must be an object/,
+      );
+      expect(
+        filter(eq({ op: 'asText', operand: col('x; DROP TABLE a') }, col('y'))),
+      ).toThrow(/Invalid SQL identifier/);
     });
 
     it('a column and an expr together, and expressions that are too large', () => {
@@ -772,6 +802,69 @@ describe.each(
     expect(rows).toHaveLength(1);
     expect(rows[0].title).toBe('Gate rail');
     expect(Number(rows[0].burn)).toBeCloseTo(1, 6);
+  });
+
+  it('joins a text reference to a native uuid id with asText; a non-uuid reference matches nothing', async () => {
+    // A polymorphic reference is text even where ids are uuid (Postgres, DuckDB).
+    await db.query(
+      'CREATE TABLE punches (id TEXT, tenant_id TEXT, work_ref TEXT, hours REAL)',
+    );
+    await db.insert('punches', [
+      { id: uuid(41), tenant_id: 'a', work_ref: dialect.idA, hours: 3 },
+      { id: uuid(42), tenant_id: 'a', work_ref: 'shop-cleanup', hours: 2 },
+      { id: uuid(43), tenant_id: 'a', work_ref: null, hours: 1 },
+    ]);
+    const rows = await q({
+      from: 'punches',
+      fromAlias: 'p',
+      joins: [
+        {
+          table: 'work_orders',
+          alias: 'wo',
+          type: 'left',
+          on: {
+            op: 'and',
+            operands: [
+              eq(
+                { op: 'asText', operand: col('p.work_ref') },
+                { op: 'asText', operand: col('wo.id') },
+              ),
+              eq(col('p.tenant_id'), col('wo.tenant_id')),
+            ],
+          },
+        },
+      ],
+      select: [
+        { column: 'p.work_ref', as: 'ref' },
+        { column: 'wo.title', as: 'title' },
+        { fn: 'sum', column: 'p.hours', as: 'hours' },
+      ],
+      where: { 'p.tenant_id': 'a' },
+      orderBy: 'hours DESC',
+    });
+    expect(rows.map((r) => [r.ref, r.title, Number(r.hours)])).toEqual([
+      [dialect.idA, 'Gate rail', 3],
+      ['shop-cleanup', null, 2],
+      [null, null, 1],
+    ]);
+    if (dialect.name.startsWith('postgres')) {
+      // Without the cast Postgres has no text = uuid operator.
+      await expect(
+        q({
+          from: 'punches',
+          fromAlias: 'p',
+          joins: [
+            {
+              table: 'work_orders',
+              alias: 'wo',
+              type: 'left',
+              on: eq(col('p.work_ref'), col('wo.id')),
+            },
+          ],
+          select: [{ fn: 'count', as: 'n' }],
+        }),
+      ).rejects.toThrow(/operator does not exist/);
+    }
   });
 
   it('a zero divisor yields NULL, not an error', async () => {
