@@ -2,11 +2,11 @@
  * One-shot retry for stale keep-alive connections in the OpenAI-compatible
  * providers (#1467).
  *
- * A pooled socket the server closed while idle fails the next request before
- * any response bytes arrive (ECONNRESET, EPIPE, undici `UND_ERR_SOCKET`,
- * "socket hang up"). Such a request never reached the model, so resending it
- * once is safe. Everything else — HTTP status responses, timeouts, caller
- * aborts — is surfaced unchanged.
+ * A pooled socket the server closed while idle fails the next request
+ * (ECONNRESET, EPIPE, undici `UND_ERR_SOCKET`, "socket hang up"). Callers
+ * decide when a resend is safe: `chat()` only before response headers,
+ * `stream()` only before its first yielded chunk. HTTP status responses,
+ * timeouts, and caller aborts are never retried.
  */
 
 import OpenAI from 'openai';
@@ -16,7 +16,7 @@ const STALE_SOCKET_CODES = new Set(['ECONNRESET', 'EPIPE', 'UND_ERR_SOCKET']);
 const MAX_CAUSE_DEPTH = 8;
 
 /**
- * True when `error` (or anything on its `cause` chain) is a pre-response
+ * True when `error` (or anything on its `cause` chain) is a stale
  * connection failure: the OpenAI SDK's `APIConnectionError` (not its timeout
  * subclass) or a socket error coded ECONNRESET / EPIPE / UND_ERR_SOCKET /
  * "socket hang up". Any timeout, abort, or HTTP status on the chain wins and

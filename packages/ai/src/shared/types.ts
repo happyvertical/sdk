@@ -2076,10 +2076,12 @@ export interface OpenAIOptions extends BaseAIOptions {
   organization?: string;
   /**
    * Retry once, immediately, when a request fails on a stale keep-alive
-   * connection before any response bytes arrive (ECONNRESET, EPIPE,
-   * `UND_ERR_SOCKET`, "socket hang up", or the OpenAI SDK's
-   * `APIConnectionError`). Independent of `maxRetries`; never retries after
-   * an HTTP status, a timeout, a caller abort, or a streamed chunk.
+   * connection (ECONNRESET, EPIPE, `UND_ERR_SOCKET`, "socket hang up", or the
+   * OpenAI SDK's `APIConnectionError`): `chat()` only before response
+   * headers arrive; `stream()` until the first chunk is yielded, which may
+   * re-run a generation the server had started. Independent of `maxRetries`;
+   * never retries after an HTTP status, a timeout, a caller abort, or a
+   * streamed chunk.
    * @default true
    */
   retryConnectionErrors?: boolean;
@@ -2126,10 +2128,12 @@ export interface LiteLLMOptions extends BaseAIOptions {
   organization?: string;
   /**
    * Retry once, immediately, when a request fails on a stale keep-alive
-   * connection before any response bytes arrive (ECONNRESET, EPIPE,
-   * `UND_ERR_SOCKET`, "socket hang up", or the OpenAI SDK's
-   * `APIConnectionError`). Independent of `maxRetries`; never retries after
-   * an HTTP status, a timeout, a caller abort, or a streamed chunk.
+   * connection (ECONNRESET, EPIPE, `UND_ERR_SOCKET`, "socket hang up", or the
+   * OpenAI SDK's `APIConnectionError`): `chat()` only before response
+   * headers arrive; `stream()` until the first chunk is yielded, which may
+   * re-run a generation the server had started. Independent of `maxRetries`;
+   * never retries after an HTTP status, a timeout, a caller abort, or a
+   * streamed chunk.
    * @default true
    */
   retryConnectionErrors?: boolean;
@@ -2152,10 +2156,12 @@ export interface BifrostOptions extends BaseAIOptions {
   organization?: string;
   /**
    * Retry once, immediately, when a request fails on a stale keep-alive
-   * connection before any response bytes arrive (ECONNRESET, EPIPE,
-   * `UND_ERR_SOCKET`, "socket hang up", or the OpenAI SDK's
-   * `APIConnectionError`). Independent of `maxRetries`; never retries after
-   * an HTTP status, a timeout, a caller abort, or a streamed chunk.
+   * connection (ECONNRESET, EPIPE, `UND_ERR_SOCKET`, "socket hang up", or the
+   * OpenAI SDK's `APIConnectionError`): `chat()` only before response
+   * headers arrive; `stream()` until the first chunk is yielded, which may
+   * re-run a generation the server had started. Independent of `maxRetries`;
+   * never retries after an HTTP status, a timeout, a caller abort, or a
+   * streamed chunk.
    * @default true
    */
   retryConnectionErrors?: boolean;

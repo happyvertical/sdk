@@ -350,13 +350,32 @@ export class OpenAIProvider implements AIInterface {
           include_thoughts: options.reasoning?.includeThoughts,
         };
       }
-      const send = () =>
-        this.client.chat.completions.create(request, {
+      // Only a failure before the response status/headers is resent: once
+      // they arrive the server may already have run the whole generation,
+      // so a body-read reset after that surfaces unchanged.
+      let responded = false;
+      const send = () => {
+        const pending = this.client.chat.completions.create(request, {
           signal: controls?.signal,
           timeout: controls?.timeout,
         });
+        // asResponse() shares the request; it resolves on headers. A client
+        // that returns a plain promise reports no header boundary.
+        if (typeof pending.asResponse === 'function') {
+          pending.asResponse().then(
+            () => {
+              responded = true;
+            },
+            () => undefined,
+          );
+        }
+        return pending;
+      };
       const response = await send().catch((error: unknown) => {
-        if (this.retriesConnection(error, options, controls, false)) {
+        if (
+          !responded &&
+          this.retriesConnection(error, options, controls, false)
+        ) {
           return send();
         }
         throw error;
@@ -935,7 +954,9 @@ export class OpenAIProvider implements AIInterface {
       }
       let streamFinish: string | null = null;
       // A stale-connection failure before the first yielded chunk is resent
-      // once; after a chunk reaches the caller the error surfaces unchanged.
+      // once, even after headers: nothing has reached the caller yet, though
+      // the server may have started generating. After a chunk is yielded the
+      // error surfaces unchanged.
       let yielded = false;
       for (let retried = false; ; retried = true) {
         try {

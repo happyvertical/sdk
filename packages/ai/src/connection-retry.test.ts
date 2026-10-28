@@ -15,7 +15,8 @@ type Behavior =
   | 'reset-before-chunk' // stream: headers sent, then destroy before any data
   | 'reset-after-chunk' // stream: one content chunk, then destroy
   | 'hang' // never answer (abort test)
-  | 'status-503';
+  | 'status-503'
+  | 'reset-mid-body'; // chat: 200 headers and part of the JSON, then destroy
 
 const chunk = (content: string) =>
   `data: ${JSON.stringify({ id: 'local', model: 'm', choices: [{ index: 0, delta: { content }, finish_reason: null }] })}\n\n`;
@@ -40,6 +41,14 @@ describe('stale-connection retry (OpenAI-compatible providers)', () => {
       case 'reset-before-chunk':
         res.writeHead(200, { 'content-type': 'text/event-stream' });
         res.flushHeaders();
+        setTimeout(() => res.socket?.destroy(), 20);
+        return;
+      case 'reset-mid-body':
+        res.writeHead(200, {
+          'content-type': 'application/json',
+          'content-length': '4096',
+        });
+        res.write('{"id":"local","model":"m","choices":[');
         setTimeout(() => res.socket?.destroy(), 20);
         return;
       case 'reset-after-chunk':
@@ -100,7 +109,7 @@ describe('stale-connection retry (OpenAI-compatible providers)', () => {
 
   async function client(
     type: 'openai' | 'litellm' | 'bifrost' = 'openai',
-    extra: { retryConnectionErrors?: boolean } = {},
+    extra: { retryConnectionErrors?: boolean; maxRetries?: number } = {},
   ) {
     const events: AIRequestEvent[] = [];
     const ai = await getAI({
@@ -216,6 +225,54 @@ describe('stale-connection retry (OpenAI-compatible providers)', () => {
     });
     expect(hits).toBe(2);
     expect(events[0]).toMatchObject({ status: 'failed', attempts: 2 });
+  });
+
+  it('does not retry a chat reset after response headers (mid-body)', async () => {
+    plan = ['reset-mid-body', 'ok'];
+    const { ai, events } = await client();
+    const error = await ai.chat(messages, callOptions).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(hits).toBe(1);
+    expect(events[0]).toMatchObject({ status: 'failed', attempts: 1 });
+
+    // Same error shape as with the retry disabled.
+    plan = ['reset-mid-body', 'ok'];
+    hits = 0;
+    const off = await client('openai', { retryConnectionErrors: false });
+    const baseline = await off.ai.chat(messages, callOptions).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+    expect(hits).toBe(1);
+    expect(error).toMatchObject({
+      name: (baseline as Error).name,
+      code: (baseline as { code?: string }).code,
+      message: (baseline as Error).message,
+    });
+  });
+
+  it('keeps maxRetries independent of the connection retry', async () => {
+    // The SDK's own maxRetries still governs 5xx; the connection retry adds
+    // nothing there.
+    plan = ['status-503', 'ok'];
+    const { ai, events } = await client('openai', { maxRetries: 1 });
+    expect((await ai.chat(messages, callOptions)).content).toBe('ok');
+    expect(hits).toBe(2);
+    expect(events[0]).toMatchObject({ status: 'succeeded', attempts: 2 });
+
+    // With the connection retry off, maxRetries alone still covers a reset.
+    plan = ['reset', 'ok'];
+    hits = 0;
+    const sdkOnly = await client('openai', {
+      maxRetries: 1,
+      retryConnectionErrors: false,
+    });
+    expect((await sdkOnly.ai.chat(messages, callOptions)).content).toBe('ok');
+    expect(hits).toBe(2);
+    expect(sdkOnly.events[0]).toMatchObject({ attempts: 2 });
   });
 
   it('honours retryConnectionErrors: false', async () => {
