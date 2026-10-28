@@ -8,7 +8,9 @@
  */
 
 import OpenAI from 'openai';
+import { prepareChatTemplateKwargs } from '../chat-template-kwargs';
 import { rateLimitErrorFrom } from '../rate-limit';
+import { readReasoningText, reportReasoning } from '../reasoning';
 import {
   normalizeBaseAIOptions,
   normalizeChatOptions,
@@ -18,6 +20,7 @@ import {
 } from '../safety';
 import type {
   AICapabilities,
+  AIFinishReason,
   AIInterface,
   AIMessage,
   AIModel,
@@ -331,6 +334,7 @@ export class OpenAIProvider implements AIInterface {
           max_tokens?: number;
           include_thoughts?: boolean;
         };
+        chat_template_kwargs?: Record<string, unknown>;
       };
       if (
         (this.profile.providerName === 'openai' ||
@@ -349,6 +353,15 @@ export class OpenAIProvider implements AIInterface {
           max_tokens: options.reasoning?.maxTokens,
           include_thoughts: options.reasoning?.includeThoughts,
         };
+      }
+      const chatTemplateKwargs = prepareChatTemplateKwargs(
+        options.chatTemplateKwargs,
+        this.profile.providerName,
+        model,
+      );
+      if (chatTemplateKwargs) {
+        this.assertChatTemplateKwargsSupported(model);
+        request.chat_template_kwargs = chatTemplateKwargs;
       }
       // Only a failure before the response status/headers is resent: once
       // they arrive the server may already have run the whole generation,
@@ -401,21 +414,34 @@ export class OpenAIProvider implements AIInterface {
         options.usageTags,
       );
 
+      const toolCalls = choice.message.tool_calls
+        ?.filter((call) => call.type === 'function')
+        .map((call) => ({
+          id: call.id,
+          type: 'function' as const,
+          function: {
+            name: call.function.name,
+            arguments: call.function.arguments,
+          },
+        }));
+      let finishReason = this.mapFinishReason(choice.finish_reason);
+      // Some servers report 'stop' (or nothing) on a tool-call turn; callers
+      // branch on finishReason, so a reply with tool calls says so. 'length'
+      // and the other non-stop reasons are kept: they say more.
+      if (toolCalls?.length && finishReason === 'stop') {
+        finishReason = 'tool_calls';
+      }
+      const reasoning = readReasoningText(choice.message);
       return {
         content: choice.message.content || '',
         usage,
         model: response.model,
-        finishReason: this.mapFinishReason(choice.finish_reason),
-        toolCalls: choice.message.tool_calls
-          ?.filter((call) => call.type === 'function')
-          .map((call) => ({
-            id: call.id,
-            type: 'function' as const,
-            function: {
-              name: call.function.name,
-              arguments: call.function.arguments,
-            },
-          })),
+        finishReason,
+        ...(finishReason === 'other' && choice.finish_reason
+          ? { rawFinishReason: String(choice.finish_reason) }
+          : {}),
+        ...(reasoning !== undefined ? { reasoning } : {}),
+        toolCalls,
       };
     } catch (error) {
       if (controls?.didTimeout()) {
@@ -903,6 +929,10 @@ export class OpenAIProvider implements AIInterface {
   ): AsyncIterable<string> {
     const startTime = Date.now();
     let controls: PreparedRequestControls | undefined;
+    // Delivered in `finally`, so a failed, aborted, or abandoned stream still
+    // reports the reasoning that arrived before it ended.
+    let reasoning = '';
+    const onReasoning = options.onReasoning;
     try {
       const model =
         options.model || this.options.defaultModel || this.profile.defaultModel;
@@ -933,6 +963,7 @@ export class OpenAIProvider implements AIInterface {
           max_tokens?: number;
           include_thoughts?: boolean;
         };
+        chat_template_kwargs?: Record<string, unknown>;
       };
       if (
         (this.profile.providerName === 'openai' ||
@@ -952,6 +983,15 @@ export class OpenAIProvider implements AIInterface {
           include_thoughts: options.reasoning?.includeThoughts,
         };
       }
+      const chatTemplateKwargs = prepareChatTemplateKwargs(
+        options.chatTemplateKwargs,
+        this.profile.providerName,
+        model,
+      );
+      if (chatTemplateKwargs) {
+        this.assertChatTemplateKwargsSupported(model);
+        request.chat_template_kwargs = chatTemplateKwargs;
+      }
       let streamFinish: string | null = null;
       // A stale-connection failure before the first yielded chunk is resent
       // once, even after headers: nothing has reached the caller yet, though
@@ -966,6 +1006,7 @@ export class OpenAIProvider implements AIInterface {
           });
           for await (const chunk of stream) {
             streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
+            reasoning += readReasoningText(chunk.choices[0]?.delta) ?? '';
             const content = chunk.choices[0]?.delta?.content;
             if (content) {
               if (options.onProgress) {
@@ -983,10 +1024,15 @@ export class OpenAIProvider implements AIInterface {
           ) {
             throw error;
           }
+          // Drop what the failed attempt streamed before it was resent.
           streamFinish = null;
+          reasoning = '';
         }
       }
-      options.onFinishReason?.(this.mapFinishReason(streamFinish) ?? 'stop');
+      // The OpenAI SDK ends a stream quietly when its signal aborts; surface
+      // the abort or timeout instead of reporting a cut-off reply as 'stop'.
+      if (controls.signal.aborted) throw controls.signal.reason;
+      options.onFinishReason?.(this.mapFinishReason(streamFinish));
 
       emitUsage(
         this.options,
@@ -1016,6 +1062,7 @@ export class OpenAIProvider implements AIInterface {
       }
       throw this.mapError(error);
     } finally {
+      reportReasoning(onReasoning, reasoning);
       controls?.cleanup();
     }
   }
@@ -1253,13 +1300,45 @@ export class OpenAIProvider implements AIInterface {
   }
 
   /**
-   * Maps OpenAI finish reason to internal finish reason format
+   * Reject `chatTemplateKwargs` on the hosted OpenAI API, which does not
+   * accept `chat_template_kwargs`. Throwing (rather than dropping the field)
+   * keeps a caller from silently losing a template switch it asked for, such
+   * as `enable_thinking: false`, and fails before the request is billed.
+   * The resolved client URL is checked, so `OPENAI_BASE_URL` pointing at a
+   * vLLM server still works when `baseUrl` is unset.
+   * @private
+   */
+  private assertChatTemplateKwargsSupported(model: string): void {
+    if (this.profile.providerName !== 'openai') return;
+    let host: string | undefined;
+    try {
+      host = new URL(this.client.baseURL).hostname.toLowerCase();
+    } catch {
+      return;
+    }
+    if (host === 'api.openai.com') {
+      throw new AIError(
+        'chatTemplateKwargs is not supported by the hosted OpenAI API; set baseUrl to a server that accepts chat_template_kwargs (e.g. vLLM)',
+        'AI_UNSUPPORTED_OPTION',
+        this.profile.providerName,
+        model,
+      );
+    }
+  }
+
+  /**
+   * Maps OpenAI finish reason to internal finish reason format. An absent
+   * reason is `'stop'`; a value outside the normalised set (e.g. vLLM
+   * `abort`, or legacy `function_call`, which carries no `tool_calls`) is
+   * `'other'` so a partial reply is not mistaken for a complete one.
    * @param reason - OpenAI finish reason from API response
    * @returns Internal finish reason
    * @private
    */
-  private mapFinishReason(reason: string | null): AIResponse['finishReason'] {
+  private mapFinishReason(reason: string | null | undefined): AIFinishReason {
     switch (reason) {
+      case null:
+      case undefined:
       case 'stop':
         return 'stop';
       case 'length':
@@ -1269,7 +1348,7 @@ export class OpenAIProvider implements AIInterface {
       case 'content_filter':
         return 'content_filter';
       default:
-        return 'stop';
+        return 'other';
     }
   }
 

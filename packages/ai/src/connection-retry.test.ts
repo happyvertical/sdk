@@ -14,6 +14,7 @@ type Behavior =
   | 'ok' // normal success
   | 'reset-before-chunk' // stream: headers sent, then destroy before any data
   | 'reset-after-chunk' // stream: one content chunk, then destroy
+  | 'reset-after-reasoning' // stream: one reasoning delta, no content, then destroy
   | 'hang' // never answer (abort test)
   | 'status-503'
   | 'reset-mid-body'; // chat: 200 headers and part of the JSON, then destroy
@@ -54,6 +55,13 @@ describe('stale-connection retry (OpenAI-compatible providers)', () => {
       case 'reset-after-chunk':
         res.writeHead(200, { 'content-type': 'text/event-stream' });
         res.write(chunk('partial'));
+        setTimeout(() => res.socket?.destroy(), 20);
+        return;
+      case 'reset-after-reasoning':
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write(
+          `data: ${JSON.stringify({ id: 'local', model: 'm', choices: [{ index: 0, delta: { reasoning_content: 'first try' }, finish_reason: null }] })}\n\n`,
+        );
         setTimeout(() => res.socket?.destroy(), 20);
         return;
       case 'ok':
@@ -158,6 +166,21 @@ describe('stale-connection retry (OpenAI-compatible providers)', () => {
     expect(await collect(ai.stream(messages, callOptions))).toBe('ok');
     expect(hits).toBe(2);
     expect(events[0]).toMatchObject({ attempts: 2 });
+  });
+
+  it('drops reasoning from a stream attempt that was resent', async () => {
+    plan = ['reset-after-reasoning', 'ok'];
+    const { ai } = await client();
+    const reasoning: string[] = [];
+    const text = await collect(
+      ai.stream(messages, {
+        ...callOptions,
+        onReasoning: (value) => reasoning.push(value),
+      }),
+    );
+    expect(text).toBe('ok');
+    expect(hits).toBe(2);
+    expect(reasoning).toEqual([]);
   });
 
   it('reports one attempt when no retry happens', async () => {
