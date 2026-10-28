@@ -718,6 +718,21 @@ effective token ceilings plus sanitized `usageTags`; prompts, responses, and
 credentials are never included. Legacy `thinkingLevel` options remain available
 as deprecated aliases and are normalized through the reasoning ceiling.
 
+### Stale-connection retry (OpenAI-compatible providers)
+
+`maxRetries` stays `0` by default, but the `openai`, `litellm`, and `bifrost`
+providers resend a `chat()` or `stream()` request **once, immediately** when it
+fails on a stale keep-alive socket before any response bytes arrive: the
+OpenAI SDK's `APIConnectionError` (not its timeout subclass) or a cause chain
+carrying `ECONNRESET`, `EPIPE`, `UND_ERR_SOCKET`, or "socket hang up". Such a
+request never reached the model, so the resend does not double spend.
+
+It never retries after an HTTP status response (including 5xx), a timeout, a
+caller abort, or once a streamed chunk has been yielded. The retry shares the
+call's timeout and signal; if it also fails, the same error surfaces as without
+it. A retry adds one to the `onRequest` event's `attempts`. It is independent
+of `maxRetries`; opt out per client with `retryConnectionErrors: false`.
+
 ## Continuing Truncated Replies
 
 When a reply stops because it hit its output limit (`finishReason: 'length'`:
