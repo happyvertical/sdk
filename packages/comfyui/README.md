@@ -207,6 +207,29 @@ interface ProgressEvent {
 }
 ```
 
+## Errors
+
+A non-2xx response from ComfyUI throws `ComfyUIRequestError` (an `ApiError`
+from `@happyvertical/utils`). It carries `status`, `method`, `path` and the
+response `body` (parsed JSON, or the raw text). ComfyUI rejects a prompt that
+fails validation, such as a missing model file, with HTTP 400; the error then
+exposes the body's `node_errors` as `nodeErrors` and its `error` object as
+`promptError`. The message keeps the `ComfyUI request failed: <status> <body>`
+text.
+
+```typescript
+import { ComfyUIRequestError } from '@happyvertical/comfyui';
+
+try {
+  await client.queuePrompt(workflow);
+} catch (error) {
+  if (error instanceof ComfyUIRequestError && error.nodeErrors) {
+    console.error('Prompt rejected:', error.nodeErrors);
+  }
+  throw error;
+}
+```
+
 ## Use Cases
 
 ### AI Video Generation Pipeline

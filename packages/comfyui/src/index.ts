@@ -51,6 +51,9 @@
 // Client
 export { ComfyUIClient, injectWorkflowParams } from './client.js';
 
+// Errors
+export { ComfyUIRequestError } from './errors.js';
+
 // Types
 export type {
   ComfyNode,
