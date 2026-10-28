@@ -64,6 +64,13 @@ export {
   unwrapRawAudio,
 } from './shared/pcm.js';
 export {
+  DEFAULT_SPEECH_PROBE_TIMEOUT_MS,
+  type SpeechProbeCheck,
+  type SpeechProbeFailureReason,
+  type SpeechProbeOptions,
+  type SpeechProbeResult,
+} from './shared/probe.js';
+export {
   type RealtimeConnection,
   type RealtimeProtocol,
   type RealtimeProtocolEvent,

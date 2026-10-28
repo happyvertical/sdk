@@ -66,6 +66,9 @@ New adapters (including streaming/realtime transcribers) should reuse these modu
 - `retry.ts`: `withSpeechRetry()` retries 429/5xx `SpeechProviderError`s with exponential backoff, honours `Retry-After` (`retryAfterMs`), and stops on abort.
 - `http.ts`: `HttpSpeechAdapter.post(..., retry)` sends auth/extra headers (`headers` option plus per-request `headers`), applies `timeoutMs` per attempt, and redacts the API key from provider error bodies; `resolveOpenAICompatibleUrl()` normalises OpenAI-style base URLs.
 
+- `probe.ts`: `probeHttpEndpoint()` runs every adapter's `probe()` (one `GET`, typed `SpeechProbeResult`, rejects only on caller abort) and `modelsUrlFor()` derives `<api root>/models` from a resolved endpoint. HTTP adapters call it through `HttpSpeechAdapter.probeEndpoint()`; new adapters add a `probe()` the same way.
+- `errors.ts`: throw `SpeechAudioTooLargeError` for `maxBytes`, `SpeechInvalidAudioError` for empty or undecodable audio, plain `SpeechConfigurationError` only for setup, and `SpeechProviderError`/`SpeechProviderUnavailableError` for provider failures; the local worker's `deserializeError()` must know every class it can receive.
+
 - `registry.ts`: `registerOptionalTranscriber()` lets subpath entries add opt-in transcriber types without the core entry importing them. `getTranscriber()` throws `SpeechConfigurationError` naming the subpath when such a type is requested before registration.
 
 The OpenAI-compatible transcriber holds an API key and is server-side only.

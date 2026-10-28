@@ -6,7 +6,8 @@
  * `partial` and `final` events, and call `end()` for the whole transcript.
  */
 
-import type { TranscriptResult } from './types.js';
+import type { SpeechProbeOptions, SpeechProbeResult } from './probe.js';
+import type { SpeechFetch, TranscriptResult } from './types.js';
 import type { SpeechUsageCallback } from './usage.js';
 import type {
   SpeechWebSocketConstructor,
@@ -267,6 +268,12 @@ export interface StreamingTranscriber {
    * invalid limit. Optional for custom implementations.
    */
   turnLimit?(options?: StreamingSessionOptions): StreamingTurnLimit | undefined;
+  /**
+   * Checks the server answers over HTTP, accepts the credentials and lists
+   * the model, without opening a session or sending audio. Optional for
+   * custom implementations; see `Transcriber.probe`.
+   */
+  probe?(options?: SpeechProbeOptions): Promise<SpeechProbeResult>;
 }
 
 /** Adapter options shared by WebSocket streaming transcribers. */
@@ -303,6 +310,8 @@ export interface StreamingTranscriberOptions extends StreamingSessionSettings {
   WebSocket?: SpeechWebSocketConstructor;
   /** Full control over socket creation; wins over `WebSocket`. */
   createWebSocket?: SpeechWebSocketFactory;
+  /** `fetch` used by `probe()`. Defaults to `globalThis.fetch`. */
+  fetch?: SpeechFetch;
 }
 
 /** Options for the `openai-realtime` adapter. */

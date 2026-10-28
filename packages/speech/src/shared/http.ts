@@ -4,6 +4,12 @@ import {
   SpeechProviderUnavailableError,
 } from './errors.js';
 import {
+  type HttpProbeTarget,
+  probeHttpEndpoint,
+  type SpeechProbeOptions,
+  type SpeechProbeResult,
+} from './probe.js';
+import {
   parseRetryAfter,
   type SpeechRetryOptions,
   withSpeechRetry,
@@ -144,6 +150,23 @@ export abstract class HttpSpeechAdapter {
     this.apiKey = options.apiKey;
     this.headers = options.headers;
     this.timeoutMs = options.timeoutMs;
+  }
+
+  /** Runs a readiness probe with this adapter's fetch, auth and headers. */
+  protected probeEndpoint(
+    target: Omit<HttpProbeTarget, 'fetch' | 'apiKey' | 'headers' | 'timeoutMs'>,
+    options?: SpeechProbeOptions,
+  ): Promise<SpeechProbeResult> {
+    return probeHttpEndpoint(
+      {
+        ...target,
+        fetch: this.fetchImpl,
+        apiKey: this.apiKey,
+        headers: this.headers,
+        timeoutMs: this.timeoutMs,
+      },
+      options,
+    );
   }
 
   /**

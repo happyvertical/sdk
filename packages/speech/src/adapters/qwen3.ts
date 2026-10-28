@@ -2,7 +2,13 @@ import {
   createHappyVerticalSynthesisForm,
   HttpSpeechAdapter,
   readSynthesizedSpeechResponse,
+  resolveSpeechUrl,
 } from '../shared/http.js';
+import {
+  modelsUrlFor,
+  type SpeechProbeOptions,
+  type SpeechProbeResult,
+} from '../shared/probe.js';
 import type {
   Qwen3SpeechSynthesizerOptions,
   SpeechSynthesizer,
@@ -44,5 +50,24 @@ export class Qwen3SpeechSynthesizer
       format: speech.format ?? request.outputFormat,
       model: speech.model ?? request.model ?? this.defaultModel,
     };
+  }
+
+  /**
+   * `GET` of the model list beside `speechPath` (`/v1/models` by default).
+   * The model is not required to be listed: Qwen3 servers name it freely.
+   */
+  probe(options?: SpeechProbeOptions): Promise<SpeechProbeResult> {
+    return this.probeEndpoint(
+      {
+        adapter: this.type,
+        url: () =>
+          modelsUrlFor(
+            resolveSpeechUrl(this.baseUrl, this.speechPath),
+            'audio/speech',
+          ),
+        listsModels: true,
+      },
+      options,
+    );
   }
 }

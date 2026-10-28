@@ -3,8 +3,14 @@ import {
   HttpSpeechAdapter,
   readSynthesizedSpeechResponse,
   resolveOpenAICompatibleUrl,
+  resolveSpeechUrl,
   voiceToString,
 } from '../shared/http.js';
+import {
+  modelsUrlFor,
+  type SpeechProbeOptions,
+  type SpeechProbeResult,
+} from '../shared/probe.js';
 import type {
   OpenAICompatibleSpeechSynthesizerOptions,
   SpeechSynthesizer,
@@ -67,5 +73,24 @@ export class OpenAICompatibleSpeechSynthesizer
       format: speech.format ?? outputFormat,
       model: speech.model ?? String(payload.model),
     };
+  }
+
+  /** `GET <api root>/models`, confirming `defaultModel` is listed. */
+  probe(options?: SpeechProbeOptions): Promise<SpeechProbeResult> {
+    return this.probeEndpoint(
+      {
+        adapter: this.type,
+        url: () =>
+          modelsUrlFor(
+            this.speechPath
+              ? resolveSpeechUrl(this.baseUrl, this.speechPath)
+              : resolveOpenAICompatibleUrl(this.baseUrl, 'audio/speech'),
+            'audio/speech',
+          ),
+        listsModels: true,
+        model: this.defaultModel,
+      },
+      options,
+    );
   }
 }

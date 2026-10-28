@@ -438,6 +438,35 @@ HAVE_SPEECH_TRANSCRIBER_CACHE_DIR=/var/cache/hv-models
 HAVE_SPEECH_TRANSCRIBER_MODEL_HOST=https://models.example.com/
 ```
 
+## Readiness probe
+
+`probe()` checks that a configured endpoint answers, accepts the credentials, and (where the server lists models) serves the configured model. It sends no audio and synthesizes nothing: one `GET`, then a typed result. Use it for a "speech service not configured" or "unreachable" state.
+
+```typescript
+const transcriber = await getTranscriber({ type: 'openai-compatible', baseUrl, apiKey, model: 'whisper-large-v3' });
+const result = await transcriber.probe?.({ timeoutMs: 5000 });
+if (result?.ok) {
+  // result.checked: 'model' (listed) or 'reachability' (server answered; model unconfirmed)
+} else if (result) {
+  // result.reason: 'misconfigured' | 'unreachable' | 'timeout' | 'unauthorized'
+  //   | 'model_not_found' | 'provider_error' | 'unsupported'
+}
+```
+
+| Adapter | Request | Model confirmed |
+| --- | --- | --- |
+| `openai-compatible` (STT and TTS) | `GET <api root>/models` | `model` / `defaultModel` |
+| `voxtral-realtime`, `openai-realtime` | `GET <api root>/models` over HTTP(S) (`ws`→`http`, `wss`→`https`) | `model` |
+| `qwen3-tts` | `GET` of `models` beside `speechPath` | no (reachability) |
+| `studio-server` (STT and TTS) | `GET <baseUrl>` | no (reachability) |
+| `local` | no `probe()` | — |
+
+- `probe()` resolves for every outcome and rejects only when `signal` aborts. It is optional on the `Transcriber`, `SpeechSynthesizer`, and `StreamingTranscriber` interfaces, so call it as `probe?.()`; `getTranscriber()` forwards it for the realtime types.
+- A server without a model list (404, 405, or 501 on `/models`, as from whisper.cpp) gives `ok: true, checked: 'reachability'`. So does any `studio-server` answer below 500.
+- `401` and `403` give `unauthorized`. Other error statuses, and a `200` whose body is not an OpenAI-style `{ data: [{ id }] }` list (read up to 4 MiB), give `provider_error` with `status`.
+- `openai-realtime` with only a browser `clientSecret` returns `unsupported` without a request: the ephemeral secret cannot read the model list.
+- The timeout defaults to the adapter's `timeoutMs` (`connectTimeoutMs` for the realtime adapters), else 10 s; a zero or non-finite value also means 10 s, so a probe always ends. An invalid header value (such as a key with a trailing newline) gives `misconfigured`. `message` is fixed text and never contains the URL, a credential, or a response body.
+
 ## Errors
 
 Every error is a `SpeechError` with a stable `code` and the `adapter` name. Pick the message and retry decision from the class:

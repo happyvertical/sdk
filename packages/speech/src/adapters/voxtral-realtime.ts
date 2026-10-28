@@ -36,6 +36,14 @@
 import { SpeechConfigurationError } from '../shared/errors.js';
 import { resolveOpenAICompatibleUrl } from '../shared/http.js';
 import {
+  modelsUrlFor,
+  probeHttpEndpoint,
+  type SpeechProbeOptions,
+  type SpeechProbeResult,
+  toHttpUrl,
+  unsupportedProbe,
+} from '../shared/probe.js';
+import {
   assertNoBrowserApiKey,
   CLIENT_SECRET_SUBPROTOCOL_PREFIX,
   mergeHeaderRecords,
@@ -206,6 +214,40 @@ export class VoxtralRealtimeTranscriber implements StreamingTranscriber {
     assertFormat(options.format);
     assertTurnDetection(options.turnDetection);
     this.resolveTurnLimit();
+  }
+
+  /**
+   * `GET` of the server's model list (the realtime URL's `/models`, over
+   * HTTP), confirming the configured model is listed. Needs `apiKey` or no
+   * auth (vLLM): a browser `clientSecret` alone cannot read the list, so the
+   * result is then `unsupported`.
+   */
+  probe(options?: SpeechProbeOptions): Promise<SpeechProbeResult> {
+    if (!this.options.apiKey && this.options.clientSecret) {
+      return Promise.resolve(
+        unsupportedProbe(
+          ADAPTER,
+          `${ADAPTER} with only a clientSecret cannot be probed without opening a session`,
+        ),
+      );
+    }
+    return probeHttpEndpoint(
+      {
+        adapter: ADAPTER,
+        url: () => {
+          const url = new URL(modelsUrlFor(toHttpUrl(this.url), 'realtime'));
+          url.searchParams.delete('intent');
+          return url.toString();
+        },
+        listsModels: true,
+        model: this.options.model?.trim() || VOXTRAL_REALTIME_DEFAULT_MODEL,
+        fetch: this.options.fetch,
+        apiKey: this.options.apiKey,
+        headers: this.options.headers,
+        timeoutMs: this.options.connectTimeoutMs,
+      },
+      options,
+    );
   }
 
   turnLimit(
