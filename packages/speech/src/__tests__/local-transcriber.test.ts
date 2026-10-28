@@ -781,7 +781,7 @@ describe('local transcriber: audio input', () => {
         decodeToPcm16k(bytes, { mimeType: 'audio/pcm', sampleRate }),
       ).rejects.toThrow(
         expect.objectContaining({
-          name: 'SpeechConfigurationError',
+          name: 'SpeechInvalidAudioError',
           message: expect.stringMatching(
             /sampleRate must be a positive integer/,
           ),

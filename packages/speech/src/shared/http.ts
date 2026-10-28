@@ -1,4 +1,8 @@
-import { SpeechConfigurationError, SpeechProviderError } from './errors.js';
+import {
+  SpeechConfigurationError,
+  SpeechProviderError,
+  SpeechProviderUnavailableError,
+} from './errors.js';
 import {
   parseRetryAfter,
   type SpeechRetryOptions,
@@ -182,9 +186,9 @@ export abstract class HttpSpeechAdapter {
     try {
       // Fail fast when the caller aborted before the request was sent.
       requestSignal.signal?.throwIfAborted();
-      const response = await this.fetchImpl(
-        resolveSpeechUrl(this.baseUrl, path),
-        {
+      let response: Response;
+      try {
+        response = await this.fetchImpl(resolveSpeechUrl(this.baseUrl, path), {
           ...init,
           method: 'POST',
           headers: mergeHeaders(
@@ -192,8 +196,17 @@ export abstract class HttpSpeechAdapter {
             init.headers,
           ),
           signal: requestSignal.signal,
-        },
-      );
+        });
+      } catch (error) {
+        // An abort or timeout keeps its own error; anything else means no
+        // response arrived. The message names no URL or credential.
+        if (requestSignal.signal?.aborted) throw error;
+        throw new SpeechProviderUnavailableError(
+          adapterName,
+          `${adapterName} speech service could not be reached`,
+          error,
+        );
+      }
       await assertOk(response, adapterName, this.apiKey);
       return await readResponse(response);
     } finally {

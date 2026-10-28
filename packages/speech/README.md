@@ -98,11 +98,11 @@ result.usage; // { operation, provider, model, audioSeconds, bytes, providerUsag
 
 - **Base URL.** A server root gets `/v1/audio/transcriptions`; a base ending in a version segment (`http://gateway/stt/v1`) gets `/audio/transcriptions`; a URL already ending in `/audio/transcriptions` is used as-is. Any query string (for example `?api-version=…`) is preserved and a fragment is dropped.
 - **Audio formats.** The multipart filename extension comes from the MIME type (codec parameters are ignored): `webm`, `m4a` (`audio/mp4`), `mp4` (`video/mp4`), `wav`, `ogg`, `mp3`, `flac`. Pass `audio: { data, filename }` to choose the name yourself.
-- **Limits.** `maxBytes` (adapter or request) defaults to 25 MB, the OpenAI upload cap. Oversized or empty input fails with `SpeechConfigurationError` before any request; streams are cancelled as soon as they exceed the limit.
+- **Limits.** `maxBytes` (adapter or request) defaults to 25 MB, the OpenAI upload cap. Oversized input fails with `SpeechAudioTooLargeError` and empty input with `SpeechInvalidAudioError` (both subclasses of `SpeechConfigurationError`) before any request; streams are cancelled as soon as they exceed the limit.
 - **Response formats.** Defaults to `verbose_json` so segments, duration, and (with `timestampGranularities`) word timings map onto `TranscriptResult`. Models that only return `json`/`text` (`gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, including gateway-prefixed names) are sent `json` without timestamps. If any other server rejects `verbose_json` or `timestamp_granularities[]` with a 400/422, the adapter retries once with plain `json`.
 - **Retries.** 429 and 5xx responses are retried with exponential backoff (default 2 retries, 500 ms initial delay, 30 s cap), waiting at least `Retry-After`. A `Retry-After` longer than `maxDelayMs` ends retrying. Configure with `retry: { maxRetries, initialDelayMs, maxDelayMs }` or disable with `retry: false`; non-finite values (`NaN`, `Infinity`) throw `SpeechConfigurationError`. `timeoutMs` applies per attempt; `signal` cancels the request and any backoff wait.
 - **Usage.** `result.usage` and `onUsage` (adapter-level, then request-level) report the model, audio seconds (provider duration, then `usage.seconds`, then `AudioInput.durationSeconds`), uploaded bytes, and the provider `usage` block untouched. Errors thrown by `onUsage` propagate.
-- **Errors.** HTTP failures throw `SpeechProviderError` with `status`, `responseBody`, and `retryAfterMs`. The API key never appears in error messages and is redacted from response bodies.
+- **Errors.** HTTP failures throw `SpeechProviderError` with `status`, `responseBody`, `retryAfterMs`, and `retryable`; a request that gets no response at all throws `SpeechProviderUnavailableError` (see [Errors](#errors)). The API key never appears in error messages and is redacted from response bodies.
 
 ## Realtime (Streaming) Transcription
 
@@ -437,6 +437,20 @@ HAVE_SPEECH_TRANSCRIBER_DTYPE=q8
 HAVE_SPEECH_TRANSCRIBER_CACHE_DIR=/var/cache/hv-models
 HAVE_SPEECH_TRANSCRIBER_MODEL_HOST=https://models.example.com/
 ```
+
+## Errors
+
+Every error is a `SpeechError` with a stable `code` and the `adapter` name. Pick the message and retry decision from the class:
+
+| Class (`code`) | Meaning | Retry? |
+| --- | --- | --- |
+| `SpeechAudioTooLargeError` (`SPEECH_AUDIO_TOO_LARGE`) | The audio exceeds `maxBytes` (`error.maxBytes`); nothing was sent. | No: send less audio. |
+| `SpeechInvalidAudioError` (`SPEECH_INVALID_AUDIO`) | The audio is empty, malformed, or a format this adapter cannot decode (e.g. webm to a raw-PCM streaming adapter, a bad WAV header, raw PCM without a rate). | No: re-record or convert. |
+| `SpeechConfigurationError` (`SPEECH_CONFIGURATION_ERROR`) | Setup: a missing or invalid `baseUrl`, option, adapter type, or optional peer. | No: fix the configuration. |
+| `SpeechProviderUnavailableError` (`SPEECH_PROVIDER_UNAVAILABLE`) | No response at all: DNS, refused or reset connection, TLS. The fetch error is `cause`; the message names no URL. | Yes (`retryable: true`), later. |
+| `SpeechProviderError` (`SPEECH_PROVIDER_ERROR`) | The provider answered with an error status (`status`, `responseBody`, `retryAfterMs`) or an unusable response. | `retryable` is true for 429 and 5xx. |
+
+`SpeechAudioTooLargeError` and `SpeechInvalidAudioError` extend `SpeechConfigurationError`, and `SpeechProviderUnavailableError` extends `SpeechProviderError`, so `instanceof` checks written for the older classes still match. Code that compares `error.name` or `error.code` strings sees the new values. A provider's own HTTP 413 or 415 stays a `SpeechProviderError` with that `status`. A caller abort or `timeoutMs` still rejects with the abort error. `WavFormatError` (`SPEECH_INVALID_WAV`, from `@happyvertical/speech/pcm`) keeps its own `reason`. The adapters' automatic retry covers 429 and 5xx only.
 
 ## Environment Configuration
 

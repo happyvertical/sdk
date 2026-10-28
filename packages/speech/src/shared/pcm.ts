@@ -5,7 +5,7 @@
  */
 
 import { normalizeMimeType } from './audio.js';
-import { SpeechConfigurationError } from './errors.js';
+import { SpeechConfigurationError, SpeechInvalidAudioError } from './errors.js';
 import type {
   StreamingAudioChunk,
   StreamingAudioEncoding,
@@ -120,7 +120,7 @@ export function unwrapRawAudio(
   }
   if (RAW_PCM_TYPES.has(essence)) {
     if (essence === 'audio/l16' && bytes.byteLength % 2 !== 0) {
-      throw new SpeechConfigurationError(
+      throw new SpeechInvalidAudioError(
         `audio/L16 payload has an odd byte length (${bytes.byteLength}); 16-bit samples need an even number of bytes`,
         adapter,
       );
@@ -144,7 +144,7 @@ export function unwrapRawAudio(
     };
   }
 
-  throw new SpeechConfigurationError(
+  throw new SpeechInvalidAudioError(
     `${adapter} streams raw audio and cannot decode ${essence}; send PCM WAV or raw PCM, or use an HTTP transcriber for compressed recordings`,
     adapter,
   );
@@ -170,7 +170,7 @@ function isRiffWave(bytes: Uint8Array): boolean {
 
 function parseWav(bytes: Uint8Array, adapter: string): RawAudio {
   if (!isRiffWave(bytes)) {
-    throw new SpeechConfigurationError('Invalid WAV header', adapter);
+    throw new SpeechInvalidAudioError('Invalid WAV header', adapter);
   }
 
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -194,7 +194,7 @@ function parseWav(bytes: Uint8Array, adapter: string): RawAudio {
       };
     } else if (id === 'data') {
       if (!format) {
-        throw new SpeechConfigurationError(
+        throw new SpeechInvalidAudioError(
           'WAV data chunk precedes its fmt chunk',
           adapter,
         );
@@ -207,7 +207,7 @@ function parseWav(bytes: Uint8Array, adapter: string): RawAudio {
     offset = body + size + (size % 2);
   }
 
-  throw new SpeechConfigurationError('WAV file has no data chunk', adapter);
+  throw new SpeechInvalidAudioError('WAV file has no data chunk', adapter);
 }
 
 function wavEncoding(
@@ -225,7 +225,7 @@ function wavEncoding(
   if (audioFormat === 6 && bitsPerSample === 8) {
     return 'g711_alaw';
   }
-  throw new SpeechConfigurationError(
+  throw new SpeechInvalidAudioError(
     `Unsupported WAV encoding (format ${audioFormat}, ${bitsPerSample}-bit); expected 16-bit PCM or 8-bit G.711`,
     adapter,
   );

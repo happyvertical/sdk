@@ -14,9 +14,12 @@ import {
   normalizeAudioInput,
 } from '../../shared/audio.js';
 import {
+  SpeechAudioTooLargeError,
   SpeechConfigurationError,
   SpeechError,
+  SpeechInvalidAudioError,
   SpeechProviderError,
+  SpeechProviderUnavailableError,
 } from '../../shared/errors.js';
 import type {
   AudioInput,
@@ -102,7 +105,7 @@ export type LocalWorkerResponse =
   | {
       kind: 'error';
       id: number;
-      error: { name: string; message: string; code?: string };
+      error: SerializedError;
     }
   | { kind: 'progress'; progress: LocalTranscriberProgress };
 
@@ -491,11 +494,22 @@ function transferList(audio: LocalWorkerAudio): ArrayBuffer[] {
   return [...new Set(views.map((view) => view.buffer as ArrayBuffer))];
 }
 
-function serializeError(error: unknown): {
+interface SerializedError {
   name: string;
   message: string;
   code?: string;
-} {
+  maxBytes?: number;
+}
+
+function serializeError(error: unknown): SerializedError {
+  if (error instanceof SpeechAudioTooLargeError) {
+    return {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      maxBytes: error.maxBytes,
+    };
+  }
   if (error instanceof SpeechError) {
     return { name: error.name, message: error.message, code: error.code };
   }
@@ -505,16 +519,22 @@ function serializeError(error: unknown): {
   return { name: 'Error', message: String(error) };
 }
 
-function deserializeError(error: {
-  name: string;
-  message: string;
-  code?: string;
-}): Error {
+function deserializeError(error: SerializedError): Error {
   switch (error.name) {
     case 'SpeechConfigurationError':
       return new SpeechConfigurationError(error.message, 'local');
+    case 'SpeechInvalidAudioError':
+      return new SpeechInvalidAudioError(error.message, 'local');
+    case 'SpeechAudioTooLargeError':
+      return new SpeechAudioTooLargeError(
+        error.message,
+        error.maxBytes ?? Number.NaN,
+        'local',
+      );
     case 'SpeechProviderError':
       return new SpeechProviderError('local', error.message);
+    case 'SpeechProviderUnavailableError':
+      return new SpeechProviderUnavailableError('local', error.message);
     case 'AbortError':
       return new DOMException(error.message, 'AbortError');
     default: {

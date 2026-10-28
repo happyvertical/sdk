@@ -10,7 +10,10 @@
  */
 
 import { normalizeMimeType } from '../../shared/audio.js';
-import { SpeechConfigurationError } from '../../shared/errors.js';
+import {
+  SpeechConfigurationError,
+  SpeechInvalidAudioError,
+} from '../../shared/errors.js';
 import { raceAbort } from './abort.js';
 import type { DecodedAudio, LocalAudioDecoder } from './types.js';
 
@@ -126,7 +129,7 @@ async function decodeAudioBytes(
     return decoded;
   }
 
-  throw new SpeechConfigurationError(
+  throw new SpeechInvalidAudioError(
     `Cannot decode '${options.mimeType}' audio on this runtime: pass WAV or audio/pcm, ` +
       'or supply a decodeAudio hook (e.g. ffmpeg) for compressed formats',
     ADAPTER,
@@ -144,7 +147,7 @@ function isRiffWave(bytes: Uint8Array): boolean {
 /** Parses a RIFF/WAVE file into per-channel Float32 samples. */
 export function decodeWav(bytes: Uint8Array): DecodedAudio {
   if (!isRiffWave(bytes)) {
-    throw new SpeechConfigurationError(
+    throw new SpeechInvalidAudioError(
       'Invalid WAV data: missing RIFF/WAVE header',
       ADAPTER,
     );
@@ -163,7 +166,7 @@ export function decodeWav(bytes: Uint8Array): DecodedAudio {
       format = readWavFormat(view, body, size);
     } else if (id === 'data') {
       if (!format) {
-        throw new SpeechConfigurationError(
+        throw new SpeechInvalidAudioError(
           'Invalid WAV data: data chunk before fmt chunk',
           ADAPTER,
         );
@@ -184,10 +187,7 @@ export function decodeWav(bytes: Uint8Array): DecodedAudio {
     offset = body + size + (size % 2);
   }
 
-  throw new SpeechConfigurationError(
-    'Invalid WAV data: no data chunk',
-    ADAPTER,
-  );
+  throw new SpeechInvalidAudioError('Invalid WAV data: no data chunk', ADAPTER);
 }
 
 type PcmEncoding = 'u8' | 's16le' | 's24le' | 's32le' | 'f32le' | 'f64le';
@@ -204,7 +204,7 @@ const WAVE_FORMAT_EXTENSIBLE = 0xfffe;
 
 function readWavFormat(view: DataView, body: number, size: number): WavFormat {
   if (size < 16) {
-    throw new SpeechConfigurationError(
+    throw new SpeechInvalidAudioError(
       'Invalid WAV data: fmt chunk too short',
       ADAPTER,
     );
@@ -230,7 +230,7 @@ function readWavFormat(view: DataView, body: number, size: number): WavFormat {
         : undefined;
 
   if (!encoding || channels < 1 || sampleRate < 1) {
-    throw new SpeechConfigurationError(
+    throw new SpeechInvalidAudioError(
       `Unsupported WAV encoding (format ${tag}, ${bitsPerSample}-bit, ${channels} channels); ` +
         'use PCM or IEEE float, or supply a decodeAudio hook',
       ADAPTER,
@@ -255,13 +255,13 @@ function decodeRawPcm(
   const encoding = (params.encoding ?? 's16le').toLowerCase();
 
   if (!sampleRate) {
-    throw new SpeechConfigurationError(
+    throw new SpeechInvalidAudioError(
       "Raw PCM audio needs a sample rate: use 'audio/pcm;rate=16000' or AudioInput.sampleRate",
       ADAPTER,
     );
   }
   if (encoding !== 's16le' && encoding !== 'f32le') {
-    throw new SpeechConfigurationError(
+    throw new SpeechInvalidAudioError(
       `Unsupported raw PCM encoding '${encoding}' (expected s16le or f32le)`,
       ADAPTER,
     );
@@ -431,7 +431,7 @@ async function decodeWithAudioContext(
   try {
     buffer = await context.decodeAudioData(copy.buffer);
   } catch (error) {
-    throw new SpeechConfigurationError(
+    throw new SpeechInvalidAudioError(
       `The browser could not decode the audio: ${errorMessage(error)}`,
       ADAPTER,
     );
@@ -486,7 +486,7 @@ function explicitPositiveInteger(
     return undefined;
   }
   if (!Number.isInteger(value) || value < 1) {
-    throw new SpeechConfigurationError(
+    throw new SpeechInvalidAudioError(
       `AudioInput.${name} must be a positive integer, got ${String(value)}`,
       ADAPTER,
     );
