@@ -701,7 +701,12 @@ const aggregate = buildAggregate(
   `add | sub | mul | div` (`div` is fractional and returns NULL for a zero
   divisor), `secondsBetween` (timestamp difference in seconds),
   `eq | ne | lt | lte | gt | gte` (`eq`/`ne` against a NULL literal compare with
-  `IS [NOT] NULL`), `and | or | not`, `isNull | isNotNull` and `coalesce`.
+  `IS [NOT] NULL`), `and | or | not`, `isNull | isNotNull`, `coalesce` and
+  `asText` (`CAST(x AS TEXT)`, `VARCHAR` on DuckDB/JSON). `asText` on both
+  sides lets a join compare keys of different types, such as a text reference
+  with a native `uuid` id that PostgreSQL will not compare directly; a text
+  value that is not a uuid then matches nothing rather than failing the query.
+  A cast column cannot use its index, so cast only when the types differ.
   Numbers, booleans and null are inlined after validation; strings and dates
   are bound as parameters. Expressions are limited to depth 24 and 1024 nodes per spec.
 - **Where an expression goes.** `{ expr, as }` in `select` is a grouping key
