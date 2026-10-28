@@ -2074,6 +2074,17 @@ export interface OpenAIOptions extends BaseAIOptions {
   apiKey?: string;
   baseUrl?: string;
   organization?: string;
+  /**
+   * Retry once, immediately, when a request fails on a stale keep-alive
+   * connection (ECONNRESET, EPIPE, `UND_ERR_SOCKET`, "socket hang up", or the
+   * OpenAI SDK's `APIConnectionError`): `chat()` only before response
+   * headers arrive; `stream()` until the first chunk is yielded, which may
+   * re-run a generation the server had started. Independent of `maxRetries`;
+   * never retries after an HTTP status, a timeout, a caller abort, or a
+   * streamed chunk.
+   * @default true
+   */
+  retryConnectionErrors?: boolean;
 }
 
 /**
@@ -2115,6 +2126,17 @@ export interface LiteLLMOptions extends BaseAIOptions {
   apiKey?: string;
   baseUrl?: string;
   organization?: string;
+  /**
+   * Retry once, immediately, when a request fails on a stale keep-alive
+   * connection (ECONNRESET, EPIPE, `UND_ERR_SOCKET`, "socket hang up", or the
+   * OpenAI SDK's `APIConnectionError`): `chat()` only before response
+   * headers arrive; `stream()` until the first chunk is yielded, which may
+   * re-run a generation the server had started. Independent of `maxRetries`;
+   * never retries after an HTTP status, a timeout, a caller abort, or a
+   * streamed chunk.
+   * @default true
+   */
+  retryConnectionErrors?: boolean;
   adminApiKey?: string;
   adminBaseUrl?: string;
   adminUrl?: string;
@@ -2132,6 +2154,17 @@ export interface BifrostOptions extends BaseAIOptions {
   apiKey?: string;
   baseUrl?: string;
   organization?: string;
+  /**
+   * Retry once, immediately, when a request fails on a stale keep-alive
+   * connection (ECONNRESET, EPIPE, `UND_ERR_SOCKET`, "socket hang up", or the
+   * OpenAI SDK's `APIConnectionError`): `chat()` only before response
+   * headers arrive; `stream()` until the first chunk is yielded, which may
+   * re-run a generation the server had started. Independent of `maxRetries`;
+   * never retries after an HTTP status, a timeout, a caller abort, or a
+   * streamed chunk.
+   * @default true
+   */
+  retryConnectionErrors?: boolean;
   /**
    * Optional virtual key for admin routes. Bifrost OSS admin APIs typically use
    * username/password Basic auth instead; use `adminUser` / `adminPassword`

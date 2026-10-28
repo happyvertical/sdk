@@ -52,6 +52,7 @@ import {
   ContextLengthError,
   ModelNotFoundError,
 } from '../types';
+import { attemptRecorderFrom, shouldRetryConnection } from './connection-retry';
 import { emitUsage } from './usage';
 
 /**
@@ -221,6 +222,8 @@ export interface OpenAICompatibleOptions extends BaseAIOptions {
   apiKey?: string;
   baseUrl?: string;
   organization?: string;
+  /** See {@link OpenAIOptions.retryConnectionErrors}. @default true */
+  retryConnectionErrors?: boolean;
 }
 
 /**
@@ -347,9 +350,35 @@ export class OpenAIProvider implements AIInterface {
           include_thoughts: options.reasoning?.includeThoughts,
         };
       }
-      const response = await this.client.chat.completions.create(request, {
-        signal: controls.signal,
-        timeout: controls.timeout,
+      // Only a failure before the response status/headers is resent: once
+      // they arrive the server may already have run the whole generation,
+      // so a body-read reset after that surfaces unchanged.
+      let responded = false;
+      const send = () => {
+        const pending = this.client.chat.completions.create(request, {
+          signal: controls?.signal,
+          timeout: controls?.timeout,
+        });
+        // asResponse() shares the request; it resolves on headers. A client
+        // that returns a plain promise reports no header boundary.
+        if (typeof pending.asResponse === 'function') {
+          pending.asResponse().then(
+            () => {
+              responded = true;
+            },
+            () => undefined,
+          );
+        }
+        return pending;
+      };
+      const response = await send().catch((error: unknown) => {
+        if (
+          !responded &&
+          this.retriesConnection(error, options, controls, false)
+        ) {
+          return send();
+        }
+        throw error;
       });
 
       const choice = response.choices[0];
@@ -923,20 +952,38 @@ export class OpenAIProvider implements AIInterface {
           include_thoughts: options.reasoning?.includeThoughts,
         };
       }
-      const stream = await this.client.chat.completions.create(request, {
-        signal: controls.signal,
-        timeout: controls.timeout,
-      });
-
       let streamFinish: string | null = null;
-      for await (const chunk of stream) {
-        streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
-        const content = chunk.choices[0]?.delta?.content;
-        if (content) {
-          if (options.onProgress) {
-            options.onProgress(content);
+      // A stale-connection failure before the first yielded chunk is resent
+      // once, even after headers: nothing has reached the caller yet, though
+      // the server may have started generating. After a chunk is yielded the
+      // error surfaces unchanged.
+      let yielded = false;
+      for (let retried = false; ; retried = true) {
+        try {
+          const stream = await this.client.chat.completions.create(request, {
+            signal: controls.signal,
+            timeout: controls.timeout,
+          });
+          for await (const chunk of stream) {
+            streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
+            const content = chunk.choices[0]?.delta?.content;
+            if (content) {
+              if (options.onProgress) {
+                options.onProgress(content);
+              }
+              yielded = true;
+              yield content;
+            }
           }
-          yield content;
+          break;
+        } catch (error) {
+          if (
+            yielded ||
+            !this.retriesConnection(error, options, controls, retried)
+          ) {
+            throw error;
+          }
+          streamFinish = null;
         }
       }
       options.onFinishReason?.(this.mapFinishReason(streamFinish) ?? 'stop');
@@ -1224,6 +1271,27 @@ export class OpenAIProvider implements AIInterface {
       default:
         return 'stop';
     }
+  }
+
+  /**
+   * Whether a failed chat/stream attempt gets its one transparent
+   * stale-connection retry (#1467). Records the retry for `attempts`.
+   */
+  private retriesConnection(
+    error: unknown,
+    options: ChatOptions,
+    controls: PreparedRequestControls | undefined,
+    alreadyRetried: boolean,
+  ): boolean {
+    if (!controls) return false;
+    return shouldRetryConnection(error, {
+      enabled: this.options.retryConnectionErrors,
+      alreadyRetried,
+      signal: controls.signal,
+      callerSignal: options.signal,
+      didTimeout: controls.didTimeout,
+      recorder: attemptRecorderFrom(options),
+    });
   }
 
   /**
