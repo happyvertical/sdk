@@ -451,7 +451,8 @@
         "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
       ],
       "provides": [
-        "Low-level email protocol operations with adapter-based architecture"
+        "Low-level email protocol operations with adapter-based architecture",
+        "SMTP transport with optional mandatory STARTTLS"
       ],
       "implements": [],
       "requires": {
@@ -1748,6 +1749,11 @@
       "type": "provides",
       "from": "@happyvertical/email",
       "to": "Low-level email protocol operations with adapter-based architecture"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/email",
+      "to": "SMTP transport with optional mandatory STARTTLS"
     },
     {
       "type": "requires",

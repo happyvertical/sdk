@@ -7,7 +7,8 @@
   },
   "description": "Low-level email protocol operations with adapter-based architecture",
   "provides": [
-    "Low-level email protocol operations with adapter-based architecture"
+    "Low-level email protocol operations with adapter-based architecture",
+    "SMTP transport with optional mandatory STARTTLS"
   ],
   "implements": [],
   "requires": {

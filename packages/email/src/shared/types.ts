@@ -264,6 +264,8 @@ export interface SMTPOptions {
   host: string;
   port: number;
   secure?: boolean; // true for 465, false for other ports
+  /** Require a successful STARTTLS upgrade when secure is false. Default false. */
+  requireTLS?: boolean;
 
   // Authentication
   auth?:

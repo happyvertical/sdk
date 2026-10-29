@@ -60,6 +60,7 @@ export class SMTPAdapter extends BaseEmailClient {
       host: this.options.host,
       port: this.options.port,
       secure: this.options.secure ?? false,
+      requireTLS: this.options.requireTLS,
       auth: this.options.auth,
       tls: this.options.tls,
       connectionTimeout: this.options.connectionTimeout,
