@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.1
+
+### Patch Changes
+
+- ### Features
+
+  - support mandatory SMTP STARTTLS upgrades (#1473) (email)
+
 ## 0.111.0
 
 ### Minor Changes
