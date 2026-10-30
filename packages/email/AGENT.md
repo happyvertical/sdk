@@ -26,7 +26,7 @@ pnpm --filter @happyvertical/email clean
 - If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands.
 
 ## Ecosystem Relationships
-- Provides: Low-level email protocol operations with adapter-based architecture
+- Provides: Low-level email protocol operations with adapter-based architecture, SMTP transport with optional mandatory STARTTLS
 - Implements: none
 - Requires: @happyvertical/logger, @happyvertical/utils, google-auth-library, googleapis, imapflow, mailparser, node-pop3, nodemailer
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
