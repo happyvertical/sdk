@@ -83,8 +83,9 @@ import { emitUsage } from './usage';
  * exception: gateways such as Bifrost expose stable tier aliases that resolve
  * to the current reasoning model, so the alias name says nothing about the
  * family. Those ids use the reasoning shape unless their final segment is a
- * known legacy family (`gpt-3*`, `gpt-4*`, `chatgpt-*`, or an `ft:` fine-tune
- * of one). Bare ids and other vendors keep the name-based check.
+ * known legacy or open-weight family (`gpt-3*`, `gpt-4*`, `chatgpt-*`,
+ * `gpt-oss*` as served by Groq, OpenRouter or Hugging Face, or an `ft:`
+ * fine-tune of one). Bare ids and other vendors keep the name-based check.
  *
  * Gateway providers (`BifrostProvider`, some `LiteLLMProvider` deployments)
  * route with a vendor-prefixed model id, e.g. `openai/gpt-5-mini` — see
@@ -109,7 +110,7 @@ export function usesCompletionTokenLimit(model: string | undefined): boolean {
   }
   const vendor = segments.length > 1 ? segments[segments.length - 2] : '';
   if (vendor !== 'openai' || lastSegment === '') return false;
-  return !/^(ft:)?(gpt-[34]|chatgpt-)/.test(lastSegment);
+  return !/^(ft:)?(gpt-[34]|gpt-oss|chatgpt-)/.test(lastSegment);
 }
 
 /**

@@ -163,6 +163,8 @@ describe('OpenAI Provider', () => {
       expect(
         usesCompletionTokenLimit('openai/ft:gpt-4o-mini:acme::abc123'),
       ).toBe(false);
+      expect(usesCompletionTokenLimit('openai/gpt-oss-120b')).toBe(false);
+      expect(usesCompletionTokenLimit('openai/gpt-oss-20b')).toBe(false);
       expect(usesCompletionTokenLimit('openai/')).toBe(false);
     });
 
