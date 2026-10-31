@@ -665,6 +665,14 @@ direct OpenAI and LiteLLM Chat Completions, including streaming and `none`.
 Bifrost retains its nested `reasoning` envelope and budget/thoughts fields.
 Omitted effort stays omitted; the upstream provider validates model support.
 
+OpenAI reasoning models (`gpt-5*`, `gpt-6*`, `o1`/`o3`/`o4`) get
+`max_completion_tokens` in place of `max_tokens`, and no `temperature` or
+`top_p`. A gateway id with an `openai/` vendor segment, such as a Bifrost tier
+alias like `openai/terra`, gets the same shape unless it names a legacy family
+(`gpt-3*`, `gpt-4*`, `chatgpt-*`, open-weight `gpt-oss*`, or an `ft:` fine-tune
+of one), because an alias name does not reveal the model behind it. Bare ids and other vendors are
+matched by name only.
+
 LiteLLM rejects caller-supplied `reasoning.maxTokens`,
 `reasoning.includeThoughts`, and legacy `includeThoughts` before model discovery
 or transport. Its Chat Completions protocol has no generic separate reasoning
