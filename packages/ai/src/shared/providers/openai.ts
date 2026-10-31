@@ -34,6 +34,7 @@ import type {
   AIInterface,
   AIMessage,
   AIModel,
+  AIRefusal,
   AIResponse,
   BaseAIOptions,
   ChatOptions,
@@ -461,6 +462,13 @@ export class OpenAIProvider implements AIInterface {
         finishReason,
         ...(finishReason === 'other' && choice.finish_reason
           ? { rawFinishReason: String(choice.finish_reason) }
+          : {}),
+        ...(finishReason === 'refusal'
+          ? {
+              refusal: mapOpenAIRefusal(
+                (choice.message as { stop_details?: unknown }).stop_details,
+              ),
+            }
           : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         toolCalls,
@@ -1050,7 +1058,10 @@ export class OpenAIProvider implements AIInterface {
       // The OpenAI SDK ends a stream quietly when its signal aborts; surface
       // the abort or timeout instead of reporting a cut-off reply as 'stop'.
       if (controls.signal.aborted) throw controls.signal.reason;
-      options.onFinishReason?.(this.mapFinishReason(streamFinish));
+      const finish = this.mapFinishReason(streamFinish);
+      if (finish === 'refusal')
+        options.onRefusal?.(mapOpenAIRefusal(undefined));
+      options.onFinishReason?.(finish);
 
       emitUsage(
         this.options,
@@ -1462,6 +1473,9 @@ export class OpenAIProvider implements AIInterface {
         return 'tool_calls';
       case 'content_filter':
         return 'content_filter';
+      case 'refusal':
+        // A gateway forwarding Claude's `stop_reason: 'refusal'`.
+        return 'refusal';
       default:
         return 'other';
     }
@@ -1549,4 +1563,20 @@ export class OpenAIProvider implements AIInterface {
       this.profile.providerName,
     );
   }
+}
+
+/**
+ * Refusal details from a gateway response. Gateways that forward Claude's
+ * `stop_details` on the message are read; otherwise both fields are `null`.
+ */
+function mapOpenAIRefusal(details: unknown): AIRefusal {
+  const record = (details ?? {}) as {
+    category?: unknown;
+    explanation?: unknown;
+  };
+  return {
+    category: typeof record.category === 'string' ? record.category : null,
+    explanation:
+      typeof record.explanation === 'string' ? record.explanation : null,
+  };
 }

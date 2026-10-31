@@ -18,13 +18,36 @@ export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
  * server reported a reason outside this set (e.g. vLLM `abort`): treat the
  * reply as possibly incomplete. Only the OpenAI-compatible providers report
  * it today; see {@link AIResponse.rawFinishReason} for the server's value.
+ * `'refusal'` is Claude declining the request (see {@link AIRefusal}); it is
+ * reported by the Anthropic and Bedrock providers and by gateways that
+ * forward the reason.
  */
 export type AIFinishReason =
   | 'stop'
   | 'length'
   | 'tool_calls'
   | 'content_filter'
+  | 'refusal'
   | 'other';
+
+/**
+ * Why Claude declined a request (`stop_reason: 'refusal'` with
+ * `stop_details`). Distinct from `'content_filter'`, which is a server-side
+ * content filter on OpenAI-compatible APIs: a refusal is the model's own
+ * safety classifiers declining, the reply is empty or partial, and retrying
+ * the same request will usually be declined again.
+ */
+export interface AIRefusal {
+  /**
+   * Refusal category from `stop_details.category`, an open set (e.g.
+   * `'cyber'`, `'bio'`, `'reasoning_extraction'`, `'frontier_llm'`). `null`
+   * when the provider gave none.
+   */
+  category: string | null;
+
+  /** Human-readable `stop_details.explanation`, or `null`. */
+  explanation: string | null;
+}
 
 /**
  * Automatic continuation when a reply stops on its output limit. `true`
@@ -460,6 +483,12 @@ export interface ChatOptions extends AIRequestControls {
    * finish reason. Used for continuation; also useful to detect truncation.
    */
   onFinishReason?: (reason: AIFinishReason) => void;
+
+  /**
+   * Called by streaming adapters when a Claude stream ends in a refusal,
+   * just before `onFinishReason('refusal')`, with the refusal details.
+   */
+  onRefusal?: (refusal: AIRefusal) => void;
 
   /**
    * Called by streaming adapters once when the stream ends, with the
@@ -1553,6 +1582,13 @@ export interface AIResponse {
    * `'abort'` from vLLM or legacy `'function_call'`.
    */
   rawFinishReason?: string;
+
+  /**
+   * Set when `finishReason` is `'refusal'`: why Claude declined. The reply
+   * `content` is empty or partial. Check this (or `finishReason`) before
+   * using the content; it is not thrown as an error.
+   */
+  refusal?: AIRefusal;
 
   /**
    * Reasoning ("thinking") text the server returned separately from

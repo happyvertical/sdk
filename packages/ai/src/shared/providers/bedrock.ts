@@ -516,9 +516,13 @@ export class BedrockProvider implements AIInterface {
         }
       }
 
-      options.onFinishReason?.(
-        this.mapBedrockFinishReason(streamStopReason) ?? 'stop',
-      );
+      const streamFinish =
+        this.mapBedrockFinishReason(streamStopReason) ?? 'stop';
+      if (streamFinish === 'refusal') {
+        // Converse carries no stop_details.
+        options.onRefusal?.({ category: null, explanation: null });
+      }
+      options.onFinishReason?.(streamFinish);
 
       emitUsage(
         this.options,
@@ -954,6 +958,7 @@ export class BedrockProvider implements AIInterface {
   }
 
   private mapConverseResponse(response: any, modelId: string): AIResponse {
+    const finishReason = this.mapBedrockFinishReason(response.stopReason);
     const contentBlocks = response.output?.message?.content || [];
     const textContent = contentBlocks
       .filter((block: any) => typeof block.text === 'string')
@@ -976,7 +981,10 @@ export class BedrockProvider implements AIInterface {
     return {
       content: textContent,
       model: modelId,
-      finishReason: this.mapBedrockFinishReason(response.stopReason),
+      finishReason,
+      ...(finishReason === 'refusal'
+        ? { refusal: { category: null, explanation: null } }
+        : {}),
       usage,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
     };
@@ -994,6 +1002,8 @@ export class BedrockProvider implements AIInterface {
         return 'stop';
       case 'tool_use':
         return 'tool_calls';
+      case 'refusal':
+        return 'refusal';
       default:
         return 'stop';
     }

@@ -31,6 +31,7 @@ import type {
   AIInterface,
   AIMessage,
   AIModel,
+  AIRefusal,
   AIResponse,
   AIThinkingBlock,
   AIToolCall,
@@ -298,10 +299,14 @@ export class AnthropicProvider implements AIInterface {
         options.usageTags,
       );
 
+      const finishReason = this.mapFinishReason(response.stop_reason);
       return {
         content: textContent,
         model: response.model,
-        finishReason: this.mapFinishReason(response.stop_reason),
+        finishReason,
+        ...(finishReason === 'refusal'
+          ? { refusal: mapRefusal(response.stop_details) }
+          : {}),
         usage,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       };
@@ -506,6 +511,7 @@ export class AnthropicProvider implements AIInterface {
       });
 
       let streamStopReason: string | null = null;
+      let streamStopDetails: unknown;
       let streamUsage: Record<string, unknown> | undefined;
       for await (const chunk of stream) {
         if (chunk.type === 'message_start' && chunk.message?.usage) {
@@ -516,6 +522,7 @@ export class AnthropicProvider implements AIInterface {
           if (chunk.usage) streamUsage = { ...streamUsage, ...chunk.usage };
           if (chunk.delta?.stop_reason) {
             streamStopReason = chunk.delta.stop_reason;
+            streamStopDetails = chunk.delta.stop_details;
           }
         }
         if (
@@ -528,9 +535,11 @@ export class AnthropicProvider implements AIInterface {
           yield chunk.delta.text;
         }
       }
-      options.onFinishReason?.(
-        this.mapFinishReason(streamStopReason) ?? 'stop',
-      );
+      const streamFinish = this.mapFinishReason(streamStopReason) ?? 'stop';
+      if (streamFinish === 'refusal') {
+        options.onRefusal?.(mapRefusal(streamStopDetails));
+      }
+      options.onFinishReason?.(streamFinish);
 
       emitUsage(
         this.options,
@@ -1046,6 +1055,8 @@ export class AnthropicProvider implements AIInterface {
         return 'stop';
       case 'tool_use':
         return 'tool_calls';
+      case 'refusal':
+        return 'refusal';
       default:
         return 'stop';
     }
@@ -1080,6 +1091,15 @@ export class AnthropicProvider implements AIInterface {
         : 'Unknown Anthropic error occurred';
     return new AIError(errorMessage, 'UNKNOWN_ERROR', 'anthropic');
   }
+}
+
+/** Refusal details from Anthropic's `stop_details`. */
+function mapRefusal(details: any): AIRefusal {
+  return {
+    category: typeof details?.category === 'string' ? details.category : null,
+    explanation:
+      typeof details?.explanation === 'string' ? details.explanation : null,
+  };
 }
 
 /**

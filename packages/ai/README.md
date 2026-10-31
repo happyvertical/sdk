@@ -852,6 +852,35 @@ for await (const text of ai.stream(messages, {
   switch the caller asked for. LiteLLM and Bifrost forward it to their gateway.
 - With `continueOnLength`, reasoning from every part is joined and reported once.
 
+## Prompt Caching and Claude Refusals
+
+Mark the end of a cacheable prompt prefix with `cacheHint` on a message or on a
+text part (`true`, or `{ ttl: '5m' | '1h' }`). The Anthropic and Bifrost providers
+forward it as `cache_control: { type: 'ephemeral' }` (plus `ttl`); every other
+provider ignores it. On a `system` message it caches the system prompt. Cache
+reads and writes come back in `usage.cacheReadInputTokens` and
+`usage.cacheCreationInputTokens`.
+
+```typescript
+const response = await ai.chat(
+  [
+    { role: 'system', content: longRubric, cacheHint: true },
+    { role: 'user', content: question },
+  ],
+  { model: 'claude-opus-5-5', reasoning: { effort: 'medium' } },
+);
+console.log(response.usage?.cacheReadInputTokens);
+```
+
+Providers cap the number of cached prefixes (Anthropic allows 4) and need a
+minimum prefix size; a shorter prefix is silently not cached.
+
+When Claude declines a request (`stop_reason: 'refusal'`), `finishReason` is
+`'refusal'` (distinct from `'content_filter'`) and `response.refusal` holds
+`{ category, explanation }` from `stop_details`. It is not thrown. Streams call
+`onRefusal(refusal)` and then `onFinishReason('refusal')`. Bifrost reports it only
+if the gateway forwards the reason as a `refusal` finish reason.
+
 ## Continuing Truncated Replies
 
 When a reply stops because it hit its output limit (`finishReason: 'length'`:
