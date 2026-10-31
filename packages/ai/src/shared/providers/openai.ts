@@ -79,6 +79,13 @@ import { emitUsage } from './usage';
  * Models outside these families (`gpt-4.x`, `gpt-3.5`, etc.) are unaffected
  * and keep sending `max_tokens` and `temperature` as before.
  *
+ * A gateway id whose vendor segment is `openai` (e.g. `openai/terra`) is the
+ * exception: gateways such as Bifrost expose stable tier aliases that resolve
+ * to the current reasoning model, so the alias name says nothing about the
+ * family. Those ids use the reasoning shape unless their final segment is a
+ * known legacy family (`gpt-3*`, `gpt-4*`, `chatgpt-*`, or an `ft:` fine-tune
+ * of one). Bare ids and other vendors keep the name-based check.
+ *
  * Gateway providers (`BifrostProvider`, some `LiteLLMProvider` deployments)
  * route with a vendor-prefixed model id, e.g. `openai/gpt-5-mini` — see
  * `BifrostProvider`'s own `defaultModel: 'openai/gpt-4o-mini'` convention in
@@ -95,19 +102,24 @@ import { emitUsage } from './usage';
  */
 export function usesCompletionTokenLimit(model: string | undefined): boolean {
   if (!model) return false;
-  const normalized = model.toLowerCase();
-  const lastSegment = normalized.slice(normalized.lastIndexOf('/') + 1);
-  return /^gpt-[56]/.test(lastSegment) || /^o[134](-|$)/.test(lastSegment);
+  const segments = model.toLowerCase().split('/');
+  const lastSegment = segments[segments.length - 1];
+  if (/^gpt-[56]/.test(lastSegment) || /^o[134](-|$)/.test(lastSegment)) {
+    return true;
+  }
+  const vendor = segments.length > 1 ? segments[segments.length - 2] : '';
+  if (vendor !== 'openai' || lastSegment === '') return false;
+  return !/^(ft:)?(gpt-[34]|chatgpt-)/.test(lastSegment);
 }
 
 /**
- * Builds the output-token-limit and temperature fields for a chat/completion
+ * Builds the output-token-limit and sampling fields for a chat/completion
  * request body, shaped for the given model per {@link usesCompletionTokenLimit}.
  *
  * For models that require it: sends `max_completion_tokens` and omits
- * `max_tokens`, and omits `temperature` entirely (never sends a default
- * value in its place). For all other models: sends `max_tokens` and
- * `temperature` unchanged. Fields whose source value is `undefined` are
+ * `max_tokens`, and omits `temperature` and `top_p` entirely (reasoning
+ * models reject both; no default is sent in their place). For all other
+ * models: sends `max_tokens`, `temperature`, and `top_p` unchanged. Fields whose source value is `undefined` are
  * omitted rather than included as `undefined` keys.
  *
  * Internal request-shaping helper: exported at module level only so it can
@@ -118,10 +130,12 @@ export function buildTokenLimitRequestFields(
   model: string,
   maxTokens: number | undefined,
   temperature: number | undefined,
+  topP?: number,
 ): {
   max_tokens?: number;
   max_completion_tokens?: number;
   temperature?: number;
+  top_p?: number;
 } {
   if (usesCompletionTokenLimit(model)) {
     return maxTokens === undefined ? {} : { max_completion_tokens: maxTokens };
@@ -129,6 +143,7 @@ export function buildTokenLimitRequestFields(
   return {
     ...(maxTokens === undefined ? {} : { max_tokens: maxTokens }),
     ...(temperature === undefined ? {} : { temperature }),
+    ...(topP === undefined ? {} : { top_p: topP }),
   };
 }
 
@@ -305,8 +320,8 @@ export class OpenAIProvider implements AIInterface {
           model,
           options.maxTokens,
           options.temperature,
+          options.topP,
         ),
-        top_p: options.topP,
         n: options.n,
         stop: options.stop,
         frequency_penalty: options.frequencyPenalty,
@@ -950,8 +965,8 @@ export class OpenAIProvider implements AIInterface {
           model,
           options.maxTokens,
           options.temperature,
+          options.topP,
         ),
-        top_p: options.topP,
         stop: options.stop,
         frequency_penalty: options.frequencyPenalty,
         presence_penalty: options.presencePenalty,

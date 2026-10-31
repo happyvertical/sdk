@@ -147,6 +147,34 @@ describe('OpenAI Provider', () => {
       expect(usesCompletionTokenLimit('openai/gpt-4o-mini')).toBe(false);
       expect(usesCompletionTokenLimit('openai/gpt-4.1-mini')).toBe(false);
     });
+
+    it('treats openai-vendor gateway aliases as reasoning models', () => {
+      expect(usesCompletionTokenLimit('openai/terra')).toBe(true);
+      expect(usesCompletionTokenLimit('openai/luna')).toBe(true);
+      expect(usesCompletionTokenLimit('openai/sol')).toBe(true);
+      expect(usesCompletionTokenLimit('OpenAI/Astra')).toBe(true);
+      expect(usesCompletionTokenLimit('bifrost/openai/terra')).toBe(true);
+    });
+
+    it('keeps legacy families on openai-vendor ids in the legacy shape', () => {
+      expect(usesCompletionTokenLimit('openai/gpt-3.5-turbo')).toBe(false);
+      expect(usesCompletionTokenLimit('openai/gpt-4-turbo')).toBe(false);
+      expect(usesCompletionTokenLimit('openai/chatgpt-4o-latest')).toBe(false);
+      expect(
+        usesCompletionTokenLimit('openai/ft:gpt-4o-mini:acme::abc123'),
+      ).toBe(false);
+      expect(usesCompletionTokenLimit('openai/')).toBe(false);
+    });
+
+    it('does not infer reasoning from bare ids or other vendors', () => {
+      expect(usesCompletionTokenLimit('terra')).toBe(false);
+      expect(usesCompletionTokenLimit('anthropic/claude-sonnet-4-6')).toBe(
+        false,
+      );
+      expect(usesCompletionTokenLimit('gemini/gemini-2.5-flash')).toBe(false);
+      expect(usesCompletionTokenLimit('ollama/mistral:latest')).toBe(false);
+      expect(usesCompletionTokenLimit('mistral:latest')).toBe(false);
+    });
   });
 
   describe('buildTokenLimitRequestFields', () => {
@@ -167,6 +195,15 @@ describe('OpenAI Provider', () => {
         max_tokens: 500,
         temperature: 0.9,
       });
+    });
+
+    it('omits top_p for reasoning models and keeps it for legacy models', () => {
+      expect(
+        buildTokenLimitRequestFields('openai/terra', 500, 0.9, 0.8),
+      ).toEqual({ max_completion_tokens: 500 });
+      expect(
+        buildTokenLimitRequestFields('gpt-4.1-mini', 500, 0.9, 0.8),
+      ).toEqual({ max_tokens: 500, temperature: 0.9, top_p: 0.8 });
     });
 
     it('omits undefined fields rather than sending undefined keys', () => {
@@ -221,6 +258,63 @@ describe('OpenAI Provider', () => {
     expect(body.max_completion_tokens).toBe(500);
     expect(body).not.toHaveProperty('max_tokens');
     expect(body).not.toHaveProperty('temperature');
+  });
+
+  it('should send the reasoning shape for a Bifrost openai/terra alias chat request', async () => {
+    const createChatCompletion = vi
+      .fn()
+      .mockResolvedValue(chatCompletionResponse({ model: 'gpt-6.1-terra' }));
+
+    const provider = new BifrostProvider({
+      type: 'bifrost',
+      apiKey: 'test',
+      baseUrl: 'https://bifrost.example.com/v1',
+      defaultModel: 'openai/terra',
+    });
+    (provider as any).client = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await provider.chat([{ role: 'user', content: 'Hello' }], {
+      maxTokens: 500,
+      temperature: 0.9,
+      topP: 0.8,
+      responseFormat: { type: 'json_object' },
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.model).toBe('openai/terra');
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
+    expect(body).not.toHaveProperty('top_p');
+    expect(body.response_format).toEqual({ type: 'json_object' });
+  });
+
+  it('should drop top_p when streaming an openai/terra alias request', async () => {
+    const createStream = vi
+      .fn()
+      .mockResolvedValue(
+        asyncChunks([{ choices: [{ delta: { content: 'hi' } }] }]),
+      );
+
+    const provider = new OpenAIProvider({ apiKey: 'test-key' });
+    (provider as any).client = {
+      chat: { completions: { create: createStream } },
+    };
+
+    for await (const _chunk of provider.stream(
+      [{ role: 'user', content: 'Hello' }],
+      { model: 'openai/terra', maxTokens: 500, temperature: 0.9, topP: 0.8 },
+    )) {
+      // drain
+    }
+
+    const body = createStream.mock.calls[0][0];
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
+    expect(body).not.toHaveProperty('top_p');
   });
 
   it('should keep max_tokens and temperature unchanged for a gpt-4.1-mini chat request', async () => {
