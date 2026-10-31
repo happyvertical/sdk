@@ -806,8 +806,11 @@ export class OllamaProvider implements AIInterface {
       return false;
     }
     if (options.reasoning?.effort) {
-      return options.reasoning.effort === 'none'
-        ? false
+      if (options.reasoning.effort === 'none') return false;
+      // Ollama's levels stop at 'high'.
+      return options.reasoning.effort === 'xhigh' ||
+        options.reasoning.effort === 'max'
+        ? 'high'
         : options.reasoning.effort;
     }
     if (!Object.hasOwn(options, 'thinkingLevel')) {

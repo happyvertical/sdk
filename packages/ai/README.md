@@ -673,6 +673,26 @@ alias like `openai/terra`, gets the same shape unless it names a legacy family
 of one), because an alias name does not reveal the model behind it. Bare ids and other vendors are
 matched by name only.
 
+### Claude effort
+
+Claude 4.6+ models (Opus and Sonnet 4.6 and later, Haiku 5 and later, Fable,
+Mythos) take `output_config.effort` instead of a thinking budget, and Opus 4.7+
+rejects `budget_tokens` outright. For those models `reasoning.effort`
+(`'low' | 'medium' | 'high' | 'xhigh' | 'max'`) is sent as `output_config.effort`
+with adaptive thinking, and it is not converted into a token budget, so it is
+not limited by `generationLimits.maxReasoningTokens`:
+
+- `anthropic`: `output_config: { effort }` and `thinking: { type: 'adaptive' }`.
+- `bifrost`: `extra_params: { output_config: { effort }, thinking: { type: 'adaptive' } }`
+  with the `x-bf-passthrough-extra-params: true` header (Bifrost's provider-parameter
+  passthrough). Its `reasoning` envelope is not sent for these models, because
+  Bifrost would turn `max_tokens` into a rejected `budget_tokens`.
+- `bedrock`: the same fields in `additionalModelRequestFields`.
+
+`'none'` and `'minimal'` are sent as `'low'` (Claude cannot be told to skip
+thinking through effort); `'xhigh'` is sent as `'high'` on Opus/Sonnet 4.6, which
+has no `xhigh`. Older Claude models keep the `reasoning.maxTokens` budget.
+
 LiteLLM rejects caller-supplied `reasoning.maxTokens`,
 `reasoning.includeThoughts`, and legacy `includeThoughts` before model discovery
 or transport. Its Chat Completions protocol has no generic separate reasoning

@@ -14,6 +14,11 @@ import {
   toCacheControl,
 } from '../cache-hint';
 import { prepareChatTemplateKwargs } from '../chat-template-kwargs';
+import {
+  claudeRejectsThinkingBudget,
+  claudeSupportsEffort,
+  toClaudeEffort,
+} from '../claude-models';
 import { rateLimitErrorFrom } from '../rate-limit';
 import { readReasoningText, reportReasoning } from '../reasoning';
 import {
@@ -362,19 +367,14 @@ export class OpenAIProvider implements AIInterface {
           this.profile.providerName === 'litellm') &&
         options.reasoning?.effort !== undefined
       ) {
-        request.reasoning_effort = options.reasoning.effort;
+        request.reasoning_effort = options.reasoning
+          .effort as OpenAI.ReasoningEffort;
       }
-      if (
-        this.profile.providerName === 'bifrost' &&
-        (options.reasoning?.effort !== undefined ||
-          (options.reasoning?.maxTokens || 0) > 0)
-      ) {
-        request.reasoning = {
-          effort: options.reasoning?.effort,
-          max_tokens: options.reasoning?.maxTokens,
-          include_thoughts: options.reasoning?.includeThoughts,
-        };
-      }
+      const gatewayHeaders = this.applyBifrostReasoning(
+        request,
+        options,
+        model,
+      );
       const chatTemplateKwargs = prepareChatTemplateKwargs(
         options.chatTemplateKwargs,
         this.profile.providerName,
@@ -392,6 +392,7 @@ export class OpenAIProvider implements AIInterface {
         const pending = this.client.chat.completions.create(request, {
           signal: controls?.signal,
           timeout: controls?.timeout,
+          ...(gatewayHeaders ? { headers: gatewayHeaders } : {}),
         });
         // asResponse() shares the request; it resolves on headers. A client
         // that returns a plain promise reports no header boundary.
@@ -991,19 +992,14 @@ export class OpenAIProvider implements AIInterface {
           this.profile.providerName === 'litellm') &&
         options.reasoning?.effort !== undefined
       ) {
-        request.reasoning_effort = options.reasoning.effort;
+        request.reasoning_effort = options.reasoning
+          .effort as OpenAI.ReasoningEffort;
       }
-      if (
-        this.profile.providerName === 'bifrost' &&
-        (options.reasoning?.effort !== undefined ||
-          (options.reasoning?.maxTokens || 0) > 0)
-      ) {
-        request.reasoning = {
-          effort: options.reasoning?.effort,
-          max_tokens: options.reasoning?.maxTokens,
-          include_thoughts: options.reasoning?.includeThoughts,
-        };
-      }
+      const gatewayHeaders = this.applyBifrostReasoning(
+        request,
+        options,
+        model,
+      );
       const chatTemplateKwargs = prepareChatTemplateKwargs(
         options.chatTemplateKwargs,
         this.profile.providerName,
@@ -1024,6 +1020,7 @@ export class OpenAIProvider implements AIInterface {
           const stream = await this.client.chat.completions.create(request, {
             signal: controls.signal,
             timeout: controls.timeout,
+            ...(gatewayHeaders ? { headers: gatewayHeaders } : {}),
           });
           for await (const chunk of stream) {
             streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
@@ -1206,6 +1203,56 @@ export class OpenAIProvider implements AIInterface {
       'NOT_IMPLEMENTED',
       this.profile.providerName,
     );
+  }
+
+  /**
+   * Sets Bifrost's reasoning controls on a chat request and returns any extra
+   * headers the request needs.
+   *
+   * Bifrost's own `reasoning` envelope is forwarded for most models. For
+   * Claude 4.6+ models it is not: Bifrost turns `reasoning.max_tokens` into
+   * `thinking.budget_tokens`, which those models reject with a 400, and its
+   * `reasoning.effort` does not reach `output_config.effort`. Those models
+   * get `output_config.effort` (and adaptive thinking) through Bifrost's
+   * provider-parameter passthrough instead: `extra_params` in the body plus
+   * the `x-bf-passthrough-extra-params` header.
+   * @private
+   */
+  private applyBifrostReasoning(
+    request: Record<string, any>,
+    options: ChatOptions,
+    model: string,
+  ): Record<string, string> | undefined {
+    if (this.profile.providerName !== 'bifrost') return undefined;
+    const reasoning = options.reasoning;
+    const effort = reasoning?.effort;
+
+    const effortDriven = effort !== undefined && claudeSupportsEffort(model);
+    if (effort !== undefined && effortDriven) {
+      request.extra_params = {
+        output_config: { effort: toClaudeEffort(model, effort) },
+        ...(effort !== 'none' ? { thinking: { type: 'adaptive' } } : {}),
+      };
+      return { 'x-bf-passthrough-extra-params': 'true' };
+    }
+
+    if (!effortDriven && (reasoning?.maxTokens || 0) > 0) {
+      if (claudeRejectsThinkingBudget(model)) {
+        // A budget these models reject: think adaptively instead.
+        request.extra_params = { thinking: { type: 'adaptive' } };
+        return { 'x-bf-passthrough-extra-params': 'true' };
+      }
+    }
+
+    if (effort !== undefined || (reasoning?.maxTokens || 0) > 0) {
+      request.reasoning = {
+        // Bifrost's effort enum stops at 'xhigh'.
+        effort: effort === 'max' ? 'xhigh' : effort,
+        max_tokens: reasoning?.maxTokens,
+        include_thoughts: reasoning?.includeThoughts,
+      };
+    }
+    return undefined;
   }
 
   /**

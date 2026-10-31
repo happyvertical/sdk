@@ -64,7 +64,17 @@ export interface AIGenerationLimits {
 
 /** Provider-neutral reasoning controls for a single generation request. */
 export interface AIReasoningOptions {
-  effort?: 'none' | GeminiThinkingLevel;
+  /**
+   * Reasoning effort. `'xhigh'` and `'max'` exist for Claude: on Claude 4.6+
+   * models (Anthropic, Bifrost, Bedrock) the effort is sent as
+   * `output_config.effort` and adaptive thinking is used instead of a token
+   * budget, so `maxTokens` is not turned into `budget_tokens` there. On
+   * Opus/Sonnet 4.6 `'xhigh'` is sent as `'high'`; `'none'` and `'minimal'`
+   * are sent as `'low'` because Claude's thinking cannot be set to zero by
+   * effort. Other providers treat `'xhigh'` and `'max'` as `'high'` unless
+   * their API accepts them (OpenAI and LiteLLM forward the value as given).
+   */
+  effort?: 'none' | GeminiThinkingLevel | 'xhigh' | 'max';
   maxTokens?: number;
   includeThoughts?: boolean;
 }

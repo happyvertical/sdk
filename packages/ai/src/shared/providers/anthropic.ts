@@ -12,6 +12,12 @@ import {
   toCacheableTextBlocks,
   toCacheControl,
 } from '../cache-hint';
+import {
+  type ClaudeEffort,
+  claudeRejectsThinkingBudget,
+  claudeSupportsEffort,
+  toClaudeEffort,
+} from '../claude-models';
 import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
@@ -225,9 +231,13 @@ export class AnthropicProvider implements AIInterface {
         ...this.mapToolParams(options, anthropicMessages),
         stream: false,
       };
-      const thinking = this.mapThinking(options, anthropicMessages);
+      const thinking = this.mapThinking(options, anthropicMessages, model);
       if (thinking) {
         requestParams.thinking = thinking;
+      }
+      const outputConfig = this.mapOutputConfig(options, model);
+      if (outputConfig) {
+        requestParams.output_config = outputConfig;
       }
 
       // Add response format if specified
@@ -486,9 +496,13 @@ export class AnthropicProvider implements AIInterface {
         ...this.mapHistoryToolParams(anthropicMessages),
         stream: true,
       };
-      const thinking = this.mapThinking(options, anthropicMessages);
+      const thinking = this.mapThinking(options, anthropicMessages, model);
       if (thinking) {
         requestParams.thinking = thinking;
+      }
+      const outputConfig = this.mapOutputConfig(options, model);
+      if (outputConfig) {
+        requestParams.output_config = outputConfig;
       }
       const stream = await this.client.messages.create(requestParams, {
         signal: controls.signal,
@@ -936,9 +950,18 @@ export class AnthropicProvider implements AIInterface {
   private mapThinking(
     options: ChatOptions,
     anthropicMessages: AnthropicMessage[],
-  ): { type: 'enabled'; budget_tokens: number } | undefined {
+    model: string | undefined,
+  ):
+    | { type: 'enabled'; budget_tokens: number }
+    | { type: 'adaptive' }
+    | undefined {
+    const effort = options.reasoning?.effort;
+    // Claude 4.6+ models are steered by `output_config.effort`, with thinking
+    // adaptive; effort 'none' asks for no thinking (where it can be omitted).
+    const effortDriven =
+      effort !== undefined && effort !== 'none' && claudeSupportsEffort(model);
     const budget = options.reasoning?.maxTokens || 0;
-    if (budget <= 0) return undefined;
+    if (budget <= 0 && !effortDriven) return undefined;
 
     const lastAssistant = [...anthropicMessages]
       .reverse()
@@ -954,7 +977,25 @@ export class AnthropicProvider implements AIInterface {
       }
     }
 
+    // Models that reject `budget_tokens` (Opus/Sonnet 4.7+, Fable, ...) can
+    // only think adaptively; the budget is not sent.
+    if (effortDriven || claudeRejectsThinkingBudget(model)) {
+      return { type: 'adaptive' };
+    }
     return { type: 'enabled', budget_tokens: budget };
+  }
+
+  /**
+   * Builds `output_config` for the effort of Claude 4.6+ models. Other models
+   * have no effort control, so the option is not sent to them.
+   */
+  private mapOutputConfig(
+    options: ChatOptions,
+    model: string | undefined,
+  ): { effort: ClaudeEffort } | undefined {
+    const effort = options.reasoning?.effort;
+    if (effort === undefined || !claudeSupportsEffort(model)) return undefined;
+    return { effort: toClaudeEffort(model, effort) };
   }
 
   private mapTools(options: ChatOptions): Record<string, any>[] | undefined {

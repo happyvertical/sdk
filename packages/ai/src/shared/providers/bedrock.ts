@@ -2,6 +2,11 @@
  * AWS Bedrock provider implementation
  */
 
+import {
+  claudeRejectsThinkingBudget,
+  claudeSupportsEffort,
+  toClaudeEffort,
+} from '../claude-models';
 import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
@@ -842,12 +847,21 @@ export class BedrockProvider implements AIInterface {
       ...(Object.keys(inferenceConfig).length > 0 && { inferenceConfig }),
       ...(systemPrompt && { system: [{ text: systemPrompt }] }),
     };
-    if ((options.reasoning?.maxTokens || 0) > 0) {
+    const effort = options.reasoning?.effort;
+    if (effort !== undefined && claudeSupportsEffort(modelId)) {
+      // Claude 4.6+: effort, with adaptive thinking instead of a budget.
       request.additionalModelRequestFields = {
-        thinking: {
-          type: 'enabled',
-          budget_tokens: options.reasoning?.maxTokens,
-        },
+        output_config: { effort: toClaudeEffort(modelId, effort) },
+        ...(effort !== 'none' ? { thinking: { type: 'adaptive' } } : {}),
+      };
+    } else if ((options.reasoning?.maxTokens || 0) > 0) {
+      request.additionalModelRequestFields = {
+        thinking: claudeRejectsThinkingBudget(modelId)
+          ? { type: 'adaptive' }
+          : {
+              type: 'enabled',
+              budget_tokens: options.reasoning?.maxTokens,
+            },
       };
     }
 
