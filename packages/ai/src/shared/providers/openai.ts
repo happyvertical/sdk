@@ -8,7 +8,17 @@
  */
 
 import OpenAI from 'openai';
+import {
+  hasCacheHint,
+  toCacheableTextBlocks,
+  toCacheControl,
+} from '../cache-hint';
 import { prepareChatTemplateKwargs } from '../chat-template-kwargs';
+import {
+  claudeRejectsThinkingBudget,
+  claudeSupportsEffort,
+  toClaudeEffort,
+} from '../claude-models';
 import { rateLimitErrorFrom } from '../rate-limit';
 import { readReasoningText, reportReasoning } from '../reasoning';
 import {
@@ -24,6 +34,7 @@ import type {
   AIInterface,
   AIMessage,
   AIModel,
+  AIRefusal,
   AIResponse,
   BaseAIOptions,
   ChatOptions,
@@ -56,7 +67,7 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { attemptRecorderFrom, shouldRetryConnection } from './connection-retry';
-import { emitUsage } from './usage';
+import { cacheUsageFields, emitUsage } from './usage';
 
 /**
  * Determines whether a model uses OpenAI's newer reasoning-model request
@@ -357,19 +368,14 @@ export class OpenAIProvider implements AIInterface {
           this.profile.providerName === 'litellm') &&
         options.reasoning?.effort !== undefined
       ) {
-        request.reasoning_effort = options.reasoning.effort;
+        request.reasoning_effort = options.reasoning
+          .effort as OpenAI.ReasoningEffort;
       }
-      if (
-        this.profile.providerName === 'bifrost' &&
-        (options.reasoning?.effort !== undefined ||
-          (options.reasoning?.maxTokens || 0) > 0)
-      ) {
-        request.reasoning = {
-          effort: options.reasoning?.effort,
-          max_tokens: options.reasoning?.maxTokens,
-          include_thoughts: options.reasoning?.includeThoughts,
-        };
-      }
+      const gatewayHeaders = this.applyBifrostReasoning(
+        request,
+        options,
+        model,
+      );
       const chatTemplateKwargs = prepareChatTemplateKwargs(
         options.chatTemplateKwargs,
         this.profile.providerName,
@@ -387,6 +393,7 @@ export class OpenAIProvider implements AIInterface {
         const pending = this.client.chat.completions.create(request, {
           signal: controls?.signal,
           timeout: controls?.timeout,
+          ...(gatewayHeaders ? { headers: gatewayHeaders } : {}),
         });
         // asResponse() shares the request; it resolves on headers. A client
         // that returns a plain promise reports no header boundary.
@@ -455,6 +462,13 @@ export class OpenAIProvider implements AIInterface {
         finishReason,
         ...(finishReason === 'other' && choice.finish_reason
           ? { rawFinishReason: String(choice.finish_reason) }
+          : {}),
+        ...(finishReason === 'refusal'
+          ? {
+              refusal: mapOpenAIRefusal(
+                (choice.message as { stop_details?: unknown }).stop_details,
+              ),
+            }
           : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         toolCalls,
@@ -986,19 +1000,14 @@ export class OpenAIProvider implements AIInterface {
           this.profile.providerName === 'litellm') &&
         options.reasoning?.effort !== undefined
       ) {
-        request.reasoning_effort = options.reasoning.effort;
+        request.reasoning_effort = options.reasoning
+          .effort as OpenAI.ReasoningEffort;
       }
-      if (
-        this.profile.providerName === 'bifrost' &&
-        (options.reasoning?.effort !== undefined ||
-          (options.reasoning?.maxTokens || 0) > 0)
-      ) {
-        request.reasoning = {
-          effort: options.reasoning?.effort,
-          max_tokens: options.reasoning?.maxTokens,
-          include_thoughts: options.reasoning?.includeThoughts,
-        };
-      }
+      const gatewayHeaders = this.applyBifrostReasoning(
+        request,
+        options,
+        model,
+      );
       const chatTemplateKwargs = prepareChatTemplateKwargs(
         options.chatTemplateKwargs,
         this.profile.providerName,
@@ -1019,6 +1028,7 @@ export class OpenAIProvider implements AIInterface {
           const stream = await this.client.chat.completions.create(request, {
             signal: controls.signal,
             timeout: controls.timeout,
+            ...(gatewayHeaders ? { headers: gatewayHeaders } : {}),
           });
           for await (const chunk of stream) {
             streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
@@ -1048,7 +1058,10 @@ export class OpenAIProvider implements AIInterface {
       // The OpenAI SDK ends a stream quietly when its signal aborts; surface
       // the abort or timeout instead of reporting a cut-off reply as 'stop'.
       if (controls.signal.aborted) throw controls.signal.reason;
-      options.onFinishReason?.(this.mapFinishReason(streamFinish));
+      const finish = this.mapFinishReason(streamFinish);
+      if (finish === 'refusal')
+        options.onRefusal?.(mapOpenAIRefusal(undefined));
+      options.onFinishReason?.(finish);
 
       emitUsage(
         this.options,
@@ -1204,6 +1217,56 @@ export class OpenAIProvider implements AIInterface {
   }
 
   /**
+   * Sets Bifrost's reasoning controls on a chat request and returns any extra
+   * headers the request needs.
+   *
+   * Bifrost's own `reasoning` envelope is forwarded for most models. For
+   * Claude 4.6+ models it is not: Bifrost turns `reasoning.max_tokens` into
+   * `thinking.budget_tokens`, which those models reject with a 400, and its
+   * `reasoning.effort` does not reach `output_config.effort`. Those models
+   * get `output_config.effort` (and adaptive thinking) through Bifrost's
+   * provider-parameter passthrough instead: `extra_params` in the body plus
+   * the `x-bf-passthrough-extra-params` header.
+   * @private
+   */
+  private applyBifrostReasoning(
+    request: Record<string, any>,
+    options: ChatOptions,
+    model: string,
+  ): Record<string, string> | undefined {
+    if (this.profile.providerName !== 'bifrost') return undefined;
+    const reasoning = options.reasoning;
+    const effort = reasoning?.effort;
+
+    const effortDriven = effort !== undefined && claudeSupportsEffort(model);
+    if (effort !== undefined && effortDriven) {
+      request.extra_params = {
+        output_config: { effort: toClaudeEffort(model, effort) },
+        ...(effort !== 'none' ? { thinking: { type: 'adaptive' } } : {}),
+      };
+      return { 'x-bf-passthrough-extra-params': 'true' };
+    }
+
+    if (!effortDriven && (reasoning?.maxTokens || 0) > 0) {
+      if (claudeRejectsThinkingBudget(model)) {
+        // A budget these models reject: think adaptively instead.
+        request.extra_params = { thinking: { type: 'adaptive' } };
+        return { 'x-bf-passthrough-extra-params': 'true' };
+      }
+    }
+
+    if (effort !== undefined || (reasoning?.maxTokens || 0) > 0) {
+      request.reasoning = {
+        // Bifrost's effort enum stops at 'xhigh'.
+        effort: effort === 'max' ? 'xhigh' : effort,
+        max_tokens: reasoning?.maxTokens,
+        include_thoughts: reasoning?.includeThoughts,
+      };
+    }
+    return undefined;
+  }
+
+  /**
    * Maps internal AI messages to OpenAI's message format
    * @param messages - Array of internal AI messages
    * @returns Array of OpenAI-compatible message parameters
@@ -1216,13 +1279,46 @@ export class OpenAIProvider implements AIInterface {
       // Handle content that can be string or ContentPart[]
       let content: string | OpenAI.Chat.ChatCompletionContentPart[];
 
-      if (typeof message.content === 'string') {
+      // Bifrost forwards `cache_control` on content blocks to Anthropic
+      // models; other OpenAI-compatible servers get no cache field.
+      const forwardCache =
+        this.profile.providerName === 'bifrost' && hasCacheHint(message);
+
+      if (forwardCache && typeof message.content === 'string') {
+        content = toCacheableTextBlocks(message)
+          .filter((block) => block.text)
+          .map((block) => ({
+            type: 'text' as const,
+            text: block.text,
+            ...(block.cacheControl
+              ? { cache_control: block.cacheControl }
+              : {}),
+          })) as OpenAI.Chat.ChatCompletionContentPart[];
+      } else if (typeof message.content === 'string') {
         content = message.content;
       } else {
+        // The message-level hint rides on the last non-empty text part.
+        let hintedIndex = -1;
+        if (forwardCache && message.cacheHint) {
+          message.content.forEach((part, index) => {
+            if (part.type === 'text' && part.text) hintedIndex = index;
+          });
+        }
         // Array of content parts - map to OpenAI format
-        content = message.content.map((part: ContentPart) => {
+        content = message.content.map((part: ContentPart, index: number) => {
           if (part.type === 'text') {
-            return { type: 'text' as const, text: part.text };
+            const cacheControl =
+              forwardCache && part.text
+                ? toCacheControl(
+                    part.cacheHint ??
+                      (index === hintedIndex ? message.cacheHint : undefined),
+                  )
+                : undefined;
+            return {
+              type: 'text' as const,
+              text: part.text,
+              ...(cacheControl ? { cache_control: cacheControl } : {}),
+            };
           }
           // Image content part
           return {
@@ -1308,10 +1404,24 @@ export class OpenAIProvider implements AIInterface {
       | OpenAI.Embeddings.CreateEmbeddingResponse.Usage,
   ): TokenUsage | undefined {
     if (!usage) return undefined;
+    const raw = usage as Record<string, any>;
+    const details = raw.prompt_tokens_details;
+    // Bifrost: cached_read_tokens / cached_write_tokens. OpenAI: cached_tokens.
+    // LiteLLM and Anthropic-shaped gateways: top-level cache_*_input_tokens.
+    const cacheRead =
+      details?.cached_read_tokens ??
+      details?.cached_tokens ??
+      raw.cache_read_input_tokens;
+    const cacheWrite =
+      details?.cached_write_tokens ?? raw.cache_creation_input_tokens;
+    // Bifrost reports `cost` as an object with `total_cost`; some gateways
+    // send a bare number.
+    const cost = typeof raw.cost === 'number' ? raw.cost : raw.cost?.total_cost;
     return {
       promptTokens: usage.prompt_tokens || 0,
       completionTokens: (usage as any).completion_tokens || 0,
       totalTokens: usage.total_tokens || 0,
+      ...cacheUsageFields(cacheRead, cacheWrite, cost),
     };
   }
 
@@ -1363,6 +1473,9 @@ export class OpenAIProvider implements AIInterface {
         return 'tool_calls';
       case 'content_filter':
         return 'content_filter';
+      case 'refusal':
+        // A gateway forwarding Claude's `stop_reason: 'refusal'`.
+        return 'refusal';
       default:
         return 'other';
     }
@@ -1450,4 +1563,20 @@ export class OpenAIProvider implements AIInterface {
       this.profile.providerName,
     );
   }
+}
+
+/**
+ * Refusal details from a gateway response. Gateways that forward Claude's
+ * `stop_details` on the message are read; otherwise both fields are `null`.
+ */
+function mapOpenAIRefusal(details: unknown): AIRefusal {
+  const record = (details ?? {}) as {
+    category?: unknown;
+    explanation?: unknown;
+  };
+  return {
+    category: typeof record.category === 'string' ? record.category : null,
+    explanation:
+      typeof record.explanation === 'string' ? record.explanation : null,
+  };
 }

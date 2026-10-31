@@ -673,6 +673,37 @@ alias like `openai/terra`, gets the same shape unless it names a legacy family
 of one), because an alias name does not reveal the model behind it. Bare ids and other vendors are
 matched by name only.
 
+### Cache and cost usage
+
+`TokenUsage` (on `AIResponse.usage` and `onUsage` events) reports prompt-cache
+figures when the provider sends them: `cacheReadInputTokens` and
+`cacheCreationInputTokens`. Both are included in `promptTokens` for every
+provider (Anthropic and Bedrock report them separately from input tokens; the SDK
+adds them), and absent when the provider reports none. `costUsd` is set only when
+the server or gateway reports a cost (Bifrost's `usage.cost.total_cost`); the SDK
+never estimates one. Anthropic and Bedrock streams report usage too.
+
+
+### Claude effort
+
+Claude 4.6+ models (Opus and Sonnet 4.6 and later, Haiku 5 and later, Fable,
+Mythos) take `output_config.effort` instead of a thinking budget, and Opus 4.7+
+rejects `budget_tokens` outright. For those models `reasoning.effort`
+(`'low' | 'medium' | 'high' | 'xhigh' | 'max'`) is sent as `output_config.effort`
+with adaptive thinking, and it is not converted into a token budget, so it is
+not limited by `generationLimits.maxReasoningTokens`:
+
+- `anthropic`: `output_config: { effort }` and `thinking: { type: 'adaptive' }`.
+- `bifrost`: `extra_params: { output_config: { effort }, thinking: { type: 'adaptive' } }`
+  with the `x-bf-passthrough-extra-params: true` header (Bifrost's provider-parameter
+  passthrough). Its `reasoning` envelope is not sent for these models, because
+  Bifrost would turn `max_tokens` into a rejected `budget_tokens`.
+- `bedrock`: the same fields in `additionalModelRequestFields`.
+
+`'none'` and `'minimal'` are sent as `'low'` (Claude cannot be told to skip
+thinking through effort); `'xhigh'` is sent as `'high'` on Opus/Sonnet 4.6, which
+has no `xhigh`. Older Claude models keep the `reasoning.maxTokens` budget.
+
 LiteLLM rejects caller-supplied `reasoning.maxTokens`,
 `reasoning.includeThoughts`, and legacy `includeThoughts` before model discovery
 or transport. Its Chat Completions protocol has no generic separate reasoning
@@ -820,6 +851,35 @@ for await (const text of ai.stream(messages, {
   does not accept the field, and dropping it silently would lose a template
   switch the caller asked for. LiteLLM and Bifrost forward it to their gateway.
 - With `continueOnLength`, reasoning from every part is joined and reported once.
+
+## Prompt Caching and Claude Refusals
+
+Mark the end of a cacheable prompt prefix with `cacheHint` on a message or on a
+text part (`true`, or `{ ttl: '5m' | '1h' }`). The Anthropic and Bifrost providers
+forward it as `cache_control: { type: 'ephemeral' }` (plus `ttl`); every other
+provider ignores it. On a `system` message it caches the system prompt. Cache
+reads and writes come back in `usage.cacheReadInputTokens` and
+`usage.cacheCreationInputTokens`.
+
+```typescript
+const response = await ai.chat(
+  [
+    { role: 'system', content: longRubric, cacheHint: true },
+    { role: 'user', content: question },
+  ],
+  { model: 'claude-opus-5-5', reasoning: { effort: 'medium' } },
+);
+console.log(response.usage?.cacheReadInputTokens);
+```
+
+Providers cap the number of cached prefixes (Anthropic allows 4) and need a
+minimum prefix size; a shorter prefix is silently not cached.
+
+When Claude declines a request (`stop_reason: 'refusal'`), `finishReason` is
+`'refusal'` (distinct from `'content_filter'`) and `response.refusal` holds
+`{ category, explanation }` from `stop_details`. It is not thrown. Streams call
+`onRefusal(refusal)` and then `onFinishReason('refusal')`. Bifrost reports it only
+if the gateway forwards the reason as a `refusal` finish reason.
 
 ## Continuing Truncated Replies
 

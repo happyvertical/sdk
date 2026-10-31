@@ -18,13 +18,36 @@ export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
  * server reported a reason outside this set (e.g. vLLM `abort`): treat the
  * reply as possibly incomplete. Only the OpenAI-compatible providers report
  * it today; see {@link AIResponse.rawFinishReason} for the server's value.
+ * `'refusal'` is Claude declining the request (see {@link AIRefusal}); it is
+ * reported by the Anthropic and Bedrock providers and by gateways that
+ * forward the reason.
  */
 export type AIFinishReason =
   | 'stop'
   | 'length'
   | 'tool_calls'
   | 'content_filter'
+  | 'refusal'
   | 'other';
+
+/**
+ * Why Claude declined a request (`stop_reason: 'refusal'` with
+ * `stop_details`). Distinct from `'content_filter'`, which is a server-side
+ * content filter on OpenAI-compatible APIs: a refusal is the model's own
+ * safety classifiers declining, the reply is empty or partial, and retrying
+ * the same request will usually be declined again.
+ */
+export interface AIRefusal {
+  /**
+   * Refusal category from `stop_details.category`, an open set (e.g.
+   * `'cyber'`, `'bio'`, `'reasoning_extraction'`, `'frontier_llm'`). `null`
+   * when the provider gave none.
+   */
+  category: string | null;
+
+  /** Human-readable `stop_details.explanation`, or `null`. */
+  explanation: string | null;
+}
 
 /**
  * Automatic continuation when a reply stops on its output limit. `true`
@@ -64,7 +87,17 @@ export interface AIGenerationLimits {
 
 /** Provider-neutral reasoning controls for a single generation request. */
 export interface AIReasoningOptions {
-  effort?: 'none' | GeminiThinkingLevel;
+  /**
+   * Reasoning effort. `'xhigh'` and `'max'` exist for Claude: on Claude 4.6+
+   * models (Anthropic, Bifrost, Bedrock) the effort is sent as
+   * `output_config.effort` and adaptive thinking is used instead of a token
+   * budget, so `maxTokens` is not turned into `budget_tokens` there. On
+   * Opus/Sonnet 4.6 `'xhigh'` is sent as `'high'`; `'none'` and `'minimal'`
+   * are sent as `'low'` because Claude's thinking cannot be set to zero by
+   * effort. Other providers treat `'xhigh'` and `'max'` as `'high'` unless
+   * their API accepts them (OpenAI and LiteLLM forward the value as given).
+   */
+  effort?: 'none' | GeminiThinkingLevel | 'xhigh' | 'max';
   maxTokens?: number;
   includeThoughts?: boolean;
 }
@@ -159,11 +192,30 @@ export const AI_PROVIDER_TYPES = [
 export type AIProviderType = (typeof AI_PROVIDER_TYPES)[number];
 
 /**
+ * Provider-neutral prompt-cache hint. `true` asks for the provider's default
+ * ephemeral cache; `{ ttl }` picks the lifetime (`'5m'` default, `'1h'`).
+ *
+ * The hint marks the end of a cacheable prefix: everything up to and
+ * including the marked content (tools, then system, then messages, in that
+ * order) may be cached. It is forwarded as `cache_control: { type:
+ * 'ephemeral' }` (plus `ttl` when set) by the Anthropic provider and by the
+ * Bifrost provider, and ignored by every other provider. Providers cap the
+ * number of marked prefixes (Anthropic allows 4) and enforce a minimum
+ * cacheable size; neither is checked here.
+ */
+export type AICacheHint = true | { ttl?: '5m' | '1h' };
+
+/**
  * Text content part for multimodal messages
  */
 export interface TextContentPart {
   type: 'text';
   text: string;
+  /**
+   * Cache the prompt prefix up to and including this part. See
+   * {@link AICacheHint}.
+   */
+  cacheHint?: AICacheHint;
 }
 
 /**
@@ -242,6 +294,13 @@ export interface AIMessage {
    * for multimodal messages (e.g., text + images for vision models).
    */
   content: string | ContentPart[];
+
+  /**
+   * Cache the prompt prefix up to and including this message (its last text
+   * part when `content` is an array). On a `role: 'system'` message this
+   * caches the system prompt. See {@link AICacheHint}.
+   */
+  cacheHint?: AICacheHint;
 
   /**
    * Optional name for the message sender.
@@ -424,6 +483,12 @@ export interface ChatOptions extends AIRequestControls {
    * finish reason. Used for continuation; also useful to detect truncation.
    */
   onFinishReason?: (reason: AIFinishReason) => void;
+
+  /**
+   * Called by streaming adapters when a Claude stream ends in a refusal,
+   * just before `onFinishReason('refusal')`, with the refusal details.
+   */
+  onRefusal?: (refusal: AIRefusal) => void;
 
   /**
    * Called by streaming adapters once when the stream ends, with the
@@ -1320,7 +1385,8 @@ export interface AICapabilities {
  */
 export interface TokenUsage {
   /**
-   * Number of prompt tokens
+   * Number of prompt tokens, including any prompt-cache read and write
+   * tokens (`cacheReadInputTokens`, `cacheCreationInputTokens`)
    */
   promptTokens: number;
 
@@ -1333,6 +1399,25 @@ export interface TokenUsage {
    * Total tokens used
    */
   totalTokens: number;
+
+  /**
+   * Prompt tokens served from the provider's prompt cache. Included in
+   * `promptTokens`. Absent when the provider reports no cache figures.
+   */
+  cacheReadInputTokens?: number;
+
+  /**
+   * Prompt tokens written to the provider's prompt cache on this request.
+   * Included in `promptTokens`. Absent when the provider reports none.
+   */
+  cacheCreationInputTokens?: number;
+
+  /**
+   * Cost of the request in USD, only when the provider or gateway reports it
+   * (e.g. Bifrost's `usage.cost.total_cost`). Never estimated from a price
+   * list; absent when the server sends no cost.
+   */
+  costUsd?: number;
 }
 
 /** JSON-compatible data evaluated by a decision provider. */
@@ -1497,6 +1582,13 @@ export interface AIResponse {
    * `'abort'` from vLLM or legacy `'function_call'`.
    */
   rawFinishReason?: string;
+
+  /**
+   * Set when `finishReason` is `'refusal'`: why Claude declined. The reply
+   * `content` is empty or partial. Check this (or `finishReason`) before
+   * using the content; it is not thrown as an error.
+   */
+  refusal?: AIRefusal;
 
   /**
    * Reasoning ("thinking") text the server returned separately from

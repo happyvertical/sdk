@@ -1,3 +1,4 @@
+import { claudeSupportsEffort } from './claude-models';
 import type {
   AIGenerationLimits,
   AIInterface,
@@ -233,8 +234,15 @@ export function normalizeChatOptions<
     options.reasoning !== undefined ||
     legacyEffort !== undefined ||
     options.includeThoughts === true;
+  // Claude 4.6+ models take an effort, not a thinking budget: an effort-only
+  // request must not be turned into (and capped as) a token budget.
+  const effortOnly =
+    options.reasoning?.effort !== undefined &&
+    options.reasoning.maxTokens === undefined &&
+    claudeSupportsEffort(model);
   const requestedReasoning = reasoningWasRequested
     ? (options.reasoning?.maxTokens ??
+      (effortOnly ? 0 : undefined) ??
       reasoningTokensForEffort(options.reasoning?.effort ?? legacyEffort) ??
       limits.maxReasoningTokens)
     : 0;

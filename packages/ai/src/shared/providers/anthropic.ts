@@ -6,6 +6,18 @@
  * Note: Claude models do not support embeddings - use OpenAI or another provider for that.
  */
 
+import {
+  type CacheControlWire,
+  hasCacheHint,
+  toCacheableTextBlocks,
+  toCacheControl,
+} from '../cache-hint';
+import {
+  type ClaudeEffort,
+  claudeRejectsThinkingBudget,
+  claudeSupportsEffort,
+  toClaudeEffort,
+} from '../claude-models';
 import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
@@ -19,6 +31,7 @@ import type {
   AIInterface,
   AIMessage,
   AIModel,
+  AIRefusal,
   AIResponse,
   AIThinkingBlock,
   AIToolCall,
@@ -51,18 +64,38 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
-import { emitUsage } from './usage';
+import { cacheUsageFields, emitUsage } from './usage';
+
+type AnthropicCacheControl = { cache_control?: CacheControlWire };
+
+type AnthropicTextBlock = {
+  type: 'text';
+  text: string;
+} & AnthropicCacheControl;
 
 type AnthropicContentBlock =
   | AIThinkingBlock
-  | { type: 'text'; text: string }
-  | {
+  | AnthropicTextBlock
+  | ({
       type: 'tool_use';
       id: string;
       name: string;
       input: Record<string, unknown>;
-    }
-  | { type: 'tool_result'; tool_use_id: string; content: string };
+    } & AnthropicCacheControl)
+  | ({
+      type: 'tool_result';
+      tool_use_id: string;
+      content: string;
+    } & AnthropicCacheControl);
+
+/** Text blocks of a message, carrying `cache_control` where hinted. */
+function toAnthropicTextBlocks(message: AIMessage): AnthropicTextBlock[] {
+  return toCacheableTextBlocks(message).map((block) => ({
+    type: 'text' as const,
+    text: block.text,
+    ...(block.cacheControl ? { cache_control: block.cacheControl } : {}),
+  }));
+}
 
 interface AnthropicMessage {
   role: 'user' | 'assistant';
@@ -199,18 +232,31 @@ export class AnthropicProvider implements AIInterface {
         ...this.mapToolParams(options, anthropicMessages),
         stream: false,
       };
-      const thinking = this.mapThinking(options, anthropicMessages);
+      const thinking = this.mapThinking(options, anthropicMessages, model);
       if (thinking) {
         requestParams.thinking = thinking;
+      }
+      const outputConfig = this.mapOutputConfig(options, model);
+      if (outputConfig) {
+        requestParams.output_config = outputConfig;
       }
 
       // Add response format if specified
       if (options.responseFormat?.type === 'json_object') {
         const jsonInstruction =
           '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
-        requestParams.system = requestParams.system
-          ? requestParams.system + jsonInstruction
-          : jsonInstruction.trim();
+        if (Array.isArray(requestParams.system)) {
+          // Appended after the cached blocks so the instruction never
+          // changes the cached prefix.
+          requestParams.system = [
+            ...requestParams.system,
+            { type: 'text', text: jsonInstruction.trim() },
+          ];
+        } else {
+          requestParams.system = requestParams.system
+            ? requestParams.system + jsonInstruction
+            : jsonInstruction.trim();
+        }
       }
 
       const response = await this.client.messages.create(requestParams, {
@@ -242,11 +288,7 @@ export class AnthropicProvider implements AIInterface {
         toolCalls[0].thinkingBlocks = thinkingBlocks;
       }
 
-      const usage: TokenUsage = {
-        promptTokens: response.usage.input_tokens,
-        completionTokens: response.usage.output_tokens,
-        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-      };
+      const usage = mapAnthropicUsage(response.usage);
       emitUsage(
         this.options,
         'anthropic',
@@ -257,10 +299,14 @@ export class AnthropicProvider implements AIInterface {
         options.usageTags,
       );
 
+      const finishReason = this.mapFinishReason(response.stop_reason);
       return {
         content: textContent,
         model: response.model,
-        finishReason: this.mapFinishReason(response.stop_reason),
+        finishReason,
+        ...(finishReason === 'refusal'
+          ? { refusal: mapRefusal(response.stop_details) }
+          : {}),
         usage,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       };
@@ -451,9 +497,13 @@ export class AnthropicProvider implements AIInterface {
         ...this.mapHistoryToolParams(anthropicMessages),
         stream: true,
       };
-      const thinking = this.mapThinking(options, anthropicMessages);
+      const thinking = this.mapThinking(options, anthropicMessages, model);
       if (thinking) {
         requestParams.thinking = thinking;
+      }
+      const outputConfig = this.mapOutputConfig(options, model);
+      if (outputConfig) {
+        requestParams.output_config = outputConfig;
       }
       const stream = await this.client.messages.create(requestParams, {
         signal: controls.signal,
@@ -461,9 +511,19 @@ export class AnthropicProvider implements AIInterface {
       });
 
       let streamStopReason: string | null = null;
+      let streamStopDetails: unknown;
+      let streamUsage: Record<string, unknown> | undefined;
       for await (const chunk of stream) {
-        if (chunk.type === 'message_delta' && chunk.delta?.stop_reason) {
-          streamStopReason = chunk.delta.stop_reason;
+        if (chunk.type === 'message_start' && chunk.message?.usage) {
+          streamUsage = { ...chunk.message.usage };
+        }
+        if (chunk.type === 'message_delta') {
+          // message_delta usage is cumulative for the fields it carries.
+          if (chunk.usage) streamUsage = { ...streamUsage, ...chunk.usage };
+          if (chunk.delta?.stop_reason) {
+            streamStopReason = chunk.delta.stop_reason;
+            streamStopDetails = chunk.delta.stop_details;
+          }
         }
         if (
           chunk.type === 'content_block_delta' &&
@@ -475,16 +535,18 @@ export class AnthropicProvider implements AIInterface {
           yield chunk.delta.text;
         }
       }
-      options.onFinishReason?.(
-        this.mapFinishReason(streamStopReason) ?? 'stop',
-      );
+      const streamFinish = this.mapFinishReason(streamStopReason) ?? 'stop';
+      if (streamFinish === 'refusal') {
+        options.onRefusal?.(mapRefusal(streamStopDetails));
+      }
+      options.onFinishReason?.(streamFinish);
 
       emitUsage(
         this.options,
         'anthropic',
         'stream',
         model!,
-        undefined,
+        streamUsage ? mapAnthropicUsage(streamUsage) : undefined,
         startTime,
         options.usageTags,
       );
@@ -710,11 +772,15 @@ export class AnthropicProvider implements AIInterface {
    * plain text (and a call left unanswered keeps only its text).
    */
   private mapMessagesToAnthropic(messages: AIMessage[]): {
-    system?: string;
+    system?: string | AnthropicTextBlock[];
     anthropicMessages: AnthropicMessage[];
   } {
     // Anthropic handles system messages separately
     let system: string | undefined;
+    // Only built when a system message carries a cache hint: breakpoints
+    // need block form, so the system prompt is sent as text blocks then.
+    const systemBlocks: AnthropicTextBlock[] = [];
+    let systemHinted = false;
     const anthropicMessages: AnthropicMessage[] = [];
     const answeredToolCallIds = new Set(
       messages
@@ -739,6 +805,8 @@ export class AnthropicProvider implements AIInterface {
       if (message.role === 'system') {
         // Combine multiple system messages
         system = system ? `${system}\n\n${textContent}` : textContent;
+        systemHinted ||= hasCacheHint(message);
+        systemBlocks.push(...toAnthropicTextBlocks(message));
         continue;
       }
 
@@ -751,6 +819,9 @@ export class AnthropicProvider implements AIInterface {
           type: 'tool_result',
           tool_use_id: message.tool_call_id,
           content: textContent,
+          ...(message.cacheHint
+            ? { cache_control: toCacheControl(message.cacheHint) }
+            : {}),
         };
         const previous = anthropicMessages[anthropicMessages.length - 1];
         if (
@@ -789,17 +860,36 @@ export class AnthropicProvider implements AIInterface {
             input: parseToolArguments(toolCall.function.arguments),
           });
         }
+        const cacheControl = toCacheControl(message.cacheHint);
+        const last = content[content.length - 1];
+        if (
+          cacheControl &&
+          (last.type === 'text' || last.type === 'tool_use')
+        ) {
+          last.cache_control = cacheControl;
+        }
         anthropicMessages.push({ role: 'assistant', content });
         continue;
       }
 
+      const hintedBlocks = hasCacheHint(message)
+        ? toAnthropicTextBlocks(message).filter((block) => block.text)
+        : [];
       anthropicMessages.push({
         role: message.role === 'assistant' ? 'assistant' : 'user',
-        content: textContent,
+        content: hintedBlocks.length > 0 ? hintedBlocks : textContent,
       });
     }
 
-    return { system, anthropicMessages };
+    const hintedSystem = systemBlocks.filter((block) => block.text);
+    return {
+      system: systemHinted
+        ? hintedSystem.length > 0
+          ? hintedSystem
+          : undefined
+        : system,
+      anthropicMessages,
+    };
   }
 
   /**
@@ -873,9 +963,18 @@ export class AnthropicProvider implements AIInterface {
   private mapThinking(
     options: ChatOptions,
     anthropicMessages: AnthropicMessage[],
-  ): { type: 'enabled'; budget_tokens: number } | undefined {
+    model: string | undefined,
+  ):
+    | { type: 'enabled'; budget_tokens: number }
+    | { type: 'adaptive' }
+    | undefined {
+    const effort = options.reasoning?.effort;
+    // Claude 4.6+ models are steered by `output_config.effort`, with thinking
+    // adaptive; effort 'none' asks for no thinking (where it can be omitted).
+    const effortDriven =
+      effort !== undefined && effort !== 'none' && claudeSupportsEffort(model);
     const budget = options.reasoning?.maxTokens || 0;
-    if (budget <= 0) return undefined;
+    if (budget <= 0 && !effortDriven) return undefined;
 
     const lastAssistant = [...anthropicMessages]
       .reverse()
@@ -891,7 +990,25 @@ export class AnthropicProvider implements AIInterface {
       }
     }
 
+    // Models that reject `budget_tokens` (Opus/Sonnet 4.7+, Fable, ...) can
+    // only think adaptively; the budget is not sent.
+    if (effortDriven || claudeRejectsThinkingBudget(model)) {
+      return { type: 'adaptive' };
+    }
     return { type: 'enabled', budget_tokens: budget };
+  }
+
+  /**
+   * Builds `output_config` for the effort of Claude 4.6+ models. Other models
+   * have no effort control, so the option is not sent to them.
+   */
+  private mapOutputConfig(
+    options: ChatOptions,
+    model: string | undefined,
+  ): { effort: ClaudeEffort } | undefined {
+    const effort = options.reasoning?.effort;
+    if (effort === undefined || !claudeSupportsEffort(model)) return undefined;
+    return { effort: toClaudeEffort(model, effort) };
   }
 
   private mapTools(options: ChatOptions): Record<string, any>[] | undefined {
@@ -938,6 +1055,8 @@ export class AnthropicProvider implements AIInterface {
         return 'stop';
       case 'tool_use':
         return 'tool_calls';
+      case 'refusal':
+        return 'refusal';
       default:
         return 'stop';
     }
@@ -972,6 +1091,37 @@ export class AnthropicProvider implements AIInterface {
         : 'Unknown Anthropic error occurred';
     return new AIError(errorMessage, 'UNKNOWN_ERROR', 'anthropic');
   }
+}
+
+/** Refusal details from Anthropic's `stop_details`. */
+function mapRefusal(details: any): AIRefusal {
+  return {
+    category: typeof details?.category === 'string' ? details.category : null,
+    explanation:
+      typeof details?.explanation === 'string' ? details.explanation : null,
+  };
+}
+
+/**
+ * Token usage from an Anthropic usage object. `input_tokens` excludes cached
+ * tokens, so cache reads and writes are added to `promptTokens`.
+ */
+function mapAnthropicUsage(usage: any): TokenUsage {
+  const cache = cacheUsageFields(
+    usage?.cache_read_input_tokens,
+    usage?.cache_creation_input_tokens,
+  );
+  const promptTokens =
+    (usage?.input_tokens || 0) +
+    (cache.cacheReadInputTokens || 0) +
+    (cache.cacheCreationInputTokens || 0);
+  const completionTokens = usage?.output_tokens || 0;
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    ...cache,
+  };
 }
 
 /**

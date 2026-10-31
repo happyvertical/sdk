@@ -123,10 +123,23 @@ function addUsage(
 ): TokenUsage | undefined {
   if (!a) return b;
   if (!b) return a;
+  const sum = (x?: number, y?: number) =>
+    x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0);
+  const cacheRead = sum(a.cacheReadInputTokens, b.cacheReadInputTokens);
+  const cacheCreation = sum(
+    a.cacheCreationInputTokens,
+    b.cacheCreationInputTokens,
+  );
+  const cost = sum(a.costUsd, b.costUsd);
   return {
     promptTokens: a.promptTokens + b.promptTokens,
     completionTokens: a.completionTokens + b.completionTokens,
     totalTokens: a.totalTokens + b.totalTokens,
+    ...(cacheRead !== undefined ? { cacheReadInputTokens: cacheRead } : {}),
+    ...(cacheCreation !== undefined
+      ? { cacheCreationInputTokens: cacheCreation }
+      : {}),
+    ...(cost !== undefined ? { costUsd: cost } : {}),
   };
 }
 

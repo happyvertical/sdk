@@ -117,6 +117,40 @@ describe('continueOnLength (OpenAI-compatible)', () => {
     ]);
   });
 
+  it('sums cache tokens and cost across continuation parts', async () => {
+    const withCache = (
+      reply: ReturnType<typeof openAIReply>,
+      read: number,
+      cost: number,
+    ) => ({
+      ...reply,
+      usage: {
+        ...(reply as any).usage,
+        prompt_tokens_details: { cached_read_tokens: read },
+        cost: { total_cost: cost },
+      },
+    });
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(
+        withCache(openAIReply(`one ${SEAM}`, 'length', [10, 5]), 4, 0.5),
+      )
+      .mockResolvedValueOnce(
+        withCache(openAIReply(' two', 'stop', [20, 6]), 8, 0.25),
+      );
+    const result = await openAI(create).chat(
+      [{ role: 'user', content: 'go' }],
+      {
+        continueOnLength: true,
+      },
+    );
+    expect(result.usage).toMatchObject({
+      promptTokens: 30,
+      cacheReadInputTokens: 12,
+      costUsd: 0.75,
+    });
+  });
+
   it('stops at maxContinuations and reports truncated', async () => {
     const create = vi.fn().mockImplementation(async () => {
       const n = create.mock.calls.length;

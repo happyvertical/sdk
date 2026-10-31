@@ -2,6 +2,11 @@
  * AWS Bedrock provider implementation
  */
 
+import {
+  claudeRejectsThinkingBudget,
+  claudeSupportsEffort,
+  toClaudeEffort,
+} from '../claude-models';
 import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
@@ -45,7 +50,7 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
-import { emitUsage } from './usage';
+import { cacheUsageFields, emitUsage } from './usage';
 
 const BEDROCK_DEFAULT_CHAT_MODEL = 'anthropic.claude-3-5-sonnet-20241022-v2:0';
 const BEDROCK_TEXT_EMBEDDING_MODEL = 'amazon.titan-embed-text-v2:0';
@@ -507,17 +512,17 @@ export class BedrockProvider implements AIInterface {
         }
 
         if (event.metadata?.usage) {
-          usage = {
-            promptTokens: event.metadata.usage.inputTokens || 0,
-            completionTokens: event.metadata.usage.outputTokens || 0,
-            totalTokens: event.metadata.usage.totalTokens || 0,
-          };
+          usage = mapBedrockUsage(event.metadata.usage);
         }
       }
 
-      options.onFinishReason?.(
-        this.mapBedrockFinishReason(streamStopReason) ?? 'stop',
-      );
+      const streamFinish =
+        this.mapBedrockFinishReason(streamStopReason) ?? 'stop';
+      if (streamFinish === 'refusal') {
+        // Converse carries no stop_details.
+        options.onRefusal?.({ category: null, explanation: null });
+      }
+      options.onFinishReason?.(streamFinish);
 
       emitUsage(
         this.options,
@@ -842,12 +847,21 @@ export class BedrockProvider implements AIInterface {
       ...(Object.keys(inferenceConfig).length > 0 && { inferenceConfig }),
       ...(systemPrompt && { system: [{ text: systemPrompt }] }),
     };
-    if ((options.reasoning?.maxTokens || 0) > 0) {
+    const effort = options.reasoning?.effort;
+    if (effort !== undefined && claudeSupportsEffort(modelId)) {
+      // Claude 4.6+: effort, with adaptive thinking instead of a budget.
       request.additionalModelRequestFields = {
-        thinking: {
-          type: 'enabled',
-          budget_tokens: options.reasoning?.maxTokens,
-        },
+        output_config: { effort: toClaudeEffort(modelId, effort) },
+        ...(effort !== 'none' ? { thinking: { type: 'adaptive' } } : {}),
+      };
+    } else if ((options.reasoning?.maxTokens || 0) > 0) {
+      request.additionalModelRequestFields = {
+        thinking: claudeRejectsThinkingBudget(modelId)
+          ? { type: 'adaptive' }
+          : {
+              type: 'enabled',
+              budget_tokens: options.reasoning?.maxTokens,
+            },
       };
     }
 
@@ -944,6 +958,7 @@ export class BedrockProvider implements AIInterface {
   }
 
   private mapConverseResponse(response: any, modelId: string): AIResponse {
+    const finishReason = this.mapBedrockFinishReason(response.stopReason);
     const contentBlocks = response.output?.message?.content || [];
     const textContent = contentBlocks
       .filter((block: any) => typeof block.text === 'string')
@@ -961,18 +976,15 @@ export class BedrockProvider implements AIInterface {
         },
       }));
 
-    const usage =
-      response.usage &&
-      ({
-        promptTokens: response.usage.inputTokens || 0,
-        completionTokens: response.usage.outputTokens || 0,
-        totalTokens: response.usage.totalTokens || 0,
-      } satisfies TokenUsage);
+    const usage = response.usage && mapBedrockUsage(response.usage);
 
     return {
       content: textContent,
       model: modelId,
-      finishReason: this.mapBedrockFinishReason(response.stopReason),
+      finishReason,
+      ...(finishReason === 'refusal'
+        ? { refusal: { category: null, explanation: null } }
+        : {}),
       usage,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
     };
@@ -990,6 +1002,8 @@ export class BedrockProvider implements AIInterface {
         return 'stop';
       case 'tool_use':
         return 'tool_calls';
+      case 'refusal':
+        return 'refusal';
       default:
         return 'stop';
     }
@@ -1296,4 +1310,30 @@ export class BedrockProvider implements AIInterface {
       error instanceof Error ? error.message : 'Unknown Bedrock error occurred';
     return new AIError(errorMessage, 'UNKNOWN_ERROR', 'bedrock');
   }
+}
+
+/**
+ * Token usage from a Converse usage object. `inputTokens` excludes cached
+ * tokens, so cache reads and writes are added to `promptTokens`.
+ */
+function mapBedrockUsage(usage: {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheWriteInputTokens?: number;
+}): TokenUsage {
+  const cache = cacheUsageFields(
+    usage.cacheReadInputTokens,
+    usage.cacheWriteInputTokens,
+  );
+  return {
+    promptTokens:
+      (usage.inputTokens || 0) +
+      (cache.cacheReadInputTokens || 0) +
+      (cache.cacheCreationInputTokens || 0),
+    completionTokens: usage.outputTokens || 0,
+    totalTokens: usage.totalTokens || 0,
+    ...cache,
+  };
 }

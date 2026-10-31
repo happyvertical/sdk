@@ -47,3 +47,31 @@ export function emitUsage(
     // Silently swallow consumer errors
   }
 }
+
+function count(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+/**
+ * Cache and cost fields for a {@link TokenUsage}, only the ones the provider
+ * reported (a missing or malformed figure is omitted, never reported as 0).
+ */
+export function cacheUsageFields(
+  cacheRead: unknown,
+  cacheCreation: unknown,
+  costUsd?: unknown,
+): Pick<
+  TokenUsage,
+  'cacheReadInputTokens' | 'cacheCreationInputTokens' | 'costUsd'
+> {
+  const read = count(cacheRead);
+  const creation = count(cacheCreation);
+  const cost = count(costUsd);
+  return {
+    ...(read !== undefined ? { cacheReadInputTokens: read } : {}),
+    ...(creation !== undefined ? { cacheCreationInputTokens: creation } : {}),
+    ...(cost !== undefined ? { costUsd: cost } : {}),
+  };
+}
