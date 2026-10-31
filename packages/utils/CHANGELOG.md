@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.2
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - treat OpenAI gateway aliases as reasoning models (#1475) (ai)
+
 ## 0.111.1
 
 ### Patch Changes
