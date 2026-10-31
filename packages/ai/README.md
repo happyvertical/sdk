@@ -673,6 +673,17 @@ alias like `openai/terra`, gets the same shape unless it names a legacy family
 of one), because an alias name does not reveal the model behind it. Bare ids and other vendors are
 matched by name only.
 
+### Cache and cost usage
+
+`TokenUsage` (on `AIResponse.usage` and `onUsage` events) reports prompt-cache
+figures when the provider sends them: `cacheReadInputTokens` and
+`cacheCreationInputTokens`. Both are included in `promptTokens` for every
+provider (Anthropic and Bedrock report them separately from input tokens; the SDK
+adds them), and absent when the provider reports none. `costUsd` is set only when
+the server or gateway reports a cost (Bifrost's `usage.cost.total_cost`); the SDK
+never estimates one. Anthropic and Bedrock streams report usage too.
+
+
 ### Claude effort
 
 Claude 4.6+ models (Opus and Sonnet 4.6 and later, Haiku 5 and later, Fable,

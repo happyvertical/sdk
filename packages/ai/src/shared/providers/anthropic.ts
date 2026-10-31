@@ -63,7 +63,7 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
-import { emitUsage } from './usage';
+import { cacheUsageFields, emitUsage } from './usage';
 
 type AnthropicCacheControl = { cache_control?: CacheControlWire };
 
@@ -287,11 +287,7 @@ export class AnthropicProvider implements AIInterface {
         toolCalls[0].thinkingBlocks = thinkingBlocks;
       }
 
-      const usage: TokenUsage = {
-        promptTokens: response.usage.input_tokens,
-        completionTokens: response.usage.output_tokens,
-        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-      };
+      const usage = mapAnthropicUsage(response.usage);
       emitUsage(
         this.options,
         'anthropic',
@@ -510,9 +506,17 @@ export class AnthropicProvider implements AIInterface {
       });
 
       let streamStopReason: string | null = null;
+      let streamUsage: Record<string, unknown> | undefined;
       for await (const chunk of stream) {
-        if (chunk.type === 'message_delta' && chunk.delta?.stop_reason) {
-          streamStopReason = chunk.delta.stop_reason;
+        if (chunk.type === 'message_start' && chunk.message?.usage) {
+          streamUsage = { ...chunk.message.usage };
+        }
+        if (chunk.type === 'message_delta') {
+          // message_delta usage is cumulative for the fields it carries.
+          if (chunk.usage) streamUsage = { ...streamUsage, ...chunk.usage };
+          if (chunk.delta?.stop_reason) {
+            streamStopReason = chunk.delta.stop_reason;
+          }
         }
         if (
           chunk.type === 'content_block_delta' &&
@@ -533,7 +537,7 @@ export class AnthropicProvider implements AIInterface {
         'anthropic',
         'stream',
         model!,
-        undefined,
+        streamUsage ? mapAnthropicUsage(streamUsage) : undefined,
         startTime,
         options.usageTags,
       );
@@ -1076,6 +1080,28 @@ export class AnthropicProvider implements AIInterface {
         : 'Unknown Anthropic error occurred';
     return new AIError(errorMessage, 'UNKNOWN_ERROR', 'anthropic');
   }
+}
+
+/**
+ * Token usage from an Anthropic usage object. `input_tokens` excludes cached
+ * tokens, so cache reads and writes are added to `promptTokens`.
+ */
+function mapAnthropicUsage(usage: any): TokenUsage {
+  const cache = cacheUsageFields(
+    usage?.cache_read_input_tokens,
+    usage?.cache_creation_input_tokens,
+  );
+  const promptTokens =
+    (usage?.input_tokens || 0) +
+    (cache.cacheReadInputTokens || 0) +
+    (cache.cacheCreationInputTokens || 0);
+  const completionTokens = usage?.output_tokens || 0;
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    ...cache,
+  };
 }
 
 /**

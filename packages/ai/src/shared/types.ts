@@ -1356,7 +1356,8 @@ export interface AICapabilities {
  */
 export interface TokenUsage {
   /**
-   * Number of prompt tokens
+   * Number of prompt tokens, including any prompt-cache read and write
+   * tokens (`cacheReadInputTokens`, `cacheCreationInputTokens`)
    */
   promptTokens: number;
 
@@ -1369,6 +1370,25 @@ export interface TokenUsage {
    * Total tokens used
    */
   totalTokens: number;
+
+  /**
+   * Prompt tokens served from the provider's prompt cache. Included in
+   * `promptTokens`. Absent when the provider reports no cache figures.
+   */
+  cacheReadInputTokens?: number;
+
+  /**
+   * Prompt tokens written to the provider's prompt cache on this request.
+   * Included in `promptTokens`. Absent when the provider reports none.
+   */
+  cacheCreationInputTokens?: number;
+
+  /**
+   * Cost of the request in USD, only when the provider or gateway reports it
+   * (e.g. Bifrost's `usage.cost.total_cost`). Never estimated from a price
+   * list; absent when the server sends no cost.
+   */
+  costUsd?: number;
 }
 
 /** JSON-compatible data evaluated by a decision provider. */

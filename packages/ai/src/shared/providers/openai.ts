@@ -66,7 +66,7 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { attemptRecorderFrom, shouldRetryConnection } from './connection-retry';
-import { emitUsage } from './usage';
+import { cacheUsageFields, emitUsage } from './usage';
 
 /**
  * Determines whether a model uses OpenAI's newer reasoning-model request
@@ -1393,10 +1393,24 @@ export class OpenAIProvider implements AIInterface {
       | OpenAI.Embeddings.CreateEmbeddingResponse.Usage,
   ): TokenUsage | undefined {
     if (!usage) return undefined;
+    const raw = usage as Record<string, any>;
+    const details = raw.prompt_tokens_details;
+    // Bifrost: cached_read_tokens / cached_write_tokens. OpenAI: cached_tokens.
+    // LiteLLM and Anthropic-shaped gateways: top-level cache_*_input_tokens.
+    const cacheRead =
+      details?.cached_read_tokens ??
+      details?.cached_tokens ??
+      raw.cache_read_input_tokens;
+    const cacheWrite =
+      details?.cached_write_tokens ?? raw.cache_creation_input_tokens;
+    // Bifrost reports `cost` as an object with `total_cost`; some gateways
+    // send a bare number.
+    const cost = typeof raw.cost === 'number' ? raw.cost : raw.cost?.total_cost;
     return {
       promptTokens: usage.prompt_tokens || 0,
       completionTokens: (usage as any).completion_tokens || 0,
       totalTokens: usage.total_tokens || 0,
+      ...cacheUsageFields(cacheRead, cacheWrite, cost),
     };
   }
 
