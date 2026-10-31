@@ -6,6 +6,12 @@
  * Note: Claude models do not support embeddings - use OpenAI or another provider for that.
  */
 
+import {
+  type CacheControlWire,
+  hasCacheHint,
+  toCacheableTextBlocks,
+  toCacheControl,
+} from '../cache-hint';
 import { rateLimitErrorFrom } from '../rate-limit';
 import {
   normalizeBaseAIOptions,
@@ -53,16 +59,36 @@ import {
 } from '../types';
 import { emitUsage } from './usage';
 
+type AnthropicCacheControl = { cache_control?: CacheControlWire };
+
+type AnthropicTextBlock = {
+  type: 'text';
+  text: string;
+} & AnthropicCacheControl;
+
 type AnthropicContentBlock =
   | AIThinkingBlock
-  | { type: 'text'; text: string }
-  | {
+  | AnthropicTextBlock
+  | ({
       type: 'tool_use';
       id: string;
       name: string;
       input: Record<string, unknown>;
-    }
-  | { type: 'tool_result'; tool_use_id: string; content: string };
+    } & AnthropicCacheControl)
+  | ({
+      type: 'tool_result';
+      tool_use_id: string;
+      content: string;
+    } & AnthropicCacheControl);
+
+/** Text blocks of a message, carrying `cache_control` where hinted. */
+function toAnthropicTextBlocks(message: AIMessage): AnthropicTextBlock[] {
+  return toCacheableTextBlocks(message).map((block) => ({
+    type: 'text' as const,
+    text: block.text,
+    ...(block.cacheControl ? { cache_control: block.cacheControl } : {}),
+  }));
+}
 
 interface AnthropicMessage {
   role: 'user' | 'assistant';
@@ -208,9 +234,18 @@ export class AnthropicProvider implements AIInterface {
       if (options.responseFormat?.type === 'json_object') {
         const jsonInstruction =
           '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
-        requestParams.system = requestParams.system
-          ? requestParams.system + jsonInstruction
-          : jsonInstruction.trim();
+        if (Array.isArray(requestParams.system)) {
+          // Appended after the cached blocks so the instruction never
+          // changes the cached prefix.
+          requestParams.system = [
+            ...requestParams.system,
+            { type: 'text', text: jsonInstruction.trim() },
+          ];
+        } else {
+          requestParams.system = requestParams.system
+            ? requestParams.system + jsonInstruction
+            : jsonInstruction.trim();
+        }
       }
 
       const response = await this.client.messages.create(requestParams, {
@@ -710,11 +745,15 @@ export class AnthropicProvider implements AIInterface {
    * plain text (and a call left unanswered keeps only its text).
    */
   private mapMessagesToAnthropic(messages: AIMessage[]): {
-    system?: string;
+    system?: string | AnthropicTextBlock[];
     anthropicMessages: AnthropicMessage[];
   } {
     // Anthropic handles system messages separately
     let system: string | undefined;
+    // Only built when a system message carries a cache hint: breakpoints
+    // need block form, so the system prompt is sent as text blocks then.
+    const systemBlocks: AnthropicTextBlock[] = [];
+    let systemHinted = false;
     const anthropicMessages: AnthropicMessage[] = [];
     const answeredToolCallIds = new Set(
       messages
@@ -739,6 +778,8 @@ export class AnthropicProvider implements AIInterface {
       if (message.role === 'system') {
         // Combine multiple system messages
         system = system ? `${system}\n\n${textContent}` : textContent;
+        systemHinted ||= hasCacheHint(message);
+        systemBlocks.push(...toAnthropicTextBlocks(message));
         continue;
       }
 
@@ -751,6 +792,9 @@ export class AnthropicProvider implements AIInterface {
           type: 'tool_result',
           tool_use_id: message.tool_call_id,
           content: textContent,
+          ...(message.cacheHint
+            ? { cache_control: toCacheControl(message.cacheHint) }
+            : {}),
         };
         const previous = anthropicMessages[anthropicMessages.length - 1];
         if (
@@ -789,17 +833,36 @@ export class AnthropicProvider implements AIInterface {
             input: parseToolArguments(toolCall.function.arguments),
           });
         }
+        const cacheControl = toCacheControl(message.cacheHint);
+        const last = content[content.length - 1];
+        if (
+          cacheControl &&
+          (last.type === 'text' || last.type === 'tool_use')
+        ) {
+          last.cache_control = cacheControl;
+        }
         anthropicMessages.push({ role: 'assistant', content });
         continue;
       }
 
+      const hintedBlocks = hasCacheHint(message)
+        ? toAnthropicTextBlocks(message).filter((block) => block.text)
+        : [];
       anthropicMessages.push({
         role: message.role === 'assistant' ? 'assistant' : 'user',
-        content: textContent,
+        content: hintedBlocks.length > 0 ? hintedBlocks : textContent,
       });
     }
 
-    return { system, anthropicMessages };
+    const hintedSystem = systemBlocks.filter((block) => block.text);
+    return {
+      system: systemHinted
+        ? hintedSystem.length > 0
+          ? hintedSystem
+          : undefined
+        : system,
+      anthropicMessages,
+    };
   }
 
   /**

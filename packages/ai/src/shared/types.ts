@@ -159,11 +159,30 @@ export const AI_PROVIDER_TYPES = [
 export type AIProviderType = (typeof AI_PROVIDER_TYPES)[number];
 
 /**
+ * Provider-neutral prompt-cache hint. `true` asks for the provider's default
+ * ephemeral cache; `{ ttl }` picks the lifetime (`'5m'` default, `'1h'`).
+ *
+ * The hint marks the end of a cacheable prefix: everything up to and
+ * including the marked content (tools, then system, then messages, in that
+ * order) may be cached. It is forwarded as `cache_control: { type:
+ * 'ephemeral' }` (plus `ttl` when set) by the Anthropic provider and by the
+ * Bifrost provider, and ignored by every other provider. Providers cap the
+ * number of marked prefixes (Anthropic allows 4) and enforce a minimum
+ * cacheable size; neither is checked here.
+ */
+export type AICacheHint = true | { ttl?: '5m' | '1h' };
+
+/**
  * Text content part for multimodal messages
  */
 export interface TextContentPart {
   type: 'text';
   text: string;
+  /**
+   * Cache the prompt prefix up to and including this part. See
+   * {@link AICacheHint}.
+   */
+  cacheHint?: AICacheHint;
 }
 
 /**
@@ -242,6 +261,13 @@ export interface AIMessage {
    * for multimodal messages (e.g., text + images for vision models).
    */
   content: string | ContentPart[];
+
+  /**
+   * Cache the prompt prefix up to and including this message (its last text
+   * part when `content` is an array). On a `role: 'system'` message this
+   * caches the system prompt. See {@link AICacheHint}.
+   */
+  cacheHint?: AICacheHint;
 
   /**
    * Optional name for the message sender.

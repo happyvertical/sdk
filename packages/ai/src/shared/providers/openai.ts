@@ -8,6 +8,11 @@
  */
 
 import OpenAI from 'openai';
+import {
+  hasCacheHint,
+  toCacheableTextBlocks,
+  toCacheControl,
+} from '../cache-hint';
 import { prepareChatTemplateKwargs } from '../chat-template-kwargs';
 import { rateLimitErrorFrom } from '../rate-limit';
 import { readReasoningText, reportReasoning } from '../reasoning';
@@ -1216,13 +1221,46 @@ export class OpenAIProvider implements AIInterface {
       // Handle content that can be string or ContentPart[]
       let content: string | OpenAI.Chat.ChatCompletionContentPart[];
 
-      if (typeof message.content === 'string') {
+      // Bifrost forwards `cache_control` on content blocks to Anthropic
+      // models; other OpenAI-compatible servers get no cache field.
+      const forwardCache =
+        this.profile.providerName === 'bifrost' && hasCacheHint(message);
+
+      if (forwardCache && typeof message.content === 'string') {
+        content = toCacheableTextBlocks(message)
+          .filter((block) => block.text)
+          .map((block) => ({
+            type: 'text' as const,
+            text: block.text,
+            ...(block.cacheControl
+              ? { cache_control: block.cacheControl }
+              : {}),
+          })) as OpenAI.Chat.ChatCompletionContentPart[];
+      } else if (typeof message.content === 'string') {
         content = message.content;
       } else {
+        // The message-level hint rides on the last non-empty text part.
+        let hintedIndex = -1;
+        if (forwardCache && message.cacheHint) {
+          message.content.forEach((part, index) => {
+            if (part.type === 'text' && part.text) hintedIndex = index;
+          });
+        }
         // Array of content parts - map to OpenAI format
-        content = message.content.map((part: ContentPart) => {
+        content = message.content.map((part: ContentPart, index: number) => {
           if (part.type === 'text') {
-            return { type: 'text' as const, text: part.text };
+            const cacheControl =
+              forwardCache && part.text
+                ? toCacheControl(
+                    part.cacheHint ??
+                      (index === hintedIndex ? message.cacheHint : undefined),
+                  )
+                : undefined;
+            return {
+              type: 'text' as const,
+              text: part.text,
+              ...(cacheControl ? { cache_control: cacheControl } : {}),
+            };
           }
           // Image content part
           return {
