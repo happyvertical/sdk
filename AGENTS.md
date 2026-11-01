@@ -1,21 +1,23 @@
 # Repository Agent Instructions
 
-<!-- hv-managed-policy:start revision=1.0.0 sha256=2c2f4d048293cab2fc7f8c636eee474c0386c13a9c7bbf2c535c5ada47d1d6e5 -->
+<!-- hv-managed-policy:start revision=1.0.0 sha256=b4c3d7f6abe77261be6f02b538e93cceaae907ec14000a5e81031d7604352de0 -->
 
 ## Shared development kernel
 
 - Be concise. Load detailed SOP skills only when the task triggers them.
 - Read the repository's `.agents/project.yaml` and nearest `AGENTS.md` files before work.
 - Use `implement` by default for accepted issue implementation.
-- Tracked implementation work is complete when documented validation is green, `review-cycle` has passed, the claim is handed off, and a ready-for-review pull request exists; do this unprompted, even where harness defaults wait for a user request. Before editing untracked requested work, create and claim its issue, or — patch-class only — record it on this session's open patch train; work the user explicitly scopes as a throwaway spike is exempt: it ends at its report and never enters the commit, push, or PR lifecycle.
-- Claim an issue before editing it: add `agent: implementation` and post one claim comment naming your runtime, session, and branch. Do not take an issue another session holds with activity in the last 24 hours without a handoff. Any agent may assign work to another agent with a `dispatch: <runtime>` label and an instruction comment; the receiving agent claims it.
-- Patch-class work — small bug, doc, and improvement changes with no schema, contract, dependency, or breaking change — may bundle as one patch train on one branch and pull request with one commit per item. Other work stays one issue per pull request. An incidental patch-class fix of ten lines or fewer near files under edit ships in the same pull request as its own commit, listed under `Drive-by fixes` in the PR description; other findings go to the tracker.
+- Tracked implementation work is complete when documented validation is green, `review-cycle` has passed, the claim is handed off, and a ready-for-review pull request exists; do this unprompted. Before editing untracked requested work, create and claim its issue, or — patch-class only — record it on this session's open patch train; a user-scoped throwaway spike is exempt and ends at its report, outside the commit, push, and PR lifecycle.
+- Claim an issue before editing it: add `agent: implementation` and post one claim comment naming your runtime, session, and branch. Do not take an issue another session holds with activity in the last 24 hours without a handoff. Assign work to another agent with a `dispatch: <runtime>` label and an instruction comment; the receiver claims it.
+- Patch-class work — small bug, doc, and improvement changes with no schema, contract, dependency, or breaking change — may bundle as one patch train on one branch and pull request with one commit per item. An interactive plan of several items for one repository and release line ships the same way as a session train, feature-class included, declared by `foreman`; unattended dispatch-label runs stay one issue per pull request. An incidental patch-class fix of ten lines or fewer near files under edit ships in the same pull request as its own commit, listed under `Drive-by fixes` in the PR description; other findings go to the tracker.
 - Hand off intentionally: when done, blocked, or stopping, update your claim comment with the outcome and next step and remove `agent: implementation`. Never delete claim history.
-- Open pull requests only when reviewable, never as drafts, and keep them ready for review. Watch a ready PR until it is mergeable — no base conflicts, no unresolved review threads, the repository's required checks green, its required approvals satisfied — or report a concrete blocker.
+- Open pull requests only when reviewable, never as drafts. Watch a ready PR until it is mergeable — no base conflicts, no unresolved review threads, the repository's required checks green, its required approvals satisfied — or report a concrete blocker.
 - Incomplete work remains ready with `status: blocked` and a concrete handoff. Review agents do not claim implementation.
 - Agents do not merge unless explicitly authorized in the current session, and then only when the repository's own required checks and approvals pass.
-- Run documented validation and update affected docs before shipping.
-- Token efficiency: risk defaults to standard, high needs a named trigger; after the first final pass only accepted blockers reopen edits; after six passes, ask the user before more; wait outside the implementer.
+- Run documented validation and update affected docs before shipping. Delegated workers run narrow tests for what they touched, add tests for new behaviour, and self-review; full validation and one `review-cycle` run once on the integrated branch, earlier only for a named high-risk trigger.
+- Every subagent spawn names its model explicitly, resolved from a tier (`fastest` watchers and bookkeeping, `balanced` implementation and orchestration, `advanced` genuine reasoning), never inherited.
+- Token efficiency: risk defaults to standard, high needs a named trigger; standard review on `balanced`, high-risk on `advanced`; after the first final pass only accepted blockers reopen edits, batched before one recall; a cycle ends at its token cap without asking; wait outside the implementer.
+- Train workers never start containers or compose projects; they test in-process (`@happyvertical/sql` SQLite, DuckDB, PGlite, or the repo's documented backend). Only integration runs the service stack, as one compose project named after the branch; `services:down` is part of handoff and ship.
 - Preserve unrelated work. Never expose or retain secrets.
 - Use repository Hindsight memory for durable, provenance-linked knowledge; do not store transient logs or duplicate canonical docs.
 - Shared SOPs and portable skills come from the designated control-plane repository. Repositories choose their own technology and may add stricter local rules.
