@@ -1,7 +1,7 @@
 {
   "name": "@happyvertical/documents",
   "version": "0.111.3",
-  "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
+  "description": "Multi-part document processing with support for PDF, Word, PowerPoint, HTML, and Markdown",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -49,6 +49,9 @@
     "@happyvertical/spider": "catalog:",
     "@happyvertical/utils": "workspace:*"
   },
+  "optionalDependencies": {
+    "@kreuzberg/node": "^4.1.1"
+  },
   "devDependencies": {
     "@types/node": "25.0.10",
     "typescript": "5.9.3",
@@ -58,6 +61,8 @@
   "keywords": [
     "documents",
     "pdf",
+    "docx",
+    "pptx",
     "html",
     "markdown",
     "ocr",

@@ -1,12 +1,22 @@
 import { getMimeType } from '@happyvertical/files';
 import { scrapeDocument } from '@happyvertical/spider';
+import {
+  DOCX_MIME,
+  DOCXProcessor,
+  PPTX_MIME,
+  PPTXProcessor,
+} from './processors/office';
 import { PDFProcessor } from './processors/pdf';
 import type { Document, FetchDocumentOptions } from './types';
 
 /**
  * Available document processors
  */
-const processors = [new PDFProcessor()];
+const processors = [
+  new PDFProcessor(),
+  new DOCXProcessor(),
+  new PPTXProcessor(),
+];
 
 /**
  * Fetch a document from a URL with automatic format detection
@@ -110,6 +120,10 @@ export async function fetchDocument(
       urlLower.includes('.pdf#')
     ) {
       type = 'application/pdf';
+    } else if (/\.docx(?:[?#]|$)/.test(urlLower)) {
+      type = DOCX_MIME;
+    } else if (/\.pptx(?:[?#]|$)/.test(urlLower)) {
+      type = PPTX_MIME;
     } else {
       // Fall back to MIME type detection
       type = getMimeType(url) ?? '';
@@ -121,7 +135,7 @@ export async function fetchDocument(
 
   if (!processor) {
     throw new Error(
-      `No processor available for document type: ${type}. Supported types: PDF (.pdf, application/pdf)`,
+      `No processor available for document type: ${type}. Supported types: PDF (.pdf), Word (.docx), PowerPoint (.pptx)`,
     );
   }
 

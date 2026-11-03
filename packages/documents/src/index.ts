@@ -1,7 +1,8 @@
 /**
  * @happyvertical/documents - Document processing with multi-part structure
  *
- * Provides document processing for PDFs with support for:
+ * Provides document processing for PDF, Word (.docx) and PowerPoint (.pptx)
+ * (the latter two through the optional Kreuzberg engine) with support for:
  * - Hierarchical document parts
  * - Automatic format detection from URL or MIME type
  * - Document management system detection (WordPress, CivicWeb, DocuShare)
@@ -26,6 +27,20 @@ export { Document } from './document';
 export { fetchDocument } from './factory';
 
 // Processors
+export type {
+  ExtractOfficeOptions,
+  OfficeExtraction,
+  OfficeFormat,
+  OfficeResult,
+  OfficeUnsupported,
+} from './processors/office';
+export {
+  DOCX_MIME,
+  DOCXProcessor,
+  extractOffice,
+  PPTX_MIME,
+  PPTXProcessor,
+} from './processors/office';
 export { PDFProcessor } from './processors/pdf';
 // Types
 export type {
@@ -34,6 +49,7 @@ export type {
   DocumentPart,
   DocumentProcessor,
   FetchDocumentOptions,
+  UnsupportedReason,
 } from './types';
 // Utilities
 export { getTitleFromUrl } from './utils';
