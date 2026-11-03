@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.4
+
+### Patch Changes
+
+- ### Features
+
+  - Word and PowerPoint processors via Kreuzberg (#1486) (documents)
+
 ## 0.111.3
 
 ### Patch Changes
