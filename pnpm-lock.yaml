@@ -380,6 +380,10 @@ importers:
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
+    optionalDependencies:
+      '@kreuzberg/node':
+        specifier: ^4.1.1
+        version: 4.10.2
     devDependencies:
       '@types/node':
         specifier: 24.12.2

@@ -415,7 +415,9 @@
           "@happyvertical/pdf",
           "@happyvertical/spider"
         ],
-        "external": []
+        "external": [
+          "@kreuzberg/node"
+        ]
       },
       "dependents": [],
       "stability": {

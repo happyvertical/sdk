@@ -94,6 +94,7 @@ export function createPackageConfig(
           'pdf-parse',
           'pdf2pic',
           'tesseract.js',
+          '@kreuzberg/node',
           'openai',
           /^openai\//,
           'anthropic',

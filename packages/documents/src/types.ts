@@ -25,6 +25,12 @@ export interface DocumentImage {
   localPath?: string;
 
   /**
+   * Raw image bytes when the extractor returned them in memory
+   * (Office documents). `url` is then a synthetic `office-image:` reference.
+   */
+  data?: Uint8Array;
+
+  /**
    * Alt text from HTML or PDF metadata
    */
   altText?: string;
@@ -84,6 +90,11 @@ export interface DocumentPart {
   images?: DocumentImage[];
 
   /**
+   * Speaker notes for this part (PPTX slides)
+   */
+  notes?: string;
+
+  /**
    * Additional metadata for this part
    */
   metadata?: Record<string, any>;
@@ -117,6 +128,26 @@ export interface Document {
    * Document-level metadata
    */
   metadata?: Record<string, any>;
+
+  /**
+   * Set when this processor cannot read the document in the current
+   * environment (for example the optional `@kreuzberg/node` engine is not
+   * installed). `parts` is empty; callers should degrade gracefully rather
+   * than treat it as a failure of the file.
+   */
+  unsupported?: UnsupportedReason;
+}
+
+/**
+ * Why a document could not be processed.
+ */
+export interface UnsupportedReason {
+  /** Machine-readable code. */
+  code: 'dependency-missing';
+  /** Human-readable explanation. */
+  reason: string;
+  /** The missing optional dependency, when applicable. */
+  dependency?: string;
 }
 
 /**
