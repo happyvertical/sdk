@@ -473,20 +473,46 @@ Two consequences worth knowing:
   connection for the life of the process, and every later transaction on it
   fails with the queue timeout.
 - Inside a `transaction()` callback, use the `tx` you were handed. With secure
-  SQLite, calling a top-level `db.*` or `db.client.execute()` method is rejected
+  SQLite and remote LibSQL, calling a top-level `db.*` or `db.client.execute()`
+  method is rejected
   immediately so detached work cannot escape into autocommit after the callback
   ends. While a manual transaction handle is open, top-level calls wait on its
   connection and reject at `transactionQueueTimeout` rather than hang forever.
 
 Nested SQLite and PostgreSQL scopes use savepoints. If sibling nested scopes are
 started concurrently on one transaction, they serialize so the stack-ordered
-savepoint lifecycle remains intact. While a secure SQLite child savepoint is
-open, operations invoked through its parent scope queue behind that child; a
+savepoint lifecycle remains intact. On secure SQLite and remote LibSQL,
+operations invoked through a parent handle from outside an open child
+savepoint queue behind that child; a
 child rollback therefore cannot silently remove a successful parent operation.
 The enclosing commit or rollback drains all
 accepted child scopes before ending the transaction. PostgreSQL pools separate
 connections, so top-level transactions there run concurrently and never queue;
 PGlite has one connection and queues them like SQLite does.
+Remote LibSQL uses a dedicated write transaction for each callback or manual
+handle. It acquires the write transaction before invoking the callback or
+returning the handle, and never replays a callback. Use `tx.client.execute()`
+for raw driver statements within that transaction; native operations on the root
+`db.client` use separate streams. If a statement ends the transaction (for
+example, `INSERT OR ROLLBACK` hits a conflict), the handle rejects later
+statements and commit rather than letting work continue in autocommit.
+An ordinary handled constraint failure can still leave the transaction active.
+
+In remote SQLite queries with positional
+arguments, `$1`, `$2`, and so on refer to the same argument slots as SQLite's
+`?1`, `?2`, including repeated or reordered references. Named parameters with
+an argument object are available through `client.execute()`.
+
+The remote transaction integration test is opt-in. Point one or both variables
+at a disposable writable sqld database. For a server that requires
+authentication, also set `SDK_TEST_SQLITE_AUTH_TOKEN`.
+
+```bash
+SDK_TEST_SQLITE_HTTP_URL='http://127.0.0.1:8080' \
+SDK_TEST_SQLITE_LIBSQL_URL='libsql://127.0.0.1:8080?tls=0' \
+pnpm --filter @happyvertical/sql exec vitest --config ../../vitest.package.config.ts run src/sqlite-remote-transaction.spec.ts
+```
+
 PostgreSQL CRUD helpers apply the same value serialization both inside and
 outside a transaction: objects and arrays are encoded for JSON/JSONB columns,
 dates use ISO timestamps, binary buffers and views retain their native `bytea`

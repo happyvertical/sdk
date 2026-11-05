@@ -7,7 +7,7 @@ import {
 import { createHash } from 'node:crypto';
 import { types as utilTypes } from 'node:util';
 import { DatabaseError } from '@happyvertical/utils';
-import type { Client } from '@libsql/client';
+import type { Client, InArgs, InStatement, Transaction } from '@libsql/client';
 import { DatabaseSchemaManager } from './schema-manager';
 import { createSecureSqliteClient } from './secure-sqlite-client';
 import {
@@ -58,6 +58,7 @@ const nullAwareUpsertLocks = new Map<string, Promise<void>>();
 interface SqliteTransactionClientLike {
   readonly closed: boolean;
   execute(statement: any): Promise<any>;
+  executeScoped?(statement: InStatement): Promise<any>;
   commit(): Promise<void>;
   rollback(): Promise<void>;
   close(): void;
@@ -70,7 +71,8 @@ interface SqliteClientLike {
   close(): void | Promise<void>;
 }
 
-type SqliteExecutor = Pick<SqliteClientLike, 'execute'>;
+type SqliteExecutor = Pick<SqliteClientLike, 'execute'> &
+  Partial<Pick<SqliteTransactionClientLike, 'closed' | 'executeScoped'>>;
 
 const MANAGED_TRANSACTION_CONTROL_KEYWORDS = new Set([
   'begin',
@@ -136,6 +138,97 @@ function prepareManagedStatement(statement: any): any {
     };
   }
   return statement;
+}
+
+// Hrana treats $N as a named parameter, but SDK predicates supply an array.
+// SQLite's ?N addresses the same numbered slot even when reordered or reused.
+// Skip comments, literals and identifiers (bare SQLite names can contain $).
+const remoteParameterToken =
+  /--[^\n]*|\/\*[\s\S]*?(?:\*\/|$)|'(?:''|[^'])*(?:'|$)|"(?:""|[^"])*(?:"|$)|`(?:``|[^`])*(?:`|$)|\[[^\]]*(?:\]|$)|[a-zA-Z_\u0080-\uFFFF][\w$\u0080-\uFFFF]*|[$:@][\w$\u0080-\uFFFF]+(?:::[\w$\u0080-\uFFFF]+)*(?:\([^)]*\))?/g;
+
+function prepareRemoteStatement(statement: InStatement): InStatement {
+  if (typeof statement !== 'object' || !Array.isArray(statement.args)) {
+    return statement;
+  }
+  return {
+    ...statement,
+    sql: statement.sql.replace(remoteParameterToken, (token: string) =>
+      /^\$[1-9]\d*$/.test(token) ? `?${token.slice(1)}` : token,
+    ),
+  };
+}
+
+// Older Hrana servers may keep a stream open after an ON CONFLICT ROLLBACK
+// or a trigger's RAISE(ROLLBACK), allowing later statements to autocommit.
+// Keep a guard savepoint open and release it before every new statement.
+// If the transaction is gone, that release fails and Hrana skips the rest of
+// the batch. On a user statement failure, the same check preserves ordinary
+// ABORT/FAIL handling when the transaction is still active.
+async function guardRemoteTransaction(
+  tx: Transaction,
+): Promise<SqliteTransactionClientLike> {
+  const savepoint = 'SAVEPOINT hv_remote_statement';
+  const release = `RELEASE ${savepoint}`;
+  // Hrana begins on the first statement. Acquire the write lock and install
+  // the guard before exposing the scope to application code.
+  await tx.execute(savepoint);
+  let aborted: { error: unknown } | undefined;
+  const assertActive = () => {
+    if (aborted) throw aborted.error;
+  };
+  const abort = (error: unknown) => {
+    aborted = { error };
+    tx.close();
+  };
+
+  return {
+    get closed() {
+      return tx.closed;
+    },
+    async execute(statement: InStatement) {
+      assertActive();
+      try {
+        const [, result] = await tx.batch([release, statement, savepoint]);
+        return result;
+      } catch (error) {
+        // Internal savepoint control failed, so its state cannot be trusted.
+        abort(error);
+        throw error;
+      }
+    },
+    async executeScoped(statement) {
+      assertActive();
+      try {
+        const [, , result] = await tx.batch([release, savepoint, statement]);
+        return result;
+      } catch (error) {
+        if (
+          (error as { statementIndex?: unknown } | undefined)
+            ?.statementIndex === 2
+        ) {
+          try {
+            await tx.batch([release, savepoint]);
+          } catch {
+            abort(error);
+          }
+        } else {
+          abort(error);
+        }
+        throw error;
+      }
+    },
+    async commit() {
+      assertActive();
+      await tx.commit();
+    },
+    rollback: () => tx.rollback(),
+    close: () => tx.close(),
+  };
+}
+
+function remoteLibSqlUrl(url: string): string | undefined {
+  const normalized = url.replace(/[\t\n\r]/g, '').trim();
+  return /^(?:https?|libsql):/i.test(normalized) ? normalized : undefined;
 }
 
 interface InvocationBarrier {
@@ -969,9 +1062,8 @@ async function createLibSQLClient(
 
   // Normalize URLs: add file:// prefix for local paths
   let libsqlUrl = url;
-  const remoteUrl = url.replace(/[\t\n\r]/g, '').trim();
-  const hasRemoteScheme = /^(?:https?|libsql):/i.test(remoteUrl);
-  if (hasRemoteScheme) {
+  const remoteUrl = remoteLibSqlUrl(url);
+  if (remoteUrl) {
     libsqlUrl = remoteUrl;
     let parsedRemoteUrl: URL;
     try {
@@ -989,7 +1081,7 @@ async function createLibSQLClient(
       });
     }
   }
-  if (url !== ':memory:' && !hasRemoteScheme && !url.startsWith('file:')) {
+  if (url !== ':memory:' && !remoteUrl && !url.startsWith('file:')) {
     // Local file path - resolve to absolute and add file:// prefix
     const { resolve } = await import('node:path');
     const absolutePath = resolve(url);
@@ -1006,7 +1098,7 @@ async function createLibSQLClient(
       authToken,
       encryptionKey,
     }) as Client;
-    if (!hasRemoteScheme && url !== ':memory:') {
+    if (!remoteUrl && url !== ':memory:') {
       // libsql 0.5.x can leave a failed SQLITE_BUSY statement active even
       // after ROLLBACK. Never reuse that connection or silently reconnect it:
       // reconnecting would lose the caller's TEMP tables and PRAGMA state.
@@ -1365,6 +1457,37 @@ async function createDatabase(
     // Validate queue configuration before a secure client can create or open
     // its file. Invalid configuration must not leave an acquired resource.
     const client = await clientFactory();
+    const remote = remoteLibSqlUrl(url) !== undefined;
+    const reservesTransaction =
+      remote || client.transactionReservation === 'exclusive';
+    const prepareStatement = (statement: InStatement | [string, InArgs?]) => {
+      const normalized =
+        remote && Array.isArray(statement)
+          ? { sql: statement[0], args: statement[1] }
+          : statement;
+      const managed = prepareManagedStatement(normalized);
+      return remote ? prepareRemoteStatement(managed) : managed;
+    };
+    const withExecuteArgs = (statement: InStatement, args?: InArgs) =>
+      remote && typeof statement === 'string' && args !== undefined
+        ? { sql: statement, args }
+        : statement;
+    // sqld has already rolled back a timed-out transaction, so its cleanup
+    // error adds no information and must not replace the callback failure.
+    const alreadyRolledBack = (error: unknown) =>
+      remote &&
+      (error as { code?: unknown } | undefined)?.code === 'TRANSACTION_TIMEOUT';
+    const acquireTransaction =
+      async (): Promise<SqliteTransactionClientLike> => {
+        if (!remote) return client.transaction('write');
+        const tx = await (client as Client).transaction('write');
+        try {
+          return await guardRemoteTransaction(tx);
+        } catch (error) {
+          tx.close();
+          throw error;
+        }
+      };
 
     const executorContext = new AsyncLocalStorage<SqliteExecutor>();
     const transactionCallbackContext = new AsyncLocalStorage<boolean>();
@@ -2318,18 +2441,23 @@ async function createDatabase(
               failure = combineTransactionFailures(error, drainError);
             }
           }
-          try {
-            await transactionClient.execute({
-              sql: `ROLLBACK TO SAVEPOINT ${name}`,
-              args: [],
-            });
-            await transactionClient.execute({
-              sql: `RELEASE SAVEPOINT ${name}`,
-              args: [],
-            });
-          } catch (teardownError) {
-            if (teardownError !== failure) {
-              failure = combineTransactionFailures(failure, teardownError);
+          if (!remote || !transactionClient.closed) {
+            try {
+              await transactionClient.execute({
+                sql: `ROLLBACK TO SAVEPOINT ${name}`,
+                args: [],
+              });
+              await transactionClient.execute({
+                sql: `RELEASE SAVEPOINT ${name}`,
+                args: [],
+              });
+            } catch (teardownError) {
+              if (
+                teardownError !== failure &&
+                !alreadyRolledBack(teardownError)
+              ) {
+                failure = combineTransactionFailures(failure, teardownError);
+              }
             }
           }
           throw failure;
@@ -2416,7 +2544,7 @@ async function createDatabase(
       const releaseConnection = await (preAcquiredLock ??
         connectionLock.acquire());
       try {
-        if (client.transactionReservation !== 'exclusive') {
+        if (!reservesTransaction) {
           let nestedTransaction: NestedTransaction | undefined;
           let transactionScope: TransactionScope | undefined;
           try {
@@ -2459,7 +2587,7 @@ async function createDatabase(
           }
         }
 
-        const transactionClient = await client.transaction('write');
+        const transactionClient = await acquireTransaction();
         let nestedTransaction: NestedTransaction | undefined;
         let transactionScope: TransactionScope | undefined;
         try {
@@ -2499,7 +2627,9 @@ async function createDatabase(
             try {
               await transactionClient.rollback();
             } catch (rollbackError) {
-              failure = combineTransactionFailures(failure, rollbackError);
+              if (!alreadyRolledBack(rollbackError)) {
+                failure = combineTransactionFailures(failure, rollbackError);
+              }
             }
           }
           throw failure;
@@ -2528,13 +2658,13 @@ async function createDatabase(
       runOperation: TransactionOperationRunner = nestedTransaction.runOperation,
       runNested: NestedTransactionRunner = nestedTransaction.runNested,
     ): TransactionScope => {
-      const isSecureTransaction = client.transactionReservation === 'exclusive';
-      const scopedExecutor: SqliteExecutor = isSecureTransaction
+      const scopedExecutor: SqliteExecutor = reservesTransaction
         ? {
             execute: (statement: any) => {
-              return transactionClient.execute(
-                prepareManagedStatement(statement),
-              );
+              const prepared = prepareStatement(statement);
+              return transactionClient.executeScoped
+                ? transactionClient.executeScoped(prepared)
+                : transactionClient.execute(prepared);
             },
           }
         : transactionClient;
@@ -2556,7 +2686,7 @@ async function createDatabase(
             Promise.resolve(
               executorContext.run(scopedExecutor, () => fn(...args)),
             );
-          const operation = isSecureTransaction ? runOperation(run) : run();
+          const operation = reservesTransaction ? runOperation(run) : run();
           const tracked = {
             observed: false,
             handlers: new Set<Promise<void>>(),
@@ -2621,7 +2751,9 @@ async function createDatabase(
 
       const scopedClient = {
         transactionReservation: 'exclusive' as const,
-        execute: bind((statement: any) => scopedExecutor.execute(statement)),
+        execute: bind((statement: InStatement, args?: InArgs) =>
+          scopedExecutor.execute(withExecuteArgs(statement, args)),
+        ),
         transaction: () =>
           Promise.reject(
             new DatabaseError(
@@ -2640,10 +2772,7 @@ async function createDatabase(
 
       const txDb: DatabaseInterface = {
         url,
-        client:
-          client.transactionReservation === 'exclusive'
-            ? scopedClient
-            : transactionClient,
+        client: reservesTransaction ? scopedClient : transactionClient,
         insert: scopedInsert,
         get: scopedGet,
         list: scopedList,
@@ -2724,8 +2853,8 @@ async function createDatabase(
         connectionLock.acquire());
       let transactionClient: SqliteTransactionClientLike | undefined;
       try {
-        if (client.transactionReservation === 'exclusive') {
-          transactionClient = await client.transaction('write');
+        if (reservesTransaction) {
+          transactionClient = await acquireTransaction();
         } else {
           await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
         }
@@ -2783,7 +2912,9 @@ async function createDatabase(
             try {
               await transactionClient.rollback();
             } catch (rollbackError) {
-              failure = combineTransactionFailures(failure, rollbackError);
+              if (!alreadyRolledBack(rollbackError)) {
+                failure = combineTransactionFailures(failure, rollbackError);
+              }
             }
           } else if (!transactionClient) {
             try {
@@ -3236,12 +3367,12 @@ async function createDatabase(
       close: rawClose,
     };
 
-    if (client.transactionReservation !== 'exclusive') return db;
+    if (!reservesTransaction) return db;
 
     const barrier = createInvocationBarrier();
     const managedRootExecutor: SqliteExecutor = {
       execute: (statement: any) => {
-        return client.execute(prepareManagedStatement(statement));
+        return client.execute(prepareStatement(statement));
       },
     };
     const rootCallbackError = (operation: 'close' | 'use'): DatabaseError =>
@@ -3392,9 +3523,9 @@ async function createDatabase(
       );
     const reservedClient = {
       transactionReservation: 'exclusive' as const,
-      execute: reserveManaged(async (statement: any) => {
-        return client.execute(prepareManagedStatement(statement));
-      }),
+      execute: reserveManaged((statement: InStatement, args?: InArgs) =>
+        managedRootExecutor.execute(withExecuteArgs(statement, args)),
+      ),
       transaction: () =>
         Promise.reject(
           new DatabaseError(
@@ -3405,9 +3536,25 @@ async function createDatabase(
       close: reservedClose,
     };
 
+    // Preserve the remote root driver's additional operations. They open their
+    // own streams and must not be used from a managed transaction callback.
+    const publicClient = remote
+      ? new Proxy(client, {
+          get(target, property) {
+            if (property === 'execute' || property === 'close') {
+              return reservedClient[property];
+            }
+            const value = Reflect.get(target, property, target);
+            return typeof value === 'function'
+              ? reserveManaged(value.bind(target))
+              : value;
+          },
+        })
+      : reservedClient;
+
     return {
       ...db,
-      client: reservedClient,
+      client: publicClient,
       query: reserveManaged(query),
       insert: reserveManaged(insert),
       update: reserveManaged(update),
