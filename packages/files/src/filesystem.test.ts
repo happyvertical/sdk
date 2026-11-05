@@ -4,7 +4,9 @@ import { getTempDirectory } from '@happyvertical/utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getFilesystem, LocalFilesystemProvider } from './index';
 import {
+  FileExistsError,
   FileNotFoundError,
+  FileSizeLimitExceededError,
   FilesystemError,
   InvalidPathError,
 } from './shared/types';
@@ -113,6 +115,26 @@ describe('Filesystem Interface', () => {
 
       const readContent = await fs.read('utf8.txt', { encoding: 'utf8' });
       expect(readContent).toBe(content);
+    });
+
+    it('should create without overwriting an existing local file', async () => {
+      await fs.write('immutable.txt', 'first');
+
+      await expect(
+        fs.write('immutable.txt', 'replacement', { overwrite: false }),
+      ).rejects.toBeInstanceOf(FileExistsError);
+      await expect(fs.read('immutable.txt')).resolves.toBe('first');
+    });
+
+    it('should enforce maxBytes for local reads', async () => {
+      await fs.write('bounded.txt', '12345');
+
+      await expect(
+        fs.read('bounded.txt', { maxBytes: 4 }),
+      ).rejects.toBeInstanceOf(FileSizeLimitExceededError);
+      await expect(fs.read('bounded.txt', { maxBytes: 5 })).resolves.toBe(
+        '12345',
+      );
     });
 
     it('should throw FileNotFoundError for missing files', async () => {
