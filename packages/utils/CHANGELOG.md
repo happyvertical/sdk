@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.5
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - keep remote SQLite transactions on one stream (#1488) (sql)
+
 ## 0.111.4
 
 ### Patch Changes
