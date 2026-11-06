@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.6
+
+### Patch Changes
+
+- ### Features
+
+  - add vault snapshot envelopes (#1492) (encryption)
+
 ## 0.111.5
 
 ### Patch Changes
