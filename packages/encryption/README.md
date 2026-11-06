@@ -137,6 +137,79 @@ const encrypted = await rsaEncryption.encryptText('Small message');
 const decrypted = await rsaEncryption.decryptText(encrypted);
 ```
 
+## Vault snapshot envelopes
+
+```typescript
+import { openVaultSnapshot, sealVaultSnapshot } from '@happyvertical/encryption/vault-snapshot';
+```
+
+`sealVaultSnapshot(snapshot, { key, keyId, context, compression })` and
+`openVaultSnapshot(envelope, { context, resolveKey })` are synchronous Node.js
+byte APIs. The key is a raw 32-byte user key dedicated to snapshot envelopes.
+The key ID is an opaque 16-byte identifier encoded as 32 lowercase hexadecimal
+digits in TypeScript. Supply the expected `{ accountId, deviceId, sequence }`
+independently when opening. Scope `resolveKey(keyId)` to that account and return
+`undefined` for an unknown ID. A syntactically valid envelope can trigger one
+lookup with an untrusted ID. Opening returns bytes only after authentication and
+validation succeed.
+
+Compression is optional and defaults to `none`. Use `zlib` for snapshots where
+revealing the resulting size is acceptable. Envelope length is public in both
+modes, and compression can reveal relationships between attacker-controlled and
+secret bytes. Account and device IDs and the sequence are encrypted. Callers
+that require replay or rollback protection must track which sequences are
+acceptable in their trusted state. Every seal generates a fresh random nonce.
+
+### Version 1 wire format
+
+The envelope is a binary byte array with a 47-byte clear header followed by
+the combined output of
+[NaCl XSalsa20-Poly1305 secretbox](https://doc.libsodium.org/secret-key_cryptography/secretbox)
+(`crypto_secretbox_easy` in libsodium). The output begins with its 16-byte
+authentication tag and continues with the encrypted message to end of input.
+
+| Header offset | Size | Value |
+| --- | --- | --- |
+| 0 | 4 | ASCII `HVSE` (`48 56 53 45`) |
+| 4 | 1 | Version `01` |
+| 5 | 1 | Algorithm `01` (XSalsa20-Poly1305 secretbox) |
+| 6 | 1 | Compression `00` for raw bytes or `01` for zlib |
+| 7 | 16 | Raw opaque key ID bytes, in the same order as the hex encoding |
+| 23 | 24 | Secretbox nonce |
+
+The authenticated message is this exact concatenation:
+
+```text
+clear header (47 bytes)
+account ID UTF-8 byte length (uint8) || account ID UTF-8 bytes
+device ID UTF-8 byte length (uint8) || device ID UTF-8 bytes
+sequence (uint64 big-endian)
+payload (to end of message)
+```
+
+Each ID is 1 to 255 bytes of valid UTF-8, with exact byte matching and no Unicode
+normalization. For Kotlin, convert byte lengths to unsigned values and interpret
+the eight sequence bytes as a big-endian `ULong` (TypeScript `bigint`).
+Compression `01` is one [RFC 1950](https://www.rfc-editor.org/rfc/rfc1950)
+zlib stream with DEFLATE, checksum and no preset dictionary. A JVM reader can
+use `Inflater(false)` with an output limit and check `finished()` and zero
+remaining input. Different compressors may produce different valid payload bytes.
+
+Reject unknown header values, envelope lengths outside 122 to 8,454,774 bytes,
+and payload lengths outside the mode limits. A v1 envelope holds at most
+8,388,608 decoded bytes (8 MiB). The raw payload has the same cap. The compressed
+payload cap is 8,454,144 bytes. These are fixed v1 limits for a single in-memory
+envelope. Open secretbox with the clear nonce and the one key identified by the
+header. Compare the authenticated header and context prefix against the clear
+header and independently supplied expected context, then decode the payload.
+For zlib, reject truncated streams, dictionaries, invalid checksums, trailing
+bytes and output above the decoded limit.
+
+The [v1 interoperability vectors](./vault-snapshot-v1-vectors.json) were generated
+with libsodium via PyNaCl and Python zlib. They include the test key, raw IDs and
+sequence, encoded context, snapshot, nonce, encoded payload and full envelope
+for both modes. The fixed keys and nonces are for testing.
+
 ## Common Use Cases
 
 ### Email Encryption (PGP/MIME)

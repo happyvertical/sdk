@@ -10,6 +10,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./vault-snapshot": {
+      "types": "./dist/vault-snapshot.d.ts",
+      "import": "./dist/vault-snapshot.js"
     }
   },
   "bin": {
@@ -18,6 +22,7 @@
   "files": [
     "dist",
     "README.md",
+    "vault-snapshot-v1-vectors.json",
     "LICENSE",
     "AGENT.md",
     "metadata.json"

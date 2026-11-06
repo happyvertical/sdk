@@ -30,3 +30,12 @@ pnpm --filter @happyvertical/encryption typecheck
 - Requires: @happyvertical/logger, @happyvertical/utils, @openpgp/web-stream-tools, openpgp, tweetnacl, tweetnacl-util
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
+
+
+## Vault snapshots
+
+Import `sealVaultSnapshot` and `openVaultSnapshot` from
+`@happyvertical/encryption/vault-snapshot` for bounded user-key-encrypted bytes. Supply trusted account, device, and sequence context when
+opening, and scope the single key lookup to that account. The
+[v1 wire specification](./README.md#version-1-wire-format) describes framing,
+limits, and Kotlin interoperability vectors.
