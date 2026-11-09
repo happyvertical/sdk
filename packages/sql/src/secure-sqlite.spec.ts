@@ -1,6 +1,7 @@
 import { rmSync, writeFileSync } from 'node:fs';
 import {
   chmod,
+  link,
   lstat,
   mkdir,
   mkdtemp,
@@ -3892,5 +3893,267 @@ describe('secure SQLite file acquisition', () => {
         cache: false,
       }),
     ).rejects.toThrow('Unsupported secure SQLite driver');
+  });
+});
+
+describe('secure SQLite win32 caller-supplied custody', () => {
+  function windowsRuntime(
+    overrides: Partial<SecureSqliteRuntime> = {},
+  ): SecureSqliteRuntime {
+    return {
+      platform: 'win32',
+      loadDriver: loadNodeSqliteDriver,
+      ...overrides,
+    };
+  }
+
+  function recordingVerifier(events: string[]) {
+    const calls: string[][] = [];
+    return {
+      calls,
+      windowsCustody: {
+        verify: async (paths: readonly string[]) => {
+          calls.push([...paths]);
+          events.push(`verify:${paths.length}`);
+        },
+      },
+    };
+  }
+
+  it('refuses win32 without a verifier and never loads the driver', async () => {
+    let driverLoaded = false;
+    const root = await makeTempRoot();
+    await expect(
+      createSecureSqliteClient(
+        join(root, 'app.db'),
+        trustedParent,
+        windowsRuntime({
+          loadDriver: async () => {
+            driverLoaded = true;
+            return loadNodeSqliteDriver();
+          },
+        }),
+      ),
+    ).rejects.toThrow('unsupported on win32');
+    expect(driverLoaded).toBe(false);
+    await expect(lstat(join(root, 'app.db'))).rejects.toThrow();
+  });
+
+  it('verifies the chain before and the chain plus leaf after creating a missing leaf', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    const events: string[] = [];
+    const { calls, windowsCustody } = recordingVerifier(events);
+    const runtime = windowsRuntime({
+      openLeaf: (async (...args: Parameters<typeof open>) => {
+        events.push('create');
+        return open(...args);
+      }) as typeof open,
+    });
+
+    const client = await createSecureSqliteClient(
+      databasePath,
+      { ...trustedParent, windowsCustody },
+      runtime,
+    );
+    await client.execute('CREATE TABLE t (id INTEGER)');
+    await client.close?.();
+
+    expect(events.filter((e) => e !== 'verify:0')).toEqual([
+      expect.stringMatching(/^verify:/),
+      'create',
+      expect.stringMatching(/^verify:/),
+    ]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].at(-1)).toBe(root);
+    expect(calls[0]).not.toContain(databasePath);
+    expect(calls[1].at(-1)).toBe(databasePath);
+    expect(calls[1].at(-2)).toBe(root);
+    expect(calls[1]).toHaveLength(calls[0].length + 1);
+  });
+
+  it('verifies an existing leaf on both checks', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    await writeFile(databasePath, '');
+    const { calls, windowsCustody } = recordingVerifier([]);
+
+    const client = await createSecureSqliteClient(
+      databasePath,
+      { ...trustedParent, windowsCustody },
+      windowsRuntime(),
+    );
+    await client.close?.();
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0].at(-1)).toBe(databasePath);
+    expect(calls[1].at(-1)).toBe(databasePath);
+  });
+
+  it('stops before creating anything when verify throws', async () => {
+    const root = await makeTempRoot();
+    let driverLoaded = false;
+    await expect(
+      createSecureSqliteClient(
+        join(root, 'app.db'),
+        {
+          ...trustedParent,
+          windowsCustody: {
+            verify: () => {
+              throw new Error('untrusted principal on ACL');
+            },
+          },
+        },
+        windowsRuntime({
+          loadDriver: async () => {
+            driverLoaded = true;
+            return loadNodeSqliteDriver();
+          },
+        }),
+      ),
+    ).rejects.toThrow('Windows custody verification failed');
+    expect(driverLoaded).toBe(false);
+    await expect(lstat(join(root, 'app.db'))).rejects.toThrow();
+  });
+
+  it('removes the created leaf when the post-creation verify rejects', async () => {
+    const root = await makeTempRoot();
+    let calls = 0;
+    await expect(
+      createSecureSqliteClient(
+        join(root, 'app.db'),
+        {
+          ...trustedParent,
+          windowsCustody: {
+            verify: async () => {
+              if (++calls === 2) throw new Error('inherited ACL too broad');
+            },
+          },
+        },
+        windowsRuntime(),
+      ),
+    ).rejects.toThrow('Windows custody verification failed');
+    await expect(lstat(join(root, 'app.db'))).rejects.toThrow();
+  });
+
+  it('refuses a reparse point (symlink or junction) in the chain', async () => {
+    const root = await makeTempRoot();
+    const real = join(root, 'real');
+    await mkdir(real);
+    await symlink(real, join(root, 'link'), 'dir');
+    const { calls, windowsCustody } = recordingVerifier([]);
+    await expect(
+      createSecureSqliteClient(
+        join(root, 'link', 'app.db'),
+        { ...trustedParent, windowsCustody },
+        windowsRuntime(),
+      ),
+    ).rejects.toThrow('only real directories');
+    expect(calls).toHaveLength(0);
+    await expect(lstat(join(real, 'app.db'))).rejects.toThrow();
+  });
+
+  it('refuses a reparse point lstat cannot see when realpath disagrees', async () => {
+    const root = await makeTempRoot();
+    const { calls, windowsCustody } = recordingVerifier([]);
+    await expect(
+      createSecureSqliteClient(
+        join(root, 'app.db'),
+        { ...trustedParent, windowsCustody },
+        windowsRuntime({
+          realpathPath: async (p) => (p === root ? join(root, '..') : p),
+        }),
+      ),
+    ).rejects.toThrow('reparse points');
+    expect(calls).toHaveLength(0);
+    await expect(lstat(join(root, 'app.db'))).rejects.toThrow();
+  });
+
+  it('refuses a leaf with additional hard links', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    await writeFile(databasePath, '');
+    await link(databasePath, join(root, 'other.db'));
+    const { calls, windowsCustody } = recordingVerifier([]);
+    await expect(
+      createSecureSqliteClient(
+        databasePath,
+        { ...trustedParent, windowsCustody },
+        windowsRuntime(),
+      ),
+    ).rejects.toThrow('additional hard links');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses when an existing leaf changes identity between checks', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    await writeFile(databasePath, '');
+    let swapped = false;
+    await expect(
+      createSecureSqliteClient(
+        databasePath,
+        {
+          ...trustedParent,
+          windowsCustody: {
+            verify: async () => {
+              if (swapped) return;
+              swapped = true;
+              await rm(databasePath);
+              await writeFile(databasePath, '');
+            },
+          },
+        },
+        windowsRuntime({
+          loadDriver: async () => {
+            const driver = await loadNodeSqliteDriver();
+            return driver;
+          },
+        }),
+      ),
+    ).rejects.toThrow('changed during acquisition');
+  });
+
+  it('refuses and removes a created leaf whose identity changes before the second check', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    let calls = 0;
+    await expect(
+      createSecureSqliteClient(
+        databasePath,
+        {
+          ...trustedParent,
+          windowsCustody: {
+            verify: async () => {
+              calls++;
+            },
+          },
+        },
+        windowsRuntime({
+          lstatPath: (async (path: string, opts: any) => {
+            const stats = await lstat(path, opts);
+            if (path === databasePath && calls >= 1) {
+              return Object.assign(Object.create(stats), {
+                ino: (stats as any).ino + 1n,
+              });
+            }
+            return stats;
+          }) as any,
+        }),
+      ),
+    ).rejects.toThrow('changed during acquisition');
+    await expect(lstat(databasePath)).rejects.toThrow();
+  });
+
+  it('ignores windowsCustody on posix platforms', async () => {
+    const root = await makeTempRoot();
+    const { calls, windowsCustody } = recordingVerifier([]);
+    const client = await createSecureSqliteClient(
+      join(root, 'app.db'),
+      { ...trustedParent, windowsCustody },
+      { platform: process.platform, loadDriver: loadNodeSqliteDriver },
+    );
+    await client.close?.();
+    expect(calls).toHaveLength(0);
   });
 });

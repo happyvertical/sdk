@@ -9,7 +9,10 @@ import { types as utilTypes } from 'node:util';
 import { DatabaseError } from '@happyvertical/utils';
 import type { Client, InArgs, InStatement, Transaction } from '@libsql/client';
 import { DatabaseSchemaManager } from './schema-manager';
-import { createSecureSqliteClient } from './secure-sqlite-client';
+import {
+  createSecureSqliteClient,
+  type SecureSqliteWindowsCustody,
+} from './secure-sqlite-client';
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
@@ -1194,6 +1197,16 @@ export interface SecureSqliteFileOptions {
    * Every database parent at or below this root must satisfy the custody check.
    */
   root?: string;
+
+  /**
+   * Required on Windows, ignored elsewhere. Node cannot read NTFS ACLs, so the
+   * caller supplies the trust policy: the adapter walks the path itself
+   * (lexical containment, reparse points, realpath, `nlink === 1`, stable
+   * file identity) and calls `verify` with the root-to-parent chain and the
+   * leaf (last, when it exists) before and after a missing leaf is created.
+   * `verify` must throw or reject to refuse. Without it, Windows fails closed.
+   */
+  windowsCustody?: SecureSqliteWindowsCustody;
 }
 
 /**
@@ -1425,6 +1438,7 @@ export async function getDatabase(
         createSecureSqliteClient(url, {
           custody: secureOptions.custody,
           root: secureOptions.root,
+          windowsCustody: secureOptions.windowsCustody,
         }),
       ),
     );
