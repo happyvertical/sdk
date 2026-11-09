@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.7
+
+### Patch Changes
+
+- ### Features
+
+  - add virtual key update/delete and project lookup (#1499) (ai)
+
 ## 0.111.6
 
 ### Patch Changes

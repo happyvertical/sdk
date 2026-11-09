@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/documents",
-  "version": "0.111.6",
+  "version": "0.111.7",
   "description": "Multi-part document processing with support for PDF, Word, PowerPoint, HTML, and Markdown",
   "type": "module",
   "main": "dist/index.js",
