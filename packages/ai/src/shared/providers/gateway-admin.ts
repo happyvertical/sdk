@@ -221,12 +221,22 @@ function safeKeyHandle(...candidates: unknown[]): string | undefined {
 }
 
 /**
- * Redact key-shaped values from every string of a result returned by a
- * non-create admin method, including mapped fields such as a caller-chosen
- * alias, not only `raw`.
+ * Redact key-shaped values from the free-text fields of a result returned by
+ * a non-create admin method (a caller-chosen alias or team name), on top of
+ * `raw`. Identifiers (`id`, `projectId`, `tenantId`, `budgetId`) are left
+ * intact so tenant filtering and lookups still match; key ids are already
+ * non-secret via {@link safeKeyHandle}.
  */
-function redactResult<T>(result: T): T {
-  return redactSecrets(result) as T;
+function redactResult<T extends { name?: string; maskedKey?: string }>(
+  result: T,
+): T {
+  for (const field of ['name', 'maskedKey'] as const) {
+    const value = result[field];
+    if (typeof value === 'string') {
+      result[field] = redactSecretText(value) as T[typeof field];
+    }
+  }
+  return result;
 }
 
 function requireAdminId(id: string, provider: string, what: string): string {

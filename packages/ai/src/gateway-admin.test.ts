@@ -262,6 +262,19 @@ describe('BifrostAdmin key lifecycle', () => {
     expect(all.map((p) => p.id)).toEqual(['team-1', 'team-2']);
     expectNoKeyValue(all, BIFROST_KEY_VALUE);
   });
+
+  it('keeps identifiers intact even when they look like key values', async () => {
+    mockFetch(() =>
+      jsonResponse({
+        teams: [{ id: 'team-1', name: 'A', customer_id: 'sk-tenant-00000001' }],
+      }),
+    );
+
+    const projects = await bifrostAdmin().listProjects({
+      tenantId: 'sk-tenant-00000001',
+    });
+    expect(projects.map((p) => p.tenantId)).toEqual(['sk-tenant-00000001']);
+  });
 });
 
 describe('LiteLLMAdmin key lifecycle', () => {
