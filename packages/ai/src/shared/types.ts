@@ -1232,7 +1232,13 @@ export interface CreateAIVirtualKeyOptions {
  */
 export interface AIVirtualKey {
   /**
-   * Provider key ID, when returned separately from the key value.
+   * Stable, non-secret handle for this key. Pass it to
+   * {@link AIAdminInterface.updateVirtualKey} and
+   * {@link AIAdminInterface.deleteVirtualKey}; persist it instead of the key
+   * value.
+   *
+   * - Bifrost: the governance virtual-key ID.
+   * - LiteLLM: the hashed token (`token_id`), never the key value.
    */
   id?: string;
 
@@ -1242,8 +1248,9 @@ export interface AIVirtualKey {
   name?: string;
 
   /**
-   * Newly generated key value. Some provider list/detail responses may only
-   * expose a masked value.
+   * Newly generated key value. Only {@link AIAdminInterface.createVirtualKey}
+   * sets it; every other admin method leaves it unset and redacts key values
+   * from `raw`.
    */
   key?: string;
 
@@ -1279,7 +1286,47 @@ export interface AIVirtualKey {
 }
 
 /**
+ * Fields {@link AIAdminInterface.updateVirtualKey} can change. Omitted fields
+ * are left unchanged.
+ *
+ * Provider notes:
+ * - Bifrost has no key-level `models` or `metadata`; restrict models through
+ *   `providerConfigs[].allowedModels`. Passing either throws
+ *   `ADMIN_UNSUPPORTED_FIELD`.
+ * - LiteLLM has no `providerConfigs`; passing it throws
+ *   `ADMIN_UNSUPPORTED_FIELD`. `metadata` and `description` are shallow-merged
+ *   into the key's existing metadata (read with `/key/info`), so the
+ *   `tenant_id` recorded at creation is kept.
+ */
+export type UpdateAIVirtualKeyOptions = Partial<
+  Pick<
+    CreateAIVirtualKeyOptions,
+    | 'budget'
+    | 'rateLimit'
+    | 'models'
+    | 'providerConfigs'
+    | 'isActive'
+    | 'metadata'
+    | 'description'
+  >
+>;
+
+/**
+ * Filter for {@link AIAdminInterface.listProjects}.
+ */
+export interface ListAIProjectsFilter {
+  /**
+   * Only return projects attached to this tenant/customer. Bifrost matches
+   * the team's `customer_id`; LiteLLM matches `metadata.tenant_id`.
+   */
+  tenantId?: string;
+}
+
+/**
  * Admin operations exposed by gateway providers that support provisioning.
+ *
+ * Only {@link AIAdminInterface.createVirtualKey} returns a key value. Errors
+ * are {@link AIError}s whose messages never include key values.
  */
 export interface AIAdminInterface {
   /**
@@ -1288,9 +1335,36 @@ export interface AIAdminInterface {
   createProject(options: CreateAIProjectOptions): Promise<AIAdminProject>;
 
   /**
-   * Create a virtual key, optionally attached to a project or tenant.
+   * Create a virtual key, optionally attached to a project or tenant. The
+   * result's `key` is the only time the key value is returned; persist `id`
+   * to manage the key later.
    */
   createVirtualKey(options: CreateAIVirtualKeyOptions): Promise<AIVirtualKey>;
+
+  /**
+   * Partially update a virtual key by its `id`. Omitted fields are unchanged.
+   * Never returns the key value. Throws when the key does not exist.
+   */
+  updateVirtualKey(
+    id: string,
+    options: UpdateAIVirtualKeyOptions,
+  ): Promise<AIVirtualKey>;
+
+  /**
+   * Revoke (delete) a virtual key by its `id`. Resolves `true` when the key
+   * was deleted and `false` (not a throw) when it does not exist.
+   */
+  deleteVirtualKey(id: string): Promise<boolean>;
+
+  /**
+   * Look up a project by ID. Resolves `undefined` when it does not exist.
+   */
+  getProject(id: string): Promise<AIAdminProject | undefined>;
+
+  /**
+   * List projects, optionally only those attached to a tenant.
+   */
+  listProjects(filter?: ListAIProjectsFilter): Promise<AIAdminProject[]>;
 }
 
 /**
