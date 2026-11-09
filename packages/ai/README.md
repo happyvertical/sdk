@@ -639,10 +639,42 @@ const key = await ai.admin!.createVirtualKey({
   },
 });
 
-console.log(key.key);
+console.log(key.key); // the only time the key value is returned
+// Persist key.id, the stable non-secret handle, never key.key.
+
+// Budget sync: partial update, omitted fields stay unchanged.
+await ai.admin!.updateVirtualKey(key.id!, {
+  budget: { maxLimit: 50, resetDuration: '1M' },
+});
+
+// Revoke: resolves false (does not throw) when the key is already gone.
+const revoked = await ai.admin!.deleteVirtualKey(key.id!);
+
+// Recover a tenant's project after a crash between create and persist.
+const existing = await ai.admin!.listProjects({ tenantId: 'customer-tenant-a' });
+const same = await ai.admin!.getProject(project.id); // undefined when missing
 ```
 
-LiteLLM uses the same SDK surface, mapping projects to LiteLLM teams and virtual keys to `/key/generate`.
+| Method | Bifrost | LiteLLM |
+| --- | --- | --- |
+| `createProject` | `POST /api/governance/teams` | `POST /team/new` |
+| `createVirtualKey` | `POST /api/governance/virtual-keys` | `POST /key/generate` |
+| `updateVirtualKey` | `PUT /api/governance/virtual-keys/{id}` | `POST /key/update` |
+| `deleteVirtualKey` | `DELETE /api/governance/virtual-keys/{id}` | `POST /key/delete` |
+| `getProject` | `GET /api/governance/teams/{id}` | `GET /team/info?team_id=` |
+| `listProjects` | `GET /api/governance/teams?customer_id=` | `GET /team/list`, filtered by `metadata.tenant_id` |
+
+`AIVirtualKey.id` is the handle for update and delete: the Bifrost virtual-key
+ID, or the LiteLLM hashed token (`token_id`). Only `createVirtualKey()` returns
+a key value; the other methods leave `key` unset and redact key values from
+`raw`, and admin error messages never include them.
+
+`updateVirtualKey()` throws `ADMIN_UNSUPPORTED_FIELD` rather than dropping a
+field the gateway's keys lack: Bifrost keys have no `models` or `metadata` (use
+`providerConfigs[].allowedModels`), and LiteLLM keys have no
+`providerConfigs`. On LiteLLM, `metadata` and `description` are merged into the
+key's existing metadata, so the creation-time `tenant_id` is kept. Updating a
+missing key throws; `getProject()` resolves `undefined` for a missing project.
 
 ## Generation Safety
 
