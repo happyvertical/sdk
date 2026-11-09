@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.8
+
+### Patch Changes
+
+- ### Features
+
+  - win32 support for secureFile via a caller-supplied custody verifier (#1500) (sql)
+
 ## 0.111.7
 
 ### Patch Changes
