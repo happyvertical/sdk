@@ -220,6 +220,15 @@ function safeKeyHandle(...candidates: unknown[]): string | undefined {
   return undefined;
 }
 
+/**
+ * Redact key-shaped values from every string of a result returned by a
+ * non-create admin method, including mapped fields such as a caller-chosen
+ * alias, not only `raw`.
+ */
+function redactResult<T>(result: T): T {
+  return redactSecrets(result) as T;
+}
+
 function requireAdminId(id: string, provider: string, what: string): string {
   if (typeof id !== 'string' || id.trim().length === 0) {
     throw new AIError(
@@ -491,14 +500,14 @@ function toBifrostProject(
   const id = stringValue(team.id) || stringValue(team.team_id);
   if (!id) return undefined;
 
-  return {
+  return redactResult({
     id,
     name: stringValue(team.name) || stringValue(team.team_alias) || id,
     tenantId: stringValue(team.customer_id),
     budgetId: stringValue(team.budget_id),
     provider: 'bifrost',
     raw: redactSecrets(raw),
-  };
+  });
 }
 
 function toLiteLLMProject(
@@ -508,14 +517,14 @@ function toLiteLLMProject(
   const id = stringValue(team.team_id) || stringValue(team.id);
   if (!id) return undefined;
 
-  return {
+  return redactResult({
     id,
     name: stringValue(team.team_alias) || stringValue(team.name) || id,
     tenantId: stringValue(toJsonRecord(team.metadata).tenant_id),
     budgetId: stringValue(team.budget_id),
     provider: 'litellm',
     raw: redactSecrets(raw),
-  };
+  });
 }
 
 /**
@@ -643,7 +652,7 @@ export class BifrostAdmin implements AIAdminInterface {
       response?.virtual_key ?? response?.virtualKey ?? response,
     );
 
-    return {
+    return redactResult({
       id: safeKeyHandle(virtualKey.id, id),
       name: stringValue(virtualKey.name),
       projectId: stringValue(virtualKey.team_id),
@@ -652,7 +661,7 @@ export class BifrostAdmin implements AIAdminInterface {
         stringValue(virtualKey.expires) || stringValue(virtualKey.expires_at),
       provider: 'bifrost',
       raw: redactSecrets(response, [id]),
-    };
+    });
   }
 
   async deleteVirtualKey(id: string): Promise<boolean> {
@@ -844,7 +853,7 @@ export class LiteLLMAdmin implements AIAdminInterface {
     );
     const updated = toJsonRecord(response);
 
-    return {
+    return redactResult({
       id: safeKeyHandle(id, updated.token_id, updated.token),
       name: stringValue(updated.key_alias),
       maskedKey: stringValue(updated.key_name),
@@ -855,7 +864,7 @@ export class LiteLLMAdmin implements AIAdminInterface {
       expiresAt: stringValue(updated.expires),
       provider: 'litellm',
       raw: redactSecrets(response, [id]),
-    };
+    });
   }
 
   async deleteVirtualKey(id: string): Promise<boolean> {

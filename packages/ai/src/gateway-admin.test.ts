@@ -240,7 +240,11 @@ describe('BifrostAdmin key lifecycle', () => {
       jsonResponse({
         teams: [
           { id: 'team-1', name: 'A', customer_id: 'tenant-a' },
-          { id: 'team-2', name: 'B', customer_id: 'tenant-b' },
+          {
+            id: 'team-2',
+            name: `B ${BIFROST_KEY_VALUE}`,
+            customer_id: 'tenant-b',
+          },
         ],
         count: 2,
       }),
@@ -256,6 +260,7 @@ describe('BifrostAdmin key lifecycle', () => {
     const all = await admin.listProjects();
     expect(calls[1].url).toBe('http://bifrost.local/api/governance/teams');
     expect(all.map((p) => p.id)).toEqual(['team-1', 'team-2']);
+    expectNoKeyValue(all, BIFROST_KEY_VALUE);
   });
 });
 
@@ -360,7 +365,11 @@ describe('LiteLLMAdmin key lifecycle', () => {
 
   it('redacts a key value used as the id from update responses', async () => {
     mockFetch(() =>
-      jsonResponse({ key: LITELLM_KEY_VALUE, key_alias: 'Tenant A' }),
+      jsonResponse({
+        key: LITELLM_KEY_VALUE,
+        // A caller-chosen alias that happens to embed the key value.
+        key_alias: `alias ${LITELLM_KEY_VALUE}`,
+      }),
     );
 
     const key = await litellmAdmin().updateVirtualKey(LITELLM_KEY_VALUE, {
