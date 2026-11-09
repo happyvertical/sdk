@@ -209,6 +209,7 @@ export {
   tableExists,
   validateColumnName,
 } from './query.js';
+export type { SecureSqliteWindowsCustody } from './secure-sqlite-client.js';
 export * from './shared/types';
 export type { SecureSqliteFileOptions, SqliteOptions } from './sqlite.js';
 

@@ -292,7 +292,31 @@ replace an unencrypted user-owned database and its directory. Separating
 same-account processes requires OS sandboxing plus a descriptor-relative/custom
 SQLite VFS. Keep the custody contract in force for the full connection lifetime.
 
-The secure path is supported on macOS and Linux with Node.js 24.18.0 or newer.
+The secure path is supported on macOS and Linux with Node.js 24.18.0 or newer,
+and on Windows when the caller supplies `windowsCustody`:
+
+```typescript
+secureFile: {
+  driver: 'node:sqlite',
+  custody: 'trusted-parent',
+  windowsCustody: {
+    // Throw or reject to refuse. Receives the drive-root-to-parent chain and,
+    // when it exists, the database leaf last.
+    verify: async (paths) => assertPrivateToCurrentUser(paths),
+  },
+}
+```
+
+Node cannot read NTFS ACLs, so on Windows the caller owns the trust policy
+(which accounts may hold access) and the adapter owns no ACL code. The adapter
+still performs its own structural walk: lexical containment under the custody
+root, no symlinks or junctions (`lstat`), canonical native `realpath` equal to
+each path (catches mount points and `subst` drives), a regular-file leaf with
+`nlink === 1`, and a stable bigint `dev`/`ino`/`birthtimeNs` leaf identity
+across checks. `verify` runs before the leaf is created and again afterwards
+with the leaf appended (an existing leaf is verified on both passes); a created
+leaf is removed if the second pass fails. Without `windowsCustody`, Windows
+fails closed. The option is ignored on macOS and Linux.
 The runtime version is checked before `node:sqlite` is imported or the database
 is opened. Secure mode fails closed on older or malformed runtime versions,
 other platforms, and when combined with remote LibSQL URLs, `:memory:`, LibSQL
@@ -876,7 +900,7 @@ shipping it beyond development or test environments.
 
 | Adapter | `type` | Backend | Notes |
 |---------|--------|---------|-------|
-| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; built-in `node:sqlite` for capabilities and `secureFile` | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only; trusted-parent secure files are macOS/Linux-only |
+| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; built-in `node:sqlite` for capabilities and `secureFile` | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only; trusted-parent secure files are macOS/Linux, or Windows with a caller-supplied `windowsCustody.verify` |
 | PostgreSQL | `'postgres'` | `pg` Pool | Connection pooling, pgvector support |
 | PGlite | `'pglite'` | `@electric-sql/pglite` (optional peer) | Postgres in WebAssembly. Browser-safe via `@happyvertical/sql/pglite`; persists to IndexedDB, OPFS, or a directory; single connection |
 | DuckDB | `'duckdb'` | `@duckdb/node-api` | JSON file auto-registration, write-back strategies |

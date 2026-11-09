@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { BigIntStats } from 'node:fs';
+import { realpath as realpathCallback } from 'node:fs';
 import { lstat, open, unlink } from 'node:fs/promises';
 import { dirname, parse, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,9 +36,26 @@ export interface SecureSqliteClient {
   close(): Promise<void>;
 }
 
+/**
+ * Caller-owned Windows custody policy. Node cannot inspect NTFS ACLs, so on
+ * `win32` the caller decides which accounts are trusted and the adapter only
+ * accepts `secureFile` when this verifier is supplied.
+ */
+export interface SecureSqliteWindowsCustody {
+  /**
+   * Called with the root-to-parent directory chain (drive root first) and,
+   * when it exists, the database leaf last. Throw (or reject) to refuse
+   * acquisition. It runs before and after a missing leaf is created, and again
+   * for an existing leaf after identity is recorded.
+   */
+  verify(paths: readonly string[]): void | Promise<void>;
+}
+
 export interface SecureSqliteCustodyOptions {
   custody: 'trusted-parent';
   root?: string;
+  /** Required on win32; ignored on macOS and Linux. */
+  windowsCustody?: SecureSqliteWindowsCustody;
 }
 
 interface NodeSqliteStatement {
@@ -76,6 +94,9 @@ export interface SecureSqliteRuntime {
   inspectDarwinAcl?: (filePath: string) => Promise<boolean>;
   openLeaf?: typeof open;
   lstatLeaf?: typeof lstat;
+  /** win32 chain walk seams. */
+  lstatPath?: typeof lstat;
+  realpathPath?: (filePath: string) => Promise<string>;
   loadDriver: () => Promise<NodeSqliteModule>;
 }
 
@@ -227,28 +248,10 @@ async function validateDarwinAcl(
   }
 }
 
-async function validateTrustedParentCustody(
+function resolveCustodyLayout(
   filePath: string,
   options: SecureSqliteCustodyOptions,
-  runtime: SecureSqliteRuntime,
-): Promise<boolean> {
-  if (options.custody !== 'trusted-parent') {
-    throw new DatabaseError(
-      'Secure SQLite acquisition requires trusted-parent custody',
-      {},
-    );
-  }
-
-  let currentUid: number;
-  try {
-    currentUid = (runtime.currentUid ?? defaultRuntime.currentUid)?.() ?? -1;
-  } catch (error) {
-    throw new DatabaseError(
-      'Secure SQLite acquisition cannot verify the current user',
-      { originalError: error instanceof Error ? error.message : String(error) },
-    );
-  }
-
+): { databaseParent: string; custodiedParents: Set<string> } {
   const databaseParent = dirname(filePath);
   const custodyRoot = resolve(options.root ?? databaseParent);
   const relativeDatabasePath = relative(custodyRoot, filePath);
@@ -283,6 +286,36 @@ async function validateTrustedParentCustody(
       { path: databaseParent, custodyRoot },
     );
   }
+
+  return { databaseParent, custodiedParents };
+}
+
+async function validateTrustedParentCustody(
+  filePath: string,
+  options: SecureSqliteCustodyOptions,
+  runtime: SecureSqliteRuntime,
+): Promise<boolean> {
+  if (options.custody !== 'trusted-parent') {
+    throw new DatabaseError(
+      'Secure SQLite acquisition requires trusted-parent custody',
+      {},
+    );
+  }
+
+  let currentUid: number;
+  try {
+    currentUid = (runtime.currentUid ?? defaultRuntime.currentUid)?.() ?? -1;
+  } catch (error) {
+    throw new DatabaseError(
+      'Secure SQLite acquisition cannot verify the current user',
+      { originalError: error instanceof Error ? error.message : String(error) },
+    );
+  }
+
+  const { databaseParent, custodiedParents } = resolveCustodyLayout(
+    filePath,
+    options,
+  );
 
   for (const componentPath of pathComponents(databaseParent)) {
     let stats: Awaited<ReturnType<typeof lstat>>;
@@ -406,6 +439,147 @@ function sameLeafIdentity(
     left.birthtimeNs === right.birthtimeNs &&
     left.ctimeNs === right.ctimeNs
   );
+}
+
+/** Stable file identity for win32, where ctime moves on any attribute write. */
+interface WindowsLeafObservation {
+  birthtimeNs: bigint;
+  dev: bigint;
+  ino: bigint;
+}
+
+function sameWindowsLeaf(
+  left: Pick<WindowsLeafObservation, 'birthtimeNs' | 'dev' | 'ino'>,
+  right: Pick<WindowsLeafObservation, 'birthtimeNs' | 'dev' | 'ino'>,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.birthtimeNs === right.birthtimeNs
+  );
+}
+
+function nativeRealpath(filePath: string): Promise<string> {
+  return new Promise((resolvePath, reject) => {
+    realpathCallback.native(filePath, (error, resolved) =>
+      error ? reject(error) : resolvePath(resolved),
+    );
+  });
+}
+
+function windowsPathKey(filePath: string): string {
+  // NTFS is case-insensitive; a trailing separator is never significant.
+  const trimmed =
+    filePath.length > parse(filePath).root.length && filePath.endsWith(sep)
+      ? filePath.slice(0, -1)
+      : filePath;
+  return trimmed.toLowerCase();
+}
+
+async function assertWindowsCanonicalPath(
+  filePath: string,
+  runtime: SecureSqliteRuntime,
+): Promise<void> {
+  let canonical: string;
+  try {
+    canonical = await (runtime.realpathPath ?? nativeRealpath)(filePath);
+  } catch (error) {
+    throw new DatabaseError(
+      'Secure SQLite custody chain contains an inaccessible component',
+      {
+        path: filePath,
+        originalError: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  if (windowsPathKey(canonical) !== windowsPathKey(filePath)) {
+    throw new DatabaseError(
+      'Secure SQLite custody chain must not traverse reparse points, mount points, or substituted drives',
+      { path: filePath, resolvedPath: canonical },
+    );
+  }
+}
+
+/**
+ * win32 custody walk. Node cannot read NTFS ACLs, so the SDK owns only the
+ * structural checks (lexical containment, reparse points via lstat and
+ * realpath, regular-file leaf, nlink === 1, stable bigint identity) and
+ * delegates trust policy to the caller's verifier. Returns the leaf identity,
+ * or undefined when the leaf does not exist yet.
+ */
+async function validateWindowsCustody(
+  filePath: string,
+  options: SecureSqliteCustodyOptions,
+  runtime: SecureSqliteRuntime,
+  windowsCustody: SecureSqliteWindowsCustody,
+): Promise<WindowsLeafObservation | undefined> {
+  if (options.custody !== 'trusted-parent') {
+    throw new DatabaseError(
+      'Secure SQLite acquisition requires trusted-parent custody',
+      {},
+    );
+  }
+  const { databaseParent } = resolveCustodyLayout(filePath, options);
+  const lstatPath = runtime.lstatPath ?? lstat;
+  const chain = pathComponents(databaseParent);
+
+  for (const componentPath of chain) {
+    let stats: BigIntStats;
+    try {
+      stats = await lstatPath(componentPath, { bigint: true });
+    } catch (error) {
+      throw new DatabaseError(
+        'Secure SQLite custody chain contains an inaccessible component',
+        {
+          path: componentPath,
+          originalError: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new DatabaseError(
+        'Secure SQLite custody chain must contain only real directories',
+        { path: componentPath },
+      );
+    }
+    await assertWindowsCanonicalPath(componentPath, runtime);
+  }
+
+  let leaf: WindowsLeafObservation | undefined;
+  try {
+    const stats = await lstatPath(filePath, { bigint: true });
+    if (stats.isSymbolicLink() || !stats.isFile()) {
+      throw new DatabaseError(
+        'Secure SQLite database leaf must be a regular file',
+        { path: filePath },
+      );
+    }
+    if (stats.nlink !== 1n) {
+      throw new DatabaseError(
+        'Secure SQLite database leaf must not have additional hard links',
+        { path: filePath, nlink: String(stats.nlink) },
+      );
+    }
+    await assertWindowsCanonicalPath(filePath, runtime);
+    leaf = { birthtimeNs: stats.birthtimeNs, dev: stats.dev, ino: stats.ino };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+
+  try {
+    await windowsCustody.verify(
+      Object.freeze([...chain, ...(leaf ? [filePath] : [])]),
+    );
+  } catch (error) {
+    throw new DatabaseError(
+      'Secure SQLite Windows custody verification failed',
+      {
+        path: filePath,
+        originalError: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  return leaf;
 }
 
 async function createSecureLeaf(
@@ -1033,21 +1207,48 @@ export async function createSecureSqliteClient(
   runtime: SecureSqliteRuntime = defaultRuntime,
 ): Promise<SecureSqliteClient> {
   validateNodeVersion(runtime);
-  if (runtime.platform !== 'darwin' && runtime.platform !== 'linux') {
+  const windowsCustody =
+    runtime.platform === 'win32' ? options.windowsCustody : undefined;
+  if (
+    runtime.platform !== 'darwin' &&
+    runtime.platform !== 'linux' &&
+    !windowsCustody
+  ) {
     throw new DatabaseError(
       `Secure SQLite acquisition is unsupported on ${runtime.platform}`,
       {
-        hint: 'secureFile requires built-in node:sqlite on macOS or Linux. Disable secureFile only if trusted-parent custody is not required.',
+        hint:
+          runtime.platform === 'win32'
+            ? 'On Windows, secureFile requires windowsCustody: { verify(paths) } so the caller can enforce its NTFS ACL policy. Disable secureFile only if trusted-parent custody is not required.'
+            : 'secureFile requires built-in node:sqlite on macOS or Linux. Disable secureFile only if trusted-parent custody is not required.',
       },
+    );
+  }
+  if (windowsCustody && typeof windowsCustody.verify !== 'function') {
+    throw new DatabaseError(
+      'Secure SQLite windowsCustody requires a verify(paths) function',
+      {},
     );
   }
 
   const filePath = resolveSecureFilePath(url);
-  const leafExisted = await validateTrustedParentCustody(
-    filePath,
-    options,
-    runtime,
-  );
+  let windowsLeaf: WindowsLeafObservation | undefined;
+  let leafExisted: boolean;
+  if (windowsCustody) {
+    windowsLeaf = await validateWindowsCustody(
+      filePath,
+      options,
+      runtime,
+      windowsCustody,
+    );
+    leafExisted = windowsLeaf !== undefined;
+  } else {
+    leafExisted = await validateTrustedParentCustody(
+      filePath,
+      options,
+      runtime,
+    );
+  }
   let nodeSqlite: NodeSqliteModule;
   try {
     nodeSqlite = await runtime.loadDriver();
@@ -1061,6 +1262,20 @@ export async function createSecureSqliteClient(
     );
   }
   let createdLeaf: SecureLeafIdentity | undefined;
+  if (windowsCustody && windowsLeaf) {
+    const recheck = await validateWindowsCustody(
+      filePath,
+      options,
+      runtime,
+      windowsCustody,
+    );
+    if (!recheck || !sameWindowsLeaf(windowsLeaf, recheck)) {
+      throw new DatabaseError(
+        'Secure SQLite database leaf changed during acquisition',
+        { path: filePath },
+      );
+    }
+  }
   if (!leafExisted) {
     createdLeaf = await createSecureLeaf(filePath, runtime);
     // An EEXIST race or inherited platform ACL must still satisfy the complete
@@ -1068,11 +1283,32 @@ export async function createSecureSqliteClient(
     // cannot create beneath a validated trusted parent; hostile same-UID
     // mutation remains outside the documented boundary.
     try {
-      const acquiredLeaf = await validateTrustedParentCustody(
-        filePath,
-        options,
-        runtime,
-      );
+      let acquiredLeaf: boolean;
+      if (windowsCustody) {
+        const observed = await validateWindowsCustody(
+          filePath,
+          options,
+          runtime,
+          windowsCustody,
+        );
+        acquiredLeaf = observed !== undefined;
+        if (
+          observed &&
+          createdLeaf &&
+          !sameWindowsLeaf(observed, createdLeaf)
+        ) {
+          throw new DatabaseError(
+            'Secure SQLite database leaf changed during acquisition',
+            { path: filePath },
+          );
+        }
+      } else {
+        acquiredLeaf = await validateTrustedParentCustody(
+          filePath,
+          options,
+          runtime,
+        );
+      }
       if (!acquiredLeaf) {
         throw new DatabaseError(
           'Secure SQLite database leaf disappeared during acquisition',
