@@ -116,8 +116,8 @@ const { repositories, requests } = await listOrganizationRepositories({
 `ciState` rolls up checks and statuses on the default-branch head commit
 (`none` when there are none or the repository is empty). `defaultBranch` is
 `null` for empty repositories. Pass `transport` (for example from a GitHub App
-installation) instead of `token`, and `baseUrl`/`fetch` for GitHub Enterprise or
-tests. Failures throw `ForgeError`.
+installation) instead of `token`, and `fetch` (and `baseUrl`, the API host root
+that serves `/graphql`) for tests. Failures throw `ForgeError`.
 
 ### Signed webhooks
 
