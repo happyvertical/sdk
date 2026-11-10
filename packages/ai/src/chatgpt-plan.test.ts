@@ -531,6 +531,24 @@ describe('ChatGPT plan provider', () => {
     expect(manager.accessToken).not.toHaveBeenCalled();
     await expect(collect()).resolves.toEqual(['hello', ' world']);
     expect(requestBody(fetcher).input).toHaveLength(2);
+
+    fetcher.mockResolvedValue(
+      eventStream([
+        {
+          type: 'response.output_item.done',
+          item: {
+            type: 'function_call',
+            call_id: 'call_2',
+            name: 'get_weather',
+            arguments: '{}',
+          },
+        },
+        ...completedEvents(),
+      ]),
+    );
+    await expect(collect()).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
   });
 
   it('reports function support', async () => {

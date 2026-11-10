@@ -884,6 +884,17 @@ export class ChatGPTPlanProvider implements AIInterface {
         options.onProgress?.(event.delta);
         yield event.delta;
       }
+      // No tools were offered, so a call here cannot be returned or honoured.
+      if (event.toolCall)
+        throw new ChatGPTPlanError(
+          'ChatGPT plan stream() received a tool call it cannot return; use chat()',
+          'INVALID_RESPONSE',
+          undefined,
+          undefined,
+          undefined,
+          false,
+          completed?.model || options.model || this.options.defaultModel,
+        );
       if (event.completed) completed = event.completed;
     }
     options.onFinishReason?.('stop');
