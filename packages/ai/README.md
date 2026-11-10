@@ -10,6 +10,30 @@ pnpm add @happyvertical/ai
 
 Requires `@happyvertical/utils` as a peer dependency.
 
+### Entry points and provider SDKs
+
+Importing the package loads no provider SDK. `openai`, `@anthropic-ai/sdk`,
+`@google/genai` and `@aws-sdk/client-bedrock-runtime` are installed with the
+package but loaded only when a provider that needs them is used: `openai` on
+the first request of an OpenAI-compatible provider (OpenAI, LiteLLM,
+Bifrost) or `OpenAIClient`, the others when their provider is created. If a
+bundle leaves an SDK out, the package still imports, and using that provider
+throws an `AIError` (`INITIALIZATION_ERROR`) naming the package to install.
+
+| Entry | Contents |
+| --- | --- |
+| `@happyvertical/ai` | Universal entry: `getAI()`, providers, types |
+| `@happyvertical/ai/node` | Node-aware `getAIAuto()` (provider-specific environment variables) |
+| `@happyvertical/ai/local` | In-browser WebLLM provider (optional peer `@mlc-ai/web-llm`) |
+| `@happyvertical/ai/types` | Light entry: `AI_PROVIDER_TYPES`, option and response types, error classes; no provider code |
+
+Use `@happyvertical/ai/types` when you only need provider names or types,
+for example to validate a provider name at startup:
+
+```typescript
+import { AI_PROVIDER_TYPES, type AIProviderType } from '@happyvertical/ai/types';
+```
+
 ## Quick Start
 
 ```typescript

@@ -1,8 +1,9 @@
 import { ApiError, ValidationError } from '@happyvertical/utils';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 
 import type { AIMessageOptions } from './message';
 import { buildTokenLimitRequestFields } from './providers/openai';
+import { loadOpenAISdk } from './providers/openai-sdk';
 import type {
   AIProviderType,
   AIRateLimitOptions,
@@ -351,8 +352,9 @@ export class AIClient {
 export async function getOpenAI(options: {
   apiKey?: string;
   baseUrl?: string;
-}) {
-  return new OpenAI({
+}): Promise<OpenAI> {
+  const OpenAISdk = await loadOpenAISdk();
+  return new OpenAISdk({
     apiKey: options.apiKey,
     baseURL: options.baseUrl,
   });
@@ -548,7 +550,8 @@ export class OpenAIClient extends AIClient {
    * Initializes the OpenAI client
    */
   protected async initialize() {
-    this.openai = new OpenAI({
+    const OpenAISdk = await loadOpenAISdk();
+    this.openai = new OpenAISdk({
       apiKey: this.options.apiKey,
       baseURL: this.options.baseUrl,
     });

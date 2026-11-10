@@ -4,9 +4,10 @@
  */
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import OpenAI from 'openai';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { getAI } from './index';
 import { isStaleConnectionError } from './shared/providers/connection-retry';
+import { loadOpenAISdk } from './shared/providers/openai-sdk';
 import type { AIRequestEvent } from './shared/types';
 
 type Behavior =
@@ -317,6 +318,11 @@ describe('stale-connection retry (OpenAI-compatible providers)', () => {
 });
 
 describe('isStaleConnectionError', () => {
+  // SDK errors only exist once a provider has loaded the SDK (#1503).
+  beforeAll(async () => {
+    await loadOpenAISdk();
+  });
+
   const coded = (code: string) => Object.assign(new Error('x'), { code });
 
   it('matches stale-socket shapes anywhere on the cause chain', () => {

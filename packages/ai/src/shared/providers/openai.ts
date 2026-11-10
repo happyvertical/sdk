@@ -7,7 +7,7 @@
  * and custom fine-tuned models.
  */
 
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import {
   hasCacheHint,
   toCacheableTextBlocks,
@@ -67,6 +67,7 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { attemptRecorderFrom, shouldRetryConnection } from './connection-retry';
+import { loadedOpenAISdk, loadOpenAISdk } from './openai-sdk';
 import { cacheUsageFields, emitUsage } from './usage';
 
 /**
@@ -261,7 +262,8 @@ export interface OpenAICompatibleOptions extends BaseAIOptions {
  * Supports GPT models, embeddings, function calling, streaming, and vision capabilities.
  */
 export class OpenAIProvider implements AIInterface {
-  private client: OpenAI;
+  /** Built on first use, so constructing a provider never loads the SDK (#1503). */
+  private client?: OpenAI;
   protected options: OpenAICompatibleOptions;
   protected readonly profile: OpenAICompatibleProfile;
 
@@ -278,8 +280,17 @@ export class OpenAIProvider implements AIInterface {
       defaultModel: this.profile.defaultModel,
       ...options,
     });
+  }
 
-    this.client = new OpenAI({
+  /**
+   * The SDK client, loading `openai` and building the client on first use.
+   * The SDK is always loaded here, even when a client was supplied, so error
+   * mapping can recognise its error classes.
+   * @throws {AIError} `INITIALIZATION_ERROR` naming `openai` when the SDK is missing
+   */
+  private async getClient(): Promise<OpenAI> {
+    const OpenAISdk = await loadOpenAISdk(this.profile.providerName);
+    this.client ??= new OpenAISdk({
       apiKey: this.options.apiKey,
       baseURL: this.options.baseUrl,
       organization: this.options.organization,
@@ -287,6 +298,7 @@ export class OpenAIProvider implements AIInterface {
       maxRetries: this.options.maxRetries,
       defaultHeaders: this.options.headers,
     });
+    return this.client;
   }
 
   /**
@@ -381,8 +393,9 @@ export class OpenAIProvider implements AIInterface {
         this.profile.providerName,
         model,
       );
+      const client = await this.getClient();
       if (chatTemplateKwargs) {
-        this.assertChatTemplateKwargsSupported(model);
+        this.assertChatTemplateKwargsSupported(client, model);
         request.chat_template_kwargs = chatTemplateKwargs;
       }
       // Only a failure before the response status/headers is resent: once
@@ -390,7 +403,7 @@ export class OpenAIProvider implements AIInterface {
       // so a body-read reset after that surfaces unchanged.
       let responded = false;
       const send = () => {
-        const pending = this.client.chat.completions.create(request, {
+        const pending = client.chat.completions.create(request, {
           signal: controls?.signal,
           timeout: controls?.timeout,
           ...(gatewayHeaders ? { headers: gatewayHeaders } : {}),
@@ -617,7 +630,7 @@ export class OpenAIProvider implements AIInterface {
     try {
       const model = options.model || 'text-embedding-3-small';
       const input = Array.isArray(text) ? text : [text];
-      const response = await this.client.embeddings.create({
+      const response = await (await this.getClient()).embeddings.create({
         model,
         input,
         encoding_format: options.encodingFormat,
@@ -834,10 +847,13 @@ export class OpenAIProvider implements AIInterface {
         }
       }
 
-      const response = await this.client.images.generate(requestParams, {
-        signal: controls.signal,
-        timeout: controls.timeout,
-      });
+      const response = await (await this.getClient()).images.generate(
+        requestParams,
+        {
+          signal: controls.signal,
+          timeout: controls.timeout,
+        },
+      );
 
       const images = (response.data || []).map((item) => {
         let data: Buffer | string;
@@ -1013,8 +1029,9 @@ export class OpenAIProvider implements AIInterface {
         this.profile.providerName,
         model,
       );
+      const client = await this.getClient();
       if (chatTemplateKwargs) {
-        this.assertChatTemplateKwargsSupported(model);
+        this.assertChatTemplateKwargsSupported(client, model);
         request.chat_template_kwargs = chatTemplateKwargs;
       }
       let streamFinish: string | null = null;
@@ -1025,7 +1042,7 @@ export class OpenAIProvider implements AIInterface {
       let yielded = false;
       for (let retried = false; ; retried = true) {
         try {
-          const stream = await this.client.chat.completions.create(request, {
+          const stream = await client.chat.completions.create(request, {
             signal: controls.signal,
             timeout: controls.timeout,
             ...(gatewayHeaders ? { headers: gatewayHeaders } : {}),
@@ -1131,7 +1148,7 @@ export class OpenAIProvider implements AIInterface {
    */
   async getModels(): Promise<AIModel[]> {
     try {
-      const response = await this.client.models.list();
+      const response = await (await this.getClient()).models.list();
       return response.data
         .filter((model) => this.profile.shouldIncludeModel(model.id))
         .map((model) => ({
@@ -1434,11 +1451,14 @@ export class OpenAIProvider implements AIInterface {
    * vLLM server still works when `baseUrl` is unset.
    * @private
    */
-  private assertChatTemplateKwargsSupported(model: string): void {
+  private assertChatTemplateKwargsSupported(
+    client: OpenAI,
+    model: string,
+  ): void {
     if (this.profile.providerName !== 'openai') return;
     let host: string | undefined;
     try {
-      host = new URL(this.client.baseURL).hostname.toLowerCase();
+      host = new URL(client.baseURL).hostname.toLowerCase();
     } catch {
       return;
     }
@@ -1516,7 +1536,8 @@ export class OpenAIProvider implements AIInterface {
    */
 
   private mapError(error: unknown): AIError {
-    if (error instanceof OpenAI.APIError) {
+    const OpenAISdk = loadedOpenAISdk();
+    if (OpenAISdk && error instanceof OpenAISdk.APIError) {
       if (
         error.code === 'context_length_exceeded' ||
         (error.status === 400 &&

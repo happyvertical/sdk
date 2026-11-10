@@ -9,8 +9,8 @@
  * timeouts, and caller aborts are never retried.
  */
 
-import OpenAI from 'openai';
 import { AI_ATTEMPT_RECORDER, type AIAttemptRecorder } from '../safety';
+import { loadedOpenAISdk } from './openai-sdk';
 
 const STALE_SOCKET_CODES = new Set(['ECONNRESET', 'EPIPE', 'UND_ERR_SOCKET']);
 const MAX_CAUSE_DEPTH = 8;
@@ -23,6 +23,8 @@ const MAX_CAUSE_DEPTH = 8;
  * makes the error non-retryable.
  */
 export function isStaleConnectionError(error: unknown): boolean {
+  // No SDK loaded means no SDK error can be on the chain (#1503).
+  const OpenAI = loadedOpenAISdk();
   let matched = false;
   const seen = new Set<unknown>();
   let current: unknown = error;
@@ -34,12 +36,17 @@ export function isStaleConnectionError(error: unknown): boolean {
     if (seen.has(current)) break;
     seen.add(current);
     if (
-      current instanceof OpenAI.APIConnectionTimeoutError ||
-      current instanceof OpenAI.APIUserAbortError
+      OpenAI &&
+      (current instanceof OpenAI.APIConnectionTimeoutError ||
+        current instanceof OpenAI.APIUserAbortError)
     ) {
       return false;
     }
-    if (current instanceof OpenAI.APIError && current.status !== undefined) {
+    if (
+      OpenAI &&
+      current instanceof OpenAI.APIError &&
+      current.status !== undefined
+    ) {
       return false;
     }
     const { name, code, message } = current as {
@@ -49,7 +56,7 @@ export function isStaleConnectionError(error: unknown): boolean {
     };
     if (name === 'AbortError' || name === 'TimeoutError') return false;
     if (
-      current instanceof OpenAI.APIConnectionError ||
+      (OpenAI && current instanceof OpenAI.APIConnectionError) ||
       (typeof code === 'string' && STALE_SOCKET_CODES.has(code)) ||
       (typeof message === 'string' && /socket hang up/i.test(message))
     ) {
