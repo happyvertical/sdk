@@ -208,10 +208,62 @@ and complete only after `response.completed`.
 The provider rejects request options that the
 [preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
 do not allow, including `maxTokens`, `temperature`, `topP`, `user`, hosted
-tools, and prior-response state. System messages are sent as developer messages.
-It supports text and image input; embeddings, hosted image generation, file
-search, Code Interpreter, native computer use, hosted MCP/connectors, and audio
-are unavailable on this provider.
+tools, and prior-response state, with `ChatGPTPlanError` code
+`subscription_sharing_unsupported_capability`. Response formats and reasoning
+options are rejected the same way. System messages are sent as developer
+messages. It supports text and image input; embeddings, hosted image
+generation, file search, Code Interpreter, native computer use, hosted
+MCP/connectors, and audio are unavailable on this provider.
+
+### Function tools
+
+`chat()` accepts function `tools`. Plan usage takes function tools only when
+they are grouped in a namespace, so the provider sends them as one `namespace`
+tool (non-strict). Set `toolNamespace: { name, description }` on the provider
+options to describe your tools to the model; the default name is `app_tools`.
+
+```typescript
+const reply = await chatgpt.chat(messages, {
+  tools: [
+    {
+      type: 'function',
+      function: {
+        name: 'get_weather',
+        description: 'Look up the weather for a city.',
+        parameters: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
+      },
+    },
+  ],
+  onProgress: (text) => process.stdout.write(text),
+});
+
+if (reply.finishReason === 'tool_calls') {
+  messages.push({
+    role: 'assistant',
+    content: reply.content,
+    tool_calls: reply.toolCalls,
+  });
+  for (const call of reply.toolCalls ?? []) {
+    messages.push({
+      role: 'tool',
+      tool_call_id: call.id,
+      content: await runTool(call.function.name, call.function.arguments),
+    });
+  }
+  // Call chat() again with the same tools.
+}
+```
+
+- `toolChoice` may be `'auto'` or `'none'`. Forcing one function is rejected.
+- Tool results are text. Legacy `role: 'function'` messages are rejected.
+- `stream()` yields text only, so it rejects `tools`; use `chat()` with
+  `onProgress` to stream text and receive tool calls. Tool history without
+  `tools` is fine in `stream()`.
+- Do not pass `maxTokens` with tools: it is still rejected.
 
 Handle plan-specific failures without changing providers implicitly:
 
