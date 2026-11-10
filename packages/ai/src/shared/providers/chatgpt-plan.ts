@@ -5,6 +5,7 @@ import type {
   AIMessage,
   AIModel,
   AIResponse,
+  AIToolCall,
   ChatGPTPlanOptions,
   ChatOptions,
   CompletionOptions,
@@ -33,6 +34,8 @@ import { emitUsage } from './usage';
 const PROVIDER = 'chatgpt-plan';
 const MODELS_URL = 'https://api.openai.com/v1/models';
 const RESPONSES_URL = 'https://api.openai.com/v1/responses';
+const TOOL_NAMESPACE = 'app_tools';
+const TOOL_NAMESPACE_DESCRIPTION = 'Functions provided by the application.';
 
 interface WireError {
   code?: unknown;
@@ -46,9 +49,11 @@ interface StreamEvent {
   message?: unknown;
   param?: unknown;
   delta?: unknown;
+  item?: unknown;
   response?: {
     model?: unknown;
     usage?: unknown;
+    output?: unknown;
     error?: WireError | null;
     incomplete_details?: unknown;
   };
@@ -57,6 +62,7 @@ interface StreamEvent {
 
 interface ProviderEvent {
   delta?: string;
+  toolCall?: AIToolCall;
   completed?: {
     model?: string;
     usage?: TokenUsage;
@@ -335,8 +341,6 @@ function validateOptions(options: ChatOptions): void {
     'frequencyPenalty',
     'presencePenalty',
     'user',
-    'tools',
-    'toolChoice',
     'responseFormat',
     'responseSchema',
     'seed',
@@ -353,29 +357,153 @@ function validateOptions(options: ChatOptions): void {
       undefined,
       present[0],
     );
+  // Forcing one function is not documented for namespaced tools.
+  if (typeof options.toolChoice === 'object')
+    throw new ChatGPTPlanError(
+      "ChatGPT plan usage supports toolChoice 'auto' and 'none' only",
+      'subscription_sharing_unsupported_capability',
+      400,
+      undefined,
+      'toolChoice',
+    );
 }
 
-function inputFor(messages: AIMessage[]): Array<Record<string, unknown>> {
+/**
+ * Function tools in the only shape the plan-usage route documents: grouped in
+ * one namespace tool. `strict: false` keeps arbitrary JSON Schemas valid.
+ */
+function toolsFor(
+  options: ChatOptions,
+  namespace: { name: string; description: string },
+): Array<Record<string, unknown>> | undefined {
+  if (!options.tools?.length) return undefined;
+  return [
+    {
+      type: 'namespace',
+      name: namespace.name,
+      description: namespace.description,
+      tools: options.tools.map((tool) => {
+        if (tool?.type !== 'function')
+          throw new ChatGPTPlanError(
+            'ChatGPT plan usage supports function tools only',
+            'subscription_sharing_unsupported_capability',
+            400,
+            undefined,
+            'tools',
+          );
+        if (!tool.function?.name)
+          throw new ChatGPTPlanError(
+            'Every ChatGPT plan function tool needs a name',
+            'INVALID_REQUEST',
+            400,
+            undefined,
+            'tools',
+          );
+        return {
+          type: 'function',
+          name: tool.function.name,
+          ...(tool.function.description
+            ? { description: tool.function.description }
+            : {}),
+          parameters: tool.function.parameters ?? {
+            type: 'object',
+            properties: {},
+          },
+          strict: false,
+        };
+      }),
+    },
+  ];
+}
+
+function unsupportedInput(message: string): ChatGPTPlanError {
+  return new ChatGPTPlanError(
+    message,
+    'subscription_sharing_unsupported_capability',
+    400,
+    undefined,
+    'input',
+  );
+}
+
+function invalidInput(message: string): ChatGPTPlanError {
+  return new ChatGPTPlanError(
+    message,
+    'INVALID_REQUEST',
+    400,
+    undefined,
+    'input',
+  );
+}
+
+function toolOutput(content: AIMessage['content']): string {
+  if (typeof content === 'string') return content;
+  return content
+    .map((part) => {
+      if (part.type !== 'text')
+        throw unsupportedInput(
+          'ChatGPT plan usage supports text tool results only',
+        );
+      return part.text;
+    })
+    .join('');
+}
+
+function toolCallFrom(
+  item: Record<string, unknown>,
+  fail: () => ChatGPTPlanError,
+): AIToolCall {
+  if (
+    typeof item.call_id !== 'string' ||
+    !item.call_id ||
+    typeof item.name !== 'string' ||
+    !item.name
+  )
+    throw fail();
+  return {
+    id: item.call_id,
+    type: 'function',
+    function: {
+      name: item.name,
+      arguments: typeof item.arguments === 'string' ? item.arguments : '',
+    },
+  };
+}
+
+function inputFor(
+  messages: AIMessage[],
+  namespace: string,
+): Array<Record<string, unknown>> {
   if (!messages.length)
     throw new ChatGPTPlanError(
       'ChatGPT plan usage requires at least one input message',
       'INVALID_REQUEST',
       400,
     );
-  return messages.map((message) => {
+  return messages.flatMap((message): Array<Record<string, unknown>> => {
+    if (message.role === 'function')
+      throw unsupportedInput(
+        "ChatGPT plan usage does not support 'function' role messages; send tool results as role 'tool'",
+      );
+    if (message.role === 'tool') {
+      if (!message.tool_call_id)
+        throw invalidInput('A tool result needs the tool_call_id it answers');
+      return [
+        {
+          type: 'function_call_output',
+          call_id: message.tool_call_id,
+          output: toolOutput(message.content),
+        },
+      ];
+    }
+    const calls = message.tool_calls?.length ? message.tool_calls : undefined;
     if (
-      message.role === 'function' ||
-      message.role === 'tool' ||
-      message.tool_calls?.length ||
       message.tool_call_id ||
-      message.name
+      message.name ||
+      (calls && message.role !== 'assistant')
     )
-      throw new ChatGPTPlanError(
+      throw unsupportedInput(
         'ChatGPT plan usage does not support this tool/function message shape',
-        'subscription_sharing_unsupported_capability',
-        400,
-        undefined,
-        'input',
       );
     const role = message.role === 'system' ? 'developer' : message.role;
     const content =
@@ -392,7 +520,24 @@ function inputFor(messages: AIMessage[]): Array<Record<string, unknown>> {
                     : {}),
                 },
           );
-    return { role, content };
+    if (!calls) return [{ role, content }];
+    return [
+      // An assistant turn that only called tools has no text to replay.
+      ...(content.length ? [{ role, content }] : []),
+      ...calls.map((call) => {
+        if (call?.type !== 'function' || !call.id || !call.function?.name)
+          throw invalidInput(
+            'A replayed tool call needs an id and a function name',
+          );
+        return {
+          type: 'function_call',
+          call_id: call.id,
+          name: call.function.name,
+          namespace,
+          arguments: call.function.arguments || '{}',
+        };
+      }),
+    ];
   });
 }
 
@@ -404,6 +549,7 @@ function inputFor(messages: AIMessage[]): Array<Record<string, unknown>> {
 export class ChatGPTPlanProvider implements AIInterface {
   private readonly options: ChatGPTPlanOptions;
   private readonly fetcher: typeof fetch;
+  private readonly toolNamespace: { name: string; description: string };
 
   constructor(options: ChatGPTPlanOptions) {
     if (!options.clientId?.trim())
@@ -418,6 +564,11 @@ export class ChatGPTPlanProvider implements AIInterface {
       );
     this.options = normalizeBaseAIOptions(options);
     this.fetcher = options.fetch ?? fetch;
+    this.toolNamespace = {
+      name: options.toolNamespace?.name || TOOL_NAMESPACE,
+      description:
+        options.toolNamespace?.description || TOOL_NAMESPACE_DESCRIPTION,
+    };
   }
 
   private async token(model?: string): Promise<string> {
@@ -475,7 +626,8 @@ export class ChatGPTPlanProvider implements AIInterface {
         'Select a model returned by getModels() before inference',
         'MODEL_REQUIRED',
       );
-    const input = inputFor(messages);
+    const input = inputFor(messages, this.toolNamespace.name);
+    const tools = toolsFor(options, this.toolNamespace);
     const controls = prepareRequestControls(this.options, options);
     let token = '';
     try {
@@ -491,6 +643,10 @@ export class ChatGPTPlanProvider implements AIInterface {
         body: JSON.stringify({
           model,
           input,
+          ...(tools ? { tools } : {}),
+          ...(tools && options.toolChoice === 'none'
+            ? { tool_choice: 'none' }
+            : {}),
           store: false,
           stream: true,
         }),
@@ -518,6 +674,20 @@ export class ChatGPTPlanProvider implements AIInterface {
         );
 
       let completed = false;
+      const seenCalls = new Set<string>();
+      const invalidCall = () =>
+        new ChatGPTPlanError(
+          'ChatGPT plan stream contained a function call without call_id or name',
+          'INVALID_RESPONSE',
+          response.status,
+          safeDiagnostic(
+            response.headers.get('x-request-id') || undefined,
+            token,
+          ),
+          undefined,
+          false,
+          model,
+        );
       for await (const data of sse(response.body)) {
         if (data === '[DONE]') continue;
         let event: StreamEvent;
@@ -542,8 +712,27 @@ export class ChatGPTPlanProvider implements AIInterface {
           typeof event.delta === 'string'
         ) {
           yield { delta: event.delta };
+        } else if (
+          event.type === 'response.output_item.done' &&
+          isRecord(event.item) &&
+          event.item.type === 'function_call'
+        ) {
+          const toolCall = toolCallFrom(event.item, invalidCall);
+          if (!seenCalls.has(toolCall.id)) {
+            seenCalls.add(toolCall.id);
+            yield { toolCall };
+          }
         } else if (event.type === 'response.completed') {
           completed = true;
+          // Calls the terminal snapshot carries but no item event announced.
+          const output = event.response?.output;
+          for (const item of Array.isArray(output) ? output : []) {
+            if (!isRecord(item) || item.type !== 'function_call') continue;
+            const toolCall = toolCallFrom(item, invalidCall);
+            if (seenCalls.has(toolCall.id)) continue;
+            seenCalls.add(toolCall.id);
+            yield { toolCall };
+          }
           yield {
             completed: {
               model:
@@ -644,14 +833,17 @@ export class ChatGPTPlanProvider implements AIInterface {
     const startedAt = Date.now();
     let content = '';
     let completed: ProviderEvent['completed'];
+    const toolCalls: AIToolCall[] = [];
     for await (const event of this.events(messages, options)) {
       if (event.delta !== undefined) {
         content += event.delta;
         options.onProgress?.(event.delta);
       }
+      if (event.toolCall) toolCalls.push(event.toolCall);
       if (event.completed) completed = event.completed;
     }
-    options.onFinishReason?.('stop');
+    const finishReason = toolCalls.length ? 'tool_calls' : 'stop';
+    options.onFinishReason?.(finishReason);
     const model =
       completed?.model || options.model || this.options.defaultModel || '';
     emitUsage(
@@ -667,7 +859,8 @@ export class ChatGPTPlanProvider implements AIInterface {
       content,
       model,
       usage: completed?.usage,
-      finishReason: 'stop',
+      finishReason,
+      ...(toolCalls.length ? { toolCalls } : {}),
     };
   }
 
@@ -675,6 +868,15 @@ export class ChatGPTPlanProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): AsyncIterable<string> {
+    // A text stream has nowhere to return tool calls, so it never offers tools.
+    if (options.tools?.length)
+      throw new ChatGPTPlanError(
+        'stream() yields text only and cannot return tool calls; use chat() with onProgress',
+        'INVALID_REQUEST',
+        400,
+        undefined,
+        'tools',
+      );
     const startedAt = Date.now();
     let completed: ProviderEvent['completed'];
     for await (const event of this.events(messages, options)) {
@@ -754,8 +956,8 @@ export class ChatGPTPlanProvider implements AIInterface {
               ? entry.display_name
               : (entry.slug as string),
           contextLength: 0,
-          capabilities: ['text', 'chat'],
-          supportsFunctions: false,
+          capabilities: ['text', 'chat', 'functions'],
+          supportsFunctions: true,
           supportsVision: true,
         }));
     } catch (error) {
@@ -787,7 +989,7 @@ export class ChatGPTPlanProvider implements AIInterface {
       completion: true,
       embeddings: false,
       streaming: true,
-      functions: false,
+      functions: true,
       vision: true,
       fineTuning: false,
       imageEmbeddings: false,
@@ -797,7 +999,13 @@ export class ChatGPTPlanProvider implements AIInterface {
       voiceCloning: false,
       voiceDesign: false,
       maxContextLength: 0,
-      supportedOperations: ['chat', 'completion', 'streaming', 'vision'],
+      supportedOperations: [
+        'chat',
+        'completion',
+        'streaming',
+        'functions',
+        'vision',
+      ],
     };
   }
 

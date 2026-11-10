@@ -2329,6 +2329,12 @@ export interface ChatGPTPlanOptions extends BaseAIOptions {
   sessionManager: ChatGPTPlanSessionManager;
   /** Test/host transport override. Defaults to global `fetch`. */
   fetch?: typeof fetch;
+  /**
+   * Namespace that groups the request's function tools, as plan usage
+   * requires. The model sees the name and description.
+   * @default { name: 'app_tools', description: 'Functions provided by the application.' }
+   */
+  toolNamespace?: { name?: string; description?: string };
 }
 
 /**
