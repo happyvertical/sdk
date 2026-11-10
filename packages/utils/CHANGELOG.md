@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.10
+
+### Patch Changes
+
+- ### Features
+
+  - function tools for the ChatGPT plan-usage provider (#1506) (ai)
+
 ## 0.111.9
 
 ### Patch Changes
