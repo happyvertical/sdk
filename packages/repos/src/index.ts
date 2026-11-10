@@ -20,20 +20,18 @@
  * ```
  */
 
+export type {
+  BuzzChannelRole,
+  BuzzForgeKind,
+  BuzzRelayClientOptions,
+  BuzzRelaySubscription,
+  BuzzRoleResolution,
+  NostrForgeEvent,
+} from './buzz/index.js';
 export {
-  RepositoryError,
-  RepositoryErrorCode,
-} from './errors.js';
-export { getRepository } from './factory.js';
-export type { ForgeErrorCode } from './forge/errors.js';
-export {
-  ForgeError,
-  ForgeSignatureError,
-} from './forge/errors.js';
-export {
-  BuzzRelayClient,
   BUZZ_FIXTURE_PUBKEYS,
   BUZZ_FORGE_KINDS,
+  BuzzRelayClient,
   channelIdFromEvent,
   computeNostrEventId,
   createApprovalFixture,
@@ -50,14 +48,16 @@ export {
   verifyAndNormalizeBuzzEvent,
   verifyNostrEventSignature,
 } from './buzz/index.js';
-export type {
-  BuzzChannelRole,
-  BuzzForgeKind,
-  BuzzRelayClientOptions,
-  BuzzRelaySubscription,
-  BuzzRoleResolution,
-  NostrForgeEvent,
-} from './buzz/index.js';
+export {
+  RepositoryError,
+  RepositoryErrorCode,
+} from './errors.js';
+export { getRepository } from './factory.js';
+export type { ForgeErrorCode } from './forge/errors.js';
+export {
+  ForgeError,
+  ForgeSignatureError,
+} from './forge/errors.js';
 export type {
   CheckRun,
   CheckRunOutput,
@@ -108,6 +108,14 @@ export { createGitHubWebhookFixture } from './github/fixtures.js';
 export type { GitHubForgeProviderOptions } from './github/forge.js';
 export { GitHubForgeProvider } from './github/forge.js';
 export { GitHubRepository } from './github/index.js';
+export type {
+  GitHubCiState,
+  GitHubLatestRelease,
+  GitHubRepositorySummary,
+  ListOrganizationRepositoriesOptions,
+  OrganizationRepositoryListing,
+} from './github/organization.js';
+export { listOrganizationRepositories } from './github/organization.js';
 export type {
   GitHubTokenSource,
   GitHubTransportOptions,
