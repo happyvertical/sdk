@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.9
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - do not load provider SDKs when the package is imported (#1504) (ai)
+
 ## 0.111.8
 
 ### Patch Changes
