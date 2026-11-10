@@ -10,7 +10,11 @@ import { createPackageConfig } from '../../vite.config.base.js';
 //
 // `local` is the `@happyvertical/ai/local` subpath: in-browser providers whose
 // optional peers (`@mlc-ai/web-llm`) are imported lazily and never bundled.
+//
+// `types` is the `@happyvertical/ai/types` light entry (#1503): provider
+// names, types and error classes with no provider code or SDK imports.
 export default createPackageConfig('ai', {
   node: 'src/node.ts',
   local: 'src/local.ts',
+  types: 'src/types.ts',
 });

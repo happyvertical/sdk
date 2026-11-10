@@ -17,6 +17,10 @@
     "./local": {
       "import": "./dist/local.js",
       "types": "./dist/local.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types.js",
+      "types": "./dist/types.d.ts"
     }
   },
   "bin": {
