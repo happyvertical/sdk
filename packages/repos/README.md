@@ -95,6 +95,30 @@ every still-live token issued by this scoped authority and permanently close
 the local context. Local authority closes even if GitHub is unavailable;
 `revoke()` reports the remote failure and may be retried.
 
+### Organization repository listing
+
+`listOrganizationRepositories()` returns every repository of an organization
+(archived included) with an activity summary, read-only, using one GraphQL
+request per page of repositories (default 50).
+
+```typescript
+import { listOrganizationRepositories } from '@happyvertical/repos';
+
+const { repositories, requests } = await listOrganizationRepositories({
+  owner: 'happyvertical',
+  token: process.env.GITHUB_TOKEN, // read-only token is enough
+});
+// { owner, name, description, defaultBranch, url, isPrivate, archived,
+//   pushedAt, openPullRequestCount, latestRelease: {tag, publishedAt, url}|null,
+//   ciState: 'success'|'failure'|'pending'|'none' }
+```
+
+`ciState` rolls up checks and statuses on the default-branch head commit
+(`none` when there are none or the repository is empty). `defaultBranch` is
+`null` for empty repositories. Pass `transport` (for example from a GitHub App
+installation) instead of `token`, and `fetch` (and `baseUrl`, the API host root
+that serves `/graphql`) for tests. Failures throw `ForgeError`.
+
 ### Signed webhooks
 
 Give the verifier the exact bytes received from the HTTP server. Do not decode,

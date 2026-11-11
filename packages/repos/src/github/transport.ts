@@ -60,6 +60,19 @@ function errorCode(status: number, rateLimit?: ForgeRateLimit): ForgeErrorCode {
   return 'PROVIDER_ERROR';
 }
 
+/**
+ * Resolves the GraphQL endpoint for a GitHub REST base URL. github.com keeps
+ * `/graphql`; GitHub Enterprise Server's `https://HOST/api/v3` maps to
+ * `https://HOST/api/graphql`.
+ */
+export function resolveGitHubGraphqlUrl(baseUrl?: string): string {
+  const base = (baseUrl ?? 'https://api.github.com').replace(/\/+$/, '');
+  if (/\/api\/v3$/i.test(base)) {
+    return `${base.replace(/\/v3$/i, '')}/graphql`;
+  }
+  return `${base}/graphql`;
+}
+
 export class GitHubTransport implements ForgeTransport {
   private readonly token: GitHubTokenSource;
   private readonly baseUrl: string;
@@ -90,7 +103,9 @@ export class GitHubTransport implements ForgeTransport {
     let response: Response;
     try {
       response = await this.fetchImplementation(
-        `${this.baseUrl}${request.path}`,
+        /^https?:\/\//i.test(request.path)
+          ? request.path
+          : `${this.baseUrl}${request.path}`,
         {
           method: request.method,
           headers: {
