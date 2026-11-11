@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.111.11
+
+### Patch Changes
+
+- ### Features
+
+  - Add read-only GitHub organization repository listing (#1508) (repos)
+
 ## 0.111.10
 
 ### Patch Changes
