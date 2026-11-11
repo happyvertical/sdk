@@ -58,7 +58,9 @@ argument bounds, ASCII case-conversion contract and DuckDB index limitations.
 
 ## Column identifier quoting
 
-CRUD helpers quote columns on every adapter. PostgreSQL/PGlite bare names keep
+CRUD helpers quote columns on every adapter. SQLite emits backticks so absent
+columns fail even when the driver accepts double-quoted string literals.
+PostgreSQL/PGlite bare names keep
 legacy folding (`camelCase` addresses `camelcase`); explicitly quoted names
 such as `'"MixedCase"'` and `'"Full Name"'` preserve physical spelling. WHERE
 and aggregate identifiers support qualified parts (`alias.order`), with dots

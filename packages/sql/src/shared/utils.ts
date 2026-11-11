@@ -1011,7 +1011,7 @@ export function rewriteSqlParameters(
     // not be reinterpreted as a bind (for example, legacy raw foo$1).
     if (char === '$' && !/[\w$\u0080-\uFFFF]/.test(sql[position - 1] ?? '')) {
       if (dialect === 'postgres') {
-        const tag = sql.slice(position).match(/^\$[A-Za-z_][\w$]*\$|^\$\$/);
+        const tag = sql.slice(position).match(/^\$[A-Za-z_]\w*\$|^\$\$/);
         if (tag) {
           copyUntil(tag[0]);
           continue;

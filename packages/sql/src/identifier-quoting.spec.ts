@@ -572,3 +572,33 @@ describe('JSON literal physical identifier persistence', () => {
     }
   });
 });
+
+describe('PGlite compact dollar tags with a single array parameter', () => {
+  it('retains array binding after dollar-quoted text and comments', async () => {
+    const db = await getDatabase({
+      type: 'pglite',
+      url: 'memory://',
+      cache: false,
+    });
+    try {
+      expect(
+        (
+          await db.query(
+            'SELECT $tag$hello$tag$ AS message, $1::text[] AS value',
+            ['a', 'b'],
+          )
+        ).rows,
+      ).toEqual([{ message: 'hello', value: ['a', 'b'] }]);
+      expect(
+        (
+          await db.query(
+            'SELECT $tag$literal $9 ?$tag$ AS message, $1::text[] AS value /* $8 ? */',
+            ['a', 'b'],
+          )
+        ).rows,
+      ).toEqual([{ message: 'literal $9 ?', value: ['a', 'b'] }]);
+    } finally {
+      await db.close?.();
+    }
+  });
+});

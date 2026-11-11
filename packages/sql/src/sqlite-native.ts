@@ -6,7 +6,7 @@ import { DatabaseSchemaManager } from './schema-manager.js';
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
-  quoteLiteralIdentifier as quoteIdentifier,
+  quoteSqliteLiteralIdentifier as quoteIdentifier,
   quoteSqliteColumnName,
   validateColumnName,
   validateColumnNames,

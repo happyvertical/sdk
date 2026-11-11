@@ -571,6 +571,11 @@ lists, conflict targets, SET clauses and WHERE fields. Keyword columns such as
 Table names retain the restricted `[a-zA-Z_][a-zA-Z0-9_]*` contract. Bare CRUD
 column names follow the same pattern; values are always bound parameters.
 
+SQLite emits backtick-quoted identifiers, doubling embedded backticks. This
+ensures an absent column fails instead of falling back to a string literal on
+SQLite drivers with double-quoted string support. Input names still use the
+explicit double-quote syntax below; authored raw SQL keeps its driver behavior.
+
 PostgreSQL and PGlite preserve PostgreSQL's established unquoted folding:
 `camelCase` addresses the physical column `camelcase`. For an exact mixed-case
 or spaced physical column, use an explicitly double-delimited identifier:

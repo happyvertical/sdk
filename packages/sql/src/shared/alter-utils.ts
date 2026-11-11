@@ -335,11 +335,15 @@ export function quotePostgresColumnName(columnName: string): string {
  * Rejecting them would break working code to fix an injection that quoting
  * already prevents.
  *
- * @param identifier - Identifier to place inside double quotes
- * @returns The identifier with embedded quotes doubled
+ * @param identifier - Identifier to place inside SQL identifier quotes
+ * @param quote - Identifier delimiter (double quote, or SQLite backtick)
+ * @returns The identifier with embedded delimiter characters doubled
  * @throws Error if the identifier is empty or contains a NUL byte
  */
-export function escapeQuotedIdentifier(identifier: string): string {
+export function escapeQuotedIdentifier(
+  identifier: string,
+  quote: '"' | '`' = '"',
+): string {
   // Coerce to a primitive string first. The escape's safety rests on
   // `replaceAll`/`includes` being the real `String` methods, but a crafted
   // object could supply its own that return unescaped SQL while its `toString`
@@ -352,7 +356,7 @@ export function escapeQuotedIdentifier(identifier: string): string {
       `Invalid column name: ${JSON.stringify(value)}. Column names must be non-empty and must not contain a NUL byte.`,
     );
   }
-  return value.replaceAll('"', '""');
+  return value.replaceAll(quote, quote + quote);
 }
 
 /**
@@ -451,9 +455,18 @@ function isColumnIdentifier(identifier: string): boolean {
 
 /** Quote a physical name without interpreting delimiters or dots. */
 export function quoteLiteralIdentifier(identifier: string): string {
+  return quotePhysicalIdentifier(identifier, '"');
+}
+
+/** SQLite identifiers must not fall back to double-quoted string literals. */
+export function quoteSqliteLiteralIdentifier(identifier: string): string {
+  return quotePhysicalIdentifier(identifier, '`');
+}
+
+function quotePhysicalIdentifier(identifier: string, quote: '"' | '`'): string {
   if (typeof identifier !== 'string')
     throw new Error(`Invalid SQL identifier: ${identifier}`);
-  return `"${escapeQuotedIdentifier(identifier)}"`;
+  return `${quote}${escapeQuotedIdentifier(identifier, quote)}${quote}`;
 }
 
 /** SQLite CRUD column (one validated identifier). */
@@ -483,9 +496,11 @@ export function renderIdentifier(
         !IDENTIFIER_KEYWORDS.has(name.toLowerCase())
       )
         return name;
-      return quoteLiteralIdentifier(
-        dialect === 'postgres' && !exact ? name.toLowerCase() : name,
-      );
+      const physical =
+        dialect === 'postgres' && !exact ? name.toLowerCase() : name;
+      return dialect === 'sqlite'
+        ? quoteSqliteLiteralIdentifier(physical)
+        : quoteLiteralIdentifier(physical);
     })
     .join('.');
 }

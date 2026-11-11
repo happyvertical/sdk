@@ -180,3 +180,33 @@ other changes. Older focused totals above record earlier checkpoints.
 Final shared-only confirmation: `/tmp/sdk-1513-shared-final.log`, 65 pass / 12
 explicit real-PG pending (77 cases), 1.59s. Latest package typecheck/build pass
 and focused Biome has no errors, with only the four pre-existing warnings.
+
+
+## Accepted review corrections: SQLite missing columns and PostgreSQL dollar tags
+
+The original base `7ac47212` rejects missing-column WHERE predicates. A temporary
+base/head probe showed the first implementation still rejects them on libsql,
+but secure-file `node:sqlite` accepts double-quoted unknown names as strings:
+`missing != 'x'` and `missing IS NOT NULL` selected and deleted both protected
+rows; `missing IS NULL` silently returned no rows. SQLite identifier emission
+now uses backticks (embedded backticks doubled), including public builders and
+native literal identifier positions. PostgreSQL/DuckDB retain double quotes.
+Explicit input syntax remains double-quoted; authored raw SQL DQS stays intact.
+
+`sqlite-identifier-fail-closed.spec.ts` covers libsql, native and secure-file
+paths in process. Missing-column get/list/count/update/delete fail for inequality,
+IS NULL and IS NOT NULL without changing either protected row. Transaction tests
+verify preceding writes roll back after such a failure. Physical closing bracket
+and embedded backtick names round trip through CRUD, public quote-all WHERE and
+aggregate builders. A secure-file raw SQL test proves DQS remains unchanged.
+
+A second base/head probe revealed that compact `$tag$hello$tag$` before a single
+`$1::text[]` parameter caused the first implementation to flatten its array:
+base returned `['a','b']`, head raised PostgreSQL 08P01 (two binds for one slot).
+The shared scanner now excludes `$` from tag contents, matching PostgreSQL's
+tag grammar. New shared lexer and PGlite integration cases pin compact tags,
+array binding, dollar/question text inside tagged bodies and comments.
+
+Probe evidence outside the repository:
+`/tmp/sdk-1513-dqs-probe-results.log`,
+`/tmp/sdk-1513-dollar-array-probe-results.log`.

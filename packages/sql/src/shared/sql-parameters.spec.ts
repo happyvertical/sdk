@@ -34,6 +34,14 @@ describe('shared positional-parameter lexer', () => {
       ['?', undefined],
     ]);
   });
+  it('recognizes compact PostgreSQL dollar tags before real array parameters', () => {
+    const sql =
+      'SELECT $tag$hello$tag$, $tag$literal $9 ?$tag$, $1::text[] /* $8 ? */';
+    expect(capture(sql, 'postgres')).toEqual({
+      tokens: [['$1', 1]],
+      rendered: sql.replace('$1::text[]', '$number1::text[]'),
+    });
+  });
   it('SQLite preserves backtick and bracket identifiers', () => {
     expect(
       capture(
