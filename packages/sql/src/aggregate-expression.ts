@@ -736,9 +736,15 @@ function renderPortable(
     const value = child(node.value),
       daysSql = child(node.days);
     const days = integerArg(node.days, daysSql, -365000, 365000);
-    const added = `(CAST(${value} AS DATE) + (${days}))`;
-    if (pg || duck) return added;
-    return `DATE(${value}, CAST((${days}) AS TEXT) || ' days')`;
+    const added =
+      pg || duck
+        ? `(CAST(${value} AS DATE) + (${days}))`
+        : `DATE(${value}, CAST((${days}) AS TEXT) || ' days')`;
+    // Bound native dates before parents can extract parts or boundary output
+    // can format a year wider than four digits. SQLite also accepts year 0000.
+    const bound = (iso: string) =>
+      pg || duck ? `CAST('${iso}' AS DATE)` : `'${iso}'`;
+    return `(CASE WHEN ${added} BETWEEN ${bound('0001-01-01')} AND ${bound('9999-12-31')} THEN ${added} ELSE NULL END)`;
   }
   if (op === 'year' || op === 'month' || op === 'day') {
     if (state.ctx.mode === 'ddl') requireTemporal(node.value, state);

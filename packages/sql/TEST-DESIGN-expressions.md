@@ -20,3 +20,10 @@ Actor: SDK caller rendering persisted JSON expressions. Executor: one isolated i
 - SQLite libsql registers floor/ceil/power extensions without the deterministic flag (direct DDL probe, `/tmp/sdk-1511-probe.log`); production lowering uses core arithmetic and constant powers instead. PostgreSQL generated constant REPLACE chains fail collation folding even with explicit C collation (direct PGlite probe, `/tmp/sdk-1511-probe-pg.log`); ASCII TRANSLATE supplies the identical immutable mapping there.
 - Package typecheck, build, focused Biome and agent:check pass. Agent sync changes were inspected: SQL description metadata and its generated AGENT/manifest entries only. Existing test files, lockfile, dependency versions and aggregate builder file remain unchanged.
 - Foreman owns integrated SQL-suite/root-gate validation and the single review cycle; no external PostgreSQL services or containers were used here.
+
+## Accepted review blocker: date arithmetic bounds
+
+- Trigger: `addDays(9999-12-31, 1)` or `addDays(0001-01-01, -1)`, directly or under `year`. Actor/executor/dialects match the matrix above; this is a pure formula and generated-DDL contract edge.
+- Regression before fix: 10 failures / 266 expression tests, 1.76s (`/tmp/sdk-1511-datebounds-before.log`), exposing year 10000, BC/year zero and PostgreSQL four-character year truncation.
+- Result range is checked while the value is still a native date (ISO text on SQLite), before any outer formatting or part extraction. Both overflow boundaries yield NULL; both inclusive endpoints remain valid. The regression executes query, DDL-literal SELECT, generated columns and supported indexes on all three engines.
+- After fix: 333 focused tests / 4 files pass in 2.61s (`/tmp/sdk-1511-datebounds-focused.log`); package typecheck and build (1.32s) pass. Existing aggregate/browser tests remain untouched.

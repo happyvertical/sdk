@@ -269,6 +269,36 @@ cases.push({
   expected: 2.5,
   type: 'number',
 });
+for (const [iso, days] of [
+  ['9999-12-31', 1],
+  ['0001-01-01', -1],
+] as const) {
+  const node: AggregateOperand = {
+    op: 'addDays',
+    value: date(iso),
+    days: v(days),
+  };
+  cases.push({
+    name: `addDays outside calendar ${iso}`,
+    node,
+    expected: null,
+    type: 'date',
+  });
+  cases.push({
+    name: `nested year outside calendar ${iso}`,
+    node: unary('year', node),
+    expected: null,
+    type: 'number',
+  });
+}
+for (const iso of ['0001-01-01', '9999-12-31']) {
+  cases.push({
+    name: `addDays calendar endpoint ${iso}`,
+    node: { op: 'addDays', value: date(iso), days: v(0) },
+    expected: iso,
+    type: 'date',
+  });
+}
 for (const op of [
   'abs',
   'floor',
@@ -358,7 +388,9 @@ for (const dialect of ['sqlite', 'postgres', 'duckdb'] as const) {
     it('executes every immutable new node in generated columns and indexes', async () => {
       // Use each non-NULL example, so database validators see real operand
       // types and generated values, rather than constant-NULL simplification.
-      const examples = cases.filter((c) => c.expected !== null);
+      const examples = cases.filter(
+        (c) => c.expected !== null || c.name.includes('outside calendar'),
+      );
       for (const [i, c] of examples.entries()) {
         const built = renderExpression(c.node, { dialect, mode: 'ddl' });
         const type = c.type === 'number' ? 'DOUBLE PRECISION' : 'TEXT';

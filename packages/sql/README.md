@@ -832,8 +832,9 @@ another node). Numeric functions require SQL numeric values, text functions SQL
 text values, and conditional branches compatible SQL types; this renderer does
 not inspect a live schema or emulate dialect-specific implicit conversions.
 Invalid literal integer arguments throw; dynamic NULL/out-of-range/fractional
-integer arguments yield NULL without unsafe casts. Temporal results must remain
-within years 0001..9999. Legacy JavaScript `Date` query literals retain their
+integer arguments yield NULL without unsafe casts. An `addDays` result outside
+years 0001..9999 yields NULL before formatting or nested date operations. Legacy
+JavaScript `Date` query literals retain their
 existing casts (including PostgreSQL TIMESTAMPTZ); generated use requires the new
 typed literals. Generated `asText` also requires known number/text/boolean input;
 date-to-text casts and unknown types can depend on session settings. SQL DATE/TIMESTAMP literal projections use native database result
