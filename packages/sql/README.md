@@ -609,6 +609,21 @@ There is no adapter `orderBy`, aggregate or record `exists` method: execute
 for table existence. Standalone `renderExpression` retains its exact physical
 identifier spelling contract.
 
+Index `columns` arrays in ALTER helpers and schema manifests retain their
+caller-authored SQL term contract: expressions such as `lower(email)` and ordered
+terms such as `created_at DESC` pass through exactly. Simple identifiers quote
+according to the builder's dialect policy. Strict CRUD and WHERE keys still
+require identifiers or explicit `raw()` expressions. Aggregate `orderBy` keeps
+the first identifier and optional ASC/DESC direction; trailing tokens are ignored.
+Legacy numeric literal WHERE keys, aggregate literals and ordinal group/order
+terms retain their SQL meaning; explicitly quoted numeric names address columns.
+SELECT aliases and FROM/JOIN table names always use identifier rendering, even
+when their spelling is numeric. ORDER BY a selected alias also names that alias. Manifest foreign key column strings can contain comma-separated names;
+commas inside explicit quotes belong to one name. DDL/schema names also accept
+legacy SQLite backtick, bracket and single-quote delimiters, normalizing them as
+identifiers while preserving their physical spelling. CRUD/WHERE exact-name
+inputs continue to use explicit double quotes.
+
 Known-dialect ALTER helpers quote column and index identifiers. The schema
 manifest manager has no dialect tag and preserves bare ordinary spelling
 (including PostgreSQL folding), quoting keywords and explicitly delimited names.

@@ -1678,9 +1678,6 @@ async function createNativeSqliteDatabase(
       ): Promise<void> => {
         validateTableName(tableName);
         validateIndexName(index.name);
-        for (const column of index.columns) {
-          validateColumnName(column);
-        }
         let sql: string | undefined;
         try {
           sql = generateCreateIndexStatement(tableName, index, 'sqlite');

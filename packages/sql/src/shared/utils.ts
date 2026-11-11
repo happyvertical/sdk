@@ -3,7 +3,11 @@
  */
 
 import { DatabaseError } from '@happyvertical/utils';
-import { type IdentifierOptions, renderIdentifier } from './alter-utils.js';
+import {
+  type IdentifierOptions,
+  isLegacyNumericSqlToken,
+  renderIdentifier,
+} from './alter-utils.js';
 import type { WhereClause } from './types.js';
 
 /**
@@ -672,7 +676,7 @@ const buildCondition = (
   const parsed = parseConditionKey(key);
   const operator = parsed.operator;
   let field = parsed.field;
-  if (!isRaw) {
+  if (!isRaw && !isLegacyNumericSqlToken(field)) {
     try {
       field = renderIdentifier(field, adapterType, options);
     } catch (error) {

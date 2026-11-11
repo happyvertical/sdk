@@ -37,7 +37,7 @@ export function generateAddColumnStatement(
   dialect: DatabaseDialect,
 ): string {
   const parts: string[] = [
-    renderIdentifier(column.name, dialect, { quoteIdentifiers: true }),
+    renderSchemaIdentifier(column.name, dialect, { quoteIdentifiers: true }),
     column.type,
   ];
 
@@ -74,7 +74,7 @@ export function generateAddColumnStatement(
   if (column.foreignKey) {
     const fk = column.foreignKey;
     const fkParts = [
-      `REFERENCES ${renderIdentifier(fk.table, dialect, { quoteIdentifiers: true })}(${renderIdentifier(fk.column, dialect, { quoteIdentifiers: true })})`,
+      `REFERENCES ${renderSchemaIdentifier(fk.table, dialect, { quoteIdentifiers: true })}(${renderIdentifierList(fk.column, dialect, { quoteIdentifiers: true })})`,
     ];
 
     if (fk.onDelete) {
@@ -89,7 +89,7 @@ export function generateAddColumnStatement(
   }
 
   const columnDef = parts.join(' ');
-  return `ALTER TABLE ${renderIdentifier(table, dialect, { quoteIdentifiers: true })} ADD COLUMN ${columnDef}`;
+  return `ALTER TABLE ${renderSchemaIdentifier(table, dialect, { quoteIdentifiers: true })} ADD COLUMN ${columnDef}`;
 }
 
 /**
@@ -212,17 +212,19 @@ export function generateCreateIndexStatement(
   parts.push('INDEX');
 
   // Index name
-  parts.push(renderIdentifier(index.name, dialect, { quoteIdentifiers: true }));
+  parts.push(
+    renderSchemaIdentifier(index.name, dialect, { quoteIdentifiers: true }),
+  );
 
   // ON table
   parts.push(
-    `ON ${renderIdentifier(table, dialect, { quoteIdentifiers: true })}`,
+    `ON ${renderSchemaIdentifier(table, dialect, { quoteIdentifiers: true })}`,
   );
 
   // Column list
   const columns = index.columns
     .map((column) =>
-      renderIdentifier(column, dialect, { quoteIdentifiers: true }),
+      renderIndexTerm(column, dialect, { quoteIdentifiers: true }),
     )
     .join(', ');
   parts.push(`(${columns})`);
@@ -402,6 +404,18 @@ export function validateIndexName(indexName: string): void {
   }
 }
 
+/** Numeric SQL tokens accepted by the original WHERE/aggregate character grammar.
+ * This is a bounded compatibility exception, never a general expression channel.
+ */
+export function isLegacyNumericSqlToken(value: string): boolean {
+  return (
+    typeof value === 'string' &&
+    /^(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|(?:[0-9][0-9_]*(?:\.[0-9_]*)?|\.[0-9][0-9_]*)(?:[eE][0-9][0-9_]*)?)$/.test(
+      value,
+    )
+  );
+}
+
 /** Additive policy for standalone builders; adapters always request quote-all. */
 export interface IdentifierOptions {
   quoteIdentifiers?: boolean;
@@ -503,6 +517,100 @@ export function renderIdentifier(
         : quoteLiteralIdentifier(physical);
     })
     .join('.');
+}
+
+/** Previously raw index terms may be expressions or ordered SQL, not just names. */
+export function renderIndexTerm(
+  term: string,
+  dialect?: DatabaseDialect,
+  options: IdentifierOptions = {},
+): string {
+  // Classify syntax before rendering: do not hide errors thrown by the renderer.
+  const component = '(?:[A-Za-z_][A-Za-z0-9_]*|"(?:[^"]|"")+")';
+  const plain = new RegExp(`^${component}(?:\\.${component})*$`);
+  return typeof term === 'string' && plain.test(term)
+    ? renderIdentifier(term, dialect, options)
+    : term;
+}
+
+/** DDL names historically accepted SQLite's alternate identifier delimiters.
+ * Normalize names only here; strict CRUD/WHERE keep their existing input syntax.
+ */
+export function renderSchemaIdentifier(
+  identifier: string,
+  dialect?: DatabaseDialect,
+  options: IdentifierOptions = {},
+): string {
+  if (typeof identifier !== 'string')
+    throw new Error(`Invalid SQL identifier: ${identifier}`);
+  const parts: string[] = [];
+  let position = 0;
+  while (position < identifier.length) {
+    const match =
+      /^(?:([A-Za-z0-9_]+)|"((?:[^"]|"")+)"|`((?:[^`]|``)+)`|\[([^\]]+)\]|'((?:[^']|'')+)')(?=\.|$)/.exec(
+        identifier.slice(position),
+      );
+    if (!match) throw new Error(`Invalid SQL identifier: ${identifier}`);
+    if (match[1] !== undefined) parts.push(match[1]);
+    else {
+      const name =
+        match[2] !== undefined
+          ? match[2].replaceAll('""', '"')
+          : match[3] !== undefined
+            ? match[3].replaceAll('``', '`')
+            : match[4] !== undefined
+              ? match[4]
+              : match[5].replaceAll("''", "'");
+      parts.push(quoteLiteralIdentifier(name));
+    }
+    position += match[0].length;
+    if (position < identifier.length) {
+      position += 1;
+      if (position === identifier.length)
+        throw new Error(`Invalid SQL identifier: ${identifier}`);
+    }
+  }
+  return renderIdentifier(parts.join('.'), dialect, options);
+}
+
+/** FK lists contain identifiers, with commas outside explicit quotes only. */
+export function renderIdentifierList(
+  list: string,
+  dialect?: DatabaseDialect,
+  options: IdentifierOptions = {},
+): string {
+  if (typeof list !== 'string')
+    throw new Error(`Invalid SQL identifier list: ${list}`);
+  const parts: string[] = [];
+  let closingQuote: string | undefined;
+  let start = 0;
+  for (let index = 0; index < list.length; index += 1) {
+    const char = list[index];
+    if (closingQuote) {
+      if (char === closingQuote) {
+        if (closingQuote !== ']' && list[index + 1] === closingQuote)
+          index += 1;
+        else closingQuote = undefined;
+      }
+    } else if (char === '"' || char === "'" || char === '`' || char === '[') {
+      closingQuote = char === '[' ? ']' : char;
+    } else if (char === ',') {
+      parts.push(list.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(list.slice(start));
+  return parts
+    .map((part) => {
+      const name = part.trim();
+      const offset = part.indexOf(name);
+      return (
+        part.slice(0, offset) +
+        renderSchemaIdentifier(name, dialect, options) +
+        part.slice(offset + name.length)
+      );
+    })
+    .join(',');
 }
 
 // SQLite official 147-keyword list (sqlite.org/lang_keywords.html), plus reserved

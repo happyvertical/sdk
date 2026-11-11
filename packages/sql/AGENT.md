@@ -77,3 +77,18 @@ name contract: spaces, dots, hyphens and quote characters are data, including
 outer quote characters. Strict insert/update and WHERE keys use explicit SQL
 delimiters for these names. See README and `TEST-DESIGN-identifiers.md` for the
 compatibility exceptions, dialect matrix and complete identifier sink audit.
+
+Index column arrays accept trusted SQL terms such as `lower(email)` and
+`created_at DESC` verbatim; simple identifiers use the owning quoting policy.
+Aggregate ORDER BY retains only the identifier and optional direction, ignoring
+later tokens. Legacy numeric SQL tokens keep literal/ordinal meaning in WHERE
+and aggregates; explicitly quoted numeric names address physical columns.
+Manifest foreign key column strings support comma-separated identifiers, with
+commas inside explicit quotes kept as part of the physical name.
+
+DDL/schema identifier names also normalize legacy SQLite backtick, bracket and
+single-quote delimiters. FK list parsing keeps commas inside those names literal;
+malformed names and expressions still reject.
+
+Aggregate numeric compatibility applies to operands/ordinals, while SELECT aliases,
+FROM/JOIN names and ORDER BY selected aliases always use identifier rendering.

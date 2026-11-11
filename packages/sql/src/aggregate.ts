@@ -7,6 +7,7 @@ import {
 import {
   type IdentifierOptions,
   identifierParts,
+  isLegacyNumericSqlToken,
   quoteLiteralIdentifier,
   renderIdentifier,
 } from './shared/alter-utils.js';
@@ -97,9 +98,26 @@ const VALID_BUCKET_UNITS = new Set<AggregateTimeBucketUnit>([
   'year',
 ]);
 
+function aggregateIdentifierParts(identifier: string) {
+  if (isLegacyNumericSqlToken(identifier)) {
+    return identifier.split('.').map((name) => ({ name, exact: false }));
+  }
+  return identifierParts(identifier);
+}
+
 function validateSqlIdentifier(identifier: string): string {
-  identifierParts(identifier);
+  aggregateIdentifierParts(identifier);
   return identifier;
+}
+
+function renderAggregateIdentifier(
+  identifier: string,
+  adapterType: SqlAdapterType | undefined,
+  options: IdentifierOptions,
+): string {
+  return isLegacyNumericSqlToken(identifier)
+    ? identifier
+    : renderIdentifier(identifier, adapterType, options);
 }
 
 function normalizeAdapter(adapterType?: SqlAdapterType): SqlAdapterType {
@@ -120,7 +138,7 @@ export function bucketExpr(
     throw new Error(`Invalid aggregate bucket unit: ${unit}`);
   }
 
-  const col = renderIdentifier(column, adapterType, options);
+  const col = renderAggregateIdentifier(column, adapterType, options);
   const adapter = normalizeAdapter(adapterType);
 
   if (adapter === 'postgres' || adapter === 'duckdb' || adapter === 'json') {
@@ -148,6 +166,8 @@ export function bucketExpr(
 /** What a select expression, join and predicate share while one query is built. */
 interface BuildState {
   ctx: ExpressionContext;
+  /** Names never use the numeric-literal compatibility channel for operands. */
+  renderName: (name: string) => string;
   /** Table names and aliases a qualified column may name; undefined without joins. */
   scope: Set<string> | undefined;
   options: IdentifierOptions;
@@ -155,7 +175,7 @@ interface BuildState {
 
 function checkColumn(state: BuildState, column: string): string {
   const { scope } = state;
-  const parts = identifierParts(column);
+  const parts = aggregateIdentifierParts(column);
   if (scope && parts.length > 1) {
     if (parts.length !== 2 || !scope.has(parts[0].name)) {
       throw new Error(
@@ -257,7 +277,7 @@ function selectExpression(
     const alias = validateSqlIdentifier(
       expr.as ??
         (() => {
-          const part = identifierParts(expr.column).at(-1);
+          const part = aggregateIdentifierParts(expr.column).at(-1);
           if (!part) throw new Error(`Invalid SQL identifier: ${expr.column}`);
           return part.exact ? quoteLiteralIdentifier(part.name) : part.name;
         })(),
@@ -344,20 +364,19 @@ function buildOrderBy(
   if (!orderBy) return '';
   const items = Array.isArray(orderBy) ? orderBy : [orderBy];
   const parts = items.map((item) => {
-    const match = /^(.*)\s+(ASC|DESC)$/i.exec(item.trim());
-    const field = match ? match[1].trim() : item.trim();
-    const direction = match ? match[2] : 'ASC';
-    if (!match && !field.endsWith('"') && /\s/.test(field)) {
-      throw new Error(
-        `Invalid aggregate order direction: ${field.split(/\s+/).at(-1)}`,
-      );
-    }
+    // A quoted component may contain spaces; the optional second token is the
+    // direction. As before this builder ignores any tokens after that direction.
+    const match = /^((?:[^\s"]|"(?:[^"]|"")*")+)(?:\s+(\S+))?/.exec(
+      item.trim(),
+    );
+    const field = match?.[1] ?? item.trim();
+    const direction = match?.[2] ?? 'ASC';
     const normalizedDirection = direction.toUpperCase();
     if (!VALID_DIRECTIONS.has(normalizedDirection)) {
       throw new Error(`Invalid aggregate order direction: ${direction}`);
     }
     const orderExpr = aliases.has(field)
-      ? state.ctx.identifier(field)
+      ? state.renderName(field)
       : validateColumn(state, field);
     return `${orderExpr} ${normalizedDirection}`;
   });
@@ -409,13 +428,13 @@ function joinSql(state: BuildState, joins: AggregateJoin[]): string[] {
     if (join.on === undefined) {
       throw new Error(`Aggregate join ${join.alias} requires an on condition`);
     }
-    const table = state.ctx.identifier(join.table);
+    const table = state.renderName(join.table);
     const alias = join.alias;
     if (typeof alias !== 'string' || !JOIN_ALIAS.test(alias)) {
       throw new Error(`Invalid aggregate join alias: ${String(alias)}`);
     }
     const on = renderExpression(state, join.on);
-    return `${type === 'left' ? 'LEFT' : 'INNER'} JOIN ${table} AS ${state.ctx.identifier(alias)} ON ${on}`;
+    return `${type === 'left' ? 'LEFT' : 'INNER'} JOIN ${table} AS ${state.renderName(alias)} ON ${on}`;
   });
 }
 
@@ -442,7 +461,7 @@ export function buildAggregate(
     adapterType,
     nextIndex: startIndex,
     values,
-    identifier: (name) => renderIdentifier(name, adapterType, options),
+    identifier: (name) => renderAggregateIdentifier(name, adapterType, options),
   };
   // Read once: the validated string is the one rendered.
   const fromAlias = spec.fromAlias;
@@ -454,6 +473,7 @@ export function buildAggregate(
   }));
   const state: BuildState = {
     ctx,
+    renderName: (name) => renderIdentifier(name, adapterType, options),
     scope: buildScope(fromAlias, joins, from),
     options,
   };
@@ -476,7 +496,7 @@ export function buildAggregate(
     if (selected.groupingCandidate) {
       groupingAliases.push(selected.alias);
     }
-    return `${selected.expression} AS ${ctx.identifier(selected.alias)}`;
+    return `${selected.expression} AS ${state.renderName(selected.alias)}`;
   });
 
   const joinParts = joinSql(state, joins);
@@ -543,8 +563,8 @@ export function buildAggregate(
 
   const fromSql =
     spec.fromAlias !== undefined
-      ? `${ctx.identifier(from)} AS ${ctx.identifier(fromAlias as string)}`
-      : ctx.identifier(from);
+      ? `${state.renderName(from)} AS ${state.renderName(fromAlias as string)}`
+      : state.renderName(from);
   const sql = [
     `SELECT ${selectSql.join(', ')}`,
     `FROM ${fromSql}`,

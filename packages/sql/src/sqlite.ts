@@ -3334,10 +3334,6 @@ async function createDatabase(
         validateTableName(table);
         validateIndexName(index.name);
 
-        for (const col of index.columns) {
-          validateColumnName(col);
-        }
-
         let sql: string | undefined;
         try {
           sql = generateCreateIndexStatement(table, index, 'sqlite');
