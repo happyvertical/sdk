@@ -7,6 +7,7 @@ import { writeXlsx } from './xlsx-write.js';
 export * from './errors.js';
 export { normalizeFormula, parseFormula } from './formula.js';
 export * from './model.js';
+export * from './profile.js';
 export type * from './types.js';
 
 /** Construct an isolated adapter; service adapters will use separate entries. */
