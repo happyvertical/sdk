@@ -23,15 +23,6 @@ export function unzipBounded(
       maxPathBytes: limits.maxPathBytes,
     });
     for (const entry of manifest.entries) {
-      if (
-        entry.size >
-        Math.max(1, entry.compressedSize) * limits.maxCompressionRatio
-      )
-        throw new SpreadsheetError(
-          'LIMIT_EXCEEDED',
-          'ZIP compression ratio exceeds limit.',
-          'maxCompressionRatio',
-        );
       if (entry.compressionMethod !== 0 && entry.compressionMethod !== 8)
         throw new SpreadsheetError(
           'UNSUPPORTED_ZIP',
@@ -64,6 +55,17 @@ export function unzipBounded(
         total += chunk.length;
         checkLimit(size, 'maxEntryBytes', limits);
         checkLimit(total, 'maxTotalBytes', limits);
+        // Actual inflated bytes enforce the primary caps, even if ZIP metadata
+        // lies. Ratio is only a secondary, per-entry guard above the floor.
+        if (
+          size > limits.compressionRatioFloorBytes &&
+          size > Math.max(1, entry.compressedSize) * limits.maxCompressionRatio
+        )
+          throw new SpreadsheetError(
+            'LIMIT_EXCEEDED',
+            'ZIP compression ratio exceeds limit.',
+            'maxCompressionRatio',
+          );
         if (size > entry.size)
           throw new SpreadsheetError(
             'INVALID_ZIP',

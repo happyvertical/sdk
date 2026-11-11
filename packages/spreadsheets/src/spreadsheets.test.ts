@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { inspectZipManifest } from '@happyvertical/files/archive';
 import { unzipSync, Zip, ZipDeflate, zipSync } from 'fflate/browser';
 import { build } from 'vite';
 import { describe, expect, it } from 'vitest';
@@ -243,6 +244,74 @@ describe('real producer fixtures', () => {
 });
 
 describe('XLSX output', () => {
+  it('deflates and reads a highly repetitive 200,000-cell worksheet', async () => {
+    const sheet = createSheet('Repeated');
+    for (let row = 1; row <= 10_000; row++)
+      for (let col = 1; col <= 20; col++)
+        sheet.cells.set(row, col, { type: 'text', value: 'repeated value!!' });
+    const adapter = await getSpreadsheets({ type: 'xlsx' });
+    const output = await adapter.write(createWorkbook([sheet]));
+    const view = new DataView(
+      output.buffer,
+      output.byteOffset,
+      output.byteLength,
+    );
+    expect(view.getUint16(8, true)).toBe(8); // DEFLATE, not stored ZIP.
+    const manifest = inspectZipManifest(output);
+    const entry = manifest.entries.find(
+      (e) => e.path === 'xl/worksheets/sheet1.xml',
+    );
+    expect(entry?.size).toBeGreaterThan(
+      DEFAULT_LIMITS.compressionRatioFloorBytes,
+    );
+    expect(output.byteLength).toBeLessThan((entry?.size ?? 0) / 10);
+    const read = await adapter.read(output);
+    expect(read.sheets[0].cells.size).toBe(200_000);
+    for (const [, cell] of read.sheets[0].cells)
+      expect(cell).toMatchObject({ type: 'text', value: 'repeated value!!' });
+    // Ratio and floor can be tuned independently, including per-call overrides.
+    await expect(
+      adapter.read(output, { maxCompressionRatio: 1 }),
+    ).rejects.toMatchObject({
+      code: 'LIMIT_EXCEEDED',
+      limit: 'maxCompressionRatio',
+    });
+    expect(
+      (
+        await adapter.read(output, {
+          maxCompressionRatio: 1,
+          compressionRatioFloorBytes: 32 * 1024 * 1024,
+        })
+      ).sheets[0].cells.size,
+    ).toBe(200_000);
+  });
+  it('accepts valid small worksheets above the former 200:1 ratio', async () => {
+    const sheet = createSheet('Long text');
+    for (let row = 1; row <= 10; row++)
+      sheet.cells.set(row, 1, { type: 'text', value: 'a'.repeat(30_000) });
+    const adapter = await getSpreadsheets({ type: 'xlsx' });
+    const output = await adapter.write(createWorkbook([sheet]));
+    const entry = inspectZipManifest(output).entries.find(
+      (e) => e.path === 'xl/worksheets/sheet1.xml',
+    );
+    expect((entry?.size ?? 0) / (entry?.compressedSize ?? 1)).toBeGreaterThan(
+      200,
+    );
+    expect((await adapter.read(output)).sheets[0].cells.size).toBe(10);
+    expect(
+      (await adapter.read(output, { maxCompressionRatio: 1 })).sheets[0].cells
+        .size,
+    ).toBe(10);
+    await expect(
+      adapter.read(output, {
+        compressionRatioFloorBytes: 1,
+        maxCompressionRatio: 200,
+      }),
+    ).rejects.toMatchObject({
+      code: 'LIMIT_EXCEEDED',
+      limit: 'maxCompressionRatio',
+    });
+  });
   it('round trips ISO dates without date formats and literal OOXML escapes/newlines', async () => {
     const adapter = await getSpreadsheets({ type: 'xlsx' });
     const wb = await adapter.read(
@@ -516,7 +585,9 @@ describe('hostile inputs', () => {
       { 'bomb.xml': bytes('a'.repeat(2_000_000)) },
       { level: 9 },
     );
-    expect(await errorCode(bomb)).toBe('LIMIT_EXCEEDED');
+    expect(await errorCode(bomb, { maxEntryBytes: 1_000_000 })).toBe(
+      'LIMIT_EXCEEDED',
+    );
     expect(
       await errorCode(zipSync({ a: bytes('1'), b: bytes('2') }), {
         maxEntries: 1,
@@ -577,6 +648,31 @@ describe('hostile inputs', () => {
         }),
       ),
     ).toBe('INVALID_ZIP');
+  });
+  it('bounds actual bomb inflation despite forged metadata and a permissive ratio', async () => {
+    const bomb = zipSync({
+      'bomb.xml': new Uint8Array(10 * 1024 * 1024).fill(97),
+    });
+    const view = new DataView(bomb.buffer);
+    const central = view.getUint32(bomb.length - 6, true);
+    // Metadata claims only 1 MiB, but the actual stream expands to 10 MiB.
+    view.setUint32(22, 1024 * 1024, true);
+    view.setUint32(central + 24, 1024 * 1024, true);
+    const adapter = await getSpreadsheets({
+      type: 'xlsx',
+      maxEntryBytes: 1024 * 1024,
+      maxCompressionRatio: 1_000_000,
+    });
+    await expect(adapter.read(bomb)).rejects.toMatchObject({
+      code: 'LIMIT_EXCEEDED',
+      limit: 'maxEntryBytes',
+    });
+    await expect(
+      adapter.read(bomb, {
+        maxEntryBytes: 20 * 1024 * 1024,
+        maxTotalBytes: 1024 * 1024,
+      }),
+    ).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED', limit: 'maxTotalBytes' });
   });
   it('rejects DTDs/entities, malformed XML and bounded depth/text/nodes', async () => {
     const base = fixture('<sheetData/>');

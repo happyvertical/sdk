@@ -24,7 +24,7 @@ APIs. It is not a real browser-engine run. Opening exports in the actual three
 applications was not performed. Base-regression comparison is N/A: this package
 does not exist on the base revision.
 
-Final validation: all 26 package tests passed; package build and typecheck passed.
+Initial implementation validation: all 26 package tests passed; package build and typecheck passed.
 Root `pnpm test:ci-scripts` passed all 85 tests; `pnpm agent:check` passed.
 Root `pnpm build`, `pnpm typecheck`, and `pnpm lint` passed with
 `--filter=@happyvertical/spreadsheets... --filter=@happyvertical/sdk-mcp...`.
@@ -50,3 +50,22 @@ this implementation worker did not change claims, push or open a PR.
 Actor/executor remain a single caller and in-memory bytes; authentication,
 persistence and transactions are N/A. The browser check resolves the published
 subpath after building files, rather than importing source directly.
+
+| Compression behavior / trigger | Positive case | Negative case | Runtime / command |
+| --- | --- | --- | --- |
+| Writer's deflated worksheet above ratio floor | 200,000 repetitive cells read back with defaults; independent ratio/floor overrides; valid small worksheet above 200:1 | low ratio above floor fails with typed error | Node / `pnpm --filter @happyvertical/spreadsheets test` |
+| Untrusted DEFLATE stream with understated ZIP sizes | ordinary deflated producer fixtures | real compressed bomb exceeds actual per-entry or total cap despite forged size and permissive ratio | Node / same command |
+
+The primary protection is the actual inflated-byte count checked on every output
+chunk. Ratio enforcement uses actual inflated bytes per entry only above an
+8 MiB default floor, with a secondary default ratio of 1,000:1; both are options.
+
+Coordinator-feedback validation: 29 spreadsheet tests pass, including the
+200,000-cell compressed workbook, valid XML above 200:1, configurable ratio/floor,
+and forged-size bombs hitting actual per-entry and aggregate caps. Files' 83
+archive/browser tests and 210 tests excluding loopback/MinIO suites pass. Both
+package builds and typechecks pass. Root CI-script tests (85), agent context,
+affected-graph build/typecheck/lint, workspace consistency and built-root smoke
+pass. A scan of 86 changed/generated text files found no stray control bytes.
+The loopback suites await clarification of the earlier no-network-services
+constraint; MinIO tests require containers and remain outside the allowed run.

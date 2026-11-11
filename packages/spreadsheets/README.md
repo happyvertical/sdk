@@ -113,7 +113,8 @@ All adapter limits can be set at construction or overridden per read/write:
 | maxEntries | 10,000 |
 | maxEntryBytes | 32 MiB |
 | maxTotalBytes | 128 MiB |
-| maxCompressionRatio | 200 |
+| maxCompressionRatio | 1,000 |
+| compressionRatioFloorBytes | 8 MiB |
 | maxPathBytes | 1,024 |
 | maxXmlDepth | 64 |
 | maxXmlText (UTF-16 code units, text and attributes per part) | 8,388,608 |
@@ -130,8 +131,14 @@ subpath. It rejects
 traversal, collisions, symlinks/special files, encryption, ZIP64, and multi-disk
 archives. It accepts standard data descriptors only at the exact centrally
 declared boundary. Inflation runs in small chunks with actual-byte checks and
-CRC verification. No path is extracted to the filesystem. Output uses stored
-ZIP entries, avoiding compression-ratio rejection on its own exports.
+CRC verification. Absolute per-entry and aggregate inflated-byte caps are
+enforced on every output chunk independently of declared sizes. The per-entry
+ratio check is secondary: it compares actual inflated bytes with compressed
+entry bytes only after the actual size exceeds `compressionRatioFloorBytes`.
+The 8 MiB floor and 1,000:1 ratio are configurable at construction or per read.
+Small repetitive XML parts are accepted regardless of ratio while absolute caps
+remain active. No path is extracted to the filesystem. Output uses DEFLATE at
+fflate's default compression level.
 
 Runtime dependencies are the SDK's `@happyvertical/files/archive` entry and
 **fflate**, imported through its browser entry.

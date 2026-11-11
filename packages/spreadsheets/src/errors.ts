@@ -26,6 +26,8 @@ export interface SpreadsheetLimits {
   maxEntryBytes: number;
   maxTotalBytes: number;
   maxCompressionRatio: number;
+  /** Apply the secondary ratio guard only above this actual inflated size. */
+  compressionRatioFloorBytes: number;
   maxPathBytes: number;
   maxXmlDepth: number;
   maxXmlText: number;
@@ -43,7 +45,8 @@ export const DEFAULT_LIMITS: Readonly<SpreadsheetLimits> = Object.freeze({
   maxEntries: 10_000,
   maxEntryBytes: 32 * 1024 * 1024,
   maxTotalBytes: 128 * 1024 * 1024,
-  maxCompressionRatio: 200,
+  maxCompressionRatio: 1000,
+  compressionRatioFloorBytes: 8 * 1024 * 1024,
   maxPathBytes: 1024,
   maxXmlDepth: 64,
   maxXmlText: 8 * 1024 * 1024,

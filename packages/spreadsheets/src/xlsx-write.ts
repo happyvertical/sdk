@@ -204,8 +204,7 @@ export function writeXlsx(
       )
       .join('')}</Types>`,
   );
-  // Stored ZIP output cannot exceed a reader's compression-ratio policy.
-  const output = zipSync(files, { level: 0 });
+  const output = zipSync(files);
   checkLimit(output.length, 'maxInputBytes', limits);
   return output;
 }
