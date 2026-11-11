@@ -69,6 +69,7 @@ export function parseXml(
   } catch {
     fail();
   }
+  xml = xml.replace(/\r\n?/g, '\n');
   for (const c of xml) if (!xmlChar(c.codePointAt(0) ?? 0)) fail();
   const root: XmlNode = { name: '', attrs: {}, children: [], text: '' };
   const stack = [root];
@@ -147,7 +148,7 @@ export function parseXml(
       if (raw.includes('<') || Object.hasOwn(attrs, match[1])) fail();
       textSize += raw.length;
       checkLimit(textSize, 'maxXmlText', limits);
-      attrs[match[1]] = decode(raw);
+      attrs[match[1]] = decode(raw.replace(/[\t\n]/g, ' '));
       i = end + 1;
     }
     checkLimit(++nodes, 'maxXmlNodes', limits);
@@ -180,5 +181,6 @@ export function escapeXml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/'/g, '&apos;')
+    .replace(/\r/g, '&#13;');
 }

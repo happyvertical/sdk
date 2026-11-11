@@ -4,7 +4,8 @@ import type { SpreadsheetAdapter, SpreadsheetOptions } from './types.js';
 import { readXlsx } from './xlsx-read.js';
 import { writeXlsx } from './xlsx-write.js';
 
-export * from './errors.js';
+export type { SpreadsheetErrorCode, SpreadsheetLimits } from './errors.js';
+export { DEFAULT_LIMITS, SpreadsheetError } from './errors.js';
 export { normalizeFormula, parseFormula } from './formula.js';
 export * from './model.js';
 export * from './profile.js';
@@ -20,11 +21,12 @@ export async function getSpreadsheets(
       'Supported spreadsheet types: xlsx, csv.',
     );
   }
-  const defaults = resolveLimits(options);
+  const config = { ...options };
+  const defaults = resolveLimits(config);
   return {
-    type: options.type,
+    type: config.type,
     async read(input, overrides) {
-      const limits = resolveLimits({ ...defaults, ...overrides });
+      const limits = resolveLimits(overrides, defaults);
       const bytes =
         input instanceof Uint8Array
           ? input
@@ -37,14 +39,14 @@ export async function getSpreadsheets(
           'Expected Uint8Array or ArrayBuffer.',
         );
       checkLimit(bytes.length, 'maxInputBytes', limits);
-      if (options.type === 'xlsx') return readXlsx(bytes, limits);
-      return readCsv(bytes, limits, { ...options, ...overrides });
+      if (config.type === 'xlsx') return readXlsx(bytes, limits);
+      return readCsv(bytes, limits, { ...config, ...overrides });
     },
     async write(workbook, overrides) {
-      const limits = resolveLimits({ ...defaults, ...overrides });
-      return options.type === 'xlsx'
+      const limits = resolveLimits(overrides, defaults);
+      return config.type === 'xlsx'
         ? writeXlsx(workbook, limits, overrides ?? {})
-        : writeCsv(workbook, limits, { ...options, ...overrides });
+        : writeCsv(workbook, limits, { ...config, ...overrides });
     },
   };
 }

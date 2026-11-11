@@ -1,3 +1,5 @@
+// Mirrored from packages/files/src/archive.ts. The only policy extension is
+// exact-boundary data descriptors, verified again by actual inflation and CRC.
 /**
  * Bounded, zero-decompression ZIP manifest inspection.
  *
@@ -871,13 +873,7 @@ function validateLocalHeader(
     );
   }
 
-  if ((localFlags & DATA_DESCRIPTOR_FLAG) !== 0) {
-    throw new UnsupportedZipFeatureError(
-      'ambiguous-metadata',
-      `ZIP entry "${entry.rawPath}" uses a data descriptor whose payload boundary cannot be verified without decompression or extractor-specific scanning.`,
-      entry.rawPath,
-    );
-  }
+  const hasDescriptor = (localFlags & DATA_DESCRIPTOR_FLAG) !== 0;
 
   const localNameStart = entry.localHeaderOffset + LOCAL_FILE_HEADER_SIZE;
   const localNameEnd = localNameStart + localNameLength;
@@ -905,9 +901,12 @@ function validateLocalHeader(
   assertExtraFields(data, localNameEnd, localExtraEnd, 'local file header');
 
   if (
-    localCrc32 !== entry.centralCrc32 ||
-    localCompressedSize !== entry.compressedSize ||
-    localUncompressedSize !== entry.uncompressedSize
+    (localCrc32 !== entry.centralCrc32 &&
+      !(hasDescriptor && localCrc32 === 0)) ||
+    (localCompressedSize !== entry.compressedSize &&
+      !(hasDescriptor && localCompressedSize === 0)) ||
+    (localUncompressedSize !== entry.uncompressedSize &&
+      !(hasDescriptor && localUncompressedSize === 0))
   ) {
     throw new InvalidZipArchiveError(
       'ZIP local file sizes do not match the central-directory entry.',
@@ -920,7 +919,24 @@ function validateLocalHeader(
     );
   }
 
-  return localExtraEnd + entry.compressedSize;
+  const bodyEnd = localExtraEnd + entry.compressedSize;
+  if (!hasDescriptor) return bodyEnd;
+  // Unlike the metadata-only files inspector, this consumer inflates and checks
+  // CRC itself. Locate descriptors only at the exact central-declared boundary;
+  // never scan entry payloads for signatures.
+  const matches = (at: number): boolean =>
+    at + 12 <= entry.centralDirectoryOffset &&
+    view.getUint32(at, true) === entry.centralCrc32 &&
+    view.getUint32(at + 4, true) === entry.compressedSize &&
+    view.getUint32(at + 8, true) === entry.uncompressedSize;
+  if (matches(bodyEnd)) return bodyEnd + 12;
+  if (
+    bodyEnd + 16 <= entry.centralDirectoryOffset &&
+    view.getUint32(bodyEnd, true) === 0x08074b50 &&
+    matches(bodyEnd + 4)
+  )
+    return bodyEnd + 16;
+  throw new InvalidZipArchiveError('Invalid ZIP data descriptor.');
 }
 
 function assertExtraFields(

@@ -31,6 +31,8 @@ export function writeXlsx(
   const styles: { format: string; bold: boolean }[] = [
     { format: 'General', bold: false },
   ];
+  const styleCache = new Map<string, number>();
+  const formatCache = new Map<string, number>();
   const styleIndex = (cell: Cell, bold: boolean): number => {
     const format =
       cell.numberFormat ??
@@ -41,15 +43,19 @@ export function writeXlsx(
           : cell.formatKind === 'percent'
             ? '0.00%'
             : 'General');
-    let index = styles.findIndex((s) => s.format === format && s.bold === bold);
-    if (index < 0) {
-      index = styles.length;
-      styles.push({ format, bold });
-    }
-    if (format !== 'General' && !customFormats.includes(format))
+    const key = `${bold}:${format}`;
+    const cached = styleCache.get(key);
+    if (cached !== undefined) return cached;
+    const index = format === 'General' && !bold ? 0 : styles.length;
+    if (index) styles.push({ format, bold });
+    styleCache.set(key, index);
+    if (format !== 'General' && !formatCache.has(format)) {
+      formatCache.set(format, customFormats.length);
       customFormats.push(format);
+    }
     return index;
   };
+  let tableId = 0;
   for (const [index, sheet] of workbook.sheets.entries()) {
     const firstRow = sheet.cells.rows().next().value?.[0];
     let data = '';
@@ -62,10 +68,10 @@ export function writeXlsx(
         if (cell.type === 'text') {
           if (cell.formula) {
             type = ' t="str"';
-            value = `<v>${e(String(cell.value))}</v>`;
+            value = `<v>${e(String(cell.value).replace(/_x[0-9a-f]{4}_/gi, (s) => `_x005F_${s.slice(1)}`))}</v>`;
           } else {
             type = ' t="inlineStr"';
-            value = `<is><t xml:space="preserve">${e(String(cell.value))}</t></is>`;
+            value = `<is><t xml:space="preserve">${e(String(cell.value).replace(/_x[0-9a-f]{4}_/gi, (s) => `_x005F_${s.slice(1)}`))}</t></is>`;
           }
         } else if (cell.type === 'boolean') {
           type = ' t="b"';
@@ -84,7 +90,10 @@ export function writeXlsx(
               date.getTime()
               ? cell.raw
               : dateSerial(date, workbook.dateSystem);
-          value = `<v>${raw}</v>`;
+          if (cell.numberFormat?.toLowerCase() === 'general') {
+            type = ' t="d"';
+            value = `<v>${date.toISOString()}</v>`;
+          } else value = `<v>${raw}</v>`;
         }
         const formula = cell.formula
           ? `<f${cell.formula.arrayRange ? ` t="array" ref="${rangeAddress(cell.formula.arrayRange)}"` : ''}>${e(cell.formula.text.replace(/^=/, ''))}</f>`
@@ -92,6 +101,7 @@ export function writeXlsx(
         body += `<c r="${address({ row, col })}" s="${s}"${type}>${formula}${value}</c>`;
       }
       data += `<row r="${row}">${body}</row>`;
+      checkLimit(data.length, 'maxEntryBytes', limits);
     }
     const widths = options.columnWidths
       ? Object.fromEntries(
@@ -142,13 +152,13 @@ export function writeXlsx(
       for (const [i, table] of sheet.tables.entries())
         put(
           `xl/tables/table${index + 1}_${i + 1}.xml`,
-          `<table xmlns="${ns}" id="${index * limits.maxCells + i + 1}" name="${e(table.name)}" displayName="${e(table.name)}" ref="${rangeAddress(table.range)}" headerRowCount="${table.headerRow ? 1 : 0}" totalsRowCount="${table.totalsRow ? 1 : 0}"><tableColumns count="${table.columns.length}">${table.columns.map((name, c) => `<tableColumn id="${c + 1}" name="${e(name)}"/>`).join('')}</tableColumns></table>`,
+          `<table xmlns="${ns}" id="${++tableId}" name="${e(table.name)}" displayName="${e(table.name)}" ref="${rangeAddress(table.range)}" headerRowCount="${table.headerRow ? 1 : 0}" totalsRowCount="${table.totalsRow ? 1 : 0}"><tableColumns count="${table.columns.length}">${table.columns.map((name, c) => `<tableColumn id="${c + 1}" name="${e(name)}"/>`).join('')}</tableColumns></table>`,
         );
     }
   }
   put(
     'xl/styles.xml',
-    `<styleSheet xmlns="${ns}"><numFmts count="${customFormats.length}">${customFormats.map((format, i) => `<numFmt numFmtId="${164 + i}" formatCode="${e(format)}"/>`).join('')}</numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${styles.length}">${styles.map((s) => `<xf numFmtId="${s.format === 'General' ? 0 : 164 + customFormats.indexOf(s.format)}" fontId="${s.bold ? 1 : 0}" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"${s.bold ? ' applyFont="1"' : ''}/>`).join('')}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`,
+    `<styleSheet xmlns="${ns}"><numFmts count="${customFormats.length}">${customFormats.map((format, i) => `<numFmt numFmtId="${164 + i}" formatCode="${e(format)}"/>`).join('')}</numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${styles.length}">${styles.map((s) => `<xf numFmtId="${s.format === 'General' ? 0 : 164 + (formatCache.get(s.format) ?? 0)}" fontId="${s.bold ? 1 : 0}" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"${s.bold ? ' applyFont="1"' : ''}/>`).join('')}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`,
   );
   const defined = workbook.definedNames
     .map((n) => {

@@ -1,6 +1,11 @@
 import { checkLimit, invalid, type SpreadsheetLimits } from './errors.js';
 import { BUILTIN_FORMATS, formatKind, serialDate } from './formats.js';
-import { parseFormula, translateFormula } from './formula.js';
+import {
+  directReference,
+  parseFormula,
+  resolveReference,
+  translateFormula,
+} from './formula.js';
 import {
   type Cell,
   createSheet,
@@ -9,7 +14,6 @@ import {
   point,
   type Range,
   range,
-  type Sheet,
   type Workbook,
 } from './model.js';
 import { child, children, parseXml, textContent, type XmlNode } from './xml.js';
@@ -26,7 +30,10 @@ const attr = (node: XmlNode, name: string) =>
   )?.[1];
 const number = (value: string | undefined, fallback = 0): number => {
   if (value === undefined) return fallback;
-  if (!value.trim() || !Number.isFinite(Number(value)))
+  if (
+    !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(value.trim()) ||
+    !Number.isFinite(Number(value))
+  )
     invalid('Invalid numeric workbook field.');
   return Number(value);
 };
@@ -165,6 +172,7 @@ export function readXlsx(
       checkLimit(sheet.frozen.cols, 'maxColumns', limits);
     }
     const widths: Record<number, number> = {};
+    let widthWork = 0;
     for (const col of child(doc, 'cols')?.children ?? []) {
       const min = integer(col.attrs.min);
       const max = integer(col.attrs.max);
@@ -172,6 +180,8 @@ export function readXlsx(
       checkLimit(max, 'maxColumns', limits);
       const width = number(col.attrs.width);
       if (width < 0) invalid();
+      widthWork += max - min + 1;
+      checkLimit(widthWork, 'maxCells', limits);
       for (let i = min; i <= max; i++) widths[i] = width;
     }
     if (Object.keys(widths).length) sheet.columnWidths = widths;
@@ -203,6 +213,11 @@ export function readXlsx(
         const kind = formatKind(format);
         const value = child(node, 'v')?.text;
         const type = node.attrs.t;
+        if (
+          type !== undefined &&
+          !['inlineStr', 's', 'str', 'e', 'b', 'd', 'n'].includes(type)
+        )
+          invalid('Unsupported cell type.');
         let cell: Cell = {
           type: 'empty',
           value: null,
@@ -224,7 +239,7 @@ export function readXlsx(
           cell.value = strings[index];
           cell.type = 'text';
         } else if (type === 'str') {
-          cell.value = value ?? '';
+          cell.value = decodeOoxmlText(value ?? '');
           cell.type = 'text';
         } else if (type === 'e') {
           cell.error = value ?? '#VALUE!';
@@ -258,6 +273,8 @@ export function readXlsx(
         if (f) {
           checkLimit(f.text.length, 'maxFormulaLength', limits);
           if (f.attrs.t === 'shared') {
+            if (f.attrs.si === undefined)
+              invalid('Missing shared formula index.');
             const id = integer(f.attrs.si);
             if (f.text) {
               if (shared.has(id) || !f.attrs.ref)
@@ -323,7 +340,7 @@ export function readXlsx(
             .slice(1, -1)
             .replace(/""/g, '"')
             .split(',');
-        else validation.source = parseFormula(formula, limits).references[0];
+        else validation.source = directReference(formula);
       }
       sheet.validations.push(validation);
     }
@@ -334,19 +351,29 @@ export function readXlsx(
         invalid('Missing table relationship.');
       const table = xml(tableRel.target);
       if (table.name !== 'table') invalid();
+      const tableName = table.attrs.displayName ?? table.attrs.name;
+      if (!tableName) invalid('Missing table name.');
+      const tableRange = boundRange(table.attrs.ref ?? '', limits);
+      const tableColumns = (child(table, 'tableColumns')?.children ?? [])
+        .filter((c) => c.name === 'tableColumn')
+        .map((c) => c.attrs.name);
+      if (
+        tableColumns.some((name) => !name) ||
+        tableColumns.length !== tableRange.end.col - tableRange.start.col + 1
+      )
+        invalid('Invalid table columns.');
       sheet.tables.push({
-        name: table.attrs.displayName ?? table.attrs.name,
-        range: boundRange(table.attrs.ref ?? '', limits),
+        name: tableName,
+        range: tableRange,
         headerRow: integer(table.attrs.headerRowCount, 1) > 0,
         totalsRow: integer(table.attrs.totalsRowCount) > 0,
-        columns: (child(table, 'tableColumns')?.children ?? []).map(
-          (c) => c.attrs.name ?? '',
-        ),
+        columns: tableColumns,
       });
     }
   }
   if (!workbook.sheets.length) invalid('Workbook has no worksheets.');
   for (const node of child(wbXml, 'definedNames')?.children ?? []) {
+    if (!node.attrs.name) invalid('Missing defined name.');
     checkLimit(node.text.length, 'maxFormulaLength', limits);
     const scope =
       node.attrs.localSheetId !== undefined
@@ -358,19 +385,43 @@ export function readXlsx(
       name: node.attrs.name,
       scope,
       text: node.text,
-      reference: parseFormula(node.text, limits).references[0],
+      reference: directReference(node.text),
     });
+  }
+  for (const sheet of workbook.sheets) {
+    for (const [origin, cell] of sheet.cells)
+      if (cell.formula)
+        cell.formula.references = cell.formula.references.map(
+          (r) => resolveReference(workbook, r, sheet.name, origin) ?? r,
+        );
+    for (const validation of sheet.validations)
+      if (validation.source)
+        validation.source =
+          resolveReference(
+            workbook,
+            validation.source,
+            sheet.name,
+            validation.ranges[0].start,
+          ) ?? validation.source;
   }
   return workbook;
 }
 
 function richText(node: XmlNode): string {
-  return node.children
-    .filter((n) => n.name === 't' || n.name === 'r')
-    .map((n) =>
-      n.name === 't'
-        ? textContent(n)
-        : children(n, 't').map(textContent).join(''),
-    )
-    .join('');
+  return decodeOoxmlText(
+    node.children
+      .filter((n) => n.name === 't' || n.name === 'r')
+      .map((n) =>
+        n.name === 't'
+          ? textContent(n)
+          : children(n, 't').map(textContent).join(''),
+      )
+      .join(''),
+  );
+}
+
+function decodeOoxmlText(value: string): string {
+  return value.replace(/_x([0-9a-f]{4})_/gi, (_, hex: string) =>
+    String.fromCharCode(Number.parseInt(hex, 16)),
+  );
 }

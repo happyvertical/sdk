@@ -1,5 +1,10 @@
 import { DEFAULT_LIMITS, SpreadsheetError } from './errors.js';
-import { formulaCalls, normalizeFormula, parseFormula } from './formula.js';
+import {
+  formulaCalls,
+  normalizeFormula,
+  parseFormula,
+  resolveReference,
+} from './formula.js';
 import {
   address,
   type Cell,
@@ -213,8 +218,7 @@ export function profileWorkbook(
         for (let col = range.start.col; col <= range.end.col; col++) {
           const formula = sheet.cells.get(row, col)?.formula;
           if (
-            formula &&
-            formula.functions.some((f) =>
+            formula?.functions.some((f) =>
               ['SUM', 'SUBTOTAL', 'AGGREGATE'].includes(f),
             ) &&
             formula.references.some(
@@ -253,36 +257,47 @@ export function profileWorkbook(
         const formats = new Map<FormatKind, number>();
         const patterns = new Map<string, number>();
         let count = 0;
+        let extremaType: string | undefined;
+        let mixedExtrema = false;
         for (let row = range.start.row; row <= range.end.row; row++) {
           if (row === header || region.totalsRows.includes(row)) continue;
           const cell = sheet.cells.get(row, col);
           column.typeCounts[cell?.type ?? 'empty']++;
-          if (!cell || !nonblank(cell)) column.blankCount++;
+          if (!cell || (!nonblank(cell) && cell.type !== 'error'))
+            column.blankCount++;
           else {
             count++;
-            const key = valueKey(cell.value);
+            const key =
+              cell.type === 'error'
+                ? `error:${cell.error ?? ''}`
+                : valueKey(cell.value);
             if (!values.has(key) && column.samples.length < opts.sampleSize)
               column.samples.push(
                 cell.value instanceof Date ? new Date(cell.value) : cell.value,
               );
             values.add(key);
-            if (cell.type === 'number' || cell.type === 'date') {
-              if (
-                column.min === undefined ||
-                Number(cell.value) < Number(column.min)
-              )
-                column.min =
-                  cell.value instanceof Date
-                    ? new Date(cell.value)
-                    : cell.value;
-              if (
-                column.max === undefined ||
-                Number(cell.value) > Number(column.max)
-              )
-                column.max =
-                  cell.value instanceof Date
-                    ? new Date(cell.value)
-                    : cell.value;
+            if (cell.type !== 'error') {
+              const type =
+                cell.value instanceof Date ? 'date' : typeof cell.value;
+              if (extremaType && extremaType !== type) {
+                mixedExtrema = true;
+                delete column.min;
+                delete column.max;
+              }
+              extremaType = type;
+              if (!mixedExtrema) {
+                const value = cell.value as string | number | boolean | Date;
+                if (
+                  column.min === undefined ||
+                  value < (column.min as typeof value)
+                )
+                  column.min = value instanceof Date ? new Date(value) : value;
+                if (
+                  column.max === undefined ||
+                  value > (column.max as typeof value)
+                )
+                  column.max = value instanceof Date ? new Date(value) : value;
+              }
             }
             if (cell.formatKind)
               formats.set(
@@ -322,57 +337,28 @@ export function profileWorkbook(
     bounded(++checks, opts.maxDependencyChecks);
     if (depth > 16) return [];
     if (reference.name) {
-      const name =
-        workbook.definedNames.find(
-          (n) =>
-            n.name.toLowerCase() === reference.name?.toLowerCase() &&
-            n.scope === currentSheet,
-        ) ??
-        workbook.definedNames.find(
-          (n) =>
-            n.name.toLowerCase() === reference.name?.toLowerCase() &&
-            n.scope === undefined,
-        );
-      if (name?.reference)
-        return resolve(
-          name.reference,
-          name.scope ?? currentSheet,
-          origin,
-          depth + 1,
-        );
-      const match = /^([^[]+)\[(.*)\]$/.exec(reference.name);
-      const table = workbook.sheets
-        .flatMap((s) => s.tables.map((t) => ({ sheet: s.name, table: t })))
-        .find((t) => t.table.name.toLowerCase() === match?.[1].toLowerCase());
-      if (!table || !match) return [];
-      const columnName = match[2].replace(/^\[?|\]?$/g, '').replace(/^@/, '');
-      const index = table.table.columns.indexOf(columnName);
-      const target =
-        index >= 0
-          ? {
-              start: {
-                row: table.table.range.start.row,
-                col: table.table.range.start.col + index,
-              },
-              end: {
-                row: table.table.range.end.row,
-                col: table.table.range.start.col + index,
-              },
-            }
-          : table.table.range;
-      return resolve(
-        { ...reference, name: undefined, sheet: table.sheet, range: target },
+      const resolved = resolveReference(
+        workbook,
+        reference,
         currentSheet,
         origin,
-        depth + 1,
       );
+      return resolved
+        ? resolve(
+            { ...resolved, name: undefined },
+            currentSheet,
+            origin,
+            depth + 1,
+          )
+        : [];
     }
     const targets: ColumnLink[] = [];
     for (const region of regions) {
       bounded(++checks, opts.maxDependencyChecks);
       const r = reference.range;
       if (
-        region.sheet !== (reference.sheet ?? currentSheet) ||
+        region.sheet.toLowerCase() !==
+          (reference.sheet ?? currentSheet).toLowerCase() ||
         r.end.row < region.range.start.row ||
         r.start.row > region.range.end.row
       )
@@ -387,9 +373,10 @@ export function profileWorkbook(
   for (const sheet of workbook.sheets)
     for (const [origin, cell] of sheet.cells) {
       if (!cell.formula) continue;
-      const region = regions.find(
-        (r) => r.sheet === sheet.name && contains(r.range, origin),
-      );
+      const region = regions.find((r) => {
+        bounded(++checks, opts.maxDependencyChecks);
+        return r.sheet === sheet.name && contains(r.range, origin);
+      });
       if (!region) continue;
       const from = link(region, origin.col);
       for (const reference of cell.formula.references)

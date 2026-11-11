@@ -7,10 +7,12 @@ import {
 import {
   address,
   columnName,
+  contains,
   type Formula,
   type Point,
   point,
   type Reference,
+  type Workbook,
 } from './model.js';
 
 export interface ReferenceToken {
@@ -60,6 +62,21 @@ export function referenceTokens(text: string): ReferenceToken[] {
     const sheet = prefix ? unquote(prefix[1]) : undefined;
     const offset = prefix?.[0].length ?? 0;
     const value = rest.slice(offset);
+    const contextual = /^\[(?:[^[\]]|\[[^\]]*\])*\]/.exec(value);
+    if (contextual) {
+      tokens.push({
+        from: i,
+        to: i + offset + contextual[0].length,
+        reference: {
+          sheet,
+          name: contextual[0],
+          range: { start: { row: 1, col: 1 }, end: { row: 1, col: 1 } },
+          absolute: { ...noFlags },
+        },
+      });
+      i += offset + contextual[0].length;
+      continue;
+    }
     const cell =
       /^(\$?[A-Za-z]{1,3}\$?[1-9]\d{0,6})(?::(\$?[A-Za-z]{1,3}\$?[1-9]\d{0,6}))?(?![\w.(])/i.exec(
         value,
@@ -147,7 +164,7 @@ export function parseFormula(
 ): Formula {
   const text = input.replace(/^=/, '');
   checkLimit(text.length, 'maxFormulaLength', limits);
-  const unquoted = text.replace(/"(?:[^"]|"")*"/g, '');
+  const unquoted = text.replace(/"(?:[^"]|"")*"|'(?:[^']|'')*'/g, '');
   const functions = [
     ...new Set(
       [...unquoted.matchAll(/([A-Za-z_][\w.]*)\s*\(/g)].map((m) =>
@@ -221,11 +238,97 @@ export interface FormulaCall {
   name: string;
   args: string[];
 }
+
+/** Resolve names and common table selectors without evaluating expressions. */
+export function resolveReference(
+  workbook: Workbook,
+  reference: Reference,
+  sheet: string,
+  origin: Point,
+  depth = 0,
+): Reference | undefined {
+  if (!reference.name) return reference;
+  if (depth > 16) return undefined;
+  const text = reference.name;
+  const local = reference.sheet ?? sheet;
+  const defined =
+    workbook.definedNames.find(
+      (n) =>
+        n.name.toLowerCase() === text.toLowerCase() &&
+        n.scope?.toLowerCase() === local.toLowerCase(),
+    ) ??
+    workbook.definedNames.find(
+      (n) =>
+        n.name.toLowerCase() === text.toLowerCase() && n.scope === undefined,
+    );
+  if (defined?.reference) {
+    const resolved = resolveReference(
+      workbook,
+      defined.reference,
+      defined.scope ?? local,
+      origin,
+      depth + 1,
+    );
+    return resolved
+      ? {
+          ...resolved,
+          sheet: resolved.sheet ?? defined.scope ?? local,
+          name: text,
+        }
+      : undefined;
+  }
+  const match = /^([^[]*)\[(.*)\]$/.exec(text);
+  if (!match) return undefined;
+  const found = workbook.sheets
+    .flatMap((s) => s.tables.map((table) => ({ sheet: s.name, table })))
+    .find((t) =>
+      match[1]
+        ? t.table.name.toLowerCase() === match[1].toLowerCase()
+        : t.sheet.toLowerCase() === local.toLowerCase() &&
+          contains(t.table.range, origin),
+    );
+  if (!found) return undefined;
+  const selectors = [...match[2].matchAll(/\[([^\]]+)\]|([^,:[\]]+)/g)].map(
+    (m) => (m[1] ?? m[2]).replace(/^@/, '').trim(),
+  );
+  const columns = selectors
+    .filter((s) => !s.startsWith('#'))
+    .map((s) => found.table.columns.indexOf(s));
+  if (columns.some((c) => c < 0)) return undefined;
+  const r = found.table.range;
+  const thisRow = match[2].includes('@') || selectors.includes('#This Row');
+  return {
+    ...reference,
+    sheet: found.sheet,
+    range: {
+      start: {
+        row: thisRow
+          ? origin.row
+          : selectors.includes('#Headers') || selectors.includes('#All')
+            ? r.start.row
+            : r.start.row + (found.table.headerRow ? 1 : 0),
+        col: r.start.col + (columns.length ? Math.min(...columns) : 0),
+      },
+      end: {
+        row: thisRow
+          ? origin.row
+          : selectors.includes('#Headers')
+            ? r.start.row
+            : selectors.includes('#All')
+              ? r.end.row
+              : r.end.row - (found.table.totalsRow ? 1 : 0),
+        col: columns.length ? r.start.col + Math.max(...columns) : r.end.col,
+      },
+    },
+  };
+}
 export function formulaCalls(text: string): FormulaCall[] {
   const calls: FormulaCall[] = [];
   const pattern = /([A-Za-z_][\w.]*)\s*\(/g;
   // Mask strings to keep function-looking text from becoming calls.
-  const masked = text.replace(/"(?:[^"]|"")*"/g, (s) => ' '.repeat(s.length));
+  const masked = text.replace(/"(?:[^"]|"")*"|'(?:[^']|'')*'/g, (s) =>
+    ' '.repeat(s.length),
+  );
   for (const match of masked.matchAll(pattern)) {
     let depth = 0;
     let bracket = 0;
@@ -264,4 +367,14 @@ export function formulaCalls(text: string): FormulaCall[] {
     calls.push({ name: match[1].replace(/^_xlfn\./i, '').toUpperCase(), args });
   }
   return calls;
+}
+
+export function directReference(input: string): Reference | undefined {
+  const text = input.replace(/^=/, '').trim();
+  const tokens = referenceTokens(text);
+  return tokens.length === 1 &&
+    tokens[0].from === 0 &&
+    tokens[0].to === text.length
+    ? tokens[0].reference
+    : undefined;
 }

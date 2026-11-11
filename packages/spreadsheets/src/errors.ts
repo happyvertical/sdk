@@ -58,8 +58,9 @@ export const DEFAULT_LIMITS: Readonly<SpreadsheetLimits> = Object.freeze({
 
 export function resolveLimits(
   options: Partial<SpreadsheetLimits> = {},
+  base: Readonly<SpreadsheetLimits> = DEFAULT_LIMITS,
 ): SpreadsheetLimits {
-  const limits = { ...DEFAULT_LIMITS };
+  const limits = { ...base };
   for (const key of Object.keys(limits) as (keyof SpreadsheetLimits)[]) {
     const value = options[key] ?? limits[key];
     if (!Number.isSafeInteger(value) || value <= 0) {
