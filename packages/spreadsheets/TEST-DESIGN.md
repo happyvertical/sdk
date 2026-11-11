@@ -122,3 +122,116 @@ Final commands: package `pnpm build`, `pnpm test` (40 passed), `pnpm typecheck`,
 The lockfile was verified unchanged. The original 29 feature/interoperability
 checks, including the 200,000-cell compressed export and browser entry check,
 remain green. No container/network-service suites were needed for this fix.
+
+## F3: default capacity and formula error evidence (Refs #1510)
+
+Session train declaration: happyvertical/sdk, current SDK release line 0.111.x,
+branch `feat/issue-1510-spreadsheets`; Task A (Refs #1510) precedes Task B
+(Refs #1511). User scope excludes remote issue/claim/label/push/PR lifecycle,
+containers/network services, manual changesets and lockfile edits. Integrated
+review runs once after both tasks; this section records Task A's narrow evidence.
+
+Risk: standard. One caller supplies untrusted local bytes or an in-memory model.
+Executor/transaction: N/A, no persistence or service; authentication/tenancy,
+retry/rollback: N/A, pure parsing/profile and in-memory serialization. Runtime:
+Node 24.22.1 and browser Web APIs; large-scale execution measured on Node, while
+browser coverage is the existing root bundle/VM smoke (not a browser engine or
+million-cell browser memory certification). Release impact: corrected fixed
+limit defaults and formula parsing; no new dependency, schema or export.
+
+| Behavior/invariant | Reachable trigger | Positive | Negative/failure | External contract edge | Level / validation |
+| --- | --- | --- | --- | --- | --- |
+| Default capacity survives formula fill-down | 100k unique `A{row}*2` formulas | default read/profile, exact normalized pattern and dependency | cache cap 1 stays usable; repeated uncached scans exhaust explicit work cap | OOXML formula text, optional limits | regression / package test |
+| Ordinary large data fits work and XML caps | 500k numeric rows; 1M numeric cells in a 1000×1000 sheet | read/profile 500k, write/read 1M with exact end value | original hostile structural/text/ZIP limit cases remain typed | untrusted OOXML and exported XLSX | integration round trip / package test |
+| CSV within input cap fits character work | 20 MiB CSV, 20,480 text records | default read retains final record | existing malformed quoting, invalid UTF-8 and cell/field limits | RFC 4180 local bytes | regression / package test |
+| Error literals do not corrupt extraction | bare and quoted/unquoted sheet-qualified `#REF!`, all common error constants followed by cells/functions | broken references retain unresolved `name: '#REF!'`; later A1/B2/C3 and SUM survive | no dependency edge from broken placeholders; existing unknown-format and invalid-limit tests remain | formula metadata, original text retained | unit / package test |
+| Raised defaults keep amplification bounded | shared 8192-character formula × 20k followers and prior hostile corpus | ordinary capacity tests complete | formula work rejects expansion; all timed hostile cases below 5s | attacker-controlled XML/model/formula | hostile integration / package test |
+
+All rows use `pnpm --filter @happyvertical/spreadsheets test`. Each row inherits
+the actor, executor and runtime context above; package `build`, `typecheck` and
+`lint` additionally validate exports and supported types. No network or browser
+service is started.
+
+Default budget arithmetic: reader work = default `maxTotalBytes` (256 Mi units),
+formula work = 128 × default `maxCells` (128M), profile work = 128 × default
+`maxProfileCells` (256M), dependency checks = 8 × default `maxCells` (8M).
+The bounds stay fixed when callers change other options. For a million-cell,
+one-column `A{row}*2` fill-down, length ≤10 and ≤3 lexemes, each uncached scan
+costs ≤14 units. Parsing adds one reference unit; normalization adds ≤11;
+profile's second scan adds ≤14. Formula work is therefore ≤39M per profile and
+≤15M per read, below 128M even after the 50k cache fills. Sorting costs ≤20M;
+XML allocations/attributes plus parsing and final reference resolution cost
+under 60M reader units. One-region dependency processing costs four checks per
+cell, below 8M; combined profile operations stay under 100M. This arithmetic
+covers ordinary short formulas, not arbitrary formula text or many-region
+cross-products; those retain independent guards. The measured formula test is
+100k rows; a million formula cells were not allocated for this arithmetic check.
+
+The former 32 MiB entry, two-million node and eight-million text/attribute caps
+conflicted with million-cell sheets. Defaults now allow 128 MiB per part,
+256 MiB aggregate, five-million XML nodes and 32 Mi UTF-16 text/attribute units.
+The compressed/local input cap remains 32 MiB. Text-heavy workbooks may hit byte
+or text caps before the cell cap. This preserves independent safety bounds.
+
+Base regression: copied tracked source from `34bed575138ea4adbbb0eb6e44f37c0284fdb70e`
+into `/tmp/sdk-1510-base` and ran the identical new `scale.test.ts` with
+`pnpm --filter @happyvertical/spreadsheets exec vitest --config
+/Users/will/Work/_trees/sdk/1510-spreadsheets/vitest.package.config.ts run --root
+/tmp/sdk-1510-base --no-file-parallelism`. All six cases failed against base:
+100k formulas/cache-cap probe hit `maxFormulaCacheEntries`; 500k rows and 20 MiB
+CSV hit `maxReadWork`; 1M write hit `maxEntryBytes`; error-reference metadata was
+incorrect. Full output: `/tmp/sdk-1510-base-test.log`.
+
+Isolated scale commands prefix `/usr/bin/time -l` to
+`pnpm --filter @happyvertical/spreadsheets test src/scale.test.ts -t '<pattern>'
+--no-file-parallelism`. Each scenario runs in a separate process. Wall time below
+measures processing only; peak RSS is the test worker's process-lifetime high
+water mark, including fixture/model construction and Vitest overhead. RSS is
+reported by Node `process.resourceUsage().maxRSS` in KiB. `/usr/bin/time` logs also
+capture the command's memory counters; no RSS assertions depend on host load.
+
+| Pattern / scenario | Processing wall ms | Peak RSS MiB | Log |
+| --- | ---: | ---: | --- |
+| `100000` / fill-down read + profile | 2,212.82 | 835.1 | `/tmp/sdk-1510-isolated-100k.log` |
+| `500000` / plain read + profile | 7,443.68 | 1,455.2 | `/tmp/sdk-1510-isolated-500k.log` |
+| `one million` / numeric write + read | 11,642.10 | 1,827.5 | `/tmp/sdk-1510-isolated-million.log` |
+| `20 MiB` / CSV read | 753.87 | 219.4 | `/tmp/sdk-1510-isolated-csv.log` |
+
+One million cells is practical only as a heavyweight Node batch workload with
+adequate memory; roughly 1.8 GiB RSS is not a sane interactive/browser default
+workload. The requested default capacity remains 1M. Applications can adopt a
+lower upload admission policy (for example 250k cells) and measure their target
+devices/content; no lower browser capacity guarantee is implied. The reader
+retains an XML tree alongside the sparse model, rather than streaming cells.
+
+Final Task A validation: package `build` passed (Vite 2.76s), `typecheck` passed,
+`lint` passed (17 source files), and `git diff --check` passed. Final unmodified
+package test command passed all 46 tests in 41.06s; full output is
+`/tmp/sdk-1510-task-a-final-test.log`. The fourteen timed hostile probes ranged
+from 0.53ms to 2,243.45ms, all below 5,000ms. Build/type/lint outputs are
+`/tmp/sdk-1510-task-a-{build,typecheck,lint}.log`. Foreman separately completed
+`pnpm install --frozen-lockfile`; this task did not alter the lockfile.
+
+Intentional test adaptation: the unclosed-quote probe may now finish with empty
+dependency evidence rather than hit the old eight-million XML-text ceiling;
+it still asserts the same wall-time bound and accepts only typed limit errors
+on failure. Shared-formula amplification now uses 20k followers rather than 5k
+so that it deterministically exceeds the larger default formula-work budget.
+All original feature/interoperability/browser-root checks remain green. No
+containers, network services, remote lifecycle writes or Task B edits occurred.
+
+Accepted review correction: the XML-node default is 5 × default maxCells (5M).
+One inline-string cell per row consumes row+c+is+t = four nodes, so a million
+rows plus worksheet/sheetData wrappers consume 4,000,002 nodes; the previous
+4M ceiling was two nodes short. The focused `inline-string XML node headroom`
+test asserts this default-cap arithmetic and parses a representative 1,000-row
+fixture (4,002 nodes) with a proportional 5,000-node cap. The exact 4,002 cap
+also passes and 4,001 throws typed LIMIT_EXCEEDED/maxXmlNodes. This tests the
+parser's actual node accounting without another million-cell allocation.
+
+Correction validation: `pnpm --filter @happyvertical/spreadsheets test
+src/scale.test.ts -t 'inline-string XML node headroom'` passed (20ms test;
+967ms runner), followed by package `build` (2.86s), `typecheck`, `lint` and
+`git diff --check`, all green. Outputs are `/tmp/sdk-1510-node-headroom-*.log`.
+The previous full 46-test/hostile evidence remains applicable; only the node
+ceiling was raised, with one additional focused boundary test (47 total tests).

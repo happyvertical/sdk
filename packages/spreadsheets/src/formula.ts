@@ -38,7 +38,7 @@ export interface FormulaScan {
   functions: string[];
 }
 interface Lexeme {
-  kind: 'atom' | 'quoted' | 'bracket' | 'punct';
+  kind: 'atom' | 'quoted' | 'bracket' | 'punct' | 'error';
   from: number;
   to: number;
 }
@@ -77,7 +77,6 @@ export class FormulaScanner {
     this.spend();
     const cached = this.cache.get(text);
     if (cached) return cached;
-    checkLimit(this.cache.size + 1, 'maxFormulaCacheEntries', this.limits);
     this.spend(text.length);
     const lexemes: Lexeme[] = [];
     const push = (kind: Lexeme['kind'], from: number, to: number) => {
@@ -89,7 +88,16 @@ export class FormulaScanner {
       const from = i;
       const c = text[i++];
       if (/\s/.test(c)) continue;
-      if (c === '"' || c === "'") {
+      if (c === '#') {
+        const error =
+          /^(?:REF!|DIV\/0!|VALUE!|NAME\?|N\/A|NUM!|NULL!|SPILL!|CALC!|GETTING_DATA)/i.exec(
+            text.slice(i),
+          );
+        if (error) {
+          i += error[0].length;
+          push('error', from, i);
+        } else push('punct', from, i);
+      } else if (c === '"' || c === "'") {
         while (i < text.length)
           if (text[i++] === c) {
             if (text[i] === c) i++;
@@ -171,6 +179,20 @@ export class FormulaScanner {
         target = lexemes[t];
         if (!target) break;
       } else if (token.kind === 'quoted') continue;
+      if (target.kind === 'error') {
+        if (raw(target).toUpperCase() === '#REF!')
+          references.push({
+            from: token.from,
+            to: target.to,
+            reference: {
+              sheet,
+              name: '#REF!',
+              range: { start: { row: 1, col: 1 }, end: { row: 1, col: 1 } },
+              absolute: { ...noFlags },
+            },
+          });
+        continue;
+      }
       let name = raw(target);
       let to = target.to;
       const after = lexemes[t + 1];
@@ -204,7 +226,9 @@ export class FormulaScanner {
     // Unclosed parentheses retain text and partial evidence; depth is still bounded.
     for (const frame of stack) argument(frame, text.length);
     const scan = { text, references, calls, functions: [...functions] };
-    this.cache.set(text, scan);
+    // Saturation affects reuse only; every uncached scan still spends work.
+    if (this.cache.size < this.limits.maxFormulaCacheEntries)
+      this.cache.set(text, scan);
     return scan;
   }
 }

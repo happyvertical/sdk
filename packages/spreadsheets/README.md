@@ -97,8 +97,8 @@ remain unresolved. Cross-sheet overlaps are directional, type-sensitive shares
 of distinct values, with a default threshold of 0.5.
 
 Options: `overlapThreshold` (0–1), `sampleSize` (5), `maxProfileCells` (2,000,000),
-`maxColumnPairs` (100,000), `maxDependencyChecks` (1,000,000), and
-`maxProfileWork` (20,000,000). Structural and formula limits from the adapter
+`maxColumnPairs` (100,000), `maxDependencyChecks` (8,000,000), and
+`maxProfileWork` (256,000,000). Structural and formula limits from the adapter
 limits below can also be supplied to profiling. Work-limit
 exhaustion throws `SpreadsheetError` rather than returning partial evidence.
 
@@ -113,14 +113,14 @@ All adapter limits can be set at construction or overridden per read/write:
 | --- | ---: |
 | maxInputBytes | 32 MiB |
 | maxEntries | 10,000 |
-| maxEntryBytes | 32 MiB |
-| maxTotalBytes | 128 MiB |
+| maxEntryBytes | 128 MiB |
+| maxTotalBytes | 256 MiB |
 | maxCompressionRatio | 1,000 |
 | compressionRatioFloorBytes | 8 MiB |
 | maxPathBytes | 1,024 |
 | maxXmlDepth | 64 |
-| maxXmlText (UTF-16 code units, text and attributes per part) | 8,388,608 |
-| maxXmlNodes (per part) | 2,000,000 |
+| maxXmlText (UTF-16 code units, text and attributes per part) | 33,554,432 |
+| maxXmlNodes (per part) | 5,000,000 |
 | maxSheets | 128 |
 | maxCells (also bounds column-width expansion) | 1,000,000 |
 | maxSharedStrings | 500,000 |
@@ -130,8 +130,8 @@ All adapter limits can be set at construction or overridden per read/write:
 | maxDataValidations (rules and cumulative target ranges) | 10,000 |
 | maxMerges (workbook) | 10,000 |
 | maxPartReferences (per archive part) | 1 |
-| maxReadWork (reader/serialization operation units) | 10,000,000 |
-| maxFormulaWork (operation units per read/profile) | 8,000,000 |
+| maxReadWork (reader/serialization operation units) | 268,435,456 |
+| maxFormulaWork (operation units per read/profile) | 128,000,000 |
 | maxFormulaDepth | 128 |
 | maxFormulaTokens (per formula) | 2,048 |
 | maxFormulaCacheEntries (per read/profile) | 50,000 |
@@ -148,8 +148,13 @@ parsed table; repeated worksheet parts remain invalid.
 The formula tokenizer makes one character pass and one pass over its tokens,
 using a cache keyed by formula text for each read/profile operation. References,
 function/argument spans and relative patterns reuse that scan. Unclosed strings
-remain verbatim; excessive nesting/tokens/cache entries/work fail with typed
-`LIMIT_EXCEEDED`. Shared-formula expansion charges generated text before copying.
+remain verbatim; excessive nesting/tokens/work fail with typed
+`LIMIT_EXCEEDED`. Cache saturation stops retaining new scans; it never rejects a
+formula. Uncached scans still charge their full work. Shared-formula expansion
+charges generated text before copying. Error literals are atomic tokens;
+`#REF!` and sheet-qualified broken references retain `name: '#REF!'` with an
+unresolved placeholder range, and never produce dependency edges. References
+and functions following an error literal are still extracted.
 
 Work budgets charge XML node/attribute allocation, inner loops, sorting
 comparisons or conservative sort
@@ -158,7 +163,31 @@ Profiling uses sets for totals membership and distinct samples, visits each
 region cell once during discovery, and preflights cross-sheet overlap products.
 Shared long values, wide tables, formula copies, CSV fields and output expansion
 consume budgets even when their input strings were shared. Exceeding a budget
-returns no partial result. These limits may reject otherwise valid large files;
+returns no partial result.
+
+Default work ceilings are sized from the structural caps: `maxReadWork` equals
+the default aggregate inflated-byte cap (256 Mi units), covering the CSV reader's
+two character passes over its 32 MiB input cap and XML allocation/sorting charges.
+`maxFormulaWork` allows 128 units per default `maxCells` (128 million);
+`maxProfileWork` allows 128 units per default `maxProfileCells` (256 million),
+and `maxDependencyChecks` allows eight checks per default `maxCells`.
+These are fixed defaults; changing a size cap does not automatically raise a
+work cap. A million short numeric/formula cells fit these operation ceilings;
+longer formulas, many regions and shared large values can still exhaust them.
+The 128 MiB part, five-million XML-node and 32 Mi-code-unit text/attribute caps
+allow a million ordinary numeric or inline-string cells, including one cell per row; the former
+32 MiB/two-million/eight-million caps did not. The node ceiling allows five nodes per default cell: four for each inline-string
+row/cell/is/t chain plus wrapper and metadata headroom. Long inline text remains bounded
+independently of cell count.
+
+The reader builds an XML tree and a sparse cell model in memory. Million-cell
+read/write is a heavyweight Node batch workload (roughly 2 GiB peak RSS in the
+regression run), not an interactive browser sizing target. Applications can start
+with a lower admission policy such as `{ maxCells: 250_000 }` for interactive or
+browser uploads, then measure their own content and device memory; this is not a
+browser capacity guarantee. Smaller browser-root
+round trips remain covered by the browser Web API smoke test. These limits may
+reject otherwise valid large files;
 raise the relevant option explicitly for a trusted workload.
 
 ZIP metadata inspection reuses the browser-safe `@happyvertical/files/archive`

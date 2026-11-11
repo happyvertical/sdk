@@ -133,6 +133,7 @@ export class WorkbookIndex {
     sheet: string,
     origin: Point,
   ): Reference | undefined {
+    if (reference.name === '#REF!') return undefined;
     if (!reference.name) {
       this.spend();
       return reference;

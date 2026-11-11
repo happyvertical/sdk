@@ -153,12 +153,12 @@ export function profileWorkbook(
   options: ProfileOptions = {},
 ): WorkbookProfile {
   const opts = {
-    maxProfileWork: 20_000_000,
+    maxProfileWork: 128 * 2_000_000,
     overlapThreshold: 0.5,
     sampleSize: 5,
     maxProfileCells: 2_000_000,
     maxColumnPairs: 100_000,
-    maxDependencyChecks: 1_000_000,
+    maxDependencyChecks: 8 * 1_000_000,
     ...Object.fromEntries(
       Object.entries(options).filter(([, value]) => value !== undefined),
     ),

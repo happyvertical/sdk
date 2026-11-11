@@ -97,7 +97,10 @@ describe('hostile workbook processing budgets', () => {
       await timed(`8192-char ${name} × 1000 cells`, async () => {
         try {
           const wb = await adapter.read(bytes);
-          await limited(() => profileWorkbook(wb));
+          // Unclosed quoted text may finish safely now that ordinary large parts
+          // fit defaults. It must not manufacture references from its contents.
+          const profile = profileWorkbook(wb);
+          expect(profile.dependencies).toEqual([]);
         } catch (error) {
           expect(error).toBeInstanceOf(SpreadsheetError);
           expect(error).toMatchObject({ code: 'LIMIT_EXCEEDED' });
@@ -149,10 +152,10 @@ describe('hostile workbook processing budgets', () => {
   });
   it('bounds shared-formula expansion and repeated large shared values', async () => {
     const formula = 'SUM($B$1)'.padEnd(8192, ' ');
-    const cells = `<sheetData><row r="1"><c><f t="shared" si="1" ref="A1:A5000">${formula}</f><v>1</v></c></row>${Array.from({ length: 4999 }, (_, i) => `<row r="${i + 2}"><c><f t="shared" si="1"/><v>1</v></c></row>`).join('')}</sheetData>`;
+    const cells = `<sheetData><row r="1"><c><f t="shared" si="1" ref="A1:A20000">${formula}</f><v>1</v></c></row>${Array.from({ length: 19999 }, (_, i) => `<row r="${i + 2}"><c><f t="shared" si="1"/><v>1</v></c></row>`).join('')}</sheetData>`;
     const bytes = fixture(cells);
     const adapter = await getSpreadsheets({ type: 'xlsx' });
-    await timed('8192-char shared formula × 5000 followers', () =>
+    await timed('8192-char shared formula × 20000 followers', () =>
       limited(() => adapter.read(bytes), 'maxFormulaWork'),
     );
     const sheet = createSheet('Shared');
