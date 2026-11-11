@@ -124,6 +124,7 @@ export {
 } from './aggregate-expression.js';
 export type { SchemaInitializationResult } from './schema-manager.js';
 export { DatabaseSchemaManager } from './schema-manager.js';
+export type { IdentifierOptions } from './shared/alter-utils.js';
 export { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils.js';
 export * from './shared/types.js';
 export type { RawSqlKey, SqlAdapterType } from './shared/utils.js';

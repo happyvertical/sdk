@@ -1,4 +1,5 @@
 // biome-ignore-all lint/suspicious/noThenProperty: CASE nodes are closed data, not thenable functions.
+import { quoteLiteralIdentifier } from './shared/alter-utils.js';
 import type { SqlAdapterType } from './shared/utils.js';
 
 /**
@@ -278,8 +279,8 @@ function renderOperandUnchecked(
     validateShape(node);
 
   if ('col' in node) {
+    ctx.onColumn?.(node.col as string);
     const column = ctx.identifier(node.col as string);
-    ctx.onColumn?.(column);
     return column;
   }
   if ('value' in node && !('op' in node)) {
@@ -836,10 +837,7 @@ export function renderExpression(
     values: [],
     mode: options.mode,
     identifier: (name) =>
-      resolve(name)
-        .name.split('.')
-        .map((part) => `"${part.replace(/"/g, '""')}"`)
-        .join('.'),
+      resolve(name).name.split('.').map(quoteLiteralIdentifier).join('.'),
     columnType: (name) => resolve(name).type,
   };
   const sql = renderAggregateExpression(node, ctx);

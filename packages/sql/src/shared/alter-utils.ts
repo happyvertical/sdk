@@ -34,9 +34,12 @@ export type DatabaseDialect = 'sqlite' | 'postgres' | 'duckdb';
 export function generateAddColumnStatement(
   table: string,
   column: ColumnDefinitionWithName,
-  _dialect: DatabaseDialect,
+  dialect: DatabaseDialect,
 ): string {
-  const parts: string[] = [column.name, column.type];
+  const parts: string[] = [
+    renderIdentifier(column.name, dialect, { quoteIdentifiers: true }),
+    column.type,
+  ];
 
   // Primary key
   if (column.primaryKey) {
@@ -70,7 +73,9 @@ export function generateAddColumnStatement(
   // Foreign key (inline for some databases)
   if (column.foreignKey) {
     const fk = column.foreignKey;
-    const fkParts = [`REFERENCES ${fk.table}(${fk.column})`];
+    const fkParts = [
+      `REFERENCES ${renderIdentifier(fk.table, dialect, { quoteIdentifiers: true })}(${renderIdentifier(fk.column, dialect, { quoteIdentifiers: true })})`,
+    ];
 
     if (fk.onDelete) {
       fkParts.push(`ON DELETE ${fk.onDelete}`);
@@ -84,7 +89,7 @@ export function generateAddColumnStatement(
   }
 
   const columnDef = parts.join(' ');
-  return `ALTER TABLE ${table} ADD COLUMN ${columnDef}`;
+  return `ALTER TABLE ${renderIdentifier(table, dialect, { quoteIdentifiers: true })} ADD COLUMN ${columnDef}`;
 }
 
 /**
@@ -195,6 +200,7 @@ export function generateDefaultClause(
 export function generateCreateIndexStatement(
   table: string,
   index: IndexDefinition,
+  dialect?: DatabaseDialect,
 ): string {
   const parts: string[] = ['CREATE'];
 
@@ -206,13 +212,19 @@ export function generateCreateIndexStatement(
   parts.push('INDEX');
 
   // Index name
-  parts.push(index.name);
+  parts.push(renderIdentifier(index.name, dialect, { quoteIdentifiers: true }));
 
   // ON table
-  parts.push(`ON ${table}`);
+  parts.push(
+    `ON ${renderIdentifier(table, dialect, { quoteIdentifiers: true })}`,
+  );
 
   // Column list
-  const columns = index.columns.join(', ');
+  const columns = index.columns
+    .map((column) =>
+      renderIdentifier(column, dialect, { quoteIdentifiers: true }),
+    )
+    .join(', ');
   parts.push(`(${columns})`);
 
   // WHERE clause (partial index)
@@ -260,12 +272,9 @@ export function validateTableName(tableName: string): void {
  * @throws Error if the value is not a string or contains invalid characters
  */
 export function validateColumnName(columnName: string): void {
-  if (
-    typeof columnName !== 'string' ||
-    !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(columnName)
-  ) {
+  if (typeof columnName !== 'string' || !isColumnIdentifier(columnName)) {
     throw new Error(
-      `Invalid column name: ${columnName}. Column names must be a string that starts with a letter or underscore and contains only alphanumeric characters and underscores.`,
+      `Invalid column name: ${columnName}. Column names must be a plain identifier starting with a letter or underscore, or an explicitly double-quoted identifier.`,
     );
   }
 }
@@ -300,13 +309,15 @@ export function validateColumnNames(columnNames: string[]): void {
  * lowercase before quoting: `mixedCase` still addresses `mixedcase`, while a
  * reserved word such as `end` is no longer parsed as SQL syntax.
  *
- * @param columnName - Plain column name to render for PostgreSQL
- * @returns A lowercase, double-quoted PostgreSQL identifier
+ * Explicit double-delimited input preserves its physical spelling.
+ *
+ * @param columnName - Plain or explicitly delimited column name for PostgreSQL
+ * @returns A double-quoted identifier, folding only undelimited input
  * @throws Error if the column name is outside the CRUD identifier contract
  */
 export function quotePostgresColumnName(columnName: string): string {
   validateColumnName(columnName);
-  return `"${columnName.toLowerCase()}"`;
+  return renderIdentifier(columnName, 'postgres', { quoteIdentifiers: true });
 }
 
 /**
@@ -386,3 +397,103 @@ export function validateIndexName(indexName: string): void {
     );
   }
 }
+
+/** Additive policy for standalone builders; adapters always request quote-all. */
+export interface IdentifierOptions {
+  quoteIdentifiers?: boolean;
+}
+
+/** Parse identifiers, never SQL. Dots outside double quotes delimit qualifiers. */
+export function identifierParts(
+  identifier: string,
+): Array<{ name: string; exact: boolean }> {
+  if (
+    typeof identifier !== 'string' ||
+    !identifier ||
+    identifier.includes('\0')
+  ) {
+    throw new Error(`Invalid SQL identifier: ${identifier}`);
+  }
+  const parts: Array<{ name: string; exact: boolean }> = [];
+  let position = 0;
+  while (position < identifier.length) {
+    const rest = identifier.slice(position);
+    const match = rest.startsWith('"')
+      ? /^"((?:[^"]|"")+)"(?=\.|$)/.exec(rest)
+      : /^([A-Za-z0-9_]+)(?=\.|$)/.exec(rest);
+    if (!match) throw new Error(`Invalid SQL identifier: ${identifier}`);
+    const exact = rest.startsWith('"');
+    parts.push({
+      name: exact ? match[1].replaceAll('""', '"') : match[1],
+      exact,
+    });
+    position += match[0].length;
+    if (position < identifier.length) {
+      position += 1;
+      if (position === identifier.length)
+        throw new Error(`Invalid SQL identifier: ${identifier}`);
+    }
+  }
+  return parts;
+}
+
+function isColumnIdentifier(identifier: string): boolean {
+  try {
+    const parts = identifierParts(identifier);
+    return (
+      parts.length === 1 &&
+      (parts[0].exact || /^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Quote a physical name without interpreting delimiters or dots. */
+export function quoteLiteralIdentifier(identifier: string): string {
+  if (typeof identifier !== 'string')
+    throw new Error(`Invalid SQL identifier: ${identifier}`);
+  return `"${escapeQuotedIdentifier(identifier)}"`;
+}
+
+/** SQLite CRUD column (one validated identifier). */
+export function quoteSqliteColumnName(column: string): string {
+  validateColumnName(column);
+  return renderIdentifier(column, 'sqlite', { quoteIdentifiers: true });
+}
+
+/** DuckDB/JSON CRUD column, or an already-resolved literal physical name. */
+export function quoteDuckDBColumnName(column: string, literal = false): string {
+  if (literal) return quoteLiteralIdentifier(column);
+  validateColumnName(column);
+  return renderIdentifier(column, 'duckdb', { quoteIdentifiers: true });
+}
+
+/** Shared rendering for qualified WHERE/aggregate identifiers. */
+export function renderIdentifier(
+  identifier: string,
+  dialect?: 'sqlite' | 'postgres' | 'duckdb' | 'json',
+  options: IdentifierOptions = {},
+): string {
+  return identifierParts(identifier)
+    .map(({ name, exact }) => {
+      if (
+        !options.quoteIdentifiers &&
+        !exact &&
+        !IDENTIFIER_KEYWORDS.has(name.toLowerCase())
+      )
+        return name;
+      return quoteLiteralIdentifier(
+        dialect === 'postgres' && !exact ? name.toLowerCase() : name,
+      );
+    })
+    .join('.');
+}
+
+// SQLite official 147-keyword list (sqlite.org/lang_keywords.html), plus reserved
+// pg_get_keywords() (PGlite 0.5.8) and duckdb_keywords() (DuckDB 1.4.3).
+const IDENTIFIER_KEYWORDS = new Set(
+  'abort action add after all alter always analyse analyze and any array as asc asymmetric attach autoincrement before begin between both by cascade case cast check collate column commit conflict constraint create cross current current_catalog current_date current_role current_time current_timestamp current_user database default deferrable deferred delete desc describe detach distinct do drop each else end escape except exclude exclusive exists explain fail false fetch filter first following for foreign from full generated glob grant group groups having if ignore immediate in index indexed initially inner insert instead intersect into is isnull join key lambda last lateral leading left like limit localtime localtimestamp match materialized natural no not nothing notnull null nulls of offset on only or order others outer over partition pivot pivot_longer pivot_wider placing plan pragma preceding primary qualify query raise range recursive references regexp reindex release rename replace restrict returning right rollback row rows savepoint select session_user set show some summarize symmetric system_user table temp temporary then ties to trailing transaction trigger true unbounded union unique unpivot update user using vacuum values variadic view virtual when where window with without'.split(
+    ' ',
+  ),
+);

@@ -231,3 +231,5 @@ export default {
 
 /** @internal */
 export const PACKAGE_VERSION_INITIALIZED = true;
+
+export type { IdentifierOptions } from './shared/alter-utils.js';

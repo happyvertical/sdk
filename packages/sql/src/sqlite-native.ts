@@ -6,6 +6,8 @@ import { DatabaseSchemaManager } from './schema-manager.js';
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
+  quoteLiteralIdentifier as quoteIdentifier,
+  quoteSqliteColumnName,
   validateColumnName,
   validateColumnNames,
   validateIndexName,
@@ -39,9 +41,10 @@ import type {
 } from './shared/types.js';
 import { NestedTransactionError, resolveSchemas } from './shared/types.js';
 import {
-  buildWhere,
+  buildAdapterWhere as buildWhere,
   formatDbError,
   resolveInsertColumns,
+  rewriteSqlParameters,
   wrapDatabaseError,
 } from './shared/utils.js';
 import type { SqliteOptions } from './sqlite.js';
@@ -270,16 +273,22 @@ function normalizeNativeQuery(
   values: any[],
 ): { sql: string; args: any[] } {
   const flatArgs = Array.isArray(values[0]) ? values[0] : values;
-  const parameterIndexes = Array.from(sql.matchAll(/\$(\d+)/g)).map((match) =>
-    Number(match[1]),
+  const args: any[] = [];
+  const normalized = replaceNativeParameters(sql, (index) => {
+    args.push(flatArgs[index - 1]);
+    return '?';
+  });
+  return args.length > 0 ? { sql: normalized, args } : { sql, args: flatArgs };
+}
+
+/** Ignore literal/identifier text when translating executable numbered binds. */
+function replaceNativeParameters(
+  sql: string,
+  replace: (index: number) => string,
+): string {
+  return rewriteSqlParameters(sql, 'sqlite', (token, index) =>
+    index === undefined ? token : replace(index),
   );
-
-  if (parameterIndexes.length === 0) {
-    return { sql, args: flatArgs };
-  }
-
-  const args = parameterIndexes.map((index) => flatArgs[index - 1]);
-  return { sql: sql.replace(/\$(\d+)/g, '?'), args };
 }
 
 function executeNativeQuery(
@@ -361,14 +370,10 @@ function createNativeTablesFromSchemas(
   }
 }
 
-function quoteIdentifier(identifier: string): string {
-  return `"${identifier.replace(/"/g, '""')}"`;
-}
-
 function buildQuestionWhere(where: WhereClause, startIndex = 1) {
   const built = buildWhere(where, startIndex, 'sqlite');
   return {
-    sql: built.sql.replace(/\$(\d+)/g, '?'),
+    sql: replaceNativeParameters(built.sql, () => '?'),
     values: built.values,
   };
 }
@@ -753,7 +758,7 @@ function createVectorCapabilities(
         ? 'vector_quantize_scan'
         : 'vector_full_scan';
       const convertedWhere = searchOptions?.where
-        ? searchOptions.where.replace(/\$(\d+)/g, '?')
+        ? replaceNativeParameters(searchOptions.where, () => '?')
         : '';
       const whereParams = searchOptions?.params ?? [];
 
@@ -920,7 +925,7 @@ async function createNativeSqliteDatabase(
       const values = records.flatMap((record) =>
         keys.map((key) => record[key]),
       );
-      const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
+      const sql = `INSERT INTO ${table} (${keys.map((key) => quoteSqliteColumnName(key)).join(', ')}) VALUES ${placeholders}`;
 
       try {
         const result = executeNativeQuery(database, sql, values);
@@ -991,7 +996,9 @@ async function createNativeSqliteDatabase(
       const keys = Object.keys(serializedData);
       validateColumnNames(keys);
       const values = Object.values(serializedData);
-      const setClause = keys.map((key) => `${key} = ?`).join(', ');
+      const setClause = keys
+        .map((key) => `${quoteSqliteColumnName(key)} = ?`)
+        .join(', ');
       const { sql: whereClause, values: whereValues } =
         buildQuestionWhere(where);
 
@@ -1053,10 +1060,13 @@ async function createNativeSqliteDatabase(
       const values = Object.values(serializedData);
       const placeholders = keys.map(() => '?').join(', ');
       const updateSet = keys
-        .map((key) => `${key} = excluded.${key}`)
+        .map(
+          (key) =>
+            `${quoteSqliteColumnName(key)} = excluded.${quoteSqliteColumnName(key)}`,
+        )
         .join(', ');
-      const conflict = conflictColumns.join(', ');
-      const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+      const conflict = conflictColumns.map(quoteSqliteColumnName).join(', ');
+      const sql = `INSERT INTO ${table} (${keys.map((key) => quoteSqliteColumnName(key)).join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
       const result = executeNativeQuery(database, sql, values);
       return { operation: 'upsert', affected: result.rowCount };
     };
@@ -1068,9 +1078,11 @@ async function createNativeSqliteDatabase(
     ): QueryResult => {
       const keys = Object.keys(serializedData);
       const values = Object.values(serializedData);
-      const updateSet = keys.map((key) => `${key} = ?`).join(', ');
+      const updateSet = keys
+        .map((key) => `${quoteSqliteColumnName(key)} = ?`)
+        .join(', ');
       const whereClause = conflictColumns
-        .map((column) => `${column} IS ?`)
+        .map((column) => `${quoteSqliteColumnName(column)} IS ?`)
         .join(' AND ');
       const whereValues = conflictColumns.map(
         (column) => serializedData[column],
@@ -1089,7 +1101,7 @@ async function createNativeSqliteDatabase(
       const placeholders = keys.map(() => '?').join(', ');
       const insertResult = executeNativeQuery(
         database,
-        `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`,
+        `INSERT INTO ${table} (${keys.map((key) => quoteSqliteColumnName(key)).join(', ')}) VALUES (${placeholders})`,
         values,
       );
 
@@ -1671,7 +1683,7 @@ async function createNativeSqliteDatabase(
         }
         let sql: string | undefined;
         try {
-          sql = generateCreateIndexStatement(tableName, index);
+          sql = generateCreateIndexStatement(tableName, index, 'sqlite');
           executeNativeQuery(database, sql);
         } catch (error) {
           throw wrapDatabaseError('Failed to create index on table', error, {

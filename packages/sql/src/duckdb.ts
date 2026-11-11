@@ -4,10 +4,10 @@ import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
-  escapeQuotedIdentifier,
   escapeStringLiteral,
   generateAddColumnStatement,
   generateCreateIndexStatement,
+  quoteDuckDBColumnName,
   validateColumnName,
   validateColumnNames,
   validateIndexName,
@@ -37,7 +37,7 @@ import type {
 } from './shared/types';
 import { NestedTransactionError, resolveSchemas } from './shared/types';
 import {
-  buildWhere,
+  buildAdapterWhere as buildWhere,
   formatDbError,
   resolveInsertColumns,
   wrapDatabaseError,
@@ -61,7 +61,7 @@ async function createTablesFromSchemas(
     try {
       // Check if table already exists
       const result = await connection.runAndReadAll(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'`,
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='${escapeStringLiteral(tableName)}'`,
       );
       const rows = result.getRowObjects();
 
@@ -384,7 +384,7 @@ export async function getDatabase(
       })
       .join(', ');
 
-    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
+    const sql = `INSERT INTO ${table} (${keys.map((key) => quoteDuckDBColumnName(key)).join(', ')}) VALUES ${placeholders}`;
 
     try {
       await connection.run(sql, values);
@@ -482,7 +482,9 @@ export async function getDatabase(
     validateTableName(table);
     const keys = Object.keys(data);
     validateColumnNames(keys);
-    const setClause = keys.map((key, idx) => `${key} = $${idx + 1}`).join(', ');
+    const setClause = keys
+      .map((key, idx) => `${quoteDuckDBColumnName(key)} = $${idx + 1}`)
+      .join(', ');
     const { sql: whereClause, values: whereValues } = buildWhere(
       where,
       keys.length + 1,
@@ -554,12 +556,23 @@ export async function getDatabase(
     data: Record<string, any>,
   ): Promise<QueryResult> => {
     const conflictWhere = Object.fromEntries(
-      conflictColumns.map((col) => [col, data[col]]),
+      conflictColumns.map((col) => [
+        quoteDuckDBColumnName(col, true),
+        data[col],
+      ]),
     );
     const existing = await get(table, conflictWhere);
 
     if (!existing) {
-      return insert(table, data);
+      return insert(
+        table,
+        Object.fromEntries(
+          Object.entries(data).map(([key, value]) => [
+            quoteDuckDBColumnName(key, true),
+            value,
+          ]),
+        ),
+      );
     }
 
     const keys = Object.keys(data);
@@ -571,7 +584,7 @@ export async function getDatabase(
     const paramIdx = { value: 1 };
     const assignments = updateKeys.map((key) => {
       const valueExpr = buildDuckDBValueExpression(data[key], values, paramIdx);
-      return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
+      return `${quoteDuckDBColumnName(key, true)} = ${valueExpr}`;
     });
     const { sql: whereClause, values: whereValues } = buildWhere(
       conflictWhere,
@@ -628,13 +641,9 @@ export async function getDatabase(
     // check below sees to the value the `ON CONFLICT` list escapes, so a crafted
     // object cannot read as `id` for the check and as unescaped SQL for the SQL.
     const conflictCols = conflictColumns.map((col) => String(col));
-    // Conflict columns reach two very different positions. In the plain
-    // `ON CONFLICT(...)` path below they are quoted, so a name that needs
-    // quotes — `Full Name`, `user-id`, whatever the source data called its
-    // keys — is ordinary and has always worked; escaping keeps it working
-    // while making it impossible to leave the quotes. In the null-aware path
-    // they become `buildWhere` keys instead, which requires a plain identifier
-    // and rejects them there, as it did before this change.
+    // Conflict and record keys remain literal physical names, including dots,
+    // spaces and quote characters. The NULL-aware branch delimits those names
+    // before passing them to the qualified WHERE renderer.
     // Validate that all conflict columns are present in the data
     const missingColumns = conflictCols.filter((col) => !(col in record));
 
@@ -703,61 +712,17 @@ export async function getDatabase(
       }
     }
 
-    // Build UPDATE SET clause with same type handling
-    // DO NOT reset paramIdx - parameters must be unique across entire query
-    const updateSetParts: string[] = [];
-
-    for (const key of updateKeys) {
-      const value = record[key];
-
-      if (value === null || value === undefined) {
-        // DuckDB requires explicit NULL for null/undefined values
-        updateSetParts.push(`${key} = NULL`);
-      } else if (value === '' && typeof value === 'string') {
-        updateSetParts.push(`${key} = CAST($${paramIdx} AS TEXT)`);
-        values.push(value);
-        paramIdx++;
-      } else if (value instanceof Date) {
-        updateSetParts.push(`${key} = $${paramIdx}`);
-        values.push(value.toISOString());
-        paramIdx++;
-      } else if (Array.isArray(value)) {
-        // CAST arrays to JSON to prevent DuckDB ANY type inference
-        updateSetParts.push(`${key} = CAST($${paramIdx} AS JSON)`);
-        values.push(JSON.stringify(value));
-        paramIdx++;
-      } else if (
-        typeof value === 'object' &&
-        value !== null &&
-        Object.getPrototypeOf(value) === Object.prototype
-      ) {
-        // CAST plain objects to JSON to prevent DuckDB ANY type inference
-        updateSetParts.push(`${key} = CAST($${paramIdx} AS JSON)`);
-        values.push(JSON.stringify(value));
-        paramIdx++;
-      } else {
-        updateSetParts.push(`${key} = $${paramIdx}`);
-        values.push(value);
-        paramIdx++;
-      }
-    }
-
-    // Quote ALL column names to match DuckDB's schema generation
-    // SchemaGenerator always quotes column names, so UPSERT must match
+    const updateIndex = { value: paramIdx };
+    const quotedUpdateSetParts = updateKeys.map(
+      (key) =>
+        `${quoteDuckDBColumnName(key, true)} = ${buildDuckDBValueExpression(record[key], values, updateIndex)}`,
+    );
     const conflict = conflictCols
-      .map((col) => `"${escapeQuotedIdentifier(col)}"`)
+      .map((col) => quoteDuckDBColumnName(col, true))
       .join(', ');
     const quotedKeys = keys
-      .map((key) => `"${escapeQuotedIdentifier(key)}"`)
+      .map((key) => quoteDuckDBColumnName(key, true))
       .join(', ');
-
-    // Quote column names in UPDATE SET clause to match schema and ON CONFLICT
-    // Extract the value expression from each updateSetPart (everything after '=')
-    const quotedUpdateSetParts = updateKeys.map((key, i) => {
-      const part = updateSetParts[i];
-      const valueExpr = part.substring(part.indexOf('=') + 1).trim();
-      return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
-    });
 
     const conflictAction =
       quotedUpdateSetParts.length > 0
@@ -945,7 +910,7 @@ export async function getDatabase(
 
     const filePath = join(dataDir, `${table}.json`);
     await connection.run(
-      `COPY (SELECT * FROM ${table}) TO '${filePath}' (FORMAT JSON, ARRAY true)`,
+      `COPY (SELECT * FROM ${table}) TO '${escapeStringLiteral(filePath)}' (FORMAT JSON, ARRAY true)`,
     );
   };
 
@@ -1440,7 +1405,7 @@ export async function getDatabase(
 
       let sql: string | undefined;
       try {
-        sql = generateCreateIndexStatement(table, index);
+        sql = generateCreateIndexStatement(table, index, 'duckdb');
         await connection.run(sql);
       } catch (e) {
         throw wrapDatabaseError('Failed to create index on table', e, {

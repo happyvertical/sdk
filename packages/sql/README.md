@@ -565,25 +565,50 @@ connection.
 
 ### Identifiers
 
-Table and column names are interpolated into SQL rather than bound as
-parameters, so every CRUD method validates them: an identifier must be a string
-matching `[a-zA-Z_][a-zA-Z0-9_]*`. Qualified names (`schema.table`), quoted names
-and anything containing whitespace are rejected. A non-string — including an
-object with a `toString` — is rejected outright rather than coerced, so the value
-validated is always the value interpolated. Values are always parameterized and
-are unaffected.
+Every adapter quotes CRUD column identifiers, including insert/upsert column
+lists, conflict targets, SET clauses and WHERE fields. Keyword columns such as
+`order`, `group`, `from`, `select`, `values` and `user` work without special input.
+Table names retain the restricted `[a-zA-Z_][a-zA-Z0-9_]*` contract. Bare CRUD
+column names follow the same pattern; values are always bound parameters.
 
-PostgreSQL `upsert()` additionally lowercases each validated column name before
-double-quoting it. PostgreSQL has always folded the adapter's unquoted column
-names to lowercase, so this preserves existing behavior (`mixedCase` still
-addresses `mixedcase`) while allowing reserved words such as `end` in insert,
-conflict and update positions. Delimited, case-sensitive physical names such as
-`"MixedCase"` remain outside the CRUD identifier contract.
+PostgreSQL and PGlite preserve PostgreSQL's established unquoted folding:
+`camelCase` addresses the physical column `camelcase`. For an exact mixed-case
+or spaced physical column, use an explicitly double-delimited identifier:
 
-`buildWhere` separates a supported operator suffix (`'price >'`,
-`'name contains'`) from the field and then validates the field as an identifier.
-Unsupported suffixes remain part of the field and fail validation rather than
-becoming SQL. Use `raw()` only for developer-authored expression text.
+```typescript
+await db.insert('items', { order: 1, '"MixedCase"': 'exact', '"Full Name"': 'Ada' });
+await db.update('items', { '"Full Name" like': 'A%' }, { order: 2 });
+```
+
+Double an embedded double quote inside a delimited identifier. Malformed
+identifiers, empty names, NUL bytes and non-string identifiers are rejected.
+Record keys represent one column. WHERE and aggregate identifiers can instead
+be qualified: `alias.order` quotes each component, while `"foo.bar"` addresses
+one column whose name contains a literal dot. Delimited names are identifiers,
+never raw expressions; use `raw()` only for developer-authored WHERE SQL.
+
+DuckDB and JSON `upsert()` retain their existing literal physical-name record
+and conflict keys, so `Full Name`, `user-id`, `2024_total`, `foo.bar` and embedded
+quotes work directly there. A key containing outer quote characters is also
+literal in these existing upsert paths; it is never silently renamed. For strict
+`insert`/`update` and WHERE inputs, explicitly delimit such names as above.
+JSON catalog loading and writeback preserve the original physical keys.
+
+Standalone `buildWhere`, `buildAggregate` and `bucketExpr` preserve ordinary
+identifier SQL output by default and automatically quote keywords and explicit
+delimited identifiers. New builder calls should pass `{ quoteIdentifiers: true }`
+as the fourth argument to quote every identifier component. Adapter CRUD methods
+select this policy automatically. Raw expression keys retain their SQL exactly.
+There is no adapter `orderBy`, aggregate or record `exists` method: execute
+`buildAggregate()` output for ordered/aggregate queries, and use `tableExists()`
+for table existence. Standalone `renderExpression` retains its exact physical
+identifier spelling contract.
+
+Known-dialect ALTER helpers quote column and index identifiers. The schema
+manifest manager has no dialect tag and preserves bare ordinary spelling
+(including PostgreSQL folding), quoting keywords and explicitly delimited names.
+Schema DDL, types, defaults/checks, partial-index WHERE expressions, foreign-key
+actions and trigger syntax/bodies remain developer-authored SQL contracts.
 
 ### WHERE Clause Building
 
@@ -676,6 +701,7 @@ const aggregate = buildAggregate(
   },
   1,
   'postgres',
+  { quoteIdentifiers: true },
 );
 
 const rows = await db.query(aggregate.sql, aggregate.values);

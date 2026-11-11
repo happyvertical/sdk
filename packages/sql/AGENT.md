@@ -55,3 +55,23 @@ and session-dependent casts fail generated use with
 See [README: portable scalar expressions](README.md#portable-scalar-expressions-and-generated-columns)
 for the new conditional, numeric, text and date node shapes, NULL behavior,
 argument bounds, ASCII case-conversion contract and DuckDB index limitations.
+
+## Column identifier quoting
+
+CRUD helpers quote columns on every adapter. PostgreSQL/PGlite bare names keep
+legacy folding (`camelCase` addresses `camelcase`); explicitly quoted names
+such as `'"MixedCase"'` and `'"Full Name"'` preserve physical spelling. WHERE
+and aggregate identifiers support qualified parts (`alias.order`), with dots
+inside delimiters treated literally (`'"foo.bar"'`).
+
+Public `buildWhere`, `buildAggregate` and `bucketExpr` preserve ordinary SQL
+text by default, quoting keywords and explicit names. Pass
+`{ quoteIdentifiers: true }` as the fourth argument for quote-all output;
+adapter CRUD uses that policy automatically. `raw()` remains caller-authored
+WHERE SQL. Standalone `renderExpression` retains exact physical-name semantics.
+
+DuckDB/JSON `upsert` record/conflict keys retain their existing literal physical
+name contract: spaces, dots, hyphens and quote characters are data, including
+outer quote characters. Strict insert/update and WHERE keys use explicit SQL
+delimiters for these names. See README and `TEST-DESIGN-identifiers.md` for the
+compatibility exceptions, dialect matrix and complete identifier sink audit.

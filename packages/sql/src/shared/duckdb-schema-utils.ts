@@ -1,3 +1,5 @@
+import { quoteLiteralIdentifier } from './alter-utils.js';
+
 /**
  * DuckDB-specific schema transformation utilities
  *
@@ -147,7 +149,7 @@ export function convertUniqueIndexesToInlineConstraints(
 
   // Build inline UNIQUE constraints with quoted column names
   const uniqueConstraints = uniqueIndexes.map((idx) => {
-    const columns = idx.columns.map((col) => `"${col}"`).join(', ');
+    const columns = idx.columns.map(quoteLiteralIdentifier).join(', ');
     return `  UNIQUE(${columns})`;
   });
 

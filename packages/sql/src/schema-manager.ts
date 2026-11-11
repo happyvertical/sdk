@@ -1,3 +1,4 @@
+import { renderIdentifier } from './shared/alter-utils.js';
 /**
  * Schema management and dependency resolution for JSON manifests
  * Moved from SMRT package to SQL package for proper separation of concerns
@@ -223,7 +224,7 @@ export class DatabaseSchemaManager {
       }
     } else if (options.force) {
       // Recreate table if forced
-      await db.query(`DROP TABLE IF EXISTS ${tableName}`);
+      await db.query(`DROP TABLE IF EXISTS ${renderIdentifier(tableName)}`);
       await this.createTable(db, schema);
 
       for (const index of indexes) {
@@ -252,7 +253,7 @@ export class DatabaseSchemaManager {
 
     // Add column definitions
     for (const [columnName, columnDef] of Object.entries(columns)) {
-      let def = `${columnName} ${columnDef.type}`;
+      let def = `${renderIdentifier(columnName)} ${columnDef.type}`;
 
       if (columnDef.primaryKey) def += ' PRIMARY KEY';
       if (columnDef.unique && !columnDef.primaryKey) def += ' UNIQUE';
@@ -267,13 +268,13 @@ export class DatabaseSchemaManager {
 
     // Add foreign key constraints
     for (const fk of foreignKeys) {
-      let fkDef = `FOREIGN KEY (${fk.column}) REFERENCES ${fk.referencesTable}(${fk.referencesColumn})`;
+      let fkDef = `FOREIGN KEY (${renderIdentifier(fk.column)}) REFERENCES ${renderIdentifier(fk.referencesTable)}(${renderIdentifier(fk.referencesColumn)})`;
       if (fk.onDelete) fkDef += ` ON DELETE ${fk.onDelete}`;
       if (fk.onUpdate) fkDef += ` ON UPDATE ${fk.onUpdate}`;
       columnDefinitions.push(fkDef);
     }
 
-    const createTableSQL = `CREATE TABLE ${tableName} (\n  ${columnDefinitions.join(',\n  ')}\n)`;
+    const createTableSQL = `CREATE TABLE ${renderIdentifier(tableName)} (\n  ${columnDefinitions.join(',\n  ')}\n)`;
     await db.query(createTableSQL);
   }
 
@@ -287,7 +288,7 @@ export class DatabaseSchemaManager {
   ): Promise<void> {
     const uniqueClause = index.unique ? 'UNIQUE ' : '';
     const whereClause = index.where ? ` WHERE ${index.where}` : '';
-    const createIndexSQL = `CREATE ${uniqueClause}INDEX ${index.name} ON ${tableName} (${index.columns.join(', ')})${whereClause}`;
+    const createIndexSQL = `CREATE ${uniqueClause}INDEX ${renderIdentifier(index.name)} ON ${renderIdentifier(tableName)} (${index.columns.map((column) => renderIdentifier(column)).join(', ')})${whereClause}`;
 
     await db.query(createIndexSQL);
   }
@@ -302,7 +303,7 @@ export class DatabaseSchemaManager {
     const conditionClause = trigger.condition
       ? ` WHEN ${trigger.condition}`
       : '';
-    const createTriggerSQL = `CREATE TRIGGER ${trigger.name} ${trigger.when} ${trigger.event} ON ${trigger.table}${conditionClause} BEGIN ${trigger.body} END`;
+    const createTriggerSQL = `CREATE TRIGGER ${renderIdentifier(trigger.name)} ${trigger.when} ${trigger.event} ON ${renderIdentifier(trigger.table)}${conditionClause} BEGIN ${trigger.body} END`;
 
     await db.query(createTriggerSQL);
   }

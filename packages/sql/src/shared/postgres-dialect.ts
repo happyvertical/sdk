@@ -13,7 +13,9 @@ import { DatabaseError } from '@happyvertical/utils';
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
+  quoteLiteralIdentifier,
   quotePostgresColumnName,
+  renderIdentifier,
   validateColumnName,
   validateColumnNames,
   validateIndexName,
@@ -34,9 +36,10 @@ import type {
   VectorSearchResult,
 } from './types';
 import {
-  buildWhere,
+  buildAdapterWhere as buildWhere,
   formatDbError,
   resolveInsertColumns,
+  rewriteSqlParameters,
   wrapDatabaseError,
 } from './utils';
 
@@ -66,12 +69,11 @@ function vectorOperator(metric: 'cosine' | 'l2' | 'ip'): string {
 
 function getMaxPostgresParameterIndex(sql: string): number {
   let maxIndex = 0;
-  for (const match of sql.matchAll(/\$(\d+)/g)) {
-    const index = Number(match[1]);
-    if (Number.isSafeInteger(index) && index > maxIndex) {
+  rewriteSqlParameters(sql, 'postgres', (token, index) => {
+    if (index !== undefined && Number.isSafeInteger(index) && index > maxIndex)
       maxIndex = index;
-    }
-  }
+    return token;
+  });
   return maxIndex;
 }
 
@@ -113,106 +115,13 @@ function rewriteQuestionMarkPlaceholders(sql: string): {
   sql: string;
   count: number;
 } {
-  let output = '';
   let count = 0;
-  let index = 0;
-
-  const copyQuoted = (quote: "'" | '"', escaped = false) => {
-    output += quote;
-    index += 1;
-
-    while (index < sql.length) {
-      const char = sql[index];
-      output += char;
-      index += 1;
-
-      if (escaped && char === '\\' && index < sql.length) {
-        output += sql[index];
-        index += 1;
-        continue;
-      }
-
-      if (char === quote) {
-        if (sql[index] === quote) {
-          output += sql[index];
-          index += 1;
-          continue;
-        }
-        break;
-      }
-    }
-  };
-
-  const copyUntil = (end: string) => {
-    const endIndex = sql.indexOf(end, index + end.length);
-    if (endIndex === -1) {
-      output += sql.slice(index);
-      index = sql.length;
-      return;
-    }
-
-    output += sql.slice(index, endIndex + end.length);
-    index = endIndex + end.length;
-  };
-
-  while (index < sql.length) {
-    const char = sql[index];
-    const next = sql[index + 1];
-
-    if ((char === 'E' || char === 'e') && next === "'") {
-      output += char;
-      index += 1;
-      copyQuoted("'", true);
-      continue;
-    }
-
-    if (char === "'") {
-      copyQuoted("'");
-      continue;
-    }
-
-    if (char === '"') {
-      copyQuoted('"');
-      continue;
-    }
-
-    if (char === '-' && next === '-') {
-      const endIndex = sql.indexOf('\n', index + 2);
-      if (endIndex === -1) {
-        output += sql.slice(index);
-        index = sql.length;
-      } else {
-        output += sql.slice(index, endIndex + 1);
-        index = endIndex + 1;
-      }
-      continue;
-    }
-
-    if (char === '/' && next === '*') {
-      copyUntil('*/');
-      continue;
-    }
-
-    if (char === '$') {
-      const tag = sql.slice(index).match(/^\$[A-Za-z_][\w$]*\$|^\$\$/);
-      if (tag) {
-        copyUntil(tag[0]);
-        continue;
-      }
-    }
-
-    if (char === '?' && next !== '|' && next !== '&') {
-      count += 1;
-      output += `$${count}`;
-      index += 1;
-      continue;
-    }
-
-    output += char;
-    index += 1;
-  }
-
-  return { sql: output, count };
+  const rewritten = rewriteSqlParameters(sql, 'postgres', (token, index) => {
+    if (index !== undefined) return token;
+    count += 1;
+    return `$${count}`;
+  });
+  return { sql: rewritten, count };
 }
 
 function usesSingleQuestionArrayParameter(sql: string): boolean {
@@ -357,7 +266,7 @@ export function createVectorCapabilities(
       try {
         await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
         await pool.query(
-          `ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "${column}" vector(${dimensions})`,
+          `ALTER TABLE ${quoteLiteralIdentifier(table)} ADD COLUMN IF NOT EXISTS ${renderIdentifier(column, undefined, { quoteIdentifiers: true })} vector(${dimensions})`,
         );
       } catch (e) {
         throw new DatabaseError('Failed to ensure vector column', {
@@ -401,7 +310,7 @@ export function createVectorCapabilities(
 
       try {
         await pool.query(
-          `CREATE INDEX IF NOT EXISTS "${indexName}" ON "${table}" USING ${indexType} ("${column}" ${opsClass})`,
+          `CREATE INDEX IF NOT EXISTS ${quoteLiteralIdentifier(indexName)} ON ${quoteLiteralIdentifier(table)} USING ${indexType} (${renderIdentifier(column, undefined, { quoteIdentifiers: true })} ${opsClass})`,
         );
       } catch (e) {
         throw new DatabaseError('Failed to ensure vector index', {
@@ -425,13 +334,16 @@ export function createVectorCapabilities(
       validateColumnNames(keys);
       const values = Object.values(where);
       const conditions = keys
-        .map((key, i) => `"${key}" IS NOT DISTINCT FROM $${i + 1}`)
+        .map(
+          (key, i) =>
+            `${renderIdentifier(key, undefined, { quoteIdentifiers: true })} IS NOT DISTINCT FROM $${i + 1}`,
+        )
         .join(' AND ');
       const vectorParam = `$${values.length + 1}`;
 
       try {
         await pool.query(
-          `UPDATE "${table}" SET "${column}" = ${vectorParam}::vector WHERE ${conditions}`,
+          `UPDATE ${quoteLiteralIdentifier(table)} SET ${renderIdentifier(column, undefined, { quoteIdentifiers: true })} = ${vectorParam}::vector WHERE ${conditions}`,
           [...values, toVectorLiteral(embedding)],
         );
       } catch (e) {
@@ -459,7 +371,7 @@ export function createVectorCapabilities(
       // $1 is the query vector; user-provided WHERE params use $2, $3, etc.
       const queryParams: any[] = [toVectorLiteral(embedding)];
 
-      let whereClause = `"${column}" IS NOT NULL`;
+      let whereClause = `${renderIdentifier(column, undefined, { quoteIdentifiers: true })} IS NOT NULL`;
       if (options?.where) {
         // `options.where` is raw SQL by design, the same documented
         // developer-controlled boundary as `buildWhere`'s operator-suffix keys.
@@ -474,7 +386,7 @@ export function createVectorCapabilities(
       const limitParam = `$${queryParams.length + 1}`;
       queryParams.push(limit);
 
-      const sql = `SELECT *, ("${column}" ${op} $1::vector) AS distance FROM "${table}" WHERE ${whereClause} ORDER BY "${column}" ${op} $1::vector LIMIT ${limitParam}`;
+      const sql = `SELECT *, (${renderIdentifier(column, undefined, { quoteIdentifiers: true })} ${op} $1::vector) AS distance FROM ${quoteLiteralIdentifier(table)} WHERE ${whereClause} ORDER BY ${renderIdentifier(column, undefined, { quoteIdentifiers: true })} ${op} $1::vector LIMIT ${limitParam}`;
 
       try {
         const result = await pool.query(sql, queryParams);
@@ -1036,9 +948,9 @@ export function createPostgresDialect(host: PostgresDialectHost) {
               `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`,
           )
           .join(', ');
-        const query = `INSERT INTO ${table} (${keys.join(
-          ', ',
-        )}) VALUES ${placeholders}`;
+        const query = `INSERT INTO ${table} (${keys
+          .map((key) => quotePostgresColumnName(key))
+          .join(', ')}) VALUES ${placeholders}`;
         // Project through `keys` rather than each record's own key order, so a
         // record whose keys were inserted in a different order still binds each
         // value to its own column.
@@ -1054,9 +966,9 @@ export function createPostgresDialect(host: PostgresDialectHost) {
       validateColumnNames(keys);
       const values = Object.values(serializedData);
       const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-      const query = `INSERT INTO ${table} (${keys.join(
-        ', ',
-      )}) VALUES (${placeholders})`;
+      const query = `INSERT INTO ${table} (${keys
+        .map((key) => quotePostgresColumnName(key))
+        .join(', ')}) VALUES (${placeholders})`;
       const result = await executor.query(query, values);
       return { operation: 'insert', affected: result.rowCount ?? 0 };
     };
@@ -1141,7 +1053,9 @@ export function createPostgresDialect(host: PostgresDialectHost) {
       const keys = Object.keys(serializedData);
       validateColumnNames(keys);
       const values = Object.values(serializedData);
-      const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+      const setClause = keys
+        .map((key, i) => `${quotePostgresColumnName(key)} = $${i + 1}`)
+        .join(', ');
       const { sql: whereClause, values: whereValues } = buildWhere(
         where,
         values.length + 1,
@@ -2087,7 +2001,7 @@ export function createAlterTable(client: PostgresQueryExecutor) {
 
       let sql: string | undefined;
       try {
-        sql = generateCreateIndexStatement(table, index);
+        sql = generateCreateIndexStatement(table, index, 'postgres');
         await client.query(sql);
       } catch (e) {
         throw wrapDatabaseError('Failed to create index on table', e, {
