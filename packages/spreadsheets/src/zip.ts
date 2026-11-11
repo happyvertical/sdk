@@ -1,4 +1,4 @@
-import { Inflate } from 'fflate';
+import { Inflate } from 'fflate/browser';
 import {
   checkLimit,
   SpreadsheetError,

@@ -1,8 +1,11 @@
-import { resolveLimits, SpreadsheetError } from './errors.js';
+import { readCsv, writeCsv } from './csv.js';
+import { checkLimit, resolveLimits, SpreadsheetError } from './errors.js';
 import type { SpreadsheetAdapter, SpreadsheetOptions } from './types.js';
 import { readXlsx } from './xlsx-read.js';
+import { writeXlsx } from './xlsx-write.js';
 
 export * from './errors.js';
+export { normalizeFormula, parseFormula } from './formula.js';
 export * from './model.js';
 export type * from './types.js';
 
@@ -34,16 +37,13 @@ export async function getSpreadsheets(
         );
       checkLimit(bytes.length, 'maxInputBytes', limits);
       if (options.type === 'xlsx') return readXlsx(bytes, limits);
-      throw new SpreadsheetError(
-        'UNSUPPORTED_FORMAT',
-        'CSV adapter is not installed.',
-      );
+      return readCsv(bytes, limits, { ...options, ...overrides });
     },
-    async write() {
-      throw new SpreadsheetError(
-        'UNSUPPORTED_FORMAT',
-        'Writer is not installed.',
-      );
+    async write(workbook, overrides) {
+      const limits = resolveLimits({ ...defaults, ...overrides });
+      return options.type === 'xlsx'
+        ? writeXlsx(workbook, limits, overrides ?? {})
+        : writeCsv(workbook, limits, { ...options, ...overrides });
     },
   };
 }
