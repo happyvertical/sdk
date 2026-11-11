@@ -5,9 +5,9 @@
     "index": 30,
     "count": 34
   },
-  "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
+  "description": "Database interface and portable expressions for SQLite, PostgreSQL, and DuckDB",
   "provides": [
-    "Database interface with support for SQLite, PostgreSQL, and DuckDB"
+    "Database interface and portable expressions for SQLite, PostgreSQL, and DuckDB"
   ],
   "implements": [],
   "requires": {

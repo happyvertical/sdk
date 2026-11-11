@@ -104,6 +104,24 @@ export {
   bucketExpr,
   buildAggregate,
 } from './aggregate.js';
+export type {
+  AggregateArithmeticOp,
+  AggregateComparisonOp,
+  AggregateExpression,
+  AggregateJoin,
+  AggregateLiteral,
+  AggregateOperand,
+  ExpressionErrorCode,
+  ExpressionResultType,
+  PortableExpression,
+  RenderExpressionOptions,
+  RenderExpressionResult,
+  TypedDateLiteral,
+} from './aggregate-expression.js';
+export {
+  ExpressionError,
+  renderExpression,
+} from './aggregate-expression.js';
 export type { SchemaInitializationResult } from './schema-manager.js';
 export { DatabaseSchemaManager } from './schema-manager.js';
 export { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils.js';

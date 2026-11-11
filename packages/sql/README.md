@@ -779,6 +779,82 @@ const aggregate = buildAggregate(
   `t.region`) now aliases to its last segment. Two select items that resolve to
   the same alias are rejected.
 
+### Portable scalar expressions and generated columns
+
+`renderExpression` is exported from the root and browser-safe `@happyvertical/sql/query`.
+It uses the same expression renderer as `buildAggregate`, with a quoted-identifier
+policy for standalone expressions and the existing aggregate policy for compatibility.
+
+```typescript
+import { renderExpression } from '@happyvertical/sql/query';
+
+const rendered = renderExpression(
+  { op: 'round', value: { op: 'mul', left: { col: 'total' }, right: { value: 0.2 } }, digits: { value: 2 } },
+  { dialect: 'postgres', mode: 'ddl', resolveColumn: name => name },
+);
+// { sql, values: [], resultType: 'number', immutable: { sqlite: true, postgres: true, duckdb: true } }
+```
+
+`mode: 'query'` binds strings and typed date literals as `$N` parameters and returns
+`values`; finite numbers, booleans and NULL remain inline. `mode: 'ddl'` safely
+inlines literals and requires immutability on **every** dialect. JSON uses DuckDB
+semantics. `resolveColumn` maps a logical column to an identifier string or
+`{ name, type }`. Dots delimit identifier components, each double-quoted; it never
+accepts SQL. For temporal columns, `type: 'date'` means a native SQL DATE and
+`type: 'datetime'` means a native TIMESTAMP WITHOUT TIME ZONE containing UTC
+wall-clock fields (SQLite stores either as ISO text). Supplying this metadata is a
+caller assertion about the actual schema. Unknown, text and timezone-aware
+columns cannot be used in generated temporal operations: PostgreSQL extraction
+from TIMESTAMPTZ can depend on the session timezone.
+
+New nodes are closed JSON data (unknown/missing fields are rejected):
+
+| Node shape | Result type | NULL and portable semantics |
+| --- | --- | --- |
+| `{ op: 'case', branches: [{ when, then }], else }` | common branch type, otherwise `unknown` | Ordered first true condition wins; false/NULL conditions continue; selected NULL remains NULL. Conditions must be SQL booleans. |
+| `{ op: 'if', condition, then, else }` | common branch type | One-branch CASE; false/NULL selects else. |
+| `{ op: 'round', value, digits }` | number | Strict NULL; halfway cases round away from zero, including negative digits. Integer digits are bounded to -12..12. |
+| `{ op: 'abs' / 'floor' / 'ceil', value }` | number | Strict NULL; ordinary mathematical absolute value, floor and ceiling. |
+| `{ op: 'least' / 'greatest', operands }` | number | At least two numeric operands; **any** NULL yields NULL, including on PostgreSQL. |
+| `{ op: 'mod', left, right }` | number | Fractional remainder with dividend's sign; NULL operand or zero divisor yields NULL. Existing `div` also yields NULL for zero. |
+| `{ op: 'concat', operands }` | text | At least one text operand; concatenation with any NULL yields NULL. |
+| `{ op: 'lower' / 'upper', value }` | text | Strict NULL; ASCII A-Z/a-z conversion only. Non-ASCII characters are preserved identically across dialects. |
+| `{ op: 'trim', value }` | text | Strict NULL; removes ASCII spaces from both ends, preserving tabs/newlines. |
+| `{ op: 'length', value }` | number | Strict NULL; Unicode code-point count, not grapheme count. |
+| `{ op: 'substring', value, start, length }` | text | Strict NULL; positive one-based integer start, nonnegative integer length, both at most 2147483647. Out-of-string start returns empty text. |
+| `{ op: 'year' / 'month' / 'day', value }` | number | Strict NULL; UTC calendar part for typed dates/datetimes. |
+| `{ op: 'daysBetween', later, earlier }` | number | Strict NULL; signed calendar-date difference, discarding time of day. |
+| `{ op: 'addDays', value, days }` | date | Strict NULL; add integer calendar days (-365000..365000), discarding time of day. Canonical YYYY-MM-DD text at the expression boundary; native DATE internally for composition. |
+| `{ value: { kind: 'date' / 'datetime', iso } }` | date / datetime | JSON-safe typed literal; date requires YYYY-MM-DD, datetime requires ISO seconds and explicit Z/offset (up to millisecond precision). Gregorian calendar/leap days are validated. Datetimes are canonicalized to UTC before timezone-free SQL casts. |
+
+All function arguments above are expression operands (`{ col }`, `{ value }`, or
+another node). Numeric functions require SQL numeric values, text functions SQL
+text values, and conditional branches compatible SQL types; this renderer does
+not inspect a live schema or emulate dialect-specific implicit conversions.
+Invalid literal integer arguments throw; dynamic NULL/out-of-range/fractional
+integer arguments yield NULL without unsafe casts. Temporal results must remain
+within years 0001..9999. Legacy JavaScript `Date` query literals retain their
+existing casts (including PostgreSQL TIMESTAMPTZ); generated use requires the new
+typed literals. Generated `asText` also requires known number/text/boolean input;
+date-to-text casts and unknown types can depend on session settings. SQL DATE/TIMESTAMP literal projections use native database result
+representations; date-valued formula projections use canonical ISO text.
+
+Every new node is immutable on SQLite, PostgreSQL and DuckDB with these input
+type contracts. `case`/`if` report their common result type (`null` when all
+branches are NULL, otherwise `unknown` for mixed types); existing `coalesce`
+propagates types too. `immutable` reports each dialect independently and includes
+children. A nonimmutable child (legacy Date, or a temporal operation on an unknown
+column) makes generated use fail with `ExpressionError.code: 'NON_IMMUTABLE'`.
+Invalid data uses `INVALID_EXPRESSION`; depth >24, >1024 nodes or >262144 cumulative
+SQL characters during rendering uses `EXPRESSION_LIMIT`. SQL expansion guards
+apply before nested portable guards can allocate exponentially large strings.
+
+Tests execute each node on SQLite, PGlite and DuckDB and create generated columns
+and expression indexes on SQLite/PostgreSQL. DuckDB supports virtual generated
+columns but rejects indexes on generated columns (constant expressions can instead
+fail its requirement to reference a base column); these index limitations are
+asserted explicitly. This API renders expressions; callers create schema DDL.
+
 ### Schema Synchronization
 
 ```typescript

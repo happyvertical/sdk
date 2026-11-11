@@ -1439,7 +1439,7 @@
         "index": 30,
         "count": 34
       },
-      "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
+      "description": "Database interface and portable expressions for SQLite, PostgreSQL, and DuckDB",
       "commands": {
         "build": "pnpm --filter @happyvertical/sql build",
         "test": "pnpm --filter @happyvertical/sql test",
@@ -1452,7 +1452,7 @@
         "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
       ],
       "provides": [
-        "Database interface with support for SQLite, PostgreSQL, and DuckDB"
+        "Database interface and portable expressions for SQLite, PostgreSQL, and DuckDB"
       ],
       "implements": [],
       "requires": {
@@ -2094,7 +2094,7 @@
     {
       "type": "provides",
       "from": "@happyvertical/sql",
-      "to": "Database interface with support for SQLite, PostgreSQL, and DuckDB"
+      "to": "Database interface and portable expressions for SQLite, PostgreSQL, and DuckDB"
     },
     {
       "type": "requires",
