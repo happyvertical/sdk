@@ -39,6 +39,13 @@ export const recoveries = Object.freeze([
     evidence: 'https://github.com/happyvertical/sdk/actions/runs/38118252085',
     releaseNote: 'Preserve the ChatGPT plan provider and empty Matomo daily-row repair.',
   }),
+  Object.freeze({
+    occupied: '0.112.0',
+    target: '0.112.1',
+    registry: OWN_REGISTRY,
+    evidence: 'https://github.com/happyvertical/sdk/actions/runs/43118715535',
+    releaseNote: 'Preserve atomic conditional file create and the vault output-storage isolation fix.',
+  }),
 ]);
 
 export function versionExists(name, version, registry, run = spawnSync) {
