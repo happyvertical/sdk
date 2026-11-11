@@ -152,6 +152,8 @@ independently when opening. Scope `resolveKey(keyId)` to that account and return
 `undefined` for an unknown ID. A syntactically valid envelope can trigger one
 lookup with an untrusted ID. Opening returns bytes only after authentication and
 validation succeed.
+Both APIs return byte arrays whose backing storage contains exactly the returned
+bytes. Serialize either the view or its complete backing ArrayBuffer.
 
 Compression is optional and defaults to `none`. Use `zlib` for snapshots where
 revealing the resulting size is acceptable. Envelope length is public in both

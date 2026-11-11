@@ -91,6 +91,23 @@ describe('vault snapshot envelope', () => {
     expect(Buffer.from(openVaultSnapshot(second, restore))).toEqual(snapshot);
   });
 
+  it.each([
+    'none',
+    'zlib',
+  ] as const)('returns independently backed records and snapshots with %s compression', (compression) => {
+    const input = Uint8Array.from([1, 2, 3, 4, 5]);
+    const envelope = sealVaultSnapshot(input, { ...options, compression });
+    expect(Buffer.isBuffer(envelope)).toBe(true);
+    expect(envelope.byteOffset).toBe(0);
+    expect(envelope.buffer.byteLength).toBe(envelope.byteLength);
+
+    const opened = openVaultSnapshot(envelope, restore);
+    expect(Uint8Array.from(opened)).toEqual(input);
+    expect(opened.byteOffset).toBe(0);
+    expect(opened.buffer.byteLength).toBe(opened.byteLength);
+    expect(input).toEqual(Uint8Array.from([1, 2, 3, 4, 5]));
+  });
+
   it('handles empty snapshots, zero and maximum sequences, and maximum ID byte lengths', () => {
     for (const sequence of [0n, (1n << 64n) - 1n]) {
       const boundary = {
