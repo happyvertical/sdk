@@ -1,6 +1,10 @@
 import { ForgeError } from '../forge/errors.js';
 import type { ForgeRateLimit, ForgeTransport } from '../forge/types.js';
-import { type GitHubTokenSource, GitHubTransport } from './transport.js';
+import {
+  type GitHubTokenSource,
+  GitHubTransport,
+  resolveGitHubGraphqlUrl,
+} from './transport.js';
 
 /** Combined CI state of a repository's default-branch head commit. */
 export type GitHubCiState = 'success' | 'failure' | 'pending' | 'none';
@@ -37,7 +41,11 @@ export interface ListOrganizationRepositoriesOptions {
   owner: string;
   /** Read-only token (or lazy token source). Ignored when `transport` is set. */
   token?: GitHubTokenSource;
-  /** GitHub API base URL. Defaults to https://api.github.com. */
+  /**
+   * GitHub REST base URL. Defaults to https://api.github.com. GHES
+   * `https://HOST/api/v3` resolves GraphQL to `https://HOST/api/graphql`.
+   * Also set it when passing a `transport` for a non-github.com host.
+   */
   baseUrl?: string;
   /** Fetch override, mainly for tests. Ignored when `transport` is set. */
   fetch?: typeof globalThis.fetch;
@@ -184,6 +192,11 @@ export async function listOrganizationRepositories(
       fetch: options.fetch,
     });
   }
+  // Without a baseUrl the transport's own base applies, so a pre-built
+  // transport never has its token redirected to another host.
+  const graphqlUrl = options.baseUrl
+    ? resolveGitHubGraphqlUrl(options.baseUrl)
+    : '/graphql';
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 50));
   const maxPages = Math.max(1, options.maxPages ?? 100);
 
@@ -196,7 +209,7 @@ export async function listOrganizationRepositories(
     const response: Awaited<ReturnType<ForgeTransport['request']>> =
       await transport.request<GraphQLResponse>({
         method: 'POST',
-        path: '/graphql',
+        path: graphqlUrl,
         body: {
           query: QUERY,
           variables: { login: options.owner, pageSize, cursor },

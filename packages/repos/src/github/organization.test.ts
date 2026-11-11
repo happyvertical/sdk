@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ForgeError } from '../forge/errors.js';
 import { listOrganizationRepositories } from './organization.js';
+import { GitHubTransport } from './transport.js';
 
 function node(name: string, over: Record<string, unknown> = {}) {
   return {
@@ -143,6 +144,69 @@ describe('listOrganizationRepositories', () => {
       pageSize: 2,
       cursor: 'cursor-1',
     });
+  });
+
+  it.each([
+    ['https://api.github.com', 'https://api.github.com/graphql'],
+    ['https://ghe.example.com/api/v3', 'https://ghe.example.com/api/graphql'],
+    ['https://ghe.example.com/api/v3/', 'https://ghe.example.com/api/graphql'],
+  ])('resolves the GraphQL endpoint for %s', async (baseUrl, expected) => {
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              repositoryOwner: {
+                repositories: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    await listOrganizationRepositories({
+      owner: 'acme',
+      token: 't',
+      baseUrl,
+      fetch,
+    });
+    expect((fetch.mock.calls[0] as unknown as [string])[0]).toBe(expected);
+
+    fetch.mockClear();
+    const transport = new GitHubTransport({ token: 't', baseUrl, fetch });
+    await listOrganizationRepositories({ owner: 'acme', baseUrl, transport });
+    expect((fetch.mock.calls[0] as unknown as [string])[0]).toBe(expected);
+  });
+
+  it('uses the transport base when no baseUrl is given', async () => {
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              repositoryOwner: {
+                repositories: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    const transport = new GitHubTransport({
+      token: 't',
+      baseUrl: 'https://ghe.example.com/api/v3',
+      fetch,
+    });
+    await listOrganizationRepositories({ owner: 'acme', transport });
+    expect((fetch.mock.calls[0] as unknown as [string])[0]).toBe(
+      'https://ghe.example.com/api/v3/graphql',
+    );
   });
 
   it('throws NOT_FOUND for an unknown owner', async () => {
