@@ -23,9 +23,11 @@ import {
 import { URL } from 'node:url';
 import { getTempDirectory } from '@happyvertical/utils';
 import { BaseFilesystemProvider } from '../shared/base';
+import { enforceMaxBytes, validateMaxBytes } from '../shared/limits';
 import {
   type CreateDirOptions,
   DirectoryNotEmptyError,
+  FileExistsError,
   type FileInfo,
   FileNotFoundError,
   type FileStats,
@@ -171,16 +173,20 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
     path: string,
     options: ReadOptions = {},
   ): Promise<string | Buffer> {
+    validateMaxBytes(options.maxBytes, path, 'local');
     try {
       const resolvedPath = this.resolvePath(path);
+      const data = await readFile(resolvedPath);
+      enforceMaxBytes(data.byteLength, options.maxBytes, path, 'local');
 
       if (options.raw) {
-        // Return raw buffer
-        return await readFile(resolvedPath);
+        return data;
       }
-      // Return string with specified encoding (default utf8)
-      return await readFile(resolvedPath, options.encoding || 'utf8');
+      return data.toString(options.encoding || 'utf8');
     } catch (error: any) {
+      if (error instanceof FilesystemError) {
+        throw error;
+      }
       if (error.code === 'ENOENT') {
         throw new FileNotFoundError(path, 'local');
       }
@@ -246,8 +252,12 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
       await writeFile(resolvedPath, content, {
         encoding: options.encoding,
         mode: options.mode,
+        flag: options.overwrite === false ? 'wx' : 'w',
       });
     } catch (error: any) {
+      if (error.code === 'EEXIST') {
+        throw new FileExistsError(path, 'local');
+      }
       if (error.code === 'ENOENT') {
         throw new FileNotFoundError(dirname(path), 'local');
       }

@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ConditionalWriteUnsupportedError,
   DriveAcquisitionLimitError,
   DriveRevisionChangedError,
   DriveScopeError,
@@ -212,6 +213,15 @@ describe('GoogleDriveProvider', () => {
   // -------------------------------------------------------------------------
 
   describe('write', () => {
+    it('fails closed before API calls when conditional create is requested', async () => {
+      await expect(
+        provider.write('immutable.txt', 'first', { overwrite: false }),
+      ).rejects.toBeInstanceOf(ConditionalWriteUnsupportedError);
+      expect(mockFilesList).not.toHaveBeenCalled();
+      expect(mockFilesCreate).not.toHaveBeenCalled();
+      expect(mockFilesUpdate).not.toHaveBeenCalled();
+    });
+
     it('should create a new file', async () => {
       // resolvePathToId returns null (file doesn't exist)
       mockFilesList.mockResolvedValueOnce({ data: { files: [] } });

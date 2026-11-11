@@ -11,10 +11,14 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { BaseFilesystemProvider } from '../shared/base';
+import { enforceMaxBytes, validateMaxBytes } from '../shared/limits';
 import {
+  ConditionalWriteConflictError,
+  ConditionalWriteUnsupportedError,
   type CreateDirOptions,
   DirectoryNotEmptyError,
   type DownloadOptions,
+  FileExistsError,
   type FileInfo,
   FileNotFoundError,
   type FileStats,
@@ -194,12 +198,26 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     return target;
   }
 
-  private async bodyToBuffer(body: unknown): Promise<Buffer> {
+  private async bodyToBuffer(
+    body: unknown,
+    path: string,
+    maxBytes?: number,
+  ): Promise<Buffer> {
     if (!body) return Buffer.alloc(0);
-    if (Buffer.isBuffer(body)) return body;
-    if (body instanceof Uint8Array) return Buffer.from(body);
 
-    if (typeof (body as any).transformToByteArray === 'function') {
+    const checkedBuffer = (value: Uint8Array | string): Buffer => {
+      const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
+      enforceMaxBytes(buffer.byteLength, maxBytes, path, 's3');
+      return buffer;
+    };
+
+    if (Buffer.isBuffer(body)) return checkedBuffer(body);
+    if (body instanceof Uint8Array) return checkedBuffer(body);
+
+    if (
+      maxBytes === undefined &&
+      typeof (body as any).transformToByteArray === 'function'
+    ) {
       const bytes = await (body as any).transformToByteArray();
       return Buffer.from(bytes);
     }
@@ -207,25 +225,51 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     if (typeof (body as any).getReader === 'function') {
       const reader = (body as ReadableStream<Uint8Array>).getReader();
       const chunks: Buffer[] = [];
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) chunks.push(Buffer.from(value));
+      let totalBytes = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            const chunk = Buffer.from(value);
+            totalBytes += chunk.byteLength;
+            enforceMaxBytes(totalBytes, maxBytes, path, 's3');
+            chunks.push(chunk);
+          }
+        }
+      } catch (error) {
+        await reader.cancel(error).catch(() => undefined);
+        throw error;
+      } finally {
+        reader.releaseLock();
       }
       return Buffer.concat(chunks);
     }
 
     if (Symbol.asyncIterator in Object(body)) {
       const chunks: Buffer[] = [];
+      let totalBytes = 0;
       for await (const chunk of body as AsyncIterable<
         Uint8Array | Buffer | string
       >) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        totalBytes += buffer.byteLength;
+        enforceMaxBytes(totalBytes, maxBytes, path, 's3');
+        chunks.push(buffer);
       }
       return Buffer.concat(chunks);
     }
 
-    return Buffer.from(String(body));
+    if (typeof (body as any).transformToByteArray === 'function') {
+      throw new FilesystemError(
+        `S3 response body cannot enforce maxBytes while streaming: ${path}`,
+        'ENOTSUP',
+        path,
+        's3',
+      );
+    }
+
+    return checkedBuffer(String(body));
   }
 
   private async head(key: string) {
@@ -320,6 +364,7 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     path: string,
     options: ReadOptions = {},
   ): Promise<string | Buffer> {
+    validateMaxBytes(options.maxBytes, path, 's3');
     const key = this.normalizeS3Path(path, {
       preserveTrailingSlash: path.endsWith('/'),
     });
@@ -331,12 +376,22 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
           Key: key,
         }),
       );
-      const buffer = await this.bodyToBuffer(response.Body);
+      if (response.ContentLength !== undefined) {
+        enforceMaxBytes(response.ContentLength, options.maxBytes, path, 's3');
+      }
+      const buffer = await this.bodyToBuffer(
+        response.Body,
+        path,
+        options.maxBytes,
+      );
       if (options.raw) {
         return buffer;
       }
       return buffer.toString(options.encoding || 'utf8');
     } catch (error: any) {
+      if (error instanceof FilesystemError) {
+        throw error;
+      }
       if (
         error?.$metadata?.httpStatusCode === 404 ||
         error?.name === 'NoSuchKey'
@@ -360,6 +415,13 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     content: string | Buffer,
     options: WriteOptions = {},
   ): Promise<void> {
+    if (
+      options.overwrite === false &&
+      this.options.conditionalWriteStrategy !== 'if-none-match'
+    ) {
+      throw new ConditionalWriteUnsupportedError(path, 's3');
+    }
+
     const key = this.normalizeS3Path(path, {
       preserveTrailingSlash: path.endsWith('/'),
     });
@@ -377,9 +439,35 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
           ContentType:
             MIME_TYPES[extname(key).toLowerCase()] ||
             'application/octet-stream',
+          IfNoneMatch: options.overwrite === false ? '*' : undefined,
         }),
       );
     } catch (error: any) {
+      if (
+        options.overwrite === false &&
+        (error?.$metadata?.httpStatusCode === 412 ||
+          error?.name === 'PreconditionFailed')
+      ) {
+        throw new FileExistsError(path, 's3');
+      }
+      if (
+        options.overwrite === false &&
+        (error?.$metadata?.httpStatusCode === 409 ||
+          error?.name === 'ConditionalRequestConflict')
+      ) {
+        throw new ConditionalWriteConflictError(path, 's3');
+      }
+      if (
+        options.overwrite === false &&
+        (error?.$metadata?.httpStatusCode === 400 ||
+          error?.$metadata?.httpStatusCode === 501 ||
+          error?.name === 'InvalidRequest' ||
+          error?.name === 'NotImplemented' ||
+          error?.name === 'NotSupported' ||
+          error?.name === 'UnsupportedOperation')
+      ) {
+        throw new ConditionalWriteUnsupportedError(path, 's3');
+      }
       if (error?.$metadata?.httpStatusCode === 403) {
         throw new PermissionError(path, 's3');
       }
@@ -639,8 +727,9 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
 
   async getCapabilities(): Promise<FilesystemCapabilities> {
     return {
-      streaming: false,
-      atomicOperations: false,
+      streaming: true,
+      atomicOperations:
+        this.options.conditionalWriteStrategy === 'if-none-match',
       versioning: false,
       sharing: false,
       realTimeSync: false,

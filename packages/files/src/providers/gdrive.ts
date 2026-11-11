@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
 import { BaseFilesystemProvider } from '../shared/base';
+import { enforceMaxBytes, validateMaxBytes } from '../shared/limits';
 import {
+  ConditionalWriteUnsupportedError,
   type CreateDirOptions,
   type DownloadOptions,
   type DriveAcquisition,
@@ -634,6 +636,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     path: string,
     options: ReadOptions = {},
   ): Promise<string | Buffer> {
+    validateMaxBytes(options.maxBytes, path, 'gdrive');
     const fileId = await this.requireId(path);
     const drive = await this.getDrive();
 
@@ -676,6 +679,8 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
       data = Buffer.from(res.data);
     }
 
+    enforceMaxBytes(data.byteLength, options.maxBytes, path, 'gdrive');
+
     if (options.raw) {
       return data;
     }
@@ -688,6 +693,9 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     content: string | Buffer,
     options: WriteOptions = {},
   ): Promise<void> {
+    if (options.overwrite === false) {
+      throw new ConditionalWriteUnsupportedError(path, 'gdrive');
+    }
     const body = Buffer.isBuffer(content) ? content : Buffer.from(content);
     const ext = extname(path).toLowerCase();
     const contentMime = MIME_TYPES[ext] || 'application/octet-stream';

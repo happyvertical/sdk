@@ -6,8 +6,13 @@ import { getFilesystem, getProviderInfo, isProviderAvailable } from '../index';
 import { initializeProviders } from '../shared/factory';
 import type { S3Options } from '../shared/types';
 import {
+  ConditionalWriteConflictError,
+  ConditionalWriteUnsupportedError,
   DirectoryNotEmptyError,
+  FileExistsError,
   FileNotFoundError,
+  FileSizeLimitExceededError,
+  FilesystemError,
   InvalidPathError,
   PermissionError,
 } from '../shared/types';
@@ -226,6 +231,79 @@ describe('S3FilesystemProvider', () => {
         PermissionError,
       );
     });
+
+    it('enforces maxBytes while consuming an unknown-length async stream', async () => {
+      const provider = createProvider();
+      let consumedChunks = 0;
+      async function* body() {
+        consumedChunks += 1;
+        yield Buffer.from('abc');
+        consumedChunks += 1;
+        yield Buffer.from('def');
+        consumedChunks += 1;
+        yield Buffer.from('unreachable');
+      }
+      mockSend.mockResolvedValueOnce({ Body: body() });
+
+      await expect(
+        provider.read('oversized.bin', { raw: true, maxBytes: 4 }),
+      ).rejects.toBeInstanceOf(FileSizeLimitExceededError);
+      expect(consumedChunks).toBe(2);
+    });
+
+    it('reads a browser-style stream up to the exact maxBytes limit', async () => {
+      const provider = createProvider();
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(Buffer.from('abc'));
+          controller.enqueue(Buffer.from('def'));
+          controller.close();
+        },
+      });
+      mockSend.mockResolvedValueOnce({ Body: body });
+
+      await expect(provider.read('bounded.txt', { maxBytes: 6 })).resolves.toBe(
+        'abcdef',
+      );
+    });
+
+    it('rejects an interrupted stream without returning partial content', async () => {
+      const provider = createProvider();
+      async function* body() {
+        yield Buffer.from('partial');
+        throw Object.assign(new Error('connection reset'), {
+          name: 'ECONNRESET',
+        });
+      }
+      mockSend.mockResolvedValueOnce({ Body: body() });
+
+      const result = provider.read('interrupted.bin', {
+        raw: true,
+        maxBytes: 1024,
+      });
+      await expect(result).rejects.toBeInstanceOf(FilesystemError);
+      await expect(result).rejects.toMatchObject({ code: 'ECONNRESET' });
+    });
+
+    it('rejects invalid maxBytes before issuing an S3 request', async () => {
+      const provider = createProvider();
+
+      await expect(
+        provider.read('object.bin', { maxBytes: Number.NaN }),
+      ).rejects.toMatchObject({ code: 'EINVAL' });
+      expect(mockSend).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when a bounded response exposes only a buffering helper', async () => {
+      const provider = createProvider();
+      const transformToByteArray = vi.fn().mockResolvedValue(Buffer.alloc(8));
+      mockSend.mockResolvedValueOnce({ Body: { transformToByteArray } });
+
+      await expect(
+        provider.read('buffer-only.bin', { raw: true, maxBytes: 4 }),
+      ).rejects.toMatchObject({ code: 'ENOTSUP' });
+      expect(transformToByteArray).not.toHaveBeenCalled();
+    });
   });
 
   describe('write', () => {
@@ -266,6 +344,96 @@ describe('S3FilesystemProvider', () => {
         Bucket: 'imago',
         Key: 'tenant-a/reports/2026/',
       });
+    });
+
+    it('creates without overwrite using one conditional PUT', async () => {
+      const provider = createProvider({
+        conditionalWriteStrategy: 'if-none-match',
+      });
+      mockSend.mockResolvedValueOnce({});
+
+      await provider.write('immutable/object.bin', Buffer.from('first'), {
+        overwrite: false,
+      });
+
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(getCommandInput()).toMatchObject({
+        Bucket: 'imago',
+        Key: 'immutable/object.bin',
+        IfNoneMatch: '*',
+      });
+    });
+
+    it('maps a failed precondition to FileExistsError without retrying', async () => {
+      const provider = createProvider({
+        conditionalWriteStrategy: 'if-none-match',
+      });
+      mockSend.mockRejectedValueOnce(createS3Error(412, 'PreconditionFailed'));
+
+      await expect(
+        provider.write('immutable/object.bin', 'replacement', {
+          overwrite: false,
+        }),
+      ).rejects.toBeInstanceOf(FileExistsError);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(getCommandInput()).toMatchObject({ IfNoneMatch: '*' });
+    });
+
+    it('maps a concurrent-operation conflict to a retryable typed error', async () => {
+      const provider = createProvider({
+        conditionalWriteStrategy: 'if-none-match',
+      });
+      mockSend.mockRejectedValueOnce(
+        createS3Error(409, 'ConditionalRequestConflict'),
+      );
+
+      await expect(
+        provider.write('immutable/object.bin', 'first', { overwrite: false }),
+      ).rejects.toBeInstanceOf(ConditionalWriteConflictError);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(getCommandInput()).toMatchObject({ IfNoneMatch: '*' });
+    });
+
+    it.each([
+      [400, 'InvalidRequest'],
+      [501, 'NotImplemented'],
+    ])('fails closed when an endpoint rejects conditional PUT with %s', async (statusCode, name) => {
+      const provider = createProvider({
+        conditionalWriteStrategy: 'if-none-match',
+      });
+      mockSend.mockRejectedValueOnce(createS3Error(statusCode, name));
+
+      await expect(
+        provider.write('immutable/object.bin', 'first', {
+          overwrite: false,
+        }),
+      ).rejects.toBeInstanceOf(ConditionalWriteUnsupportedError);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(getCommandInput()).toMatchObject({ IfNoneMatch: '*' });
+    });
+
+    it('does not retry an interrupted conditional PUT unconditionally', async () => {
+      const provider = createProvider({
+        conditionalWriteStrategy: 'if-none-match',
+      });
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error('socket closed'), { name: 'RequestTimeout' }),
+      );
+
+      await expect(
+        provider.write('immutable/object.bin', 'first', { overwrite: false }),
+      ).rejects.toMatchObject({ code: 'RequestTimeout' });
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(getCommandInput()).toMatchObject({ IfNoneMatch: '*' });
+    });
+
+    it('does not send a conditional write without an explicit endpoint contract', async () => {
+      const provider = createProvider({ endpoint: undefined });
+
+      await expect(
+        provider.write('immutable/object.bin', 'first', { overwrite: false }),
+      ).rejects.toBeInstanceOf(ConditionalWriteUnsupportedError);
+      expect(mockSend).not.toHaveBeenCalled();
     });
   });
 
@@ -589,11 +757,24 @@ describe('S3FilesystemProvider', () => {
   });
 
   describe('capabilities', () => {
-    it('reports buffered semantics instead of streaming support', async () => {
+    it('reports bounded streaming without claiming unconfigured atomicity', async () => {
       const provider = createProvider();
 
       await expect(provider.getCapabilities()).resolves.toMatchObject({
-        streaming: false,
+        streaming: true,
+        atomicOperations: false,
+      });
+    });
+
+    it('reports atomic support only for an explicitly configured contract', async () => {
+      const provider = createProvider({
+        endpoint: undefined,
+        conditionalWriteStrategy: 'if-none-match',
+      });
+
+      await expect(provider.getCapabilities()).resolves.toMatchObject({
+        streaming: true,
+        atomicOperations: true,
       });
     });
   });
