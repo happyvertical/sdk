@@ -3,7 +3,7 @@
   "path": "packages/graphql",
   "position": {
     "index": 14,
-    "count": 33
+    "count": 34
   },
   "description": "GitHub GraphQL client for SDK packages",
   "provides": [

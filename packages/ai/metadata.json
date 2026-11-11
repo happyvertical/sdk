@@ -3,7 +3,7 @@
   "path": "packages/ai",
   "position": {
     "index": 2,
-    "count": 33
+    "count": 34
   },
   "description": "Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev and Laya typed decisions",
   "provides": [

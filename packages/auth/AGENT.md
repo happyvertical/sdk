@@ -7,7 +7,7 @@ Unified authentication for Keycloak, Cognito, Nostr, and local ChatGPT sessions 
 ## Package Map
 - Package: `@happyvertical/auth`
 - Hierarchy path: `@happyvertical/sdk > packages > auth`
-- Workspace position: `4 of 33` local packages
+- Workspace position: `4 of 34` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

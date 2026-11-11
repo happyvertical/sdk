@@ -3,7 +3,7 @@
   "path": "packages/directory",
   "position": {
     "index": 7,
-    "count": 33
+    "count": 34
   },
   "description": "Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)",
   "provides": [

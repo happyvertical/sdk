@@ -7,7 +7,7 @@ Social platform adapters for publishing to YouTube, Threads, X, and Bluesky
 ## Package Map
 - Package: `@happyvertical/social`
 - Hierarchy path: `@happyvertical/sdk > packages > social`
-- Workspace position: `27 of 33` local packages
+- Workspace position: `27 of 34` local packages
 - Internal dependencies: `@happyvertical/logger`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

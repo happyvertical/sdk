@@ -89,6 +89,7 @@ export default {
         'github-actions',
         'graphql',
         'icalendar',
+        'spreadsheets',
         'images',
         'jobs',
         'json',

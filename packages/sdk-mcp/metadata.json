@@ -3,7 +3,7 @@
   "path": "packages/sdk-mcp",
   "position": {
     "index": 24,
-    "count": 33
+    "count": 34
   },
   "description": "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files",
   "provides": [

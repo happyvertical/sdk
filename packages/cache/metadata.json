@@ -3,7 +3,7 @@
   "path": "packages/cache",
   "position": {
     "index": 5,
-    "count": 33
+    "count": 34
   },
   "description": "Standardized caching interface supporting Memory, File, and Redis backends",
   "provides": [

@@ -2,8 +2,8 @@
   "name": "@happyvertical/weather",
   "path": "packages/weather",
   "position": {
-    "index": 33,
-    "count": 33
+    "index": 34,
+    "count": 34
   },
   "description": "Weather data provider abstraction for HAppyVertical SDK",
   "provides": [

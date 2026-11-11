@@ -7,7 +7,7 @@ Bounded RFC 5545 iCalendar parsing facade
 ## Package Map
 - Package: `@happyvertical/icalendar`
 - Hierarchy path: `@happyvertical/sdk > packages > icalendar`
-- Workspace position: `15 of 33` local packages
+- Workspace position: `15 of 34` local packages
 - Internal dependencies: none
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
