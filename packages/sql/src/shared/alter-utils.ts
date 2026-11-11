@@ -281,6 +281,18 @@ export function validateColumnName(columnName: string): void {
   }
 }
 
+/** Branch-base plain-name contract for adapter addIndex (not raw SQL terms). */
+export function validatePlainColumnName(columnName: string): void {
+  if (
+    typeof columnName !== 'string' ||
+    !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(columnName)
+  ) {
+    throw new Error(
+      `Invalid column name: ${columnName}. Column names must be a string that starts with a letter or underscore and contains only alphanumeric characters and underscores.`,
+    );
+  }
+}
+
 /**
  * Validates every identifier in a column list to prevent SQL injection
  *

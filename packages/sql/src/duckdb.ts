@@ -11,6 +11,7 @@ import {
   validateColumnName,
   validateColumnNames,
   validateIndexName,
+  validatePlainColumnName,
   validateTableName,
 } from './shared/alter-utils';
 import { validateDatabaseCacheOptions } from './shared/connection-cache';
@@ -1398,6 +1399,10 @@ export async function getDatabase(
     addIndex: async (table: string, index: IndexDefinition): Promise<void> => {
       validateTableName(table);
       validateIndexName(index.name);
+
+      for (const col of index.columns) {
+        validatePlainColumnName(col);
+      }
 
       let sql: string | undefined;
       try {

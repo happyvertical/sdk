@@ -78,8 +78,9 @@ outer quote characters. Strict insert/update and WHERE keys use explicit SQL
 delimiters for these names. See README and `TEST-DESIGN-identifiers.md` for the
 compatibility exceptions, dialect matrix and complete identifier sink audit.
 
-Index column arrays accept trusted SQL terms such as `lower(email)` and
-`created_at DESC` verbatim; simple identifiers use the owning quoting policy.
+Shared index SQL helpers and schema manifests accept trusted SQL terms such as
+`lower(email)` and `created_at DESC` verbatim. Adapter `alterTable.addIndex` uses
+the branch-base plain-name grammar and error; keyword names then quote safely.
 Aggregate ORDER BY retains only the identifier and optional direction, ignoring
 later tokens. Legacy numeric SQL tokens keep literal/ordinal meaning in WHERE
 and aggregates; explicitly quoted numeric names address physical columns.

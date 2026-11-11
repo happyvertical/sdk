@@ -26,7 +26,8 @@ errors retain existing adapter handling; no retry policy change (N/A).
 | Aggregate identifiers | Select, function argument, aliases, group, having, order, bucket, join/expression columns | Unsafe identifiers/directions rejected | Every dialect | Same spec + builder unit cases |
 | Transactions retain affinity | Keyword mutations visible inside tx and absent after rollback | Callback failure rolls back | Every adapter | Same spec |
 | Public SQL compatibility | Default ordinary identifiers retain exact SQL; keyword/delimited inputs quote; opt-in quotes all | Raw SQL remains authored SQL | All builder dialects | New unit cases + untouched legacy specs |
-| Legacy index terms | Expression strings (`lower(email)`) and ordered terms (`created_at DESC`) remain exact caller SQL; simple qualified/quoted names quote | Fallback applies only to previously raw index.columns sinks, never CRUD/WHERE | SQLite/PGlite/DuckDB ALTER + schema manager | New compatibility spec and isolated base/reviewed/fixed probes |
+| Adapter index validation | Base plain-name grammar and exact rejection text; keyword `order` and bare `FullName` remain valid | Expressions, ordered SQL, spaced/digit-prefix/quoted unusual names and injection reject before execution | SQLite/libsql, native, secure-file, PGlite, DuckDB and PostgreSQL capture | New index validation integration spec |
+| Legacy index terms | Expression strings (`lower(email)`) and ordered terms (`created_at DESC`) remain exact caller SQL; simple qualified/quoted names quote | Fallback applies only to previously raw index.columns sinks, never CRUD/WHERE | SQLite/PGlite/DuckDB shared SQL helper + schema manager | New compatibility spec and isolated base/reviewed/fixed probes |
 | Numeric aggregate names stay names | Quote-all SELECT aliases, FROM/JOIN numeric table names and selected-alias ORDER use name rendering | Numeric operand/ordinal and explicit numeric-column semantics remain separate | SQLite/PGlite/DuckDB | Archived eac/7b/fixed probe + new integration case per engine |
 | Legacy aggregate numeric terms | Previously accepted `.5`, `1.`, decimal/exponent/hex literals and ordinal group/order terms retain meaning | Numeric fallback bounded to old character grammar; expressions remain structured or raw where documented | SQLite/PGlite/DuckDB | New compatibility spec and base/reviewed probes |
 | Composite FK column strings | Commas outside quotes delimit plain identifier components; quoted commas stay literal | Expressions rejected; no raw FK fallback | Manifest SQLite/PGlite/DuckDB | New compatibility runtime tests |
@@ -243,8 +244,9 @@ then each name is rendered through the existing compatibility policy.
 Baseline distinction: direct shared index SQL generation and schema manager
 accepted expression/ordered terms; adapter `alterTable.addIndex` additionally
 validated every term as a plain name and rejected those same inputs on both
-base and reviewed revisions. The user explicitly requires every adapter path
-now, so this recall also removes that index-only pre-validation. Table and index
+base and reviewed revisions. That earlier user instruction required every adapter path, so that historical
+recall removed index-only pre-validation; the latest user correction below
+explicitly retracts that extension and restores the base adapter guard. Table and index
 name validation and all strict CRUD/WHERE validation remain in force. JSON has
 no `alterTable` method; its schema manager uses the same term renderer.
 
@@ -263,7 +265,7 @@ signs, operators, whitespace, quotes and SQL comments cannot enter this channel.
 | --- | --- | --- |
 | Shared CREATE INDEX `columns` | Raw `join(', ')`; expression/ordered terms run on all three engines (`base-reviewed-v4.jsonl`) | Restored exact term input; bounded plain identifier classifier quotes names |
 | Manifest CREATE INDEX `columns` | Same raw term contract; same three-engine evidence | Same renderer; index WHERE remains unchanged authored SQL |
-| Adapter `alterTable.addIndex` | Existing plain-name validation rejects expressions on both original/reviewed | User-required extension removes only index-term pre-validation on SQLite/native, PostgreSQL/PGlite, DuckDB; JSON has no such method |
+| Adapter `alterTable.addIndex` | Branch-base primitive string `/^[a-zA-Z_][a-zA-Z0-9_]*$/` and exact error | Latest user correction retracts the raw-term extension: restore strict validation on SQLite/native, PostgreSQL/PGlite and DuckDB; keyword names quote after validation. JSON has no such method |
 | Aggregate ORDER list | First whitespace token + second direction; remaining tokens ignored | Restored legacy outcome; double-quoted components now also permit spaces; new integration tests cover strings and arrays |
 | Aggregate SELECT list / aliases / function arguments | Old alphanumeric/underscore/dot validator, structured expression nodes; no generic raw SELECT list | Ordinary SQL/runtime identical in three-engine probes; numeric `.5`/`1.` restored, exact quoted names remain additive; function-name validation unchanged |
 | Aggregate GROUP list / ordinals / bucket / expression columns | Same bounded old validator; group/order ordinals were SQL tokens | Numeric literal/ordinal rendering restored including structured expression `.5`; ordinary group lists runtime/SQL identical; bucket uses same renderer |
@@ -356,3 +358,53 @@ four-file focused run has 149 pass / 12 opt-in PG pending (161 total). Package
 build/typecheck, two-file Biome and agent checks pass. Exact commands and archive
 integrity/parity assertions: `/tmp/sdk-1513-compatibility-round6/commands.log` and
 `source-integrity-and-parity.log`. Prior v4 and round-5 artifacts are immutable.
+
+
+## Latest user correction: restore adapter index validation
+
+Before source edits for this correction, branch-base `7db7e3f0` is authoritative:
+`validateColumnName` accepted only primitive strings matching
+`/^[a-zA-Z_][a-zA-Z0-9_]*$/`. Bare `FullName` is valid; `Full Name`,
+`2024_total`, explicitly quoted unusual names, expressions/ordered terms and
+injection strings are invalid. Restore that exact grammar and error only at
+adapter `addIndex` entry points. The preceding user-requested raw-term adapter
+extension is explicitly retracted; it is not the current contract. Shared
+`generateCreateIndexStatement` and schema-manager index terms remain trusted SQL
+with their existing raw-term fallback. No new raw marker API is introduced.
+
+The existing explicit quoted CRUD/WHERE feature is a lexical expansion versus
+branch base, not an equal grammar. It remains outside strict addIndex under the
+original exact/spaced-name requirements, using parsed and escaped identifiers. A complete validator/call-site audit against `7db7e3f0` records
+this and other bounded quoted-name/structured-expression additions honestly.
+No global rollback is inferred from the strict adapter-index correction.
+
+
+### Validation sweep against branch base `7db7e3f0`
+
+Full artifact `/tmp/sdk-1513-index-validation/validation-audit.md` lists every
+checked validator, call-site family, grammar/bound and expansion classification.
+`validator-parity.log` asserts exact base function bodies for table/index guards,
+batch column sets, WHERE suffix parsing, vector finite-value/operators and PG
+array cardinality helpers; scoped index validator matches base column validation
+after function-name normalization. The removed adapter index loops are restored.
+
+The audit explicitly identifies lexical expansions in quoted CRUD/addColumn/vector
+column validation, WHERE/aggregate quoted components and semantic support for
+DuckDB/JSON null-upsert physical keys; these are not claimed equal to base.
+Numeric token compatibility stays within the old accepted character grammar.
+Schema/FK parsing narrows formerly raw SQL positions. New #1511 structured ops
+and typed-date grammar add checks rather than removing legacy safety guards.
+The current scope preserves parsed/escaped quoted names outside strict adapter
+addIndex; no claim is made that accepted caller strings globally form a subset
+of base. No other raw SQL acceptance weakening or deleted guard was found.
+
+
+Strict-index correction evidence: 11 new cases pass without skips across libsql,
+native SQLite, secure-file SQLite, PGlite and DuckDB plus a PostgreSQL driver
+capture. Exact base error equality, malformed/non-string/SQL-term rejection,
+protected table/row contents, bare `FullName` and keyword `order` are pinned.
+Shared SQL helper/manifest expression-index tests remain green; direct adapter
+compatibility expectations now reject those terms. Focused 11-file verification
+passes 454 cases with 16 expected pending (470 total). Package typecheck/build,
+eight-file Biome and agent sync/check pass. Exact commands and outcomes:
+`/tmp/sdk-1513-index-validation/commands.log`.

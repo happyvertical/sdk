@@ -609,11 +609,15 @@ There is no adapter `orderBy`, aggregate or record `exists` method: execute
 for table existence. Standalone `renderExpression` retains its exact physical
 identifier spelling contract.
 
-Index `columns` arrays in ALTER helpers and schema manifests retain their
+Index `columns` arrays in shared SQL generation helpers and schema manifests retain their
 caller-authored SQL term contract: expressions such as `lower(email)` and ordered
 terms such as `created_at DESC` pass through exactly. Simple identifiers quote
 according to the builder's dialect policy. Strict CRUD and WHERE keys still
-require identifiers or explicit `raw()` expressions. Aggregate `orderBy` keeps
+require identifiers or explicit `raw()` expressions. Direct adapter
+`alterTable.addIndex()` accepts only the original plain column-name grammar
+(`[a-zA-Z_][a-zA-Z0-9_]*`); expressions, ordered SQL, spaced/digit-prefix names and
+explicitly quoted unusual names reject before execution. Plain keyword names
+such as `order` pass validation and are quoted in the generated SQL. Aggregate `orderBy` keeps
 the first identifier and optional ASC/DESC direction; trailing tokens are ignored.
 Legacy numeric literal WHERE keys, aggregate literals and ordinal group/order
 terms retain their SQL meaning; explicitly quoted numeric names address columns.

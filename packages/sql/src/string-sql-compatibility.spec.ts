@@ -66,18 +66,23 @@ for (const adapter of ['sqlite', 'pglite', 'duckdb'] as const) {
       await db.query(keyword);
     });
 
-    it('accepts expression, ordered and keyword terms through adapter addIndex', async () => {
+    it('rejects expression and ordered adapter index terms while quoting plain keywords', async () => {
       if (!db.alterTable) throw new Error('alterTable unavailable');
       for (const [index, term] of [
         'lower(email)',
         'created_at DESC',
-        'order',
       ].entries()) {
-        await db.alterTable.addIndex('compatibility', {
-          name: `adapter_term_${index}`,
-          columns: [term],
-        });
+        await expect(
+          db.alterTable.addIndex('compatibility', {
+            name: `adapter_term_${index}`,
+            columns: [term],
+          }),
+        ).rejects.toThrow('Invalid column name');
       }
+      await db.alterTable.addIndex('compatibility', {
+        name: 'adapter_keyword',
+        columns: ['order'],
+      });
       expect(await db.count('compatibility')).toBe(2);
     });
 

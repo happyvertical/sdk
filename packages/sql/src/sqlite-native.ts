@@ -11,6 +11,7 @@ import {
   validateColumnName,
   validateColumnNames,
   validateIndexName,
+  validatePlainColumnName,
   validateTableName,
 } from './shared/alter-utils.js';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache.js';
@@ -1678,6 +1679,10 @@ async function createNativeSqliteDatabase(
       ): Promise<void> => {
         validateTableName(tableName);
         validateIndexName(index.name);
+
+        for (const column of index.columns) {
+          validatePlainColumnName(column);
+        }
         let sql: string | undefined;
         try {
           sql = generateCreateIndexStatement(tableName, index, 'sqlite');

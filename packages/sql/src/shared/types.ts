@@ -538,7 +538,7 @@ export interface ColumnDefinitionWithName extends ColumnDefinition {
  */
 export interface IndexDefinition {
   name: string;
-  /** Simple identifiers, or trusted SQL index terms passed through verbatim. */
+  /** Adapter addIndex requires plain names; shared builders/manifests also accept trusted SQL terms. */
   columns: string[];
   unique?: boolean;
   where?: string;
