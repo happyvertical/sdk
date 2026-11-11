@@ -69,3 +69,56 @@ affected-graph build/typecheck/lint, workspace consistency and built-root smoke
 pass. A scan of 86 changed/generated text files found no stray control bytes.
 The loopback suites await clarification of the earlier no-network-services
 constraint; MinIO tests require containers and remain outside the allowed run.
+
+## F2: bounded processing of hostile workbook structure
+
+One untrusted local-byte caller; pure in-memory parsing/profiling. Authentication,
+transactions and services are N/A. Node execution plus the existing browser-root
+bundle check cover the runtime boundary. Command: package `pnpm test`.
+
+| Invariant / reachable trigger | Positive | Negative | Level / external edge |
+| --- | --- | --- | --- |
+| Name/table resolution uses workbook indexes | scoped names and contextual table columns preserve existing evidence | 100k names × 100k named formulas finish or typed limit | hostile integration / OOXML + model |
+| Structural metadata and part references are bounded | ordinary names/tables/validations/merges | configured limits and duplicate tablePart references | unit + hostile ZIP |
+| Formula tokenization is linear and cached | quoted sheets, calls, arguments, references and normalized patterns reuse one scan | 8192-char nested calls and unclosed brackets/quotes across cells | hostile integration / formula text |
+| Profile inner work is bounded | business workbook evidence unchanged | wide cross-sheet overlaps, disconnected regions, many totals and large shared values | unit + hostile model |
+| CSV/format processing cannot amplify shared strings | ordinary conservative CSV types and format kinds | long fields/formats and sparse dense expansion stop within budget | unit / text + model |
+
+Each hostile case records processing wall time and asserts under 5 seconds.
+Regressions are checked with deterministic limit assertions as well as timings;
+the new inner-work limits do not exist on the reviewed base.
+
+F2 validation (processing times exclude fixture/model construction):
+
+| Hostile processing case | Wall time (ms) |
+| --- | ---: |
+| 100k names × 100k formulas / defaults | 473.52 |
+| 100k names × 100k formulas / indexed read + profile | 972.99 |
+| 8192-char nested calls × 1000 cells | 394.23 |
+| 8192-char unclosed brackets × 1000 cells | 285.31 |
+| 8192-char unclosed quotes × 1000 cells | 283.72 |
+| 100k duplicate tablePart references / default | 105.10 |
+| 100k duplicate tablePart references / one parsed table | 137.14 |
+| 16,384 × 16,384 overlap columns | 108.12 |
+| 100k disconnected regions | 374.93 |
+| 8192-char shared formula × 5000 followers | 36.40 |
+| 1000 shared 1M-character values | 3.12 |
+| 100k-char number format × 10k cells | 38.81 |
+| 500k-character hostile CSV field | 18.50 |
+| CSV repeated 1M-character values | 0.39 |
+
+All timed cases assert less than 5,000 ms. The raised-name-limit case completes
+both reading and profiling with all 100,000 names and formula cells; duplicate
+parts with a raised reference limit produce exactly one table. Default limits
+and the work/depth guards return `SpreadsheetError` / `LIMIT_EXCEEDED`.
+
+Safe base regression: source from reviewed revision `7653a6c3` accepted two
+names with `maxDefinedNames: 1`; the same bytes on this revision throw typed
+`LIMIT_EXCEEDED` with `limit: maxDefinedNames`. The old large quadratic probe was
+not run; the index and timing tests exercise the full large case on this fix.
+
+Final commands: package `pnpm build`, `pnpm test` (40 passed), `pnpm typecheck`,
+`pnpm lint`, root `pnpm install --frozen-lockfile`, and `pnpm agent:check` passed.
+The lockfile was verified unchanged. The original 29 feature/interoperability
+checks, including the 200,000-cell compressed export and browser entry check,
+remain green. No container/network-service suites were needed for this fix.

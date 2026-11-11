@@ -1,9 +1,13 @@
-import { DEFAULT_LIMITS, SpreadsheetError } from './errors.js';
 import {
-  formulaCalls,
+  resolveLimits,
+  SpreadsheetError,
+  type SpreadsheetLimits,
+  WorkBudget,
+} from './errors.js';
+import {
+  type ArgumentSpan,
+  FormulaScanner,
   normalizeFormula,
-  parseFormula,
-  resolveReference,
 } from './formula.js';
 import {
   address,
@@ -16,8 +20,10 @@ import {
   type Reference,
   type Workbook,
 } from './model.js';
+import { WorkbookIndex } from './reference-index.js';
 
-export interface ProfileOptions {
+export interface ProfileOptions extends Partial<SpreadsheetLimits> {
+  maxProfileWork?: number;
   overlapThreshold?: number;
   sampleSize?: number;
   maxProfileCells?: number;
@@ -102,16 +108,18 @@ const link = (region: RegionProfile, column: number): ColumnLink => ({
 const linkKey = (value: ColumnLink) => `${value.region}:${value.column}`;
 
 /** Four-neighbor blocks of occupied cells, independent of worksheet dimensions. */
-function blocks(cells: Map<string, Point>): Range[] {
+function blocks(cells: Map<string, Point>, work: WorkBudget): Range[] {
   const pending = new Map(cells);
   const result: Range[] = [];
-  while (pending.size) {
-    const first = pending.values().next().value as Point;
+  for (const first of cells.values()) {
+    work.spend();
+    if (!pending.has(address(first))) continue;
     const queue = [first];
     pending.delete(address(first));
     const start = { ...first };
     const end = { ...first };
     for (let i = 0; i < queue.length; i++) {
+      work.spend(5);
       const p = queue[i];
       start.row = Math.min(start.row, p.row);
       start.col = Math.min(start.col, p.col);
@@ -134,9 +142,10 @@ function blocks(cells: Map<string, Point>): Range[] {
     }
     result.push({ start, end });
   }
-  return result.sort(
-    (a, b) => a.start.row - b.start.row || a.start.col - b.start.col,
-  );
+  return result.sort((a, b) => {
+    work.spend();
+    return a.start.row - b.start.row || a.start.col - b.start.col;
+  });
 }
 
 export function profileWorkbook(
@@ -144,12 +153,15 @@ export function profileWorkbook(
   options: ProfileOptions = {},
 ): WorkbookProfile {
   const opts = {
+    maxProfileWork: 20_000_000,
     overlapThreshold: 0.5,
     sampleSize: 5,
     maxProfileCells: 2_000_000,
     maxColumnPairs: 100_000,
     maxDependencyChecks: 1_000_000,
-    ...options,
+    ...Object.fromEntries(
+      Object.entries(options).filter(([, value]) => value !== undefined),
+    ),
   };
   for (const [key, value] of Object.entries(opts)) {
     if (
@@ -159,6 +171,13 @@ export function profileWorkbook(
     )
       throw new SpreadsheetError('INVALID_INPUT', 'Invalid profile options.');
   }
+  const work = new WorkBudget(opts.maxProfileWork);
+  const limits = resolveLimits(options);
+  const scanner = new FormulaScanner(limits, (n) => work.spend(n));
+  const referenceIndex = new WorkbookIndex(workbook, limits, scanner, (n) =>
+    work.spend(n),
+  );
+  const entriesBySheet = new Map<Workbook['sheets'][number], [Point, Cell][]>();
   const profile: WorkbookProfile = {
     sheets: [],
     dependencies: [],
@@ -177,14 +196,23 @@ export function profileWorkbook(
       );
   };
   for (const sheet of workbook.sheets) {
+    bounded(visits + sheet.cells.size, opts.maxProfileCells);
+    // Bound comparison sorting before invoking SparseCells' ordered iterator.
+    work.spend(
+      sheet.cells.size *
+        Math.max(1, Math.ceil(Math.log2(sheet.cells.size + 1))),
+    );
+    const entries = [...sheet.cells];
+    entriesBySheet.set(sheet, entries);
     const occupied = new Map<string, Point>();
-    for (const [p, cell] of sheet.cells) {
+    for (const [p, cell] of entries) {
+      work.spend();
       bounded(++visits, opts.maxProfileCells);
       if (nonblank(cell) || cell.formula || cell.type === 'error')
         occupied.set(address(p), p);
     }
     const regions: RegionProfile[] = [];
-    for (const [index, range] of blocks(occupied).entries()) {
+    for (const [index, range] of blocks(occupied, work).entries()) {
       visits +=
         (range.end.row - range.start.row + 1) *
         (range.end.col - range.start.col + 1);
@@ -205,6 +233,7 @@ export function profileWorkbook(
       ) {
         let headers = 0;
         for (let col = range.start.col; col <= range.end.col; col++) {
+          work.spend();
           const cell = sheet.cells.get(row, col);
           if (cell?.type === 'text' && nonblank(cell) && !cell.formula)
             headers++;
@@ -216,7 +245,10 @@ export function profileWorkbook(
       for (let row = range.end.row; row > range.start.row; row--) {
         let totals = false;
         for (let col = range.start.col; col <= range.end.col; col++) {
+          work.spend();
           const formula = sheet.cells.get(row, col)?.formula;
+          if (formula)
+            work.spend(formula.functions.length + formula.references.length);
           if (
             formula?.functions.some((f) =>
               ['SUM', 'SUBTOTAL', 'AGGREGATE'].includes(f),
@@ -234,10 +266,19 @@ export function profileWorkbook(
             totals = true;
         }
         if (!totals) break;
-        region.totalsRows.unshift(row);
+        region.totalsRows.push(row);
       }
+      region.totalsRows.reverse();
+      const totalsRows = new Set(region.totalsRows);
       const header = region.headerRowCandidates[0];
       for (let col = range.start.col; col <= range.end.col; col++) {
+        const headerValue =
+          header === undefined
+            ? undefined
+            : sheet.cells.get(header, col)?.value;
+        work.spend(
+          typeof headerValue === 'string' ? headerValue.length + 1 : 1,
+        );
         const column: ColumnProfile = {
           id: `${region.id}:${col}`,
           column: col,
@@ -260,13 +301,18 @@ export function profileWorkbook(
         let extremaType: string | undefined;
         let mixedExtrema = false;
         for (let row = range.start.row; row <= range.end.row; row++) {
-          if (row === header || region.totalsRows.includes(row)) continue;
+          work.spend();
+          if (row === header || totalsRows.has(row)) continue;
+          work.spend();
           const cell = sheet.cells.get(row, col);
           column.typeCounts[cell?.type ?? 'empty']++;
           if (!cell || (!nonblank(cell) && cell.type !== 'error'))
             column.blankCount++;
           else {
             count++;
+            work.spend(
+              typeof cell.value === 'string' ? cell.value.length + 1 : 1,
+            );
             const key =
               cell.type === 'error'
                 ? `error:${cell.error ?? ''}`
@@ -307,7 +353,11 @@ export function profileWorkbook(
           }
           if (cell?.formula) {
             column.formulaDriven = true;
-            const pattern = normalizeFormula(cell.formula, { row, col });
+            const pattern = normalizeFormula(
+              cell.formula,
+              { row, col },
+              scanner,
+            );
             patterns.set(pattern, (patterns.get(pattern) ?? 0) + 1);
           }
         }
@@ -334,15 +384,11 @@ export function profileWorkbook(
     origin: Point,
     depth = 0,
   ): ColumnLink[] => {
+    work.spend();
     bounded(++checks, opts.maxDependencyChecks);
     if (depth > 16) return [];
     if (reference.name) {
-      const resolved = resolveReference(
-        workbook,
-        reference,
-        currentSheet,
-        origin,
-      );
+      const resolved = referenceIndex.resolve(reference, currentSheet, origin);
       return resolved
         ? resolve(
             { ...resolved, name: undefined },
@@ -354,6 +400,7 @@ export function profileWorkbook(
     }
     const targets: ColumnLink[] = [];
     for (const region of regions) {
+      work.spend();
       bounded(++checks, opts.maxDependencyChecks);
       const r = reference.range;
       if (
@@ -363,17 +410,21 @@ export function profileWorkbook(
         r.start.row > region.range.end.row
       )
         continue;
-      for (const column of region.columns)
+      for (const column of region.columns) {
+        work.spend();
+        bounded(++checks, opts.maxDependencyChecks);
         if (column.column >= r.start.col && column.column <= r.end.col)
           targets.push(link(region, column.column));
+      }
     }
     return targets;
   };
   const edgeKeys = new Set<string>();
   for (const sheet of workbook.sheets)
-    for (const [origin, cell] of sheet.cells) {
+    for (const [origin, cell] of entriesBySheet.get(sheet) ?? []) {
       if (!cell.formula) continue;
       const region = regions.find((r) => {
+        work.spend();
         bounded(++checks, opts.maxDependencyChecks);
         return r.sheet === sheet.name && contains(r.range, origin);
       });
@@ -381,24 +432,38 @@ export function profileWorkbook(
       const from = link(region, origin.col);
       for (const reference of cell.formula.references)
         for (const to of resolve(reference, sheet.name, origin)) {
+          work.spend();
           const key = `${linkKey(from)}>${linkKey(to)}`;
           if (!edgeKeys.has(key)) {
             edgeKeys.add(key);
             profile.dependencies.push({ from, to });
           }
         }
-      const calls = formulaCalls(cell.formula.text);
-      const argLinks = (arg: string | undefined) =>
-        arg
-          ? parseFormula(arg, {
-              ...DEFAULT_LIMITS,
-              maxFormulaLength: Math.max(
-                arg.length,
-                DEFAULT_LIMITS.maxFormulaLength,
-              ),
-            }).references.flatMap((r) => resolve(r, sheet.name, origin))
-          : [];
+      const scan = scanner.scan(cell.formula.text);
+      const calls = scan.calls;
+      const argLinks = (arg: ArgumentSpan | undefined): ColumnLink[] => {
+        if (!arg) return [];
+        const links: ColumnLink[] = [];
+        for (let i = arg.refStart; i < arg.refEnd; i++) {
+          work.spend();
+          for (const target of resolve(
+            scan.references[i].reference,
+            sheet.name,
+            origin,
+          )) {
+            work.spend();
+            links.push(target);
+          }
+        }
+        return links;
+      };
+      const argumentText = (arg: ArgumentSpan | undefined) => {
+        if (!arg) return undefined;
+        work.spend(arg.to - arg.from);
+        return scan.text.slice(arg.from, arg.to).trim();
+      };
       for (const call of calls) {
+        work.spend();
         if (['VLOOKUP', 'XLOOKUP', 'INDEX'].includes(call.name)) {
           const lookup: LookupEvidence = {
             cell: address(origin),
@@ -409,7 +474,7 @@ export function profileWorkbook(
             lookup.keyColumn = argLinks(call.args[0])[0];
             const target = argLinks(call.args[1]);
             lookup.targetRegion = target[0]?.region;
-            const offset = Number(call.args[2]);
+            const offset = Number(argumentText(call.args[2]));
             if (Number.isInteger(offset) && offset > 0)
               lookup.returnedColumn = target[offset - 1];
           } else if (call.name === 'XLOOKUP') {
@@ -417,14 +482,25 @@ export function profileWorkbook(
             lookup.targetRegion = argLinks(call.args[1])[0]?.region;
             lookup.returnedColumn = argLinks(call.args[2])[0];
           } else {
-            const match = formulaCalls(call.args[1] ?? '').find(
-              (c) => c.name === 'MATCH',
-            );
+            const argument = call.args[1];
+            const match = argument
+              ? calls.find((c) => {
+                  work.spend();
+                  return (
+                    c.name === 'MATCH' &&
+                    c.from >= argument.from &&
+                    c.to <= argument.to
+                  );
+                })
+              : undefined;
             if (!match) continue;
             lookup.keyColumn = argLinks(match.args[0])[0];
             const target = argLinks(call.args[0]);
             lookup.targetRegion = target[0]?.region;
-            const index = call.args[2] === undefined ? 1 : Number(call.args[2]);
+            const index =
+              call.args[2] === undefined
+                ? 1
+                : Number(argumentText(call.args[2]));
             if (Number.isInteger(index) && index > 0)
               lookup.returnedColumn = target[index - 1];
           }
@@ -435,9 +511,18 @@ export function profileWorkbook(
           const count = call.name.startsWith('COUNT');
           const criteria: ColumnLink[] = [];
           if (plural)
-            for (let i = count ? 0 : 1; i < call.args.length; i += 2)
-              criteria.push(...argLinks(call.args[i]));
-          else criteria.push(...argLinks(call.args[0]));
+            for (let i = count ? 0 : 1; i < call.args.length; i += 2) {
+              for (const target of argLinks(call.args[i])) {
+                work.spend();
+                criteria.push(target);
+              }
+            }
+          else {
+            for (const target of argLinks(call.args[0])) {
+              work.spend();
+              criteria.push(target);
+            }
+          }
           profile.aggregates.push({
             cell: address(origin),
             sheet: sheet.name,
@@ -453,32 +538,44 @@ export function profileWorkbook(
       }
     }
   let pairs = 0;
-  for (let a = 0; a < regions.length; a++)
-    for (let b = a + 1; b < regions.length; b++) {
-      if (regions[a].sheet === regions[b].sheet) continue;
-      for (const ac of regions[a].columns)
-        for (const bc of regions[b].columns) {
-          bounded(++pairs, opts.maxColumnPairs);
-          const av = distinct.get(ac.id) as Set<string>;
-          const bv = distinct.get(bc.id) as Set<string>;
-          if (!av.size || !bv.size) continue;
-          let shared = 0;
-          for (const value of av.size < bv.size ? av : bv) {
-            bounded(++checks, opts.maxDependencyChecks);
-            if (av.has(value) && bv.has(value)) shared++;
-          }
-          for (const [from, to, size] of [
-            [link(regions[a], ac.column), link(regions[b], bc.column), av.size],
-            [link(regions[b], bc.column), link(regions[a], ac.column), bv.size],
-          ] as [ColumnLink, ColumnLink, number][]) {
-            if (shared && shared / size >= opts.overlapThreshold)
-              profile.overlaps.push({
-                from,
-                to,
-                sharedDistinct: shared,
-                share: shared / size,
-              });
-          }
+  // Group by sheet so same-sheet disconnected regions never create a quadratic
+  // cross-product merely to be skipped. Preflight every cross-sheet product.
+  for (let sa = 0; sa < profile.sheets.length; sa++)
+    for (let sb = sa + 1; sb < profile.sheets.length; sb++) {
+      const left = profile.sheets[sa].regions;
+      const right = profile.sheets[sb].regions;
+      work.spend();
+      bounded(pairs + left.length * right.length, opts.maxColumnPairs);
+      for (const ar of left)
+        for (const br of right) {
+          work.spend();
+          pairs += ar.columns.length * br.columns.length;
+          bounded(pairs, opts.maxColumnPairs);
+          for (const ac of ar.columns)
+            for (const bc of br.columns) {
+              work.spend();
+              const av = distinct.get(ac.id) as Set<string>;
+              const bv = distinct.get(bc.id) as Set<string>;
+              if (!av.size || !bv.size) continue;
+              let shared = 0;
+              for (const value of av.size < bv.size ? av : bv) {
+                work.spend(value.length + 1);
+                bounded(++checks, opts.maxDependencyChecks);
+                if (av.has(value) && bv.has(value)) shared++;
+              }
+              for (const [from, to, size] of [
+                [link(ar, ac.column), link(br, bc.column), av.size],
+                [link(br, bc.column), link(ar, ac.column), bv.size],
+              ] as [ColumnLink, ColumnLink, number][]) {
+                if (shared && shared / size >= opts.overlapThreshold)
+                  profile.overlaps.push({
+                    from,
+                    to,
+                    sharedDistinct: shared,
+                    share: shared / size,
+                  });
+              }
+            }
         }
     }
   return profile;

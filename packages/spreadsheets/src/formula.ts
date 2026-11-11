@@ -3,16 +3,15 @@ import {
   DEFAULT_LIMITS,
   invalid,
   type SpreadsheetLimits,
+  WorkBudget,
 } from './errors.js';
 import {
   address,
   columnName,
-  contains,
   type Formula,
   type Point,
   point,
   type Reference,
-  type Workbook,
 } from './model.js';
 
 export interface ReferenceToken {
@@ -20,179 +19,270 @@ export interface ReferenceToken {
   to: number;
   reference: Reference;
 }
-const flags = (start: string, end = start) => ({
-  startRow: /\$\d/.test(start),
-  startCol: start.startsWith('$'),
-  endRow: /\$\d/.test(end),
-  endCol: end.startsWith('$'),
-});
+export interface ArgumentSpan {
+  from: number;
+  to: number;
+  refStart: number;
+  refEnd: number;
+}
+export interface CallToken {
+  name: string;
+  from: number;
+  to: number;
+  args: ArgumentSpan[];
+}
+export interface FormulaScan {
+  text: string;
+  references: ReferenceToken[];
+  calls: CallToken[];
+  functions: string[];
+}
+interface Lexeme {
+  kind: 'atom' | 'quoted' | 'bracket' | 'punct';
+  from: number;
+  to: number;
+}
 const noFlags = {
   startRow: false,
   startCol: false,
   endRow: false,
   endCol: false,
 };
-function unquote(value: string): string {
-  return value.startsWith("'") ? value.slice(1, -1).replace(/''/g, "'") : value;
-}
+const atomChar = (c: string) => c !== '' && /[\p{L}\p{N}_.$\\]/u.test(c);
+const atomStart = (c: string) => c !== '' && /[\p{L}_\\$]/u.test(c);
+const cloneReference = (r: Reference): Reference => ({
+  ...r,
+  range: { start: { ...r.range.start }, end: { ...r.range.end } },
+  absolute: { ...r.absolute },
+});
+const formulaScans = new WeakMap<Formula, FormulaScan>();
 
-/** Lex references outside string literals; unknown syntax remains verbatim. */
-export function referenceTokens(text: string): ReferenceToken[] {
-  const tokens: ReferenceToken[] = [];
-  let i = 0;
-  while (i < text.length) {
-    if (text[i] === '"') {
-      i++;
-      while (i < text.length) {
-        if (text[i++] === '"') {
-          if (text[i] !== '"') break;
-          i++;
+/** Operation-local cache. Lexing and call/argument construction are linear passes. */
+export class FormulaScanner {
+  private readonly cache = new Map<string, FormulaScan>();
+  private readonly budget: WorkBudget;
+  constructor(
+    readonly limits: SpreadsheetLimits = { ...DEFAULT_LIMITS },
+    private readonly charge: (n: number) => void = () => {},
+  ) {
+    this.budget = new WorkBudget(limits.maxFormulaWork, 'maxFormulaWork');
+  }
+  spend(n = 1): void {
+    this.budget.spend(n);
+    this.charge(n);
+  }
+  scan(input: string): FormulaScan {
+    const text = input.startsWith('=') ? input.slice(1) : input;
+    checkLimit(text.length, 'maxFormulaLength', this.limits);
+    this.spend();
+    const cached = this.cache.get(text);
+    if (cached) return cached;
+    checkLimit(this.cache.size + 1, 'maxFormulaCacheEntries', this.limits);
+    this.spend(text.length);
+    const lexemes: Lexeme[] = [];
+    const push = (kind: Lexeme['kind'], from: number, to: number) => {
+      checkLimit(lexemes.length + 1, 'maxFormulaTokens', this.limits);
+      lexemes.push({ kind, from, to });
+    };
+    let i = 0;
+    while (i < text.length) {
+      const from = i;
+      const c = text[i++];
+      if (/\s/.test(c)) continue;
+      if (c === '"' || c === "'") {
+        while (i < text.length)
+          if (text[i++] === c) {
+            if (text[i] === c) i++;
+            else break;
+          }
+        if (c === "'") push('quoted', from, i);
+      } else if (c === '[') {
+        let depth = 1;
+        while (i < text.length && depth) {
+          const next = text[i++];
+          if (next === '[') checkLimit(++depth, 'maxFormulaDepth', this.limits);
+          else if (next === ']') depth--;
         }
+        push('bracket', from, i);
+      } else if (atomChar(c)) {
+        while (i < text.length && atomChar(text[i])) i++;
+        push('atom', from, i);
+      } else push('punct', from, i);
+    }
+    const references: ReferenceToken[] = [];
+    const calls: CallToken[] = [];
+    const functions = new Set<string>();
+    const stack: { call?: CallToken; start: number; refStart: number }[] = [];
+    const raw = (token: Lexeme | undefined) =>
+      token ? text.slice(token.from, token.to) : '';
+    const argument = (frame: (typeof stack)[number], to: number) => {
+      frame.call?.args.push({
+        from: frame.start,
+        to,
+        refStart: frame.refStart,
+        refEnd: references.length,
+      });
+    };
+    for (let t = 0; t < lexemes.length; t++) {
+      this.spend();
+      const token = lexemes[t];
+      const value = raw(token);
+      if (value === '(') {
+        checkLimit(stack.length + 1, 'maxFormulaDepth', this.limits);
+        const previous = lexemes[t - 1];
+        let call: CallToken | undefined;
+        if (previous?.kind === 'atom' && atomStart(raw(previous)[0] ?? '')) {
+          const name = raw(previous)
+            .replace(/^_xlfn\./i, '')
+            .toUpperCase();
+          call = { name, from: previous.from, to: text.length, args: [] };
+          calls.push(call);
+          functions.add(name);
+        }
+        stack.push({ call, start: token.to, refStart: references.length });
+        continue;
       }
-      continue;
-    }
-    if (/[\w.\]]/.test(text[i - 1] ?? '')) {
-      i++;
-      continue;
-    }
-    const rest = text.slice(i);
-    const prefix = /^(?:('(?:[^']|'')+'|[\p{L}_\\][\p{L}\p{N}_.\\]*)!)/u.exec(
-      rest,
-    );
-    const sheet = prefix ? unquote(prefix[1]) : undefined;
-    const offset = prefix?.[0].length ?? 0;
-    const value = rest.slice(offset);
-    const contextual = /^\[(?:[^[\]]|\[[^\]]*\])*\]/.exec(value);
-    if (contextual) {
-      tokens.push({
-        from: i,
-        to: i + offset + contextual[0].length,
-        reference: {
+      if (value === ')') {
+        const frame = stack.pop();
+        if (frame) {
+          argument(frame, token.from);
+          if (frame.call) frame.call.to = token.to;
+        }
+        continue;
+      }
+      if (value === ',' || value === ';') {
+        const frame = stack[stack.length - 1];
+        if (frame) {
+          argument(frame, token.from);
+          frame.start = token.to;
+          frame.refStart = references.length;
+        }
+        continue;
+      }
+      if (token.kind === 'punct') continue;
+      let sheet: string | undefined;
+      let target = token;
+      if (raw(lexemes[t + 1]) === '!') {
+        sheet =
+          token.kind === 'quoted'
+            ? value.slice(1, -1).replace(/''/g, "'")
+            : value;
+        t += 2;
+        target = lexemes[t];
+        if (!target) break;
+      } else if (token.kind === 'quoted') continue;
+      let name = raw(target);
+      let to = target.to;
+      const after = lexemes[t + 1];
+      if (raw(after) === '(') continue;
+      if (after?.kind === 'bracket' && target.kind === 'atom') {
+        name += raw(after);
+        to = after.to;
+        t++;
+      }
+      let end: string | undefined;
+      if (raw(lexemes[t + 1]) === ':' && lexemes[t + 2]?.kind === 'atom') {
+        end = raw(lexemes[t + 2]);
+        to = lexemes[t + 2].to;
+        t += 2;
+      }
+      let reference = a1Reference(name, end, sheet);
+      if (
+        !reference &&
+        (target.kind === 'bracket' || atomStart(name[0] ?? '')) &&
+        !['TRUE', 'FALSE'].includes(name.toUpperCase())
+      ) {
+        reference = {
           sheet,
-          name: contextual[0],
+          name,
           range: { start: { row: 1, col: 1 }, end: { row: 1, col: 1 } },
           absolute: { ...noFlags },
-        },
-      });
-      i += offset + contextual[0].length;
-      continue;
-    }
-    const cell =
-      /^(\$?[A-Za-z]{1,3}\$?[1-9]\d{0,6})(?::(\$?[A-Za-z]{1,3}\$?[1-9]\d{0,6}))?(?![\w.(])/i.exec(
-        value,
-      );
-    let reference: Reference | undefined;
-    let length = 0;
-    if (cell) {
-      try {
-        const start = point(cell[1]);
-        const end = point(cell[2] ?? cell[1]);
-        reference = {
-          sheet,
-          range: { start, end },
-          absolute: flags(cell[1], cell[2]),
         };
-        length = cell[0].length;
-      } catch {
-        /* An identifier like XYZ9999999 need not be an A1 reference. */
       }
+      if (reference) references.push({ from: token.from, to, reference });
     }
-    if (!reference) {
-      const cols = /^(\$?[A-Za-z]{1,3}):(\$?[A-Za-z]{1,3})(?!\w)/.exec(value);
-      const rows = /^(\$?[1-9]\d{0,6}):(\$?[1-9]\d{0,6})(?!\w)/.exec(value);
-      if (cols) {
-        const start = point(`${cols[1]}1`);
-        const end = point(`${cols[2]}1048576`);
-        reference = {
-          sheet,
-          range: { start, end },
-          absolute: {
-            ...noFlags,
-            startCol: cols[1].startsWith('$'),
-            endCol: cols[2].startsWith('$'),
-            startRow: true,
-            endRow: true,
-          },
-        };
-        length = cols[0].length;
-      } else if (rows) {
-        const start = point(`A${rows[1]}`);
-        const end = point(`XFD${rows[2]}`);
-        reference = {
-          sheet,
-          range: { start, end },
-          absolute: {
-            ...noFlags,
-            startRow: rows[1].startsWith('$'),
-            endRow: rows[2].startsWith('$'),
-            startCol: true,
-            endCol: true,
-          },
-        };
-        length = rows[0].length;
-      } else {
-        const name =
-          /^([\p{L}_\\][\p{L}\p{N}_.\\]*)(\[(?:[^[\]]|\[[^\]]*\])*\])?/u.exec(
-            value,
-          );
-        if (
-          name &&
-          !/^\s*\(/.test(value.slice(name[0].length)) &&
-          !['TRUE', 'FALSE'].includes(name[1].toUpperCase())
-        ) {
-          reference = {
-            sheet,
-            name: name[0],
-            range: { start: { row: 1, col: 1 }, end: { row: 1, col: 1 } },
-            absolute: { ...noFlags },
-          };
-          length = name[0].length;
-        }
-      }
-    }
-    if (reference) {
-      tokens.push({ from: i, to: i + offset + length, reference });
-      i += offset + length;
-    } else i++;
+    // Unclosed parentheses retain text and partial evidence; depth is still bounded.
+    for (const frame of stack) argument(frame, text.length);
+    const scan = { text, references, calls, functions: [...functions] };
+    this.cache.set(text, scan);
+    return scan;
   }
-  return tokens;
 }
-
+function a1Reference(
+  start: string,
+  end: string | undefined,
+  sheet: string | undefined,
+): Reference | undefined {
+  const cell = (s: string) => /^\$?[A-Za-z]{1,3}\$?[1-9]\d{0,6}$/.test(s);
+  const col = (s: string) => /^\$?[A-Za-z]{1,3}$/.test(s);
+  const row = (s: string) => /^\$?[1-9]\d{0,6}$/.test(s);
+  const flags = {
+    startRow: /\$\d/.test(start),
+    startCol: start.startsWith('$'),
+    endRow: /\$\d/.test(end ?? start),
+    endCol: (end ?? start).startsWith('$'),
+  };
+  try {
+    if (cell(start) && (!end || cell(end)))
+      return {
+        sheet,
+        range: { start: point(start), end: point(end ?? start) },
+        absolute: flags,
+      };
+    if (end && col(start) && col(end))
+      return {
+        sheet,
+        range: { start: point(`${start}1`), end: point(`${end}1048576`) },
+        absolute: { ...flags, startRow: true, endRow: true },
+      };
+    if (end && row(start) && row(end))
+      return {
+        sheet,
+        range: { start: point(`A${start}`), end: point(`XFD${end}`) },
+        absolute: { ...flags, startCol: true, endCol: true },
+      };
+  } catch {
+    /* Out-of-grid identifiers remain unresolved names. */
+  }
+  return undefined;
+}
+export function referenceTokens(
+  text: string,
+  scanner = new FormulaScanner(),
+): ReferenceToken[] {
+  return scanner.scan(text).references;
+}
 export function parseFormula(
   input: string,
   limits: SpreadsheetLimits = { ...DEFAULT_LIMITS },
+  scanner = new FormulaScanner(limits),
 ): Formula {
-  const text = input.replace(/^=/, '');
-  checkLimit(text.length, 'maxFormulaLength', limits);
-  const unquoted = text.replace(/"(?:[^"]|"")*"|'(?:[^']|'')*'/g, '');
-  const functions = [
-    ...new Set(
-      [...unquoted.matchAll(/([A-Za-z_][\w.]*)\s*\(/g)].map((m) =>
-        m[1].replace(/^_xlfn\./i, '').toUpperCase(),
-      ),
-    ),
-  ];
-  return {
-    text,
+  const scan = scanner.scan(input);
+  scanner.spend(scan.references.length + scan.functions.length);
+  const formula: Formula = {
+    text: scan.text,
     dialect: 'excel-a1',
-    references: referenceTokens(text).map((t) => t.reference),
-    functions,
+    references: scan.references.map((t) => cloneReference(t.reference)),
+    functions: [...scan.functions],
   };
+  formulaScans.set(formula, scan);
+  return formula;
 }
-
 export function translateFormula(
   text: string,
   from: Point,
   to: Point,
   limits: SpreadsheetLimits,
+  scanner = new FormulaScanner(limits),
 ): Formula {
-  const tokens = referenceTokens(text);
-  let result = '';
+  const scan = scanner.scan(text);
+  scanner.spend(scan.text.length + scan.references.length);
+  const parts: string[] = [];
   let offset = 0;
-  for (const token of tokens) {
-    result += text.slice(offset, token.from);
+  for (const token of scan.references) {
+    parts.push(scan.text.slice(offset, token.from));
     const ref = token.reference;
-    if (ref.name) result += text.slice(token.from, token.to);
+    if (ref.name) parts.push(scan.text.slice(token.from, token.to));
     else {
       const move = (p: Point, rowAbs: boolean, colAbs: boolean) => {
         const row = p.row + (rowAbs ? 0 : to.row - from.row);
@@ -201,180 +291,63 @@ export function translateFormula(
           invalid('Shared formula translation exceeds worksheet bounds.');
         return `${colAbs ? '$' : ''}${columnName(col)}${rowAbs ? '$' : ''}${row}`;
       };
-      const prefix = ref.sheet ? `'${ref.sheet.replace(/'/g, "''")}'!` : '';
-      result +=
-        prefix +
-        move(ref.range.start, ref.absolute.startRow, ref.absolute.startCol);
+      parts.push(
+        (ref.sheet ? `'${ref.sheet.replace(/'/g, "''")}'!` : '') +
+          move(ref.range.start, ref.absolute.startRow, ref.absolute.startCol),
+      );
       if (address(ref.range.start) !== address(ref.range.end))
-        result += `:${move(ref.range.end, ref.absolute.endRow, ref.absolute.endCol)}`;
+        parts.push(
+          `:${move(ref.range.end, ref.absolute.endRow, ref.absolute.endCol)}`,
+        );
     }
     offset = token.to;
   }
-  return parseFormula(result + text.slice(offset), limits);
+  parts.push(scan.text.slice(offset));
+  return parseFormula(parts.join(''), limits, scanner);
 }
-
-/** R1C1-relative pattern; constants and strings are preserved. */
-export function normalizeFormula(formula: Formula, origin: Point): string {
-  let result = '';
+export function normalizeFormula(
+  formula: Formula,
+  origin: Point,
+  scanner?: FormulaScanner,
+): string {
+  const engine = scanner ?? new FormulaScanner();
+  const saved = formulaScans.get(formula);
+  const scan =
+    !scanner && saved?.text === formula.text
+      ? saved
+      : engine.scan(formula.text);
+  engine.spend(scan.text.length + scan.references.length);
+  const parts: string[] = [];
   let offset = 0;
-  for (const { from, to, reference: ref } of referenceTokens(formula.text)) {
-    result += formula.text.slice(offset, from);
-    if (ref.name) result += formula.text.slice(from, to);
+  for (const { from, to, reference: ref } of scan.references) {
+    parts.push(scan.text.slice(offset, from));
+    if (ref.name) parts.push(scan.text.slice(from, to));
     else {
       const format = (p: Point, rowAbs: boolean, colAbs: boolean) =>
         `R${rowAbs ? p.row : `[${p.row - origin.row}]`}C${colAbs ? p.col : `[${p.col - origin.col}]`}`;
-      result +=
+      parts.push(
         (ref.sheet ? `'${ref.sheet.replace(/'/g, "''")}'!` : '') +
-        format(ref.range.start, ref.absolute.startRow, ref.absolute.startCol);
+          format(ref.range.start, ref.absolute.startRow, ref.absolute.startCol),
+      );
       if (address(ref.range.start) !== address(ref.range.end))
-        result += `:${format(ref.range.end, ref.absolute.endRow, ref.absolute.endCol)}`;
+        parts.push(
+          `:${format(ref.range.end, ref.absolute.endRow, ref.absolute.endCol)}`,
+        );
     }
     offset = to;
   }
-  return result + formula.text.slice(offset);
+  parts.push(scan.text.slice(offset));
+  return parts.join('');
 }
-
-export interface FormulaCall {
-  name: string;
-  args: string[];
-}
-
-/** Resolve names and common table selectors without evaluating expressions. */
-export function resolveReference(
-  workbook: Workbook,
-  reference: Reference,
-  sheet: string,
-  origin: Point,
-  depth = 0,
+export function directReference(
+  input: string,
+  scanner = new FormulaScanner(),
 ): Reference | undefined {
-  if (!reference.name) return reference;
-  if (depth > 16) return undefined;
-  const text = reference.name;
-  const local = reference.sheet ?? sheet;
-  const defined =
-    workbook.definedNames.find(
-      (n) =>
-        n.name.toLowerCase() === text.toLowerCase() &&
-        n.scope?.toLowerCase() === local.toLowerCase(),
-    ) ??
-    workbook.definedNames.find(
-      (n) =>
-        n.name.toLowerCase() === text.toLowerCase() && n.scope === undefined,
-    );
-  if (defined?.reference) {
-    const resolved = resolveReference(
-      workbook,
-      defined.reference,
-      defined.scope ?? local,
-      origin,
-      depth + 1,
-    );
-    return resolved
-      ? {
-          ...resolved,
-          sheet: resolved.sheet ?? defined.scope ?? local,
-          name: text,
-        }
-      : undefined;
-  }
-  const match = /^([^[]*)\[(.*)\]$/.exec(text);
-  if (!match) return undefined;
-  const found = workbook.sheets
-    .flatMap((s) => s.tables.map((table) => ({ sheet: s.name, table })))
-    .find((t) =>
-      match[1]
-        ? t.table.name.toLowerCase() === match[1].toLowerCase()
-        : t.sheet.toLowerCase() === local.toLowerCase() &&
-          contains(t.table.range, origin),
-    );
-  if (!found) return undefined;
-  const selectors = [...match[2].matchAll(/\[([^\]]+)\]|([^,:[\]]+)/g)].map(
-    (m) => (m[1] ?? m[2]).replace(/^@/, '').trim(),
-  );
-  const columns = selectors
-    .filter((s) => !s.startsWith('#'))
-    .map((s) => found.table.columns.indexOf(s));
-  if (columns.some((c) => c < 0)) return undefined;
-  const r = found.table.range;
-  const thisRow = match[2].includes('@') || selectors.includes('#This Row');
-  return {
-    ...reference,
-    sheet: found.sheet,
-    range: {
-      start: {
-        row: thisRow
-          ? origin.row
-          : selectors.includes('#Headers') || selectors.includes('#All')
-            ? r.start.row
-            : r.start.row + (found.table.headerRow ? 1 : 0),
-        col: r.start.col + (columns.length ? Math.min(...columns) : 0),
-      },
-      end: {
-        row: thisRow
-          ? origin.row
-          : selectors.includes('#Headers')
-            ? r.start.row
-            : selectors.includes('#All')
-              ? r.end.row
-              : r.end.row - (found.table.totalsRow ? 1 : 0),
-        col: columns.length ? r.start.col + Math.max(...columns) : r.end.col,
-      },
-    },
-  };
-}
-export function formulaCalls(text: string): FormulaCall[] {
-  const calls: FormulaCall[] = [];
-  const pattern = /([A-Za-z_][\w.]*)\s*\(/g;
-  // Mask strings to keep function-looking text from becoming calls.
-  const masked = text.replace(/"(?:[^"]|"")*"|'(?:[^']|'')*'/g, (s) =>
-    ' '.repeat(s.length),
-  );
-  for (const match of masked.matchAll(pattern)) {
-    let depth = 0;
-    let bracket = 0;
-    let quote = '';
-    let start = (match.index ?? 0) + match[0].length;
-    const args: string[] = [];
-    for (let i = start; i < text.length; i++) {
-      const c = text[i];
-      if (quote) {
-        if (c === quote) {
-          if (text[i + 1] === quote) i++;
-          else quote = '';
-        }
-        continue;
-      }
-      if (c === '"' || c === "'") {
-        quote = c;
-        continue;
-      }
-      if (c === '[') bracket++;
-      else if (c === ']') bracket--;
-      else if (!bracket) {
-        if (c === '(') depth++;
-        else if (c === ')') {
-          if (depth === 0) {
-            args.push(text.slice(start, i).trim());
-            break;
-          }
-          depth--;
-        } else if ((c === ',' || c === ';') && depth === 0) {
-          args.push(text.slice(start, i).trim());
-          start = i + 1;
-        }
-      }
-    }
-    calls.push({ name: match[1].replace(/^_xlfn\./i, '').toUpperCase(), args });
-  }
-  return calls;
-}
-
-export function directReference(input: string): Reference | undefined {
   const text = input.replace(/^=/, '').trim();
-  const tokens = referenceTokens(text);
-  return tokens.length === 1 &&
-    tokens[0].from === 0 &&
-    tokens[0].to === text.length
-    ? tokens[0].reference
+  const scan = scanner.scan(text);
+  return scan.references.length === 1 &&
+    scan.references[0].from === 0 &&
+    scan.references[0].to === text.length
+    ? cloneReference(scan.references[0].reference)
     : undefined;
 }

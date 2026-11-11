@@ -97,7 +97,9 @@ remain unresolved. Cross-sheet overlaps are directional, type-sensitive shares
 of distinct values, with a default threshold of 0.5.
 
 Options: `overlapThreshold` (0–1), `sampleSize` (5), `maxProfileCells` (2,000,000),
-`maxColumnPairs` (100,000), and `maxDependencyChecks` (1,000,000). Work-limit
+`maxColumnPairs` (100,000), `maxDependencyChecks` (1,000,000), and
+`maxProfileWork` (20,000,000). Structural and formula limits from the adapter
+limits below can also be supplied to profiling. Work-limit
 exhaustion throws `SpreadsheetError` rather than returning partial evidence.
 
 ## Safety and limits
@@ -123,8 +125,41 @@ All adapter limits can be set at construction or overridden per read/write:
 | maxCells (also bounds column-width expansion) | 1,000,000 |
 | maxSharedStrings | 500,000 |
 | maxFormulaLength | 8,192 |
+| maxDefinedNames (workbook) | 10,000 |
+| maxTables (workbook) | 1,000 |
+| maxDataValidations (rules and cumulative target ranges) | 10,000 |
+| maxMerges (workbook) | 10,000 |
+| maxPartReferences (per archive part) | 1 |
+| maxReadWork (reader/serialization operation units) | 10,000,000 |
+| maxFormulaWork (operation units per read/profile) | 8,000,000 |
+| maxFormulaDepth | 128 |
+| maxFormulaTokens (per formula) | 2,048 |
+| maxFormulaCacheEntries (per read/profile) | 50,000 |
 | maxRows | 1,048,576 |
 | maxColumns | 16,384 |
+
+Names are indexed by lowercased name and scope once per read/profile. Tables
+have name/column maps and a per-sheet column/row index for contextual selectors;
+references never rebuild or scan the workbook's name/table arrays. XML parts
+are parsed once, and repeated references are limited. Raising
+`maxPartReferences` permits repeated tablePart references while retaining one
+parsed table; repeated worksheet parts remain invalid.
+
+The formula tokenizer makes one character pass and one pass over its tokens,
+using a cache keyed by formula text for each read/profile operation. References,
+function/argument spans and relative patterns reuse that scan. Unclosed strings
+remain verbatim; excessive nesting/tokens/cache entries/work fail with typed
+`LIMIT_EXCEEDED`. Shared-formula expansion charges generated text before copying.
+
+Work budgets charge XML node/attribute allocation, inner loops, sorting
+comparisons or conservative sort
+bounds, visited reference/column pairs, and processed/output string lengths.
+Profiling uses sets for totals membership and distinct samples, visits each
+region cell once during discovery, and preflights cross-sheet overlap products.
+Shared long values, wide tables, formula copies, CSV fields and output expansion
+consume budgets even when their input strings were shared. Exceeding a budget
+returns no partial result. These limits may reject otherwise valid large files;
+raise the relevant option explicitly for a trusted workload.
 
 ZIP metadata inspection reuses the browser-safe `@happyvertical/files/archive`
 subpath. It rejects

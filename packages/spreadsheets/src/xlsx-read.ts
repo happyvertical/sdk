@@ -1,9 +1,14 @@
-import { checkLimit, invalid, type SpreadsheetLimits } from './errors.js';
+import {
+  checkLimit,
+  invalid,
+  type SpreadsheetLimits,
+  WorkBudget,
+} from './errors.js';
 import { BUILTIN_FORMATS, formatKind, serialDate } from './formats.js';
 import {
   directReference,
+  FormulaScanner,
   parseFormula,
-  resolveReference,
   translateFormula,
 } from './formula.js';
 import {
@@ -16,6 +21,7 @@ import {
   range,
   type Workbook,
 } from './model.js';
+import { WorkbookIndex } from './reference-index.js';
 import { child, children, parseXml, textContent, type XmlNode } from './xml.js';
 import { unzipBounded } from './zip.js';
 
@@ -65,13 +71,26 @@ export function readXlsx(
   limits: SpreadsheetLimits,
 ): Workbook {
   const files = unzipBounded(bytes, limits);
+  const work = new WorkBudget(limits.maxReadWork, 'maxReadWork');
+  const scanner = new FormulaScanner(limits, (n) => work.spend(n));
+  const partReferences = new Map<string, number>();
+  const tableParts = new Set<string>();
+  const worksheetParts = new Set<string>();
+  let tableCount = 0;
+  let mergeCount = 0;
+  let validationCount = 0;
+  let validationRangeCount = 0;
   const xmlCache = new Map<string, XmlNode>();
   const xml = (path: string): XmlNode => {
+    work.spend();
+    const count = (partReferences.get(path) ?? 0) + 1;
+    partReferences.set(path, count);
+    checkLimit(count, 'maxPartReferences', limits);
     const existing = xmlCache.get(path);
     if (existing) return existing;
     const data = files.get(path);
     if (!data) invalid('Missing workbook part.');
-    const result = parseXml(data, limits);
+    const result = parseXml(data, limits, () => work.spend(4));
     xmlCache.set(path, result);
     return result;
   };
@@ -84,6 +103,7 @@ export function readXlsx(
     if (doc.name !== 'Relationships') invalid();
     const rels = new Map<string, Relationship>();
     for (const node of children(doc, 'Relationship')) {
+      work.spend((node.attrs.Target?.length ?? 0) + 1);
       if (node.attrs.TargetMode === 'External') continue;
       const id = node.attrs.Id;
       const target = node.attrs.Target;
@@ -101,6 +121,11 @@ export function readXlsx(
   const wbXml = xml(workbookPath);
   if (wbXml.name !== 'workbook') invalid();
   const rels = relationships(workbookPath);
+  checkLimit(
+    child(wbXml, 'definedNames')?.children.length ?? 0,
+    'maxDefinedNames',
+    limits,
+  );
   const part = (suffix: string): string | undefined =>
     [...rels.values()].find((r) => r.type.endsWith(`/${suffix}`))?.target;
   const dateSystem = ['1', 'true'].includes(
@@ -139,6 +164,7 @@ export function readXlsx(
       if (node.name === 'xf')
         styles.push(formats[integer(node.attrs.numFmtId)] ?? 'General');
   }
+  const formatKinds = new Map<string, ReturnType<typeof formatKind>>();
   let cellCount = 0;
   const sheetNodes = child(wbXml, 'sheets')?.children ?? [];
   checkLimit(sheetNodes.length, 'maxSheets', limits);
@@ -153,6 +179,8 @@ export function readXlsx(
     if (!rel?.type.endsWith('/worksheet'))
       invalid('Missing worksheet relationship.');
     const doc = xml(rel.target);
+    if (worksheetParts.has(rel.target)) invalid('Repeated worksheet part.');
+    worksheetParts.add(rel.target);
     if (doc.name !== 'worksheet') invalid();
     const sheet = createSheet(name);
     workbook.sheets.push(sheet);
@@ -180,6 +208,7 @@ export function readXlsx(
       checkLimit(max, 'maxColumns', limits);
       const width = number(col.attrs.width);
       if (width < 0) invalid();
+      work.spend(max - min + 1);
       widthWork += max - min + 1;
       checkLimit(widthWork, 'maxCells', limits);
       for (let i = min; i <= max; i++) widths[i] = width;
@@ -198,6 +227,7 @@ export function readXlsx(
       checkLimit(rowIndex, 'maxRows', limits);
       let colIndex = 0;
       for (const node of children(row, 'c')) {
+        work.spend();
         checkLimit(++cellCount, 'maxCells', limits);
         const origin = node.attrs.r
           ? point(node.attrs.r)
@@ -210,7 +240,12 @@ export function readXlsx(
         if (sheet.cells.get(origin.row, origin.col))
           invalid('Duplicate cell coordinate.');
         const format = styles[integer(node.attrs.s)] ?? 'General';
-        const kind = formatKind(format);
+        let kind = formatKinds.get(format);
+        if (!kind) {
+          work.spend(format.length);
+          kind = formatKind(format);
+          formatKinds.set(format, kind);
+        }
         const value = child(node, 'v')?.text;
         const type = node.attrs.t;
         if (
@@ -284,10 +319,10 @@ export function readXlsx(
                 origin,
                 range: boundRange(f.attrs.ref, limits),
               });
-              cell.formula = parseFormula(f.text, limits);
+              cell.formula = parseFormula(f.text, limits, scanner);
             } else followers.push({ cell, origin, id });
           } else {
-            cell.formula = parseFormula(f.text, limits);
+            cell.formula = parseFormula(f.text, limits, scanner);
             if (f.attrs.t === 'array' && f.attrs.ref)
               cell.formula.arrayRange = boundRange(f.attrs.ref, limits);
           }
@@ -312,11 +347,17 @@ export function readXlsx(
         master.origin,
         p,
         limits,
+        scanner,
       );
     }
-    for (const merge of child(doc, 'mergeCells')?.children ?? [])
+    for (const merge of child(doc, 'mergeCells')?.children ?? []) {
+      checkLimit(++mergeCount, 'maxMerges', limits);
+      work.spend();
       sheet.merges.push(boundRange(merge.attrs.ref ?? '', limits));
+    }
     for (const node of child(doc, 'dataValidations')?.children ?? []) {
+      checkLimit(++validationCount, 'maxDataValidations', limits);
+      work.spend((node.attrs.sqref?.length ?? 0) + 1);
       const kind = node.attrs.type;
       if (
         !['list', 'whole', 'decimal', 'date', 'textLength', 'custom'].includes(
@@ -324,11 +365,11 @@ export function readXlsx(
         )
       )
         continue;
+      const rangeTexts = (node.attrs.sqref ?? '').trim().split(/\s+/);
+      validationRangeCount += rangeTexts.length;
+      checkLimit(validationRangeCount, 'maxDataValidations', limits);
       const validation: DataValidation = {
-        ranges: (node.attrs.sqref ?? '')
-          .trim()
-          .split(/\s+/)
-          .map((s) => boundRange(s, limits)),
+        ranges: rangeTexts.map((s) => boundRange(s, limits)),
         kind: kind as DataValidation['kind'],
       };
       const formula = child(node, 'formula1')?.text;
@@ -340,7 +381,7 @@ export function readXlsx(
             .slice(1, -1)
             .replace(/""/g, '"')
             .split(',');
-        else validation.source = directReference(formula);
+        else validation.source = directReference(formula, scanner);
       }
       sheet.validations.push(validation);
     }
@@ -350,6 +391,9 @@ export function readXlsx(
       if (!tableRel?.type.endsWith('/table'))
         invalid('Missing table relationship.');
       const table = xml(tableRel.target);
+      if (tableParts.has(tableRel.target)) continue;
+      tableParts.add(tableRel.target);
+      checkLimit(++tableCount, 'maxTables', limits);
       if (table.name !== 'table') invalid();
       const tableName = table.attrs.displayName ?? table.attrs.name;
       if (!tableName) invalid('Missing table name.');
@@ -374,6 +418,7 @@ export function readXlsx(
   if (!workbook.sheets.length) invalid('Workbook has no worksheets.');
   for (const node of child(wbXml, 'definedNames')?.children ?? []) {
     if (!node.attrs.name) invalid('Missing defined name.');
+    work.spend(node.attrs.name.length + 1);
     checkLimit(node.text.length, 'maxFormulaLength', limits);
     const scope =
       node.attrs.localSheetId !== undefined
@@ -385,20 +430,26 @@ export function readXlsx(
       name: node.attrs.name,
       scope,
       text: node.text,
-      reference: directReference(node.text),
+      reference: directReference(node.text, scanner),
     });
   }
+  const referenceIndex = new WorkbookIndex(workbook, limits, scanner, (n) =>
+    work.spend(n),
+  );
   for (const sheet of workbook.sheets) {
+    work.spend(
+      sheet.cells.size *
+        Math.max(1, Math.ceil(Math.log2(sheet.cells.size + 1))),
+    );
     for (const [origin, cell] of sheet.cells)
       if (cell.formula)
         cell.formula.references = cell.formula.references.map(
-          (r) => resolveReference(workbook, r, sheet.name, origin) ?? r,
+          (r) => referenceIndex.resolve(r, sheet.name, origin) ?? r,
         );
     for (const validation of sheet.validations)
       if (validation.source)
         validation.source =
-          resolveReference(
-            workbook,
+          referenceIndex.resolve(
             validation.source,
             sheet.name,
             validation.ranges[0].start,

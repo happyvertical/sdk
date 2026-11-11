@@ -62,6 +62,7 @@ function decode(value: string): string {
 export function parseXml(
   bytes: Uint8Array,
   limits: SpreadsheetLimits,
+  allocate: () => void = () => {},
 ): XmlNode {
   let xml: string;
   try {
@@ -148,11 +149,13 @@ export function parseXml(
       if (raw.includes('<') || Object.hasOwn(attrs, match[1])) fail();
       textSize += raw.length;
       checkLimit(textSize, 'maxXmlText', limits);
+      allocate();
       attrs[match[1]] = decode(raw.replace(/[\t\n]/g, ' '));
       i = end + 1;
     }
     checkLimit(++nodes, 'maxXmlNodes', limits);
     checkLimit(stack.length, 'maxXmlDepth', limits);
+    allocate();
     const node: XmlNode = {
       name: fullName.split(':').pop() ?? fullName,
       attrs,

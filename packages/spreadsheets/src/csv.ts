@@ -3,6 +3,7 @@ import {
   invalid,
   SpreadsheetError,
   type SpreadsheetLimits,
+  WorkBudget,
 } from './errors.js';
 import { validateWorkbook } from './io.js';
 import { type Cell, createSheet, type Workbook } from './model.js';
@@ -49,6 +50,8 @@ export function readCsv(
   } catch {
     throw new SpreadsheetError('INVALID_INPUT', 'CSV must be valid UTF-8.');
   }
+  const work = new WorkBudget(limits.maxReadWork, 'maxReadWork');
+  work.spend(text.length);
   const delimiter = delimiterOption(options.delimiter ?? detect(text));
   const sheet = createSheet(options.sheetName ?? 'Sheet1');
   let row = 1;
@@ -57,6 +60,7 @@ export function readCsv(
   let state: 'start' | 'plain' | 'quoted' | 'closed' = 'start';
   let record = false;
   const flush = () => {
+    work.spend(field.length + 1);
     checkLimit(sheet.cells.size + 1, 'maxCells', limits);
     checkLimit(row, 'maxRows', limits);
     checkLimit(col, 'maxColumns', limits);
@@ -156,6 +160,7 @@ export function writeCsv(
   // Dense CSV expansion of sparse coordinates is explicitly bounded.
   checkLimit(lastRow * lastCol, 'maxCells', limits);
   let output = options.bom ? '\uFEFF' : '';
+  let outputUnits = output.length;
   for (let row = 1; row <= lastRow; row++) {
     const fields: string[] = [];
     for (let col = 1; col <= lastCol; col++) {
@@ -168,6 +173,8 @@ export function writeCsv(
             : String(cell.value);
       // Preserve lexical input only when it still describes the current value.
       const original = cell?.originalText;
+      if (original !== undefined)
+        checkLimit(original.length, 'maxXmlText', limits);
       const parsed = original === undefined ? undefined : csvCell(original);
       const same =
         parsed &&
@@ -177,12 +184,17 @@ export function writeCsv(
           ? parsed.value.getTime() === cell.value.getTime()
           : parsed.value === cell.value);
       const field = same ? (original as string) : value;
+      // Bound each field before escaping or retaining a dense output row.
+      outputUnits += field.length + 1;
+      checkLimit(outputUnits, 'maxInputBytes', limits);
       fields.push(
         field.includes(delimiter) || /["\r\n]/.test(field)
           ? `"${field.replace(/"/g, '""')}"`
           : field,
       );
     }
+    outputUnits++;
+    checkLimit(outputUnits, 'maxInputBytes', limits);
     output += `${fields.join(delimiter)}\r\n`;
     checkLimit(output.length, 'maxInputBytes', limits);
   }

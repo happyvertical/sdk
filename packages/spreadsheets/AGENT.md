@@ -31,3 +31,13 @@ pnpm --filter @happyvertical/spreadsheets lint
 - Requires: @happyvertical/files, fflate
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
+
+
+## Bounded processing
+
+Untrusted workbook processing uses operation-local formula caches and a single
+name/table index per read/profile. Preserve limits on metadata counts, repeated
+part references, formula depth/tokens/cache size and inner work. Profile budgets
+must count inner iterations and text lengths, not only outer reference calls.
+`hostile.test.ts` records wall-clock timings and asserts each adversarial case
+finishes or throws `SpreadsheetError` with `LIMIT_EXCEEDED` within five seconds.

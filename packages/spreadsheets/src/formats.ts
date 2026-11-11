@@ -58,23 +58,55 @@ export const BUILTIN_FORMATS: Record<number, string> = {
   58: 'm-d',
 };
 export function formatKind(format = 'General'): FormatKind {
-  if (/^general$/i.test(format)) return 'general';
-  // Literal currency symbols matter, but other literals must not look like dates.
-  const currency = /[$€£¥₹₩₽]|\[\$[^\]]+\]/.test(
-    format.replace(/\[\$-[\da-f]+\]/gi, ''),
-  );
-  const tokens = format
-    .replace(/"[^"]*"|\\.|_.|\*./g, '')
-    .replace(/\[(?![hms]+\])[^\]]*\]/gi, '')
-    .toLowerCase();
-  const date = /[yd]/.test(tokens);
-  const time = /[hs]|am\/pm/.test(tokens);
+  if (format.toLowerCase() === 'general') return 'general';
+  let currency = false;
+  let date = false;
+  let time = false;
+  let month = false;
+  let percent = false;
+  let text = false;
+  const money = (c: string) => '$€£¥₹₩₽'.includes(c);
+  for (let i = 0; i < format.length; i++) {
+    const c = format[i];
+    if (c === '\\' || c === '_' || c === '*') {
+      i++;
+      continue;
+    }
+    if (c === '"') {
+      while (++i < format.length && format[i] !== '"')
+        if (money(format[i])) currency = true;
+      continue;
+    }
+    if (c === '[') {
+      const from = ++i;
+      while (i < format.length && format[i] !== ']') i++;
+      const part = format.slice(from, i).toLowerCase();
+      if (
+        part === 'h' ||
+        part === 'hh' ||
+        part === 's' ||
+        part === 'ss' ||
+        part === 'm' ||
+        part === 'mm'
+      )
+        time = true;
+      if (part.startsWith('$') && !part.startsWith('$-')) currency = true;
+      continue;
+    }
+    if (money(c)) currency = true;
+    const lower = c.toLowerCase();
+    if (lower === 'y' || lower === 'd') date = true;
+    if (lower === 'h' || lower === 's') time = true;
+    if (lower === 'm') month = true;
+    if (c === '%') percent = true;
+    if (c === '@') text = true;
+  }
   if (date && time) return 'datetime';
-  if (date || (/m/.test(tokens) && !time)) return 'date';
+  if (date || (month && !time)) return 'date';
   if (time) return 'time';
-  if (tokens.includes('%')) return 'percent';
+  if (percent) return 'percent';
   if (currency) return 'currency';
-  if (tokens.includes('@')) return 'text';
+  if (text) return 'text';
   return 'number';
 }
 const day = 86400000;

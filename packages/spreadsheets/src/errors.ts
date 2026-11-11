@@ -36,6 +36,16 @@ export interface SpreadsheetLimits {
   maxCells: number;
   maxSharedStrings: number;
   maxFormulaLength: number;
+  maxDefinedNames: number;
+  maxTables: number;
+  maxDataValidations: number;
+  maxMerges: number;
+  maxPartReferences: number;
+  maxReadWork: number;
+  maxFormulaWork: number;
+  maxFormulaDepth: number;
+  maxFormulaTokens: number;
+  maxFormulaCacheEntries: number;
   maxRows: number;
   maxColumns: number;
 }
@@ -55,6 +65,16 @@ export const DEFAULT_LIMITS: Readonly<SpreadsheetLimits> = Object.freeze({
   maxCells: 1_000_000,
   maxSharedStrings: 500_000,
   maxFormulaLength: 8192,
+  maxDefinedNames: 10_000,
+  maxTables: 1_000,
+  maxDataValidations: 10_000,
+  maxMerges: 10_000,
+  maxPartReferences: 1,
+  maxReadWork: 10_000_000,
+  maxFormulaWork: 8_000_000,
+  maxFormulaDepth: 128,
+  maxFormulaTokens: 2_048,
+  maxFormulaCacheEntries: 50_000,
   maxRows: 1_048_576,
   maxColumns: 16_384,
 });
@@ -92,4 +112,22 @@ export function checkLimit(
 
 export function invalid(message = 'Invalid workbook structure.'): never {
   throw new SpreadsheetError('INVALID_WORKBOOK', message);
+}
+
+/** Counts inner operations and processed/output text, not just outer calls. */
+export class WorkBudget {
+  private used = 0;
+  constructor(
+    private readonly maximum: number,
+    private readonly limit?: keyof SpreadsheetLimits,
+  ) {}
+  spend(amount = 1): void {
+    this.used += amount;
+    if (this.used > this.maximum)
+      throw new SpreadsheetError(
+        'LIMIT_EXCEEDED',
+        'Spreadsheet processing work limit exceeded.',
+        this.limit,
+      );
+  }
 }

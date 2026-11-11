@@ -1,4 +1,9 @@
-import { checkLimit, invalid, type SpreadsheetLimits } from './errors.js';
+import {
+  checkLimit,
+  invalid,
+  type SpreadsheetLimits,
+  WorkBudget,
+} from './errors.js';
 import { type Range, range, rangeAddress, type Workbook } from './model.js';
 
 export function validateWorkbook(
@@ -12,7 +17,12 @@ export function validateWorkbook(
     ![1900, 1904].includes(workbook.dateSystem)
   )
     invalid();
+  const work = new WorkBudget(limits.maxReadWork, 'maxReadWork');
   checkLimit(workbook.sheets.length, 'maxSheets', limits);
+  checkLimit(workbook.definedNames.length, 'maxDefinedNames', limits);
+  let tableCount = 0;
+  let merges = 0;
+  let validations = 0;
   if (!workbook.sheets.some((s) => s.state === 'visible'))
     invalid('At least one worksheet must be visible.');
   const boundRange = (r: Range) => {
@@ -20,8 +30,10 @@ export function validateWorkbook(
     checkLimit(checked.end.row, 'maxRows', limits);
     checkLimit(checked.end.col, 'maxColumns', limits);
   };
-  for (const name of workbook.definedNames)
+  for (const name of workbook.definedNames) {
+    work.spend(name.text.length + name.name.length + 1);
     checkLimit(name.text.length, 'maxFormulaLength', limits);
+  }
   const names = new Set<string>();
   let count = 0;
   for (const sheet of workbook.sheets) {
@@ -45,8 +57,13 @@ export function validateWorkbook(
         sheet.frozen.cols >= limits.maxColumns)
     )
       invalid('Invalid frozen pane.');
+    merges += sheet.merges.length;
+    checkLimit(merges, 'maxMerges', limits);
     for (const r of sheet.merges) boundRange(r);
     for (const table of sheet.tables) {
+      checkLimit(++tableCount, 'maxTables', limits);
+      work.spend(table.name.length + table.columns.length + 1);
+      for (const name of table.columns) work.spend(name.length + 1);
       boundRange(table.range);
       if (
         !table.name ||
@@ -55,6 +72,11 @@ export function validateWorkbook(
         invalid('Invalid table columns.');
     }
     for (const validation of sheet.validations) {
+      validations += Math.max(1, validation.ranges.length);
+      checkLimit(validations, 'maxDataValidations', limits);
+      work.spend(
+        validation.ranges.length + (validation.formula?.length ?? 0) + 1,
+      );
       if (
         !['list', 'whole', 'decimal', 'date', 'textLength', 'custom'].includes(
           validation.kind,
@@ -62,11 +84,18 @@ export function validateWorkbook(
         !validation.ranges.length
       )
         invalid('Invalid validation rule.');
+      for (const value of validation.values ?? []) work.spend(value.length + 1);
       validation.ranges.forEach(boundRange);
       if (validation.formula)
         checkLimit(validation.formula.length, 'maxFormulaLength', limits);
     }
     for (const [p, cell] of sheet.cells) {
+      work.spend(
+        1 +
+          (typeof cell.value === 'string' ? cell.value.length : 0) +
+          (cell.numberFormat?.length ?? 0) +
+          (cell.formula?.text.length ?? 0),
+      );
       checkLimit(++count, 'maxCells', limits);
       checkLimit(p.row, 'maxRows', limits);
       checkLimit(p.col, 'maxColumns', limits);
