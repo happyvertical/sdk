@@ -988,6 +988,9 @@ importers:
 
   packages/spreadsheets:
     dependencies:
+      '@happyvertical/files':
+        specifier: workspace:*
+        version: link:../files
       fflate:
         specifier: 0.8.2
         version: 0.8.2

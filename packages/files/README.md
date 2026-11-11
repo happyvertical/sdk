@@ -115,14 +115,16 @@ await fetchToFile('https://example.com/file.zip', './downloads/file.zip');
 
 ### Secure ZIP Manifest Inspection
 
-Inspect untrusted ZIP metadata before deciding whether to accept an upload:
+Inspect untrusted ZIP metadata before deciding whether to accept an upload.
+`@happyvertical/files/archive` is a standalone browser-safe entry using only Web
+APIs, with no Node imports. The same API remains exported from the Node root:
 
 ```typescript
 import {
   inspectZipManifest,
   ZipManifestError,
   ZipManifestLimitError,
-} from '@happyvertical/files';
+} from '@happyvertical/files/archive';
 
 try {
   const manifest = inspectZipManifest(zipBytes, {
@@ -166,9 +168,13 @@ typed errors. Stored entries must also declare identical compressed and
 uncompressed sizes, and each local header and compressed payload must occupy a
 distinct range. Those referenced ranges must collectively cover every byte
 before the central directory, so archive preambles, padding gaps, and local
-entries omitted from the central directory are rejected. Data descriptors are
-rejected for both stored and compressed entries because their payload boundary
-cannot be verified without decompression or extractor-specific scanning. Entry
+entries omitted from the central directory are rejected. Signed and unsigned
+classic data descriptors are accepted for stored and compressed entries only at
+`payloadStart + centralCompressedSize`. Their CRC and sizes must match the
+central directory, and local fields must be zero or matching. Descriptor bytes
+participate in the same overlap and complete-coverage checks; signatures inside
+payloads are never scanned. These are metadata checks: consumers must still
+bound actual inflation and verify output size and CRC independently. Entry
 names use strict UTF-8 decoding whether or not the UTF-8 flag is set. Leading
 UTF-8 BOMs are rejected because filename decoders disagree on whether the BOM
 is part of the extracted path; common macOS ZIPs with valid UTF-8 names remain

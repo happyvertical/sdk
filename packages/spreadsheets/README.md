@@ -125,15 +125,16 @@ All adapter limits can be set at construction or overridden per read/write:
 | maxRows | 1,048,576 |
 | maxColumns | 16,384 |
 
-The private ZIP manifest implementation mirrors `packages/files/src/archive.ts`
-because `@happyvertical/files` exposes it through a Node-only root. It rejects
+ZIP metadata inspection reuses the browser-safe `@happyvertical/files/archive`
+subpath. It rejects
 traversal, collisions, symlinks/special files, encryption, ZIP64, and multi-disk
 archives. It accepts standard data descriptors only at the exact centrally
 declared boundary. Inflation runs in small chunks with actual-byte checks and
 CRC verification. No path is extracted to the filesystem. Output uses stored
 ZIP entries, avoiding compression-ratio rejection on its own exports.
 
-The only runtime dependency is **fflate**, imported through its browser entry.
+Runtime dependencies are the SDK's `@happyvertical/files/archive` entry and
+**fflate**, imported through its browser entry.
 A purpose-built UTF-8 XML tokenizer handles OOXML's needed grammar with bounded
 depth, text, and nodes; it rejects all DTD/declaration markup, unknown entities,
 and malformed nesting. Only the five predefined XML entities and numeric

@@ -1,13 +1,15 @@
+import {
+  inspectZipManifest,
+  ZipManifestError,
+} from '@happyvertical/files/archive';
 import { Inflate } from 'fflate/browser';
 import {
   checkLimit,
   SpreadsheetError,
   type SpreadsheetLimits,
 } from './errors.js';
-import { inspectZipManifest, ZipManifestError } from './zip-manifest.js';
 
-// Private mirror of packages/files/src/archive.ts: its public root is Node-only.
-// Keep manifest conventions aligned; never expose archive paths in public errors.
+// The shared archive subpath is browser-safe; redact its path-bearing errors.
 export function unzipBounded(
   bytes: Uint8Array,
   limits: SpreadsheetLimits,

@@ -557,7 +557,8 @@
         "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
       ],
       "provides": [
-        "File system utilities for local and remote file operations"
+        "File system utilities for local and remote file operations",
+        "Browser-safe ZIP manifest inspection via @happyvertical/files/archive"
       ],
       "implements": [],
       "requires": {
@@ -573,7 +574,8 @@
       },
       "dependents": [
         "@happyvertical/documents",
-        "@happyvertical/sdk-mcp"
+        "@happyvertical/sdk-mcp",
+        "@happyvertical/spreadsheets"
       ],
       "stability": {
         "level": "stable",
@@ -1399,7 +1401,7 @@
         "lint": "pnpm --filter @happyvertical/spreadsheets lint"
       },
       "correctionLoops": [
-        "If Vite or TypeScript reports missing packages, run `pnpm install` at the repo root and rerun `pnpm --filter @happyvertical/spreadsheets build`.",
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/files build`) and then rerun `pnpm --filter @happyvertical/spreadsheets build`.",
         "If you hit type-only regressions, run `pnpm --filter @happyvertical/spreadsheets typecheck` before rerunning the package build or tests to isolate the failing surface.",
         "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
       ],
@@ -1408,7 +1410,9 @@
       ],
       "implements": [],
       "requires": {
-        "workspace": [],
+        "workspace": [
+          "@happyvertical/files"
+        ],
         "externalHappyVertical": [],
         "external": [
           "fflate"
@@ -1828,6 +1832,11 @@
       "to": "File system utilities for local and remote file operations"
     },
     {
+      "type": "provides",
+      "from": "@happyvertical/files",
+      "to": "Browser-safe ZIP manifest inspection via @happyvertical/files/archive"
+    },
+    {
       "type": "requires",
       "from": "@happyvertical/geo",
       "to": "@happyvertical/cache"
@@ -2066,6 +2075,11 @@
       "type": "provides",
       "from": "@happyvertical/speech",
       "to": "Speech provider abstraction for STT and TTS backends"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/spreadsheets",
+      "to": "@happyvertical/files"
     },
     {
       "type": "provides",

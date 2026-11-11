@@ -11,7 +11,9 @@
   ],
   "implements": [],
   "requires": {
-    "workspace": [],
+    "workspace": [
+      "@happyvertical/files"
+    ],
     "externalHappyVertical": [],
     "external": [
       "fflate"

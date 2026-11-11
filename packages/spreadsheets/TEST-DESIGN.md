@@ -34,8 +34,19 @@ Turbo executes only tasks those packages define. `pnpm install` and
 consumer smoke, `git diff --check`, and a control-byte scan of changed text and
 the new package's dist output also passed.
 
-Self-review covered the full change, including mirrored ZIP policy differences,
+Self-review covered the full change, including shared ZIP policy,
 actual inflation bounds, descriptor/CRC checks, XML rejection and resource limits,
 formula handling, serialization, profiling, and the browser import graph.
 Independent integrated review and publication belong to the coordinating session;
 this implementation worker did not change claims, push or open a PR.
+
+## Coordinator feedback test additions
+
+| Behavior / trigger | Positive case | Negative case | Runtime / level / command |
+| --- | --- | --- | --- |
+| Shared files archive entry | built subpath bundles and executes with Web APIs, signed/unsigned descriptors (including CRC/signature collision) | missing/misplaced/tampered descriptor, conflicting local metadata, overlap/path attacks | Node + browser-like VM / package integration / `pnpm --filter @happyvertical/files test` |
+| Spreadsheet shared archive import | all existing producer and root browser tests | existing hostile archive cases | Node + browser-like VM / integration / `pnpm --filter @happyvertical/spreadsheets test` |
+
+Actor/executor remain a single caller and in-memory bytes; authentication,
+persistence and transactions are N/A. The browser check resolves the published
+subpath after building files, rather than importing source directly.

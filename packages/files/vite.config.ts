@@ -1,3 +1,3 @@
 import { createPackageConfig } from '../../vite.config.base.js';
 
-export default createPackageConfig('files');
+export default createPackageConfig('files', { archive: 'src/archive.ts' });
