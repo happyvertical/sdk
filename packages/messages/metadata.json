@@ -3,7 +3,7 @@
   "path": "packages/messages",
   "position": {
     "index": 20,
-    "count": 33
+    "count": 34
   },
   "description": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)",
   "provides": [

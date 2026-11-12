@@ -7,7 +7,7 @@ Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stri
 ## Package Map
 - Package: `@happyvertical/payments`
 - Hierarchy path: `@happyvertical/sdk > packages > payments`
-- Workspace position: `21 of 33` local packages
+- Workspace position: `21 of 34` local packages
 - Internal dependencies: none
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

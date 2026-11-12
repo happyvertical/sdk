@@ -739,15 +739,6 @@ describe('inspectZipManifest', () => {
       },
     ],
     [
-      'missing stored',
-      {
-        name: 'missing-stored.bin',
-        body: new Uint8Array([1, 2, 3]),
-        dataDescriptor: 'missing',
-        flags: 0x0008,
-      },
-    ],
-    [
       'signed deflate',
       {
         name: 'streamed-deflate.bin',
@@ -759,7 +750,18 @@ describe('inspectZipManifest', () => {
       },
     ],
     [
-      'stored early-boundary smuggling',
+      'unsigned deflate',
+      {
+        name: 'streamed-deflate-unsigned.bin',
+        body: new Uint8Array([0x03, 0x00]),
+        compressionMethod: 8,
+        dataDescriptor: 'unsigned',
+        flags: 0x0008,
+        uncompressedSize: 0,
+      },
+    ],
+    [
+      'stored payload with misleading signatures',
       {
         name: 'smuggled-stored.bin',
         body: concatenate([
@@ -772,15 +774,68 @@ describe('inspectZipManifest', () => {
     ],
   ] satisfies Array<
     [string, ZipFixtureEntry]
-  >)('rejects %s data descriptors as ambiguous metadata', (_label, entry) => {
-    const error = inspectError(buildZip([entry]));
+  >)('accepts %s descriptors only at the declared payload boundary', (_label, entry) => {
+    const manifest = inspectZipManifest(buildZip([entry]));
+    expect(manifest.entryCount).toBe(1);
+    expect(manifest.entries[0]).toMatchObject({
+      path: entry.name,
+      size: entry.uncompressedSize ?? entry.body?.length ?? 0,
+    });
+  });
 
-    expect(error).toBeInstanceOf(UnsupportedZipFeatureError);
-    expect((error as UnsupportedZipFeatureError).feature).toBe(
-      'ambiguous-metadata',
+  it('rejects missing, truncated, displaced and inconsistent data descriptors', () => {
+    const entry: ZipFixtureEntry = {
+      name: 'streamed.bin',
+      body: new Uint8Array([1, 2, 3]),
+      flags: 8,
+    };
+    expect(
+      inspectError(buildZip([{ ...entry, dataDescriptor: 'missing' }])),
+    ).toBeInstanceOf(InvalidZipArchiveError);
+    const archive = buildZip([entry]);
+    for (const delta of [4, 8, 12]) {
+      const mismatch = mutateZip(archive, (view) => {
+        const descriptor = 30 + encoder.encode('streamed.bin').length + 3;
+        view.setUint32(
+          descriptor + delta,
+          view.getUint32(descriptor + delta, true) ^ 1,
+          true,
+        );
+      });
+      expect(inspectError(mismatch)).toBeInstanceOf(InvalidZipArchiveError);
+    }
+    for (const extra of [-1, 1]) {
+      const misplaced = mutateZip(archive, (view, { centralDirectory }) => {
+        view.setUint32(centralDirectory + 20, 3 + extra, true);
+        view.setUint32(centralDirectory + 24, 3 + extra, true);
+      });
+      expect(inspectError(misplaced)).toBeInstanceOf(InvalidZipArchiveError);
+    }
+    const truncated = archive.slice(0, -1);
+    expect(inspectError(truncated)).toBeInstanceOf(InvalidZipArchiveError);
+    const inconsistentLocal = mutateZip(archive, (view) =>
+      view.setUint32(14, 123, true),
     );
-    expect((error as UnsupportedZipFeatureError).entryPath).toBe(entry.name);
-    expect(error.message).toContain('payload boundary');
+    expect(inspectError(inconsistentLocal)).toBeInstanceOf(
+      InvalidZipArchiveError,
+    );
+  });
+
+  it('accepts matching nonzero local metadata with a descriptor', () => {
+    const archive = buildZip([
+      {
+        name: 'streamed.bin',
+        body: new Uint8Array([1, 2, 3]),
+        crc32: 123,
+        flags: 8,
+      },
+    ]);
+    const matching = mutateZip(archive, (view) => {
+      view.setUint32(14, 123, true);
+      view.setUint32(18, 3, true);
+      view.setUint32(22, 3, true);
+    });
+    expect(inspectZipManifest(matching).entries[0].size).toBe(3);
   });
 
   it('enforces the configured central-directory entry-count limit', () => {

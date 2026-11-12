@@ -7,7 +7,7 @@ Unified directory services with adapter-based architecture (Kanidm, Stalwart, Po
 ## Package Map
 - Package: `@happyvertical/directory`
 - Hierarchy path: `@happyvertical/sdk > packages > directory`
-- Workspace position: `7 of 33` local packages
+- Workspace position: `7 of 34` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

@@ -1,0 +1,133 @@
+/** Closed failure contract. Messages never interpolate workbook content. */
+export type SpreadsheetErrorCode =
+  | 'UNSUPPORTED_FORMAT'
+  | 'INVALID_INPUT'
+  | 'INVALID_ZIP'
+  | 'UNSAFE_ZIP'
+  | 'UNSUPPORTED_ZIP'
+  | 'INVALID_XML'
+  | 'LIMIT_EXCEEDED'
+  | 'INVALID_WORKBOOK';
+
+export class SpreadsheetError extends Error {
+  constructor(
+    public readonly code: SpreadsheetErrorCode,
+    message: string,
+    public readonly limit?: keyof SpreadsheetLimits,
+  ) {
+    super(message);
+    this.name = 'SpreadsheetError';
+  }
+}
+
+export interface SpreadsheetLimits {
+  maxInputBytes: number;
+  maxEntries: number;
+  maxEntryBytes: number;
+  maxTotalBytes: number;
+  maxCompressionRatio: number;
+  /** Apply the secondary ratio guard only above this actual inflated size. */
+  compressionRatioFloorBytes: number;
+  maxPathBytes: number;
+  maxXmlDepth: number;
+  maxXmlText: number;
+  maxXmlNodes: number;
+  maxSheets: number;
+  maxCells: number;
+  maxSharedStrings: number;
+  maxFormulaLength: number;
+  maxDefinedNames: number;
+  maxTables: number;
+  maxDataValidations: number;
+  maxMerges: number;
+  maxPartReferences: number;
+  maxReadWork: number;
+  maxFormulaWork: number;
+  maxFormulaDepth: number;
+  maxFormulaTokens: number;
+  maxFormulaCacheEntries: number;
+  maxRows: number;
+  maxColumns: number;
+}
+
+export const DEFAULT_LIMITS: Readonly<SpreadsheetLimits> = Object.freeze({
+  maxInputBytes: 32 * 1024 * 1024,
+  maxEntries: 10_000,
+  maxEntryBytes: 128 * 1024 * 1024,
+  maxTotalBytes: 256 * 1024 * 1024,
+  maxCompressionRatio: 1000,
+  compressionRatioFloorBytes: 8 * 1024 * 1024,
+  maxPathBytes: 1024,
+  maxXmlDepth: 64,
+  maxXmlText: 32 * 1024 * 1024,
+  maxXmlNodes: 5 * 1_000_000,
+  maxSheets: 128,
+  maxCells: 1_000_000,
+  maxSharedStrings: 500_000,
+  maxFormulaLength: 8192,
+  maxDefinedNames: 10_000,
+  maxTables: 1_000,
+  maxDataValidations: 10_000,
+  maxMerges: 10_000,
+  maxPartReferences: 1,
+  maxReadWork: 256 * 1024 * 1024,
+  maxFormulaWork: 128 * 1_000_000,
+  maxFormulaDepth: 128,
+  maxFormulaTokens: 2_048,
+  maxFormulaCacheEntries: 50_000,
+  maxRows: 1_048_576,
+  maxColumns: 16_384,
+});
+
+export function resolveLimits(
+  options: Partial<SpreadsheetLimits> = {},
+  base: Readonly<SpreadsheetLimits> = DEFAULT_LIMITS,
+): SpreadsheetLimits {
+  const limits = { ...base };
+  for (const key of Object.keys(limits) as (keyof SpreadsheetLimits)[]) {
+    const value = options[key] ?? limits[key];
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new SpreadsheetError(
+        'INVALID_INPUT',
+        'Limits must be positive safe integers.',
+      );
+    }
+    limits[key] = value;
+  }
+  return limits;
+}
+
+export function checkLimit(
+  actual: number,
+  key: keyof SpreadsheetLimits,
+  limits: SpreadsheetLimits,
+): void {
+  if (actual > limits[key])
+    throw new SpreadsheetError(
+      'LIMIT_EXCEEDED',
+      `Spreadsheet limit exceeded: ${key}.`,
+      key,
+    );
+}
+
+export function invalid(message = 'Invalid workbook structure.'): never {
+  throw new SpreadsheetError('INVALID_WORKBOOK', message);
+}
+
+/** Counts inner operations and processed/output text, not just outer calls. */
+export class WorkBudget {
+  private used = 0;
+  constructor(
+    private readonly maximum: number,
+    private readonly limit?: keyof SpreadsheetLimits,
+  ) {}
+  spend(amount = 1): void {
+    this.used += amount;
+    if (this.used > this.maximum)
+      throw new SpreadsheetError(
+        'LIMIT_EXCEEDED',
+        'Spreadsheet processing work limit exceeded.',
+        this.limit,
+      );
+  }
+}

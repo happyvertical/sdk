@@ -18,6 +18,7 @@
  * mid-execution with a confusing `pg_tables`-doesn't-exist error.
  */
 import { redactDatabaseUrl } from './postgres-cli';
+import { quoteLiteralIdentifier as quoteIdentifier } from './shared/alter-utils.js';
 import type { DatabaseInterface } from './shared/types';
 
 export type DoctorLevel = 'fail' | 'warn';
@@ -191,10 +192,6 @@ async function listPublicTables(db: DatabaseInterface): Promise<Set<string>> {
     "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
   );
   return new Set(result.rows.map((row) => String(row.tablename ?? '')));
-}
-
-function quoteIdentifier(value: string): string {
-  return `"${value.replace(/"/gu, '""')}"`;
 }
 
 function countValueFromRow(value: unknown): string {

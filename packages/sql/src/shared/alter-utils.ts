@@ -34,9 +34,12 @@ export type DatabaseDialect = 'sqlite' | 'postgres' | 'duckdb';
 export function generateAddColumnStatement(
   table: string,
   column: ColumnDefinitionWithName,
-  _dialect: DatabaseDialect,
+  dialect: DatabaseDialect,
 ): string {
-  const parts: string[] = [column.name, column.type];
+  const parts: string[] = [
+    renderSchemaIdentifier(column.name, dialect, { quoteIdentifiers: true }),
+    column.type,
+  ];
 
   // Primary key
   if (column.primaryKey) {
@@ -70,7 +73,9 @@ export function generateAddColumnStatement(
   // Foreign key (inline for some databases)
   if (column.foreignKey) {
     const fk = column.foreignKey;
-    const fkParts = [`REFERENCES ${fk.table}(${fk.column})`];
+    const fkParts = [
+      `REFERENCES ${renderSchemaIdentifier(fk.table, dialect, { quoteIdentifiers: true })}(${renderIdentifierList(fk.column, dialect, { quoteIdentifiers: true })})`,
+    ];
 
     if (fk.onDelete) {
       fkParts.push(`ON DELETE ${fk.onDelete}`);
@@ -84,7 +89,7 @@ export function generateAddColumnStatement(
   }
 
   const columnDef = parts.join(' ');
-  return `ALTER TABLE ${table} ADD COLUMN ${columnDef}`;
+  return `ALTER TABLE ${renderSchemaIdentifier(table, dialect, { quoteIdentifiers: true })} ADD COLUMN ${columnDef}`;
 }
 
 /**
@@ -195,6 +200,7 @@ export function generateDefaultClause(
 export function generateCreateIndexStatement(
   table: string,
   index: IndexDefinition,
+  dialect?: DatabaseDialect,
 ): string {
   const parts: string[] = ['CREATE'];
 
@@ -206,13 +212,21 @@ export function generateCreateIndexStatement(
   parts.push('INDEX');
 
   // Index name
-  parts.push(index.name);
+  parts.push(
+    renderSchemaIdentifier(index.name, dialect, { quoteIdentifiers: true }),
+  );
 
   // ON table
-  parts.push(`ON ${table}`);
+  parts.push(
+    `ON ${renderSchemaIdentifier(table, dialect, { quoteIdentifiers: true })}`,
+  );
 
   // Column list
-  const columns = index.columns.join(', ');
+  const columns = index.columns
+    .map((column) =>
+      renderIndexTerm(column, dialect, { quoteIdentifiers: true }),
+    )
+    .join(', ');
   parts.push(`(${columns})`);
 
   // WHERE clause (partial index)
@@ -260,6 +274,15 @@ export function validateTableName(tableName: string): void {
  * @throws Error if the value is not a string or contains invalid characters
  */
 export function validateColumnName(columnName: string): void {
+  if (typeof columnName !== 'string' || !isColumnIdentifier(columnName)) {
+    throw new Error(
+      `Invalid column name: ${columnName}. Column names must be a plain identifier starting with a letter or underscore, or an explicitly double-quoted identifier.`,
+    );
+  }
+}
+
+/** Branch-base plain-name contract for adapter addIndex (not raw SQL terms). */
+export function validatePlainColumnName(columnName: string): void {
   if (
     typeof columnName !== 'string' ||
     !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(columnName)
@@ -300,13 +323,15 @@ export function validateColumnNames(columnNames: string[]): void {
  * lowercase before quoting: `mixedCase` still addresses `mixedcase`, while a
  * reserved word such as `end` is no longer parsed as SQL syntax.
  *
- * @param columnName - Plain column name to render for PostgreSQL
- * @returns A lowercase, double-quoted PostgreSQL identifier
+ * Explicit double-delimited input preserves its physical spelling.
+ *
+ * @param columnName - Plain or explicitly delimited column name for PostgreSQL
+ * @returns A double-quoted identifier, folding only undelimited input
  * @throws Error if the column name is outside the CRUD identifier contract
  */
 export function quotePostgresColumnName(columnName: string): string {
   validateColumnName(columnName);
-  return `"${columnName.toLowerCase()}"`;
+  return renderIdentifier(columnName, 'postgres', { quoteIdentifiers: true });
 }
 
 /**
@@ -324,11 +349,15 @@ export function quotePostgresColumnName(columnName: string): string {
  * Rejecting them would break working code to fix an injection that quoting
  * already prevents.
  *
- * @param identifier - Identifier to place inside double quotes
- * @returns The identifier with embedded quotes doubled
+ * @param identifier - Identifier to place inside SQL identifier quotes
+ * @param quote - Identifier delimiter (double quote, or SQLite backtick)
+ * @returns The identifier with embedded delimiter characters doubled
  * @throws Error if the identifier is empty or contains a NUL byte
  */
-export function escapeQuotedIdentifier(identifier: string): string {
+export function escapeQuotedIdentifier(
+  identifier: string,
+  quote: '"' | '`' = '"',
+): string {
   // Coerce to a primitive string first. The escape's safety rests on
   // `replaceAll`/`includes` being the real `String` methods, but a crafted
   // object could supply its own that return unescaped SQL while its `toString`
@@ -341,7 +370,7 @@ export function escapeQuotedIdentifier(identifier: string): string {
       `Invalid column name: ${JSON.stringify(value)}. Column names must be non-empty and must not contain a NUL byte.`,
     );
   }
-  return value.replaceAll('"', '""');
+  return value.replaceAll(quote, quote + quote);
 }
 
 /**
@@ -386,3 +415,220 @@ export function validateIndexName(indexName: string): void {
     );
   }
 }
+
+/** Numeric SQL tokens accepted by the original WHERE/aggregate character grammar.
+ * This is a bounded compatibility exception, never a general expression channel.
+ */
+export function isLegacyNumericSqlToken(value: string): boolean {
+  return (
+    typeof value === 'string' &&
+    /^(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|(?:[0-9][0-9_]*(?:\.[0-9_]*)?|\.[0-9][0-9_]*)(?:[eE][0-9][0-9_]*)?)$/.test(
+      value,
+    )
+  );
+}
+
+/** Additive policy for standalone builders; adapters always request quote-all. */
+export interface IdentifierOptions {
+  quoteIdentifiers?: boolean;
+}
+
+/** Parse identifiers, never SQL. Dots outside double quotes delimit qualifiers. */
+export function identifierParts(
+  identifier: string,
+): Array<{ name: string; exact: boolean }> {
+  if (
+    typeof identifier !== 'string' ||
+    !identifier ||
+    identifier.includes('\0')
+  ) {
+    throw new Error(`Invalid SQL identifier: ${identifier}`);
+  }
+  const parts: Array<{ name: string; exact: boolean }> = [];
+  let position = 0;
+  while (position < identifier.length) {
+    const rest = identifier.slice(position);
+    const match = rest.startsWith('"')
+      ? /^"((?:[^"]|"")+)"(?=\.|$)/.exec(rest)
+      : /^([A-Za-z0-9_]+)(?=\.|$)/.exec(rest);
+    if (!match) throw new Error(`Invalid SQL identifier: ${identifier}`);
+    const exact = rest.startsWith('"');
+    parts.push({
+      name: exact ? match[1].replaceAll('""', '"') : match[1],
+      exact,
+    });
+    position += match[0].length;
+    if (position < identifier.length) {
+      position += 1;
+      if (position === identifier.length)
+        throw new Error(`Invalid SQL identifier: ${identifier}`);
+    }
+  }
+  return parts;
+}
+
+function isColumnIdentifier(identifier: string): boolean {
+  try {
+    const parts = identifierParts(identifier);
+    return (
+      parts.length === 1 &&
+      (parts[0].exact || /^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Quote a physical name without interpreting delimiters or dots. */
+export function quoteLiteralIdentifier(identifier: string): string {
+  return quotePhysicalIdentifier(identifier, '"');
+}
+
+/** SQLite identifiers must not fall back to double-quoted string literals. */
+export function quoteSqliteLiteralIdentifier(identifier: string): string {
+  return quotePhysicalIdentifier(identifier, '`');
+}
+
+function quotePhysicalIdentifier(identifier: string, quote: '"' | '`'): string {
+  if (typeof identifier !== 'string')
+    throw new Error(`Invalid SQL identifier: ${identifier}`);
+  return `${quote}${escapeQuotedIdentifier(identifier, quote)}${quote}`;
+}
+
+/** SQLite CRUD column (one validated identifier). */
+export function quoteSqliteColumnName(column: string): string {
+  validateColumnName(column);
+  return renderIdentifier(column, 'sqlite', { quoteIdentifiers: true });
+}
+
+/** DuckDB/JSON CRUD column, or an already-resolved literal physical name. */
+export function quoteDuckDBColumnName(column: string, literal = false): string {
+  if (literal) return quoteLiteralIdentifier(column);
+  validateColumnName(column);
+  return renderIdentifier(column, 'duckdb', { quoteIdentifiers: true });
+}
+
+/** Shared rendering for qualified WHERE/aggregate identifiers. */
+export function renderIdentifier(
+  identifier: string,
+  dialect?: 'sqlite' | 'postgres' | 'duckdb' | 'json',
+  options: IdentifierOptions = {},
+): string {
+  return identifierParts(identifier)
+    .map(({ name, exact }) => {
+      if (
+        !options.quoteIdentifiers &&
+        !exact &&
+        !IDENTIFIER_KEYWORDS.has(name.toLowerCase())
+      )
+        return name;
+      const physical =
+        dialect === 'postgres' && !exact ? name.toLowerCase() : name;
+      return dialect === 'sqlite'
+        ? quoteSqliteLiteralIdentifier(physical)
+        : quoteLiteralIdentifier(physical);
+    })
+    .join('.');
+}
+
+/** Previously raw index terms may be expressions or ordered SQL, not just names. */
+export function renderIndexTerm(
+  term: string,
+  dialect?: DatabaseDialect,
+  options: IdentifierOptions = {},
+): string {
+  // Classify syntax before rendering: do not hide errors thrown by the renderer.
+  const component = '(?:[A-Za-z_][A-Za-z0-9_]*|"(?:[^"]|"")+")';
+  const plain = new RegExp(`^${component}(?:\\.${component})*$`);
+  return typeof term === 'string' && plain.test(term)
+    ? renderIdentifier(term, dialect, options)
+    : term;
+}
+
+/** DDL names historically accepted SQLite's alternate identifier delimiters.
+ * Normalize names only here; strict CRUD/WHERE keep their existing input syntax.
+ */
+export function renderSchemaIdentifier(
+  identifier: string,
+  dialect?: DatabaseDialect,
+  options: IdentifierOptions = {},
+): string {
+  if (typeof identifier !== 'string')
+    throw new Error(`Invalid SQL identifier: ${identifier}`);
+  const parts: string[] = [];
+  let position = 0;
+  while (position < identifier.length) {
+    const match =
+      /^(?:([A-Za-z0-9_]+)|"((?:[^"]|"")+)"|`((?:[^`]|``)+)`|\[([^\]]+)\]|'((?:[^']|'')+)')(?=\.|$)/.exec(
+        identifier.slice(position),
+      );
+    if (!match) throw new Error(`Invalid SQL identifier: ${identifier}`);
+    if (match[1] !== undefined) parts.push(match[1]);
+    else {
+      const name =
+        match[2] !== undefined
+          ? match[2].replaceAll('""', '"')
+          : match[3] !== undefined
+            ? match[3].replaceAll('``', '`')
+            : match[4] !== undefined
+              ? match[4]
+              : match[5].replaceAll("''", "'");
+      parts.push(quoteLiteralIdentifier(name));
+    }
+    position += match[0].length;
+    if (position < identifier.length) {
+      position += 1;
+      if (position === identifier.length)
+        throw new Error(`Invalid SQL identifier: ${identifier}`);
+    }
+  }
+  return renderIdentifier(parts.join('.'), dialect, options);
+}
+
+/** FK lists contain identifiers, with commas outside explicit quotes only. */
+export function renderIdentifierList(
+  list: string,
+  dialect?: DatabaseDialect,
+  options: IdentifierOptions = {},
+): string {
+  if (typeof list !== 'string')
+    throw new Error(`Invalid SQL identifier list: ${list}`);
+  const parts: string[] = [];
+  let closingQuote: string | undefined;
+  let start = 0;
+  for (let index = 0; index < list.length; index += 1) {
+    const char = list[index];
+    if (closingQuote) {
+      if (char === closingQuote) {
+        if (closingQuote !== ']' && list[index + 1] === closingQuote)
+          index += 1;
+        else closingQuote = undefined;
+      }
+    } else if (char === '"' || char === "'" || char === '`' || char === '[') {
+      closingQuote = char === '[' ? ']' : char;
+    } else if (char === ',') {
+      parts.push(list.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(list.slice(start));
+  return parts
+    .map((part) => {
+      const name = part.trim();
+      const offset = part.indexOf(name);
+      return (
+        part.slice(0, offset) +
+        renderSchemaIdentifier(name, dialect, options) +
+        part.slice(offset + name.length)
+      );
+    })
+    .join(',');
+}
+
+// SQLite official 147-keyword list (sqlite.org/lang_keywords.html), plus reserved
+// pg_get_keywords() (PGlite 0.5.8) and duckdb_keywords() (DuckDB 1.4.3).
+const IDENTIFIER_KEYWORDS = new Set(
+  'abort action add after all alter always analyse analyze and any array as asc asymmetric attach autoincrement before begin between both by cascade case cast check collate column commit conflict constraint create cross current current_catalog current_date current_role current_time current_timestamp current_user database default deferrable deferred delete desc describe detach distinct do drop each else end escape except exclude exclusive exists explain fail false fetch filter first following for foreign from full generated glob grant group groups having if ignore immediate in index indexed initially inner insert instead intersect into is isnull join key lambda last lateral leading left like limit localtime localtimestamp match materialized natural no not nothing notnull null nulls of offset on only or order others outer over partition pivot pivot_longer pivot_wider placing plan pragma preceding primary qualify query raise range recursive references regexp reindex release rename replace restrict returning right rollback row rows savepoint select session_user set show some summarize symmetric system_user table temp temporary then ties to trailing transaction trigger true unbounded union unique unpivot update user using vacuum values variadic view virtual when where window with without'.split(
+    ' ',
+  ),
+);

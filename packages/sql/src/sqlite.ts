@@ -16,9 +16,11 @@ import {
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
+  quoteSqliteColumnName,
   validateColumnName,
   validateColumnNames,
   validateIndexName,
+  validatePlainColumnName,
   validateTableName,
 } from './shared/alter-utils';
 import { validateDatabaseCacheOptions } from './shared/connection-cache';
@@ -44,7 +46,7 @@ import type {
 } from './shared/types';
 import { resolveSchemas } from './shared/types';
 import {
-  buildWhere,
+  buildAdapterWhere as buildWhere,
   formatDbError,
   resolveInsertColumns,
   wrapDatabaseError,
@@ -1617,10 +1619,13 @@ async function createDatabase(
       const values = Object.values(serializedData);
       const placeholders = keys.map(() => '?').join(', ');
       const updateSet = keys
-        .map((key) => `${key} = excluded.${key}`)
+        .map(
+          (key) =>
+            `${quoteSqliteColumnName(key)} = excluded.${quoteSqliteColumnName(key)}`,
+        )
         .join(', ');
-      const conflict = conflictColumns.join(', ');
-      const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+      const conflict = conflictColumns.map(quoteSqliteColumnName).join(', ');
+      const sql = `INSERT INTO ${table} (${keys.map((key) => quoteSqliteColumnName(key)).join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
 
       const result = await currentExecutor().execute({ sql, args: values });
       return { operation: 'upsert', affected: result.rowsAffected };
@@ -1634,9 +1639,11 @@ async function createDatabase(
     ): Promise<QueryResult> => {
       const keys = Object.keys(serializedData);
       const values = Object.values(serializedData);
-      const updateSet = keys.map((key) => `${key} = ?`).join(', ');
+      const updateSet = keys
+        .map((key) => `${quoteSqliteColumnName(key)} = ?`)
+        .join(', ');
       const whereClause = conflictColumns
-        .map((col) => `${col} IS ?`)
+        .map((col) => `${quoteSqliteColumnName(col)} IS ?`)
         .join(' AND ');
       const whereValues = conflictColumns.map((col) => serializedData[col]);
 
@@ -1651,7 +1658,7 @@ async function createDatabase(
       }
 
       const placeholders = keys.map(() => '?').join(', ');
-      const insertSql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+      const insertSql = `INSERT INTO ${table} (${keys.map((key) => quoteSqliteColumnName(key)).join(', ')}) VALUES (${placeholders})`;
       const insertResult = await executor.execute({
         sql: insertSql,
         args: values,
@@ -1824,7 +1831,7 @@ async function createDatabase(
         const placeholders = serializedRecords
           .map(() => `(${keys.map(() => '?').join(', ')})`)
           .join(', ');
-        sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
+        sql = `INSERT INTO ${table} (${keys.map((key) => quoteSqliteColumnName(key)).join(', ')}) VALUES ${placeholders}`;
         // Project through `keys` rather than each record's own key order, so a
         // record whose keys were inserted in a different order still binds each
         // value to its own column.
@@ -1837,7 +1844,7 @@ async function createDatabase(
         const keys = Object.keys(serializedData);
         validateColumnNames(keys);
         const placeholders = keys.map(() => '?').join(', ');
-        sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+        sql = `INSERT INTO ${table} (${keys.map((key) => quoteSqliteColumnName(key)).join(', ')}) VALUES (${placeholders})`;
         values = Object.values(serializedData);
       }
       try {
@@ -1942,7 +1949,9 @@ async function createDatabase(
       const keys = Object.keys(serializedData);
       validateColumnNames(keys);
       const values = Object.values(serializedData);
-      const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+      const setClause = keys
+        .map((key, i) => `${quoteSqliteColumnName(key)} = $${i + 1}`)
+        .join(', ');
       const { sql: whereClause, values: whereValues } = buildWhere(
         where,
         values.length + 1,
@@ -3327,12 +3336,12 @@ async function createDatabase(
         validateIndexName(index.name);
 
         for (const col of index.columns) {
-          validateColumnName(col);
+          validatePlainColumnName(col);
         }
 
         let sql: string | undefined;
         try {
-          sql = generateCreateIndexStatement(table, index);
+          sql = generateCreateIndexStatement(table, index, 'sqlite');
           await currentExecutor().execute({ sql, args: [] });
         } catch (e) {
           throw wrapDatabaseError('Failed to create index on table', e, {

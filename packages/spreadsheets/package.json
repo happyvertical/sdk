@@ -1,0 +1,57 @@
+{
+  "name": "@happyvertical/spreadsheets",
+  "version": "0.112.1",
+  "description": "Bounded browser-safe XLSX and CSV adapters with structural workbook profiling",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "AGENT.md",
+    "metadata.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest --config ../../vitest.package.config.ts run",
+    "test:watch": "vitest --config ../../vitest.package.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "biome check src"
+  },
+  "keywords": [
+    "spreadsheets",
+    "xlsx",
+    "csv",
+    "workbook",
+    "formulas"
+  ],
+  "author": "HappyVertical",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/spreadsheets"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "dependencies": {
+    "@happyvertical/files": "workspace:*",
+    "fflate": "0.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.10",
+    "typescript": "5.9.3",
+    "vite": "8.1.4",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "4.1.10"
+  }
+}

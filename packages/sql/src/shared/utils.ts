@@ -3,6 +3,11 @@
  */
 
 import { DatabaseError } from '@happyvertical/utils';
+import {
+  type IdentifierOptions,
+  isLegacyNumericSqlToken,
+  renderIdentifier,
+} from './alter-utils.js';
 import type { WhereClause } from './types.js';
 
 /**
@@ -527,10 +532,6 @@ const VALID_OPERATORS = {
   'not in': 'NOT IN',
 } as const;
 
-function isSimpleSqlIdentifier(field: string): boolean {
-  return /^[a-zA-Z0-9_.]+$/.test(field);
-}
-
 declare const rawSqlKeyBrand: unique symbol;
 
 /**
@@ -669,14 +670,25 @@ const buildCondition = (
   value: any,
   currIndex: { value: number },
   adapterType?: SqlAdapterType,
+  options: IdentifierOptions = {},
 ): { sql: string; values: any[] } => {
   const { key, isRaw } = unwrapRawKey(fullKey);
-  const { field, operator } = parseConditionKey(key);
-  if (!isRaw && !isSimpleSqlIdentifier(field)) {
-    throw new Error(
-      `Invalid SQL identifier: ${field}. Condition keys must be plain ` +
-        'identifiers; wrap developer-authored SQL expressions in raw().',
-    );
+  const parsed = parseConditionKey(key);
+  const operator = parsed.operator;
+  let field = parsed.field;
+  if (!isRaw && !isLegacyNumericSqlToken(field)) {
+    try {
+      field = renderIdentifier(field, adapterType, options);
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !error.message.startsWith('Invalid SQL identifier:')
+      )
+        throw error;
+      throw new Error(
+        `${error.message}. Condition keys must be plain identifiers; wrap developer-authored SQL expressions in raw().`,
+      );
+    }
   }
   const sqlOperator =
     VALID_OPERATORS[operator as keyof typeof VALID_OPERATORS] || '=';
@@ -834,6 +846,7 @@ export const buildWhere = (
   where: WhereClause,
   startIndex = 1,
   adapterType?: SqlAdapterType,
+  options: IdentifierOptions = {},
 ) => {
   let sql = '';
   const values: any[] = [];
@@ -856,7 +869,13 @@ export const buildWhere = (
 
       for (const conditionObj of andGroup) {
         for (const [fullKey, value] of Object.entries(conditionObj)) {
-          const result = buildCondition(fullKey, value, currIndex, adapterType);
+          const result = buildCondition(
+            fullKey,
+            value,
+            currIndex,
+            adapterType,
+            options,
+          );
           andConditions.push(result.sql);
           values.push(...result.values);
         }
@@ -879,7 +898,13 @@ export const buildWhere = (
   if (where && Object.keys(where).length > 0) {
     sql = 'WHERE ';
     for (const [fullKey, value] of Object.entries(where)) {
-      const result = buildCondition(fullKey, value, currIndex, adapterType);
+      const result = buildCondition(
+        fullKey,
+        value,
+        currIndex,
+        adapterType,
+        options,
+      );
 
       if (sql !== 'WHERE ') {
         sql += ' AND ';
@@ -892,3 +917,124 @@ export const buildWhere = (
 
   return { sql, values };
 };
+
+/** Adapter-owned WHERE policy: quote every identifier component. */
+export const buildAdapterWhere: typeof buildWhere = (
+  where,
+  startIndex,
+  adapterType,
+) => buildWhere(where, startIndex, adapterType, { quoteIdentifiers: true });
+
+/**
+ * Rewrites executable positional parameters while preserving SQL text inside
+ * literals, identifiers and comments. Extracted from the PostgreSQL adapter's
+ * existing question-mark lexer so native SQLite and PostgreSQL use one policy.
+ * SQLite's bracket/backtick identifiers are enabled only for that dialect:
+ * PostgreSQL brackets can instead contain executable array subscript binds.
+ */
+export function rewriteSqlParameters(
+  sql: string,
+  dialect: 'postgres' | 'sqlite',
+  replace: (token: string, index?: number) => string,
+): string {
+  let output = '';
+  let position = 0;
+  const copyQuoted = (quote: string, escaped = false) => {
+    output += sql[position++];
+    while (position < sql.length) {
+      const char = sql[position++];
+      output += char;
+      if (escaped && char === '\\' && position < sql.length) {
+        output += sql[position++];
+      } else if (char === quote) {
+        if (quote !== ']' && sql[position] === quote) {
+          output += sql[position++];
+        } else break;
+      }
+    }
+  };
+  const copyUntil = (end: string) => {
+    const endIndex = sql.indexOf(end, position + end.length);
+    const after = endIndex < 0 ? sql.length : endIndex + end.length;
+    output += sql.slice(position, after);
+    position = after;
+  };
+  while (position < sql.length) {
+    const char = sql[position];
+    const next = sql[position + 1];
+    if (
+      dialect === 'postgres' &&
+      (char === 'E' || char === 'e') &&
+      next === "'"
+    ) {
+      output += char;
+      position += 1;
+      copyQuoted("'", true);
+      continue;
+    }
+    if (
+      char === "'" ||
+      char === '"' ||
+      (dialect === 'sqlite' && char === '`')
+    ) {
+      copyQuoted(char);
+      continue;
+    }
+    if (dialect === 'sqlite' && char === '[') {
+      copyQuoted(']');
+      continue;
+    }
+    if (char === '-' && next === '-') {
+      const endIndex = sql.slice(position).search(/[\r\n]/);
+      const after = endIndex < 0 ? sql.length : position + endIndex + 1;
+      output += sql.slice(position, after);
+      position = after;
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      if (dialect === 'sqlite') copyUntil('*/');
+      else {
+        const start = position;
+        position += 2;
+        let depth = 1;
+        while (position < sql.length && depth > 0) {
+          const pair = sql.slice(position, position + 2);
+          if (pair === '/*') {
+            depth += 1;
+            position += 2;
+          } else if (pair === '*/') {
+            depth -= 1;
+            position += 2;
+          } else position += 1;
+        }
+        output += sql.slice(start, position);
+      }
+      continue;
+    }
+    // Both dialects allow $ within an undelimited identifier. Its suffix must
+    // not be reinterpreted as a bind (for example, legacy raw foo$1).
+    if (char === '$' && !/[\w$\u0080-\uFFFF]/.test(sql[position - 1] ?? '')) {
+      if (dialect === 'postgres') {
+        const tag = sql.slice(position).match(/^\$[A-Za-z_]\w*\$|^\$\$/);
+        if (tag) {
+          copyUntil(tag[0]);
+          continue;
+        }
+      }
+      const numbered = /^\$(\d+)/.exec(sql.slice(position));
+      if (numbered) {
+        output += replace(numbered[0], Number(numbered[1]));
+        position += numbered[0].length;
+        continue;
+      }
+    }
+    if (char === '?' && next !== '|' && next !== '&') {
+      output += replace('?');
+      position += 1;
+      continue;
+    }
+    output += char;
+    position += 1;
+  }
+  return output;
+}

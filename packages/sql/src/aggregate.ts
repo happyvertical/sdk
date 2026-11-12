@@ -4,6 +4,13 @@ import {
   type ExpressionContext,
   renderAggregateExpression,
 } from './aggregate-expression.js';
+import {
+  type IdentifierOptions,
+  identifierParts,
+  isLegacyNumericSqlToken,
+  quoteLiteralIdentifier,
+  renderIdentifier,
+} from './shared/alter-utils.js';
 import type { WhereClause } from './shared/types.js';
 import {
   buildWhere,
@@ -91,14 +98,26 @@ const VALID_BUCKET_UNITS = new Set<AggregateTimeBucketUnit>([
   'year',
 ]);
 
-function validateSqlIdentifier(identifier: string): string {
-  // Reject non-strings before the regex. `test` coerces via `toString`, so a
-  // value whose `toString` differs across reads could pass here and interpolate
-  // a different identifier into the aggregate SQL than the one validated.
-  if (typeof identifier !== 'string' || !/^[a-zA-Z0-9_.]+$/.test(identifier)) {
-    throw new Error(`Invalid SQL identifier: ${identifier}`);
+function aggregateIdentifierParts(identifier: string) {
+  if (isLegacyNumericSqlToken(identifier)) {
+    return identifier.split('.').map((name) => ({ name, exact: false }));
   }
+  return identifierParts(identifier);
+}
+
+function validateSqlIdentifier(identifier: string): string {
+  aggregateIdentifierParts(identifier);
   return identifier;
+}
+
+function renderAggregateIdentifier(
+  identifier: string,
+  adapterType: SqlAdapterType | undefined,
+  options: IdentifierOptions,
+): string {
+  return isLegacyNumericSqlToken(identifier)
+    ? identifier
+    : renderIdentifier(identifier, adapterType, options);
 }
 
 function normalizeAdapter(adapterType?: SqlAdapterType): SqlAdapterType {
@@ -113,12 +132,13 @@ export function bucketExpr(
   adapterType: SqlAdapterType | undefined,
   unit: AggregateTimeBucketUnit,
   column: string,
+  options: IdentifierOptions = {},
 ): string {
   if (!VALID_BUCKET_UNITS.has(unit)) {
     throw new Error(`Invalid aggregate bucket unit: ${unit}`);
   }
 
-  const col = validateSqlIdentifier(column);
+  const col = renderAggregateIdentifier(column, adapterType, options);
   const adapter = normalizeAdapter(adapterType);
 
   if (adapter === 'postgres' || adapter === 'duckdb' || adapter === 'json') {
@@ -146,15 +166,18 @@ export function bucketExpr(
 /** What a select expression, join and predicate share while one query is built. */
 interface BuildState {
   ctx: ExpressionContext;
+  /** Names never use the numeric-literal compatibility channel for operands. */
+  renderName: (name: string) => string;
   /** Table names and aliases a qualified column may name; undefined without joins. */
   scope: Set<string> | undefined;
+  options: IdentifierOptions;
 }
 
 function checkColumn(state: BuildState, column: string): string {
   const { scope } = state;
-  if (scope && column.includes('.')) {
-    const parts = column.split('.');
-    if (parts.length !== 2 || !scope.has(parts[0])) {
+  const parts = aggregateIdentifierParts(column);
+  if (scope && parts.length > 1) {
+    if (parts.length !== 2 || !scope.has(parts[0].name)) {
       throw new Error(
         `Aggregate column ${column} must be qualified by the from table or a join alias`,
       );
@@ -164,7 +187,8 @@ function checkColumn(state: BuildState, column: string): string {
 }
 
 function validateColumn(state: BuildState, column: string): string {
-  return checkColumn(state, validateSqlIdentifier(column));
+  checkColumn(state, validateSqlIdentifier(column));
+  return state.ctx.identifier(column);
 }
 
 function renderExpression(state: BuildState, node: AggregateOperand): string {
@@ -176,7 +200,10 @@ function aggregateExpression(
   state: BuildState,
 ): string {
   const normalizedFn = String(expr.fn).toLowerCase();
-  const fn = validateSqlIdentifier(String(expr.fn)).toUpperCase();
+  const functionName = String(expr.fn);
+  if (!/^[a-zA-Z0-9_.]+$/.test(functionName))
+    throw new Error(`Invalid SQL identifier: ${functionName}`);
+  const fn = functionName.toUpperCase();
   if (expr.column !== undefined && expr.expr !== undefined) {
     throw new Error(`Aggregate ${expr.fn} takes a column or an expr, not both`);
   }
@@ -248,7 +275,12 @@ function selectExpression(
     const column = validateColumn(state, expr.column);
     // A qualified column (`wo.title`) is named by its column part, not the dotted path.
     const alias = validateSqlIdentifier(
-      expr.as ?? expr.column.split('.').pop() ?? expr.column,
+      expr.as ??
+        (() => {
+          const part = aggregateIdentifierParts(expr.column).at(-1);
+          if (!part) throw new Error(`Invalid SQL identifier: ${expr.column}`);
+          return part.exact ? quoteLiteralIdentifier(part.name) : part.name;
+        })(),
     );
     return {
       expression: column,
@@ -257,9 +289,10 @@ function selectExpression(
       computed: false,
     };
   }
-  const column = validateColumn(state, (expr as { column: string }).column);
+  const column = (expr as { column: string }).column;
+  validateColumn(state, column);
   const bucket = (expr as { bucket: AggregateTimeBucketUnit }).bucket;
-  const expression = bucketExpr(adapterType, bucket, column);
+  const expression = bucketExpr(adapterType, bucket, column, state.options);
   const alias = validateSqlIdentifier((expr as { as: string }).as);
   return { expression, alias, groupingCandidate: true, computed: false };
 }
@@ -267,6 +300,7 @@ function selectExpression(
 function expandHavingKey(
   key: string,
   expressionByAlias: Map<string, string>,
+  identifier: (name: string) => string,
 ): string {
   // A key the caller already wrapped in raw() is used verbatim: raw() means
   // "this exact SQL", so it deliberately bypasses select-alias expansion.
@@ -274,7 +308,7 @@ function expandHavingKey(
 
   const parsed = parseConditionKey(key);
   const expression =
-    expressionByAlias.get(parsed.field) ?? validateSqlIdentifier(parsed.field);
+    expressionByAlias.get(parsed.field) ?? identifier(parsed.field);
 
   // The caller's key is validated above (as an alias or a plain identifier);
   // what comes out is a select expression such as `SUM(total) >`, which only
@@ -285,11 +319,12 @@ function expandHavingKey(
 function expandHaving(
   having: WhereClause,
   expressionByAlias: Map<string, string>,
+  identifier: (name: string) => string,
 ): WhereClause {
   const expandCondition = (condition: Record<string, any>) =>
     Object.fromEntries(
       Object.entries(condition).map(([key, value]) => [
-        expandHavingKey(key, expressionByAlias),
+        expandHavingKey(key, expressionByAlias, identifier),
         value,
       ]),
     );
@@ -309,9 +344,10 @@ function buildHaving(
   expressionByAlias: Map<string, string>,
   startIndex: number,
   adapterType: SqlAdapterType | undefined,
+  identifier: (name: string) => string,
 ): AggregateBuildResult {
   if (!having) return { sql: '', values: [] };
-  const expanded = expandHaving(having, expressionByAlias);
+  const expanded = expandHaving(having, expressionByAlias, identifier);
   const built = buildWhere(expanded, startIndex, adapterType);
 
   return {
@@ -328,13 +364,19 @@ function buildOrderBy(
   if (!orderBy) return '';
   const items = Array.isArray(orderBy) ? orderBy : [orderBy];
   const parts = items.map((item) => {
-    const [field, direction = 'ASC'] = item.trim().split(/\s+/);
+    // A quoted component may contain spaces; the optional second token is the
+    // direction. As before this builder ignores any tokens after that direction.
+    const match = /^((?:[^\s"]|"(?:[^"]|"")*")+)(?:\s+(\S+))?/.exec(
+      item.trim(),
+    );
+    const field = match?.[1] ?? item.trim();
+    const direction = match?.[2] ?? 'ASC';
     const normalizedDirection = direction.toUpperCase();
     if (!VALID_DIRECTIONS.has(normalizedDirection)) {
       throw new Error(`Invalid aggregate order direction: ${direction}`);
     }
     const orderExpr = aliases.has(field)
-      ? validateSqlIdentifier(field)
+      ? state.renderName(field)
       : validateColumn(state, field);
     return `${orderExpr} ${normalizedDirection}`;
   });
@@ -386,13 +428,13 @@ function joinSql(state: BuildState, joins: AggregateJoin[]): string[] {
     if (join.on === undefined) {
       throw new Error(`Aggregate join ${join.alias} requires an on condition`);
     }
-    const table = validateSqlIdentifier(join.table);
+    const table = state.renderName(join.table);
     const alias = join.alias;
     if (typeof alias !== 'string' || !JOIN_ALIAS.test(alias)) {
       throw new Error(`Invalid aggregate join alias: ${String(alias)}`);
     }
     const on = renderExpression(state, join.on);
-    return `${type === 'left' ? 'LEFT' : 'INNER'} JOIN ${table} AS ${alias} ON ${on}`;
+    return `${type === 'left' ? 'LEFT' : 'INNER'} JOIN ${table} AS ${state.renderName(alias)} ON ${on}`;
   });
 }
 
@@ -400,6 +442,7 @@ export function buildAggregate(
   spec: AggregateSpec,
   startIndex = 1,
   adapterType?: SqlAdapterType,
+  options: IdentifierOptions = {},
 ): AggregateBuildResult {
   const from = validateSqlIdentifier(spec.from);
   if (spec.select.length === 0) {
@@ -418,7 +461,7 @@ export function buildAggregate(
     adapterType,
     nextIndex: startIndex,
     values,
-    identifier: validateSqlIdentifier,
+    identifier: (name) => renderAggregateIdentifier(name, adapterType, options),
   };
   // Read once: the validated string is the one rendered.
   const fromAlias = spec.fromAlias;
@@ -430,7 +473,9 @@ export function buildAggregate(
   }));
   const state: BuildState = {
     ctx,
+    renderName: (name) => renderIdentifier(name, adapterType, options),
     scope: buildScope(fromAlias, joins, from),
+    options,
   };
   ctx.onColumn = (column) => {
     checkColumn(state, column);
@@ -451,13 +496,13 @@ export function buildAggregate(
     if (selected.groupingCandidate) {
       groupingAliases.push(selected.alias);
     }
-    return `${selected.expression} AS ${selected.alias}`;
+    return `${selected.expression} AS ${state.renderName(selected.alias)}`;
   });
 
   const joinParts = joinSql(state, joins);
 
   const where = spec.where
-    ? buildWhere(spec.where, ctx.nextIndex, adapterType)
+    ? buildWhere(spec.where, ctx.nextIndex, adapterType, options)
     : { sql: '', values: [] };
   values.push(...where.values);
   ctx.nextIndex += where.values.length;
@@ -490,6 +535,7 @@ export function buildAggregate(
     expressionByAlias,
     ctx.nextIndex,
     adapterType,
+    ctx.identifier,
   );
   values.push(...having.values);
   ctx.nextIndex += having.values.length;
@@ -516,7 +562,9 @@ export function buildAggregate(
   }
 
   const fromSql =
-    spec.fromAlias !== undefined ? `${from} AS ${fromAlias}` : from;
+    spec.fromAlias !== undefined
+      ? `${state.renderName(from)} AS ${state.renderName(fromAlias as string)}`
+      : state.renderName(from);
   const sql = [
     `SELECT ${selectSql.join(', ')}`,
     `FROM ${fromSql}`,

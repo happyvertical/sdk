@@ -3,11 +3,12 @@
   "path": "packages/files",
   "position": {
     "index": 11,
-    "count": 33
+    "count": 34
   },
   "description": "File system utilities for local and remote file operations",
   "provides": [
-    "File system utilities for local and remote file operations"
+    "File system utilities for local and remote file operations",
+    "Browser-safe ZIP manifest inspection via @happyvertical/files/archive"
   ],
   "implements": [],
   "requires": {
@@ -23,7 +24,8 @@
   },
   "dependents": [
     "@happyvertical/documents",
-    "@happyvertical/sdk-mcp"
+    "@happyvertical/sdk-mcp",
+    "@happyvertical/spreadsheets"
   ],
   "stability": {
     "level": "stable",

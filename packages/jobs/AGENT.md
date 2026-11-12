@@ -7,7 +7,7 @@ Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, 
 ## Package Map
 - Package: `@happyvertical/jobs`
 - Hierarchy path: `@happyvertical/sdk > packages > jobs`
-- Workspace position: `17 of 33` local packages
+- Workspace position: `17 of 34` local packages
 - Internal dependencies: `@happyvertical/sql`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

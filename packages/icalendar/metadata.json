@@ -3,7 +3,7 @@
   "path": "packages/icalendar",
   "position": {
     "index": 15,
-    "count": 33
+    "count": 34
   },
   "description": "Bounded RFC 5545 iCalendar parsing facade",
   "provides": [

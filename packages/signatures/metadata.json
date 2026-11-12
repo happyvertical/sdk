@@ -3,7 +3,7 @@
   "path": "packages/signatures",
   "position": {
     "index": 26,
-    "count": 33
+    "count": 34
   },
   "description": "Provider-neutral e-signature workflows with a BoldSign adapter",
   "provides": [

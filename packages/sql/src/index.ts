@@ -199,13 +199,21 @@ export {
   buildWhere,
   convertUniqueIndexesToInlineConstraints,
   DatabaseSchemaManager,
+  ExpressionError,
+  type ExpressionErrorCode,
+  type ExpressionResultType,
   escapeSqlValue,
   formatDbError,
+  type PortableExpression,
   type RawSqlKey,
+  type RenderExpressionOptions,
+  type RenderExpressionResult,
   raw,
+  renderExpression,
   type SchemaInitializationResult,
   type SqlAdapterType,
   syncSchema,
+  type TypedDateLiteral,
   tableExists,
   validateColumnName,
 } from './query.js';
@@ -223,3 +231,5 @@ export default {
 
 /** @internal */
 export const PACKAGE_VERSION_INITIALIZED = true;
+
+export type { IdentifierOptions } from './shared/alter-utils.js';

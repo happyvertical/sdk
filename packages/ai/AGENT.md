@@ -7,7 +7,7 @@ Standardized AI interface supporting chat, embeddings, media, and TypeSafe/Jev a
 ## Package Map
 - Package: `@happyvertical/ai`
 - Hierarchy path: `@happyvertical/sdk > packages > ai`
-- Workspace position: `2 of 33` local packages
+- Workspace position: `2 of 34` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: `@happyvertical/sdk-mcp`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

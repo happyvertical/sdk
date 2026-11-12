@@ -3,8 +3,8 @@ import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
-  escapeQuotedIdentifier,
   escapeStringLiteral,
+  quoteDuckDBColumnName,
   validateColumnNames,
 } from './shared/alter-utils';
 import {
@@ -31,7 +31,7 @@ import type {
 } from './shared/types';
 import { NestedTransactionError, resolveSchemas } from './shared/types';
 import {
-  buildWhere,
+  buildAdapterWhere as buildWhere,
   formatDbError,
   resolveInsertColumns,
   wrapDatabaseError,
@@ -575,7 +575,7 @@ async function loadJSONTables(
             // until syncSchema() is called to upgrade the schema
             try {
               await connection.run(
-                `CREATE TABLE IF NOT EXISTS "${escapeQuotedIdentifier(tableName)}" AS SELECT * FROM read_json_auto('${escapeStringLiteral(filePath)}')`,
+                `CREATE TABLE IF NOT EXISTS ${quoteDuckDBColumnName(tableName, true)} AS SELECT * FROM read_json_auto('${escapeStringLiteral(filePath)}')`,
               );
               inferredSchemaTables.add(tableName);
               console.log(
@@ -751,7 +751,7 @@ async function createTableFromSchema(
     let existingColumns: Set<string> = new Set();
     try {
       const schemaInfo = await connection.runAndReadAll(
-        `DESCRIBE ${tableName}`,
+        `DESCRIBE ${quoteDuckDBColumnName(tableName, true)}`,
       );
       const columns = schemaInfo.getRowObjects();
       existingColumns = new Set(
@@ -787,7 +787,7 @@ async function createTableFromSchema(
           const sqlType = fieldDef?.type || 'TEXT';
           try {
             await connection.run(
-              `ALTER TABLE ${tableName} ADD COLUMN "${fieldName}" ${sqlType}`,
+              `ALTER TABLE ${quoteDuckDBColumnName(tableName, true)} ADD COLUMN ${quoteDuckDBColumnName(fieldName, true)} ${sqlType}`,
             );
             console.log(
               `[json-adapter] Added missing column '${fieldName}' (${sqlType}) to ${tableName}`,
@@ -1016,8 +1016,10 @@ async function insertRecordsWithCast(
 
   // Use the table's own column names - they came from information_schema, so
   // no JSON-supplied identifier reaches the statement
-  const columnList = columnNames.map((name) => `"${name}"`).join(', ');
-  const sql = `INSERT INTO "${tableName}" (${columnList}) VALUES ${placeholders}`;
+  const columnList = columnNames
+    .map((name) => quoteDuckDBColumnName(name, true))
+    .join(', ');
+  const sql = `INSERT INTO ${quoteDuckDBColumnName(tableName, true)} (${columnList}) VALUES ${placeholders}`;
 
   try {
     await connection.run(sql, values);
@@ -1231,7 +1233,7 @@ async function createJSONDatabase(
         })
         .join(', ');
 
-      const sql = `INSERT INTO "${table}" (${keys.join(', ')}) VALUES ${placeholders}`;
+      const sql = `INSERT INTO "${table}" (${keys.map((key) => quoteDuckDBColumnName(key)).join(', ')}) VALUES ${placeholders}`;
 
       try {
         await connection.run(sql, values);
@@ -1341,7 +1343,7 @@ async function createJSONDatabase(
       const keys = Object.keys(data);
       validateColumnNames(keys);
       const setClause = keys
-        .map((key, idx) => `${key} = $${idx + 1}`)
+        .map((key, idx) => `${quoteDuckDBColumnName(key)} = $${idx + 1}`)
         .join(', ');
       const { sql: whereClause, values: whereValues } = buildWhere(
         where,
@@ -1421,12 +1423,23 @@ async function createJSONDatabase(
       data: Record<string, any>,
     ): Promise<QueryResult> => {
       const conflictWhere = Object.fromEntries(
-        conflictColumns.map((col) => [col, data[col]]),
+        conflictColumns.map((col) => [
+          quoteDuckDBColumnName(col, true),
+          data[col],
+        ]),
       );
       const existing = await get(table, conflictWhere);
 
       if (!existing) {
-        return insert(table, data);
+        return insert(
+          table,
+          Object.fromEntries(
+            Object.entries(data).map(([key, value]) => [
+              quoteDuckDBColumnName(key, true),
+              value,
+            ]),
+          ),
+        );
       }
 
       const keys = Object.keys(data);
@@ -1434,7 +1447,7 @@ async function createJSONDatabase(
       const paramIdx = { value: 1 };
       const assignments = keys.map((key) => {
         const valueExpr = buildJSONValueExpression(data[key], values, paramIdx);
-        return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
+        return `${quoteDuckDBColumnName(key, true)} = ${valueExpr}`;
       });
       const { sql: whereClause, values: whereValues } = buildWhere(
         conflictWhere,
@@ -1500,13 +1513,9 @@ async function createJSONDatabase(
       // the value the `ON CONFLICT` list escapes, so a crafted object cannot read
       // as `id` for the check and as unescaped SQL for the SQL.
       const conflictCols = conflictColumns.map((col) => String(col));
-      // Conflict columns reach two very different positions. In the plain
-      // `ON CONFLICT(...)` path below they are quoted, so a name that needs
-      // quotes — `Full Name`, `user-id`, whatever the source JSON called its
-      // keys — is ordinary and has always worked; escaping keeps it working
-      // while making it impossible to leave the quotes. In the null-aware path
-      // they become `buildWhere` keys instead, which requires a plain
-      // identifier and rejects them there, as it did before this change.
+      // Conflict and record keys remain literal physical names, including dots,
+      // spaces and quote characters. The NULL-aware branch delimits those names
+      // before passing them to the qualified WHERE renderer.
       // Validate that all conflict columns are present in the data
       const missingColumns = conflictCols.filter((col) => !(col in record));
 
@@ -1573,65 +1582,17 @@ async function createJSONDatabase(
         }
       }
 
-      // Build UPDATE SET clause with same approach
-      // DO NOT reset paramIdx - parameters must be unique across entire query
-      const updateSetParts: string[] = [];
-
-      for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
-        const value = dataValues[i];
-
-        if (value === null) {
-          updateSetParts.push(`${key} = NULL`);
-        } else if (value === '' && typeof value === 'string') {
-          // CAST empty strings to TEXT to prevent DuckDB ANY type inference on parameters
-          updateSetParts.push(`${key} = CAST($${paramIdx} AS TEXT)`);
-          values.push(value);
-          paramIdx++;
-        } else if (value instanceof Date) {
-          // Convert Date objects to ISO strings for DuckDB
-          // CAST to TIMESTAMP to prevent DuckDB ANY type inference (issue #540)
-          updateSetParts.push(`${key} = CAST($${paramIdx} AS TIMESTAMP)`);
-          values.push(value.toISOString());
-          paramIdx++;
-        } else if (Array.isArray(value)) {
-          // CAST arrays to JSON to prevent DuckDB ANY type inference
-          updateSetParts.push(`${key} = CAST($${paramIdx} AS JSON)`);
-          values.push(JSON.stringify(value));
-          paramIdx++;
-        } else if (
-          typeof value === 'object' &&
-          value !== null &&
-          Object.getPrototypeOf(value) === Object.prototype
-        ) {
-          // CAST plain objects to JSON to prevent DuckDB ANY type inference
-          updateSetParts.push(`${key} = CAST($${paramIdx} AS JSON)`);
-          values.push(JSON.stringify(value));
-          paramIdx++;
-        } else {
-          // Direct parameter binding for other values
-          updateSetParts.push(`${key} = $${paramIdx}`);
-          values.push(value);
-          paramIdx++;
-        }
-      }
-
-      // Quote ALL column names to match DuckDB's schema generation
-      // SchemaGenerator always quotes column names, so UPSERT must match
+      const updateIndex = { value: paramIdx };
+      const quotedUpdateSetParts = keys.map(
+        (key) =>
+          `${quoteDuckDBColumnName(key, true)} = ${buildJSONValueExpression(record[key], values, updateIndex)}`,
+      );
       const conflict = conflictCols
-        .map((col) => `"${escapeQuotedIdentifier(col)}"`)
+        .map((col) => quoteDuckDBColumnName(col, true))
         .join(', ');
       const quotedKeys = keys
-        .map((key) => `"${escapeQuotedIdentifier(key)}"`)
+        .map((key) => quoteDuckDBColumnName(key, true))
         .join(', ');
-
-      // Quote column names in UPDATE SET clause to match schema and ON CONFLICT
-      // Extract the value expression from each updateSetPart (everything after '=')
-      const quotedUpdateSetParts = keys.map((key, i) => {
-        const part = updateSetParts[i];
-        const valueExpr = part.substring(part.indexOf('=') + 1).trim();
-        return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
-      });
 
       const sql = `INSERT INTO "${table}" (${quotedKeys}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${quotedUpdateSetParts.join(', ')}`;
 
@@ -1871,7 +1832,7 @@ async function createJSONDatabase(
       if (columnInfo.length === 0) {
         // Fallback to SELECT * if we can't get column names
         await connection.run(
-          `COPY (SELECT * FROM "${table}") TO '${filePath}' (FORMAT JSON, ARRAY true)`,
+          `COPY (SELECT * FROM "${table}") TO '${escapeStringLiteral(filePath)}' (FORMAT JSON, ARRAY true)`,
         );
         return;
       }
@@ -1886,7 +1847,7 @@ async function createJSONDatabase(
           const upperType = data_type.toUpperCase();
           // Preserve JSON/STRUCT as-is for object structure
           if (upperType === 'JSON' || upperType.startsWith('STRUCT')) {
-            return `"${column_name}"`;
+            return quoteDuckDBColumnName(column_name, true);
           }
           // Preserve numeric types as-is so they export as numbers, not strings
           if (
@@ -1907,17 +1868,17 @@ async function createJSONDatabase(
               'UTINYINT',
             ].some((t) => upperType.includes(t))
           ) {
-            return `"${column_name}"`;
+            return quoteDuckDBColumnName(column_name, true);
           }
           // Preserve boolean types as-is
           if (upperType === 'BOOLEAN' || upperType === 'BOOL') {
-            return `"${column_name}"`;
+            return quoteDuckDBColumnName(column_name, true);
           }
           // Cast text-based columns to TEXT to prevent hugeint conversion for UUIDs
-          return `CAST("${column_name}" AS TEXT) AS "${column_name}"`;
+          return `CAST(${quoteDuckDBColumnName(column_name, true)} AS TEXT) AS ${quoteDuckDBColumnName(column_name, true)}`;
         })
         .join(', ');
-      const sql = `COPY (SELECT ${selectList} FROM "${table}") TO '${filePath}' (FORMAT JSON, ARRAY true)`;
+      const sql = `COPY (SELECT ${selectList} FROM "${table}") TO '${escapeStringLiteral(filePath)}' (FORMAT JSON, ARRAY true)`;
 
       await connection.run(sql);
     };
@@ -2003,7 +1964,7 @@ async function createJSONDatabase(
           `[json-adapter] Inferring schema for ${tableName} from JSON file`,
         );
         await connection.run(
-          `CREATE TABLE "${tableName}" AS SELECT * FROM read_json_auto('${escapeStringLiteral(filePath)}')`,
+          `CREATE TABLE ${quoteDuckDBColumnName(tableName, true)} AS SELECT * FROM read_json_auto('${escapeStringLiteral(filePath)}')`,
         );
 
         // Remove from pending files if it was deferred
@@ -2306,7 +2267,9 @@ async function createJSONDatabase(
         // (proper schema with UNIQUE constraints takes precedence)
         if (tableName && inferredSchemaTables.has(tableName)) {
           try {
-            await connection.run(`DROP TABLE IF EXISTS "${tableName}"`);
+            await connection.run(
+              `DROP TABLE IF EXISTS ${quoteDuckDBColumnName(tableName, true)}`,
+            );
             inferredSchemaTables.delete(tableName);
             console.log(
               `[json-adapter] Dropped inferred-schema table ${tableName} for schema upgrade`,

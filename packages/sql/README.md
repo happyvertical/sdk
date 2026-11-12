@@ -565,25 +565,74 @@ connection.
 
 ### Identifiers
 
-Table and column names are interpolated into SQL rather than bound as
-parameters, so every CRUD method validates them: an identifier must be a string
-matching `[a-zA-Z_][a-zA-Z0-9_]*`. Qualified names (`schema.table`), quoted names
-and anything containing whitespace are rejected. A non-string — including an
-object with a `toString` — is rejected outright rather than coerced, so the value
-validated is always the value interpolated. Values are always parameterized and
-are unaffected.
+Every adapter quotes CRUD column identifiers, including insert/upsert column
+lists, conflict targets, SET clauses and WHERE fields. Keyword columns such as
+`order`, `group`, `from`, `select`, `values` and `user` work without special input.
+Table names retain the restricted `[a-zA-Z_][a-zA-Z0-9_]*` contract. Bare CRUD
+column names follow the same pattern; values are always bound parameters.
 
-PostgreSQL `upsert()` additionally lowercases each validated column name before
-double-quoting it. PostgreSQL has always folded the adapter's unquoted column
-names to lowercase, so this preserves existing behavior (`mixedCase` still
-addresses `mixedcase`) while allowing reserved words such as `end` in insert,
-conflict and update positions. Delimited, case-sensitive physical names such as
-`"MixedCase"` remain outside the CRUD identifier contract.
+SQLite emits backtick-quoted identifiers, doubling embedded backticks. This
+ensures an absent column fails instead of falling back to a string literal on
+SQLite drivers with double-quoted string support. Input names still use the
+explicit double-quote syntax below; authored raw SQL keeps its driver behavior.
 
-`buildWhere` separates a supported operator suffix (`'price >'`,
-`'name contains'`) from the field and then validates the field as an identifier.
-Unsupported suffixes remain part of the field and fail validation rather than
-becoming SQL. Use `raw()` only for developer-authored expression text.
+PostgreSQL and PGlite preserve PostgreSQL's established unquoted folding:
+`camelCase` addresses the physical column `camelcase`. For an exact mixed-case
+or spaced physical column, use an explicitly double-delimited identifier:
+
+```typescript
+await db.insert('items', { order: 1, '"MixedCase"': 'exact', '"Full Name"': 'Ada' });
+await db.update('items', { '"Full Name" like': 'A%' }, { order: 2 });
+```
+
+Double an embedded double quote inside a delimited identifier. Malformed
+identifiers, empty names, NUL bytes and non-string identifiers are rejected.
+Record keys represent one column. WHERE and aggregate identifiers can instead
+be qualified: `alias.order` quotes each component, while `"foo.bar"` addresses
+one column whose name contains a literal dot. Delimited names are identifiers,
+never raw expressions; use `raw()` only for developer-authored WHERE SQL.
+
+DuckDB and JSON `upsert()` retain their existing literal physical-name record
+and conflict keys, so `Full Name`, `user-id`, `2024_total`, `foo.bar` and embedded
+quotes work directly there. A key containing outer quote characters is also
+literal in these existing upsert paths; it is never silently renamed. For strict
+`insert`/`update` and WHERE inputs, explicitly delimit such names as above.
+JSON catalog loading and writeback preserve the original physical keys.
+
+Standalone `buildWhere`, `buildAggregate` and `bucketExpr` preserve ordinary
+identifier SQL output by default and automatically quote keywords and explicit
+delimited identifiers. New builder calls should pass `{ quoteIdentifiers: true }`
+as the fourth argument to quote every identifier component. Adapter CRUD methods
+select this policy automatically. Raw expression keys retain their SQL exactly.
+There is no adapter `orderBy`, aggregate or record `exists` method: execute
+`buildAggregate()` output for ordered/aggregate queries, and use `tableExists()`
+for table existence. Standalone `renderExpression` retains its exact physical
+identifier spelling contract.
+
+Index `columns` arrays in shared SQL generation helpers and schema manifests retain their
+caller-authored SQL term contract: expressions such as `lower(email)` and ordered
+terms such as `created_at DESC` pass through exactly. Simple identifiers quote
+according to the builder's dialect policy. Strict CRUD and WHERE keys still
+require identifiers or explicit `raw()` expressions. Direct adapter
+`alterTable.addIndex()` accepts only the original plain column-name grammar
+(`[a-zA-Z_][a-zA-Z0-9_]*`); expressions, ordered SQL, spaced/digit-prefix names and
+explicitly quoted unusual names reject before execution. Plain keyword names
+such as `order` pass validation and are quoted in the generated SQL. Aggregate `orderBy` keeps
+the first identifier and optional ASC/DESC direction; trailing tokens are ignored.
+Legacy numeric literal WHERE keys, aggregate literals and ordinal group/order
+terms retain their SQL meaning; explicitly quoted numeric names address columns.
+SELECT aliases and FROM/JOIN table names always use identifier rendering, even
+when their spelling is numeric. ORDER BY a selected alias also names that alias. Manifest foreign key column strings can contain comma-separated names;
+commas inside explicit quotes belong to one name. DDL/schema names also accept
+legacy SQLite backtick, bracket and single-quote delimiters, normalizing them as
+identifiers while preserving their physical spelling. CRUD/WHERE exact-name
+inputs continue to use explicit double quotes.
+
+Known-dialect ALTER helpers quote column and index identifiers. The schema
+manifest manager has no dialect tag and preserves bare ordinary spelling
+(including PostgreSQL folding), quoting keywords and explicitly delimited names.
+Schema DDL, types, defaults/checks, partial-index WHERE expressions, foreign-key
+actions and trigger syntax/bodies remain developer-authored SQL contracts.
 
 ### WHERE Clause Building
 
@@ -676,6 +725,7 @@ const aggregate = buildAggregate(
   },
   1,
   'postgres',
+  { quoteIdentifiers: true },
 );
 
 const rows = await db.query(aggregate.sql, aggregate.values);
@@ -778,6 +828,83 @@ const aggregate = buildAggregate(
   dotted column with no `as` (`t.region`, which used to alias to the invalid
   `t.region`) now aliases to its last segment. Two select items that resolve to
   the same alias are rejected.
+
+### Portable scalar expressions and generated columns
+
+`renderExpression` is exported from the root and browser-safe `@happyvertical/sql/query`.
+It uses the same expression renderer as `buildAggregate`, with a quoted-identifier
+policy for standalone expressions and the existing aggregate policy for compatibility.
+
+```typescript
+import { renderExpression } from '@happyvertical/sql/query';
+
+const rendered = renderExpression(
+  { op: 'round', value: { op: 'mul', left: { col: 'total' }, right: { value: 0.2 } }, digits: { value: 2 } },
+  { dialect: 'postgres', mode: 'ddl', resolveColumn: name => name },
+);
+// { sql, values: [], resultType: 'number', immutable: { sqlite: true, postgres: true, duckdb: true } }
+```
+
+`mode: 'query'` binds strings and typed date literals as `$N` parameters and returns
+`values`; finite numbers, booleans and NULL remain inline. `mode: 'ddl'` safely
+inlines literals and requires immutability on **every** dialect. JSON uses DuckDB
+semantics. `resolveColumn` maps a logical column to an identifier string or
+`{ name, type }`. Dots delimit identifier components, each double-quoted; it never
+accepts SQL. For temporal columns, `type: 'date'` means a native SQL DATE and
+`type: 'datetime'` means a native TIMESTAMP WITHOUT TIME ZONE containing UTC
+wall-clock fields (SQLite stores either as ISO text). Supplying this metadata is a
+caller assertion about the actual schema. Unknown, text and timezone-aware
+columns cannot be used in generated temporal operations: PostgreSQL extraction
+from TIMESTAMPTZ can depend on the session timezone.
+
+New nodes are closed JSON data (unknown/missing fields are rejected):
+
+| Node shape | Result type | NULL and portable semantics |
+| --- | --- | --- |
+| `{ op: 'case', branches: [{ when, then }], else }` | common branch type, otherwise `unknown` | Ordered first true condition wins; false/NULL conditions continue; selected NULL remains NULL. Conditions must be SQL booleans. |
+| `{ op: 'if', condition, then, else }` | common branch type | One-branch CASE; false/NULL selects else. |
+| `{ op: 'round', value, digits }` | number | Strict NULL; halfway cases round away from zero, including negative digits. Integer digits are bounded to -12..12. |
+| `{ op: 'abs' / 'floor' / 'ceil', value }` | number | Strict NULL; ordinary mathematical absolute value, floor and ceiling. |
+| `{ op: 'least' / 'greatest', operands }` | number | At least two numeric operands; **any** NULL yields NULL, including on PostgreSQL. |
+| `{ op: 'mod', left, right }` | number | Fractional remainder with dividend's sign; NULL operand or zero divisor yields NULL. Existing `div` also yields NULL for zero. |
+| `{ op: 'concat', operands }` | text | At least one text operand; concatenation with any NULL yields NULL. |
+| `{ op: 'lower' / 'upper', value }` | text | Strict NULL; ASCII A-Z/a-z conversion only. Non-ASCII characters are preserved identically across dialects. |
+| `{ op: 'trim', value }` | text | Strict NULL; removes ASCII spaces from both ends, preserving tabs/newlines. |
+| `{ op: 'length', value }` | number | Strict NULL; Unicode code-point count, not grapheme count. |
+| `{ op: 'substring', value, start, length }` | text | Strict NULL; positive one-based integer start, nonnegative integer length, both at most 2147483647. Out-of-string start returns empty text. |
+| `{ op: 'year' / 'month' / 'day', value }` | number | Strict NULL; UTC calendar part for typed dates/datetimes. |
+| `{ op: 'daysBetween', later, earlier }` | number | Strict NULL; signed calendar-date difference, discarding time of day. |
+| `{ op: 'addDays', value, days }` | date | Strict NULL; add integer calendar days (-365000..365000), discarding time of day. Canonical YYYY-MM-DD text at the expression boundary; native DATE internally for composition. |
+| `{ value: { kind: 'date' / 'datetime', iso } }` | date / datetime | JSON-safe typed literal; date requires YYYY-MM-DD, datetime requires ISO seconds and explicit Z/offset (up to millisecond precision). Gregorian calendar/leap days are validated. Datetimes are canonicalized to UTC before timezone-free SQL casts. |
+
+All function arguments above are expression operands (`{ col }`, `{ value }`, or
+another node). Numeric functions require SQL numeric values, text functions SQL
+text values, and conditional branches compatible SQL types; this renderer does
+not inspect a live schema or emulate dialect-specific implicit conversions.
+Invalid literal integer arguments throw; dynamic NULL/out-of-range/fractional
+integer arguments yield NULL without unsafe casts. An `addDays` result outside
+years 0001..9999 yields NULL before formatting or nested date operations. Legacy
+JavaScript `Date` query literals retain their
+existing casts (including PostgreSQL TIMESTAMPTZ); generated use requires the new
+typed literals. Generated `asText` also requires known number/text/boolean input;
+date-to-text casts and unknown types can depend on session settings. SQL DATE/TIMESTAMP literal projections use native database result
+representations; date-valued formula projections use canonical ISO text.
+
+Every new node is immutable on SQLite, PostgreSQL and DuckDB with these input
+type contracts. `case`/`if` report their common result type (`null` when all
+branches are NULL, otherwise `unknown` for mixed types); existing `coalesce`
+propagates types too. `immutable` reports each dialect independently and includes
+children. A nonimmutable child (legacy Date, or a temporal operation on an unknown
+column) makes generated use fail with `ExpressionError.code: 'NON_IMMUTABLE'`.
+Invalid data uses `INVALID_EXPRESSION`; depth >24, >1024 nodes or >262144 cumulative
+SQL characters during rendering uses `EXPRESSION_LIMIT`. SQL expansion guards
+apply before nested portable guards can allocate exponentially large strings.
+
+Tests execute each node on SQLite, PGlite and DuckDB and create generated columns
+and expression indexes on SQLite/PostgreSQL. DuckDB supports virtual generated
+columns but rejects indexes on generated columns (constant expressions can instead
+fail its requirement to reference a base column); these index limitations are
+asserted explicitly. This API renders expressions; callers create schema DDL.
 
 ### Schema Synchronization
 

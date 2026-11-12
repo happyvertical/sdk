@@ -86,6 +86,15 @@ export const PACKAGE_KEYWORDS: Record<string, string[]> = {
   cache: ['cache', 'caching', 'redis', 'memory', 'store'],
   logger: ['log', 'logging', 'logger', 'debug', 'error'],
   documents: ['document processing', 'content extraction', 'analysis'],
+  spreadsheets: [
+    'spreadsheet',
+    'xlsx',
+    'csv',
+    'workbook',
+    'excel',
+    'formula',
+    'profiling',
+  ],
   email: [
     'email',
     'mail',
