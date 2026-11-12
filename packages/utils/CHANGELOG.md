@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.112.2
+
+### Patch Changes
+
+- ### Features
+
+  - read, profile and write workbooks; sql expressions and quoting (#1512) (spreadsheets)
+
 ## 0.112.1
 
 ### Patch Changes

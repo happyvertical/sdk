@@ -1,5 +1,13 @@
 # @happyvertical/social
 
+## 0.112.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.112.2
+  - @happyvertical/logger@0.112.2
+
 ## 0.112.1
 
 ### Patch Changes

@@ -1,5 +1,7 @@
 # @happyvertical/payments
 
+## 0.112.2
+
 ## 0.112.1
 
 ### Patch Changes
