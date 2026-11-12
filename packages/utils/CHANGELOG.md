@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.112.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - accept ChatGPT plan event streams sent without a Content-Type (#1520) (ai)
+
 ## 0.112.2
 
 ### Patch Changes
