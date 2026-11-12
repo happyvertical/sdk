@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/spreadsheets",
-  "version": "0.111.11",
+  "version": "0.112.1",
   "description": "Bounded browser-safe XLSX and CSV adapters with structural workbook profiling",
   "type": "module",
   "main": "./dist/index.js",

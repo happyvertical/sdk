@@ -124,7 +124,11 @@ export function sealVaultSnapshot(
   // Secretbox has no AAD. Its authenticated plaintext starts with an exact
   // copy of the wire header followed by the private context.
   const message = Buffer.concat([header, contextBytes, payload]);
-  return Buffer.concat([header, nacl.secretbox(message, nonce, key)]);
+  const ciphertext = nacl.secretbox(message, nonce, key);
+  const envelope = Buffer.alloc(header.length + ciphertext.length);
+  header.copy(envelope);
+  envelope.set(ciphertext, header.length);
+  return envelope;
 }
 
 /** Authenticate the header and context before decoding any snapshot bytes. */
@@ -192,7 +196,9 @@ export function openVaultSnapshot(
       maxOutputLength: MAX_SNAPSHOT_BYTES,
     }) as unknown as { buffer: Buffer; engine: Inflate };
     if (result.engine.bytesWritten === payload.length) {
-      return result.buffer;
+      const snapshot = Buffer.alloc(result.buffer.length);
+      result.buffer.copy(snapshot);
+      return snapshot;
     }
   } catch {
     // Treat all zlib failures, including the output cap, as invalid payloads.

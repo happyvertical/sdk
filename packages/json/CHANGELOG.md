@@ -1,5 +1,13 @@
 # @happyvertical/json
 
+## 0.112.1
+
+### Patch Changes
+
+- SDK 0.112.0 was published to the registry but its repository release never completed. Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. Preserve atomic conditional file create and the vault output-storage isolation fix. Recovery evidence: https://github.com/happyvertical/sdk/actions/runs/43118715535.
+
+## 0.112.0
+
 ## 0.111.11
 
 ## 0.111.10

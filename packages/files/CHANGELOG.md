@@ -1,5 +1,25 @@
 # @happyvertical/files
 
+## 0.112.1
+
+### Patch Changes
+
+- SDK 0.112.0 was published to the registry but its repository release never completed. Supersede that reserved version with a fresh fixed-family release, retaining all pending changes. Preserve atomic conditional file create and the vault output-storage isolation fix. Recovery evidence: https://github.com/happyvertical/sdk/actions/runs/43118715535.
+- Updated dependencies
+  - @happyvertical/utils@0.112.1
+
+## 0.112.0
+
+### Minor Changes
+
+- eb38aa4: Add bounded provider reads and atomic create-without-overwrite writes. S3
+  endpoints must explicitly declare an `If-None-Match: *` conditional-write
+  contract or the operation fails before any request.
+
+### Patch Changes
+
+- @happyvertical/utils@0.112.0
+
 ## 0.111.11
 
 ### Patch Changes
