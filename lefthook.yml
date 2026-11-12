@@ -26,8 +26,12 @@ pre-commit:
           echo "  Checking $file..."
           yamllint -c .github/.yamllint.yml "$file" || exit 1
         done
-        echo "  Running act --list to verify workflow parsing..."
-        act --list > /dev/null 2>&1 || (echo "❌ act --list failed - workflow syntax issue" && exit 1)
+        if command -v act > /dev/null 2>&1; then
+          echo "  Running act --list to verify workflow parsing..."
+          act --list > /dev/null 2>&1 || { echo "❌ act --list failed - workflow syntax issue"; exit 1; }
+        else
+          echo "  ℹ️  act not installed; skipping act --list (CI runs actionlint)"
+        fi
         echo "✅ All workflow files validated"
 
 # Commit-msg hook: Validate commit message format
