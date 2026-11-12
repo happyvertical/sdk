@@ -247,3 +247,62 @@ test('0.103.3 reservation fails closed before mutation for occupied or unknown t
   put('packages/speech/package.json', { name: '@happyvertical/speech', version: '0.103.2', publishConfig: {} });
   assert.throws(() => recoverPartialRelease(root, { exists: () => assert.fail('lookup') }), /Inconsistent/);
 });
+
+const release1120Recovery = recoveries.find(({ occupied }) => occupied === '0.112.0');
+assert.ok(release1120Recovery, '0.112.0 recovery reservation must remain explicit');
+assert.equal(
+  release1120Recovery.releaseNote,
+  'Preserve atomic conditional file create and the vault output-storage isolation fix.',
+);
+
+test('recovers occupied 0.112.0 through real Changesets with pending changes retained', (t) => {
+  const { root, put, read } = fixture(t, '0.111.11');
+  for (const name of ['encryption', 'files']) {
+    mkdirSync(join(root, 'packages', name));
+    put(`packages/${name}/package.json`, {
+      name: `@happyvertical/${name}`, version: '0.111.11', publishConfig: { access: 'public' },
+    });
+  }
+  put('.changeset/files-conditional-create.md',
+    '---\n"@happyvertical/files": minor\n---\n\nAdd atomic conditional create and bounded streaming reads.\n');
+  put('.changeset/vault-output-storage.md',
+    '---\n"@happyvertical/encryption": patch\n---\n\nIsolate vault output backing storage.\n');
+  const version = () => {
+    const result = spawnSync(process.execPath, [resolve('node_modules/@changesets/cli/bin.js'), 'version'], {
+      cwd: root, encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  };
+
+  version();
+  assert.equal(JSON.parse(read('packages/utils/package.json')).version, '0.112.0');
+  const lookups = [];
+  assert.equal(recoverPartialRelease(root, { exists: (name, target, registry) => {
+    lookups.push([name, target, registry]); return false;
+  }, version }), true);
+  assert.deepEqual(
+    lookups,
+    ['@happyvertical/encryption', '@happyvertical/files', '@happyvertical/speech', '@happyvertical/utils']
+      .map((name) => [name, '0.112.1', release1120Recovery.registry]),
+  );
+  for (const name of ['encryption', 'files', 'speech', 'utils']) {
+    assert.equal(JSON.parse(read(`packages/${name}/package.json`)).version, '0.112.1');
+    assert.match(read(`packages/${name}/CHANGELOG.md`), /43118715535/);
+  }
+  assert.match(read('packages/files/CHANGELOG.md'), /atomic conditional create/);
+  assert.match(read('packages/encryption/CHANGELOG.md'), /vault output backing storage/);
+  assert.equal(JSON.parse(read('packages/speech/package.json')).dependencies['@happyvertical/utils'], '0.112.1');
+  assert.equal(recoverPartialRelease(root, { exists: () => assert.fail('retry lookup'), version }), false);
+});
+
+test('0.112.0 reservation fails closed before mutation for occupied or unknown targets', (t) => {
+  const { root, read, put } = fixture(t, '0.112.0');
+  for (const exists of [() => true, () => { throw new Error('offline'); }]) {
+    assert.throws(() => recoverPartialRelease(root, { exists, version: () => assert.fail('version') }), /occupied|offline/);
+    assert.throws(() => read('.changeset/partial-release-recovery.md'), /ENOENT/);
+    assert.equal(JSON.parse(read('packages/utils/package.json')).version, '0.112.0');
+  }
+  assert.throws(() => recoverPartialRelease(root, { registry: 'https://registry.npmjs.org/' }), /recorded primary/);
+  put('packages/speech/package.json', { name: '@happyvertical/speech', version: '0.111.11', publishConfig: {} });
+  assert.throws(() => recoverPartialRelease(root, { exists: () => assert.fail('lookup') }), /Inconsistent/);
+});

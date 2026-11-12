@@ -1,5 +1,41 @@
 # Incomplete SDK release recovery
 
+## Occupied 0.112.0 (SDK #1514)
+
+[Run 43118595026](https://github.com/happyvertical/sdk/actions/runs/43118595026)
+published all 33 SDK family packages at `0.112.0` from the atomic conditional
+file create feature [#1446](https://github.com/happyvertical/sdk/pull/1446)
+(merge `eb38aa43713c9e55bb342c6c46963231a3374d89`), then its release-commit
+push lost a non-fast-forward race when the vault output-storage fix
+[#1497](https://github.com/happyvertical/sdk/pull/1497) merged about a minute
+later as `c0a999baa`. There is no repository `v0.112.0` tag or release, and
+nothing was mirrored to npmjs. The retry in
+[run 43118715535](https://github.com/happyvertical/sdk/actions/runs/43118715535)
+correctly rejected the occupied Encryption version: registry SHA-1
+`4b9398ebcb0ae83e0f17002f99b4c42fc831c834` differs from candidate SHA-1
+`43cdfeeff019e3e0214d6780eddebcd6222a101b`. The registry tarball lacks the
+vault fix.
+
+The explicit reservation applies only when ordinary Changesets preparation
+selects `0.112.0`. It checks every publishable family target at `0.112.1` on
+the recorded primary registry; only structured E404 responses permit the
+ordinary recovery patch pass. The 2026-11-11 point-in-time receipt found the
+Encryption, Files, and Utils `0.112.1` endpoints absent; the workflow rechecks
+the full family because that receipt cannot authorize publication during a
+race.
+
+The second Changesets pass preserves the pending file-create and vault notes,
+advances the fixed family and internal dependency versions coherently, and
+resumes normal artifact verification and immutable publication. Do not manually
+add a product changeset, version manifests, move a tag, or overwrite `0.112.0`.
+If any `0.112.1` target is occupied or cannot be read, stop for a newly
+reviewed reservation.
+
+Both pull requests were queued for merge together, against the hold described
+below. Queue SDK merges one at a time and wait for the release commit and tag
+before the next; [#1400](https://github.com/happyvertical/sdk/issues/1400)
+still tracks the release-ordering redesign that would remove the race.
+
 ## Occupied 0.103.3 (SDK #1399)
 
 [Run 38117837406](https://github.com/happyvertical/sdk/actions/runs/38117837406)
