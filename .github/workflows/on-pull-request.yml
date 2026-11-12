@@ -1,9 +1,11 @@
 name: Pull Request Validation
 
 on:
-  # GitHub loads this workflow from the trusted base branch. That keeps runner
-  # selection out of a contributor-controlled merge commit.
-  pull_request_target:
+  # Unprivileged pull_request, not pull_request_target: GitHub blocks
+  # pull_request_target on public repositories from 2026-12-02 (#1501). This
+  # workflow needs no secrets; fork and Dependabot runs receive a read-only
+  # token, and fork runs need maintainer approval (.github/CI.md).
+  pull_request:
     branches: [main, dependency-updates]
     types: [opened, synchronize, reopened]
   merge_group:
@@ -15,13 +17,13 @@ concurrency:
       github.event.merge_group.head_sha ||
       github.ref
     }}-${{
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       github.event.action == 'edited' &&
       github.event.changes.title != null &&
       github.event.changes.base == null) &&
       'title' ||
       (github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       !(github.event.action == 'edited' && github.event.changes.base != null))) &&
       'lifecycle' ||
@@ -36,11 +38,13 @@ permissions:
 
 env:
   # Direct hosted checks use the reviewed head only for repository-owned
-  # branches. Forks retain the trusted base, while reusable validation jobs
-  # remain guarded and therefore cannot execute fork code.
+  # branches. Forks check out the base commit (github.sha would be the fork's
+  # merge commit under pull_request), and reusable validation jobs stay guarded
+  # to repository-owned branches, so a fork PR cannot pass Required CI.
   CHECKOUT_REF: >-
     ${{ github.event.pull_request.head.repo.full_name == github.repository &&
-    github.event.pull_request.head.sha || github.sha }}
+    github.event.pull_request.head.sha ||
+    github.event.pull_request.base.sha || github.sha }}
   VALIDATE_REVIEWED_HEAD: >-
     ${{ github.event_name == 'merge_group' ||
     github.event.pull_request.head.repo.full_name == github.repository }}
@@ -48,7 +52,7 @@ env:
   PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
 # Reusable validation jobs keep the same-repository guard. Direct hosted jobs
-# always use CHECKOUT_REF, which resolves to the trusted base for fork PRs.
+# always use CHECKOUT_REF, which resolves to the base commit for fork PRs.
 jobs:
 
   changeset-check:
@@ -56,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
 
     steps:
@@ -68,7 +72,7 @@ jobs:
 
       - name: Check for skip conditions
         if: >-
-          github.event_name == 'pull_request_target' &&
+          github.event_name == 'pull_request' &&
           env.VALIDATE_REVIEWED_HEAD == 'true'
         id: skip-check
         env:
@@ -85,7 +89,7 @@ jobs:
 
       - name: Setup Environment
         if: >-
-          github.event_name == 'pull_request_target' &&
+          github.event_name == 'pull_request' &&
           env.VALIDATE_REVIEWED_HEAD == 'true' &&
           steps.skip-check.outputs.skip != 'true'
         uses: ./.github/actions/setup-environment
@@ -96,7 +100,7 @@ jobs:
 
       - name: Check for changeset
         if: >-
-          github.event_name == 'pull_request_target' &&
+          github.event_name == 'pull_request' &&
           env.VALIDATE_REVIEWED_HEAD == 'true' &&
           steps.skip-check.outputs.skip != 'true'
         env:
@@ -190,7 +194,7 @@ jobs:
     name: Validate Conventional Commits
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: ubuntu-latest
     permissions:
@@ -213,7 +217,7 @@ jobs:
       # generated squash title below.
       - name: Validate repository-authored commit messages
         if: >-
-          github.event_name == 'pull_request_target' &&
+          github.event_name == 'pull_request' &&
           env.VALIDATE_REVIEWED_HEAD == 'true'
         uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed # v6
         with:
@@ -226,7 +230,7 @@ jobs:
       - name: Setup Node.js for squash title validation
         if: >-
           github.event_name == 'merge_group' ||
-          (github.event_name == 'pull_request_target' &&
+          (github.event_name == 'pull_request' &&
           env.VALIDATE_REVIEWED_HEAD == 'true')
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -235,7 +239,7 @@ jobs:
       - name: Install commitlint dependencies
         if: >-
           github.event_name == 'merge_group' ||
-          (github.event_name == 'pull_request_target' &&
+          (github.event_name == 'pull_request' &&
           env.VALIDATE_REVIEWED_HEAD == 'true')
         run: |
           npm install --prefix "$RUNNER_TEMP/commitlint" --no-save \
@@ -245,14 +249,14 @@ jobs:
 
       - name: Validate PR title for squash merge
         if: >-
-          github.event_name == 'pull_request_target' &&
+          github.event_name == 'pull_request' &&
           env.VALIDATE_REVIEWED_HEAD == 'true'
         # PR title is user-controlled metadata. Two non-obvious risks
         # the previous form had:
         #   (1) Interpolating the title directly into a shell script
         #       lets a title with command substitution execute the
         #       substitution at the runner's shell — real command
-        #       injection, especially in this trusted-base workflow. Pass
+        #       injection, even in this unprivileged workflow. Pass
         #       via env: instead, then quote the variable expansion.
         #   (2) scripts/validate-conventional-commits.js uses a
         #       hardcoded regex with permissive scope and a 50-char
@@ -294,7 +298,7 @@ jobs:
 
       - name: Determine version bump
         if: >-
-          github.event_name == 'pull_request_target' &&
+          github.event_name == 'pull_request' &&
           env.VALIDATE_REVIEWED_HEAD == 'true'
         id: version
         run: |
@@ -322,7 +326,7 @@ jobs:
 
       - name: Comment on PR
         if: >-
-          github.event_name == 'pull_request_target' &&
+          github.event_name == 'pull_request' &&
           env.VALIDATE_REVIEWED_HEAD == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
@@ -389,7 +393,7 @@ jobs:
     name: Validate Workflow Files
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: ubuntu-latest
 
@@ -465,7 +469,7 @@ jobs:
     name: Check for stale @have/ references
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: ubuntu-latest
 
@@ -504,7 +508,7 @@ jobs:
     name: Check documentation coverage
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: ubuntu-latest
 
@@ -564,7 +568,7 @@ jobs:
     name: Validate Changes
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     uses: ./.github/workflows/test.yml
@@ -579,7 +583,7 @@ jobs:
     name: Validate Documentation Build
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: ubuntu-latest
 
@@ -591,7 +595,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        if: github.event_name == 'pull_request_target'
+        if: github.event_name == 'pull_request'
         uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
         with:
           files: |
@@ -628,7 +632,7 @@ jobs:
     name: Secret Scan
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: ubuntu-latest
     steps:
@@ -663,7 +667,7 @@ jobs:
     name: Detect PostgreSQL Test Scope
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: ubuntu-latest
     outputs:
@@ -675,7 +679,7 @@ jobs:
           ref: ${{ env.CHECKOUT_REF }}
       - name: Detect PostgreSQL-sensitive changes
         id: filter
-        if: github.event_name == 'pull_request_target'
+        if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         with:
           filters: |
@@ -700,7 +704,7 @@ jobs:
     needs: postgres-scope
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     uses: ./.github/workflows/postgres-tests.yml
@@ -714,7 +718,7 @@ jobs:
     name: Publish Dry Run
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     uses: ./.github/workflows/publish-dry-run.yml
