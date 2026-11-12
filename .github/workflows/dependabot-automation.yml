@@ -5,9 +5,11 @@ name: Dependabot Automation
 # policy, while this actor-gated helper only approves; merging still
 # requires the full set of required checks.
 on:
-  # Load runner selection from the trusted base branch before granting the
-  # repository-owned Dependabot path its write-scoped token.
-  pull_request_target:
+  # pull_request, not pull_request_target (blocked on public repositories from
+  # 2026-12-02, #1501). Dependabot-triggered pull_request runs start with a
+  # read-only token and only Dependabot secrets; the job-level permissions
+  # below raise just this job's token, as GitHub documents for Dependabot.
+  pull_request:
     types: [opened, synchronize, reopened]
 
 # Pull-request validation: a newer push supersedes the older run. Keyed on the
@@ -20,9 +22,13 @@ concurrency:
 jobs:
   dependabot:
     name: Dependabot Automation
-    # Dependabot branches are repository-owned; fork PRs never get ARC work.
+    # Only Dependabot's own repository-owned PRs, triggered by Dependabot.
+    # Under pull_request the workflow file comes from the PR merge commit, so
+    # these guards select work rather than enforce trust: GitHub itself caps a
+    # fork run's token at read-only, whatever this file requests.
     if: >-
       github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:

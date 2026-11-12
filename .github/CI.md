@@ -21,23 +21,35 @@ PostgreSQL/pgvector service contract. `scripts/select-pnpm-store.test.mjs`, run
 by `pnpm test:ci-scripts`, continues to cover the composite action's supported
 self-hosted fallback behavior without making it part of this repository's CI.
 
-## Trusted-base public pull requests
+## Pull request trust model
 
-The PR and Dependabot workflows use `pull_request_target`, so GitHub loads the
-workflow definition from the trusted base branch rather than contributor-
-controlled merge YAML. Direct hosted checks use `CHECKOUT_REF`: a
-same-repository PR selects its reviewed head while a fork selects the trusted
-base. The reusable code-validation workflows retain the same-repository guard
-and receive the reviewed head as `checkout_ref`. Merge groups use their
-synthetic `github.sha` normally.
+The PR and Dependabot workflows use the unprivileged `pull_request` event.
+GitHub blocks `pull_request_target` on public repositories from 2026-12-02
+(#1501), and neither workflow needs a secret. Under `pull_request` GitHub loads
+the workflow definition from the PR merge commit, so the trust boundary is
+GitHub's, not this repository's YAML:
 
-Fork code is never checked out in a trusted-base job. See "External fork pull
-requests" for the supported contribution route.
+- A fork run gets a read-only `GITHUB_TOKEN` and no Actions secrets, whatever
+  the workflow requests, and the repository requires maintainer approval
+  before any external contributor's workflow runs
+  (`approval_policy: all_external_contributors`; keep it).
+- A Dependabot-triggered run is treated like a fork (read-only token,
+  Dependabot secrets only); the Dependabot automation job raises its own token
+  with job-level `permissions`, which GitHub honours for Dependabot runs but
+  never for fork runs.
+- A same-repository branch already needs write access, which can run any
+  workflow on `push`, so `pull_request` grants it nothing new.
 
-For an external fork, hosted baseline jobs run only the trusted base. The
-same-repository reusable validation jobs skip before allocation, so fork code
-is never checked out in this workflow. This boundary is intentional; do not
-replace it with a job-level guard in an ordinary `pull_request` workflow.
+Direct hosted checks use `CHECKOUT_REF`: a same-repository PR selects its
+reviewed head while a fork selects the base commit. The reusable
+code-validation workflows keep the same-repository guard and receive the
+reviewed head as `checkout_ref`. Merge groups use their synthetic `github.sha`
+normally. `pull_request` does not run while a PR has merge conflicts, so
+`Required CI` appears only once the PR merges cleanly.
+
+No workflow may reintroduce `pull_request_target`; a job that truly needs base
+trust for a fork PR belongs in a `workflow_run` follow-up that never checks out
+or executes PR code.
 
 ## Turbo cache behavior
 
@@ -85,7 +97,7 @@ which reads as a defect in whatever pull request happened to be running.
 
 `Required CI` is always present for trusted PR and merge-group work. It rejects
 failed, cancelled, or unexpectedly skipped jobs using an explicit job set.
-`pull_request_target` runs cancel superseded commits; merge-group runs do not
+`pull_request` runs cancel superseded commits; merge-group runs do not
 cancel each other. External fork pull requests are the designed exception, and
 cannot pass it; see "External fork pull requests".
 
@@ -103,17 +115,20 @@ already proven by the merge group and performs release/deployment work only.
 
 ## External fork pull requests
 
-A pull request opened from a fork receives no validation of its code, by
-design, and `Required CI` can never pass on one. Hosted baseline jobs run the
-trusted base, while each protected reusable validation job is guarded by the
-same-repository test and skips before allocation. The hosted `always()` fan-in
-rejects that skipped protected result, so it fails. This boundary is necessary
-because these are `pull_request_target` jobs, which must not check out
-unreviewed fork code with trusted-base permissions.
+A pull request opened from a fork receives no validation of its code, and
+`Required CI` fails on it. Hosted baseline jobs check out the base commit,
+while each reusable validation job is guarded by the same-repository test and
+skips before allocation. The hosted `always()` fan-in rejects that skipped
+result, so it fails.
 
-`Required CI` is the fork guard, the only required check, and the check that
-fails here. (The former `lifecycle` agent-policy check was retired in #1263 and
-is no longer required.)
+Because the event is `pull_request`, this guard is policy, not a security
+boundary: a fork can edit the workflow file in its own PR. Its code still runs
+only with a read-only token, no secrets, and after a maintainer approves the
+run; a maintainer must also enqueue it. Review workflow-file changes in a fork
+diff before approving its runs, and never enqueue a fork PR directly.
+
+`Required CI` is the only required check, and the check that fails here.
+(The former `lifecycle` agent-policy check was retired in #1263.)
 
 A red `Required CI` here is the policy working as intended, not a CI fault. Do
 not report it as broken infrastructure, and do not weaken the guard to make it
@@ -145,13 +160,10 @@ repository, where it is no longer untrusted:
    fork pull request with a pointer to it.
 
 If external contributions are ever wanted with automation attached, the
-follow-on is a maintainer-triggered re-validation path: a label or
-`workflow_dispatch` that validates one specific, reviewed fork SHA, still
-resolving workflow definitions from the trusted base ref. That keeps trusting a
-commit an explicit maintainer action rather than an automatic consequence of
-opening a pull request, and it is why the invariant above is scoped to the fork
-pull-request event rather than to fork commits in general. That path does not
-exist today; until it does, in-repo re-creation is the only supported option.
+follow-on is to drop the same-repository guard for approved fork runs (they are
+already unprivileged) or a maintainer-triggered re-validation of one reviewed
+fork SHA. That path does not exist today; until it does, in-repo re-creation
+is the only supported option.
 
 ## PostgreSQL isolation
 

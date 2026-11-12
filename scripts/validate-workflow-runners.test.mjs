@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   extractRunnerLabels,
@@ -161,6 +161,17 @@ test('repository workflows reference no retired runner labels', () => {
   assert.deepEqual(findRetiredRunnerLabels(WORKFLOWS_DIR), []);
 });
 
+test('no workflow triggers on pull_request_target (blocked on public repos, #1501)', () => {
+  const offenders = readdirSync(WORKFLOWS_DIR)
+    .filter((name) => /\.ya?ml$/.test(name))
+    .filter((name) =>
+      /^\s*pull_request_target\s*:|^on:.*pull_request_target/m.test(
+        readFileSync(`${WORKFLOWS_DIR}/${name}`, 'utf8'),
+      ),
+    );
+  assert.deepEqual(offenders, []);
+});
+
 test('validates merge-group squash titles without linting generated bodies', () => {
   const source = readFileSync(PULL_REQUEST_WORKFLOW, 'utf8');
   const validateCommits = source.match(
@@ -171,7 +182,7 @@ test('validates merge-group squash titles without linting generated bodies', () 
   assert.doesNotMatch(source, /types: \[opened, synchronize, reopened, edited\]/);
   assert.match(
     validateCommits,
-    /name: Validate repository-authored commit messages\n        if: >-\n          github\.event_name == 'pull_request_target' &&\n          env\.VALIDATE_REVIEWED_HEAD == 'true'\n        uses: wagoid\/commitlint-github-action/,
+    /name: Validate repository-authored commit messages\n        if: >-\n          github\.event_name == 'pull_request' &&\n          env\.VALIDATE_REVIEWED_HEAD == 'true'\n        uses: wagoid\/commitlint-github-action/,
   );
   assert.match(
     validateCommits,
