@@ -594,6 +594,51 @@ describe('ChatGPT plan provider', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('accepts a valid event stream that arrives with no Content-Type header', async () => {
+    const body = completedEvents()
+      .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+      .join('');
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(body));
+          controller.close();
+        },
+      }),
+      { headers: { 'x-request-id': 'req_test' } },
+    );
+    expect(response.headers.get('content-type')).toBeNull();
+    const provider = new ChatGPTPlanProvider({
+      type: 'chatgpt-plan',
+      clientId: 'client-1',
+      sessionManager: session(),
+      defaultModel: 'gpt-test',
+      fetch: vi.fn().mockResolvedValue(response),
+    });
+
+    await expect(
+      provider.chat([{ role: 'user', content: 'hello' }]),
+    ).resolves.toMatchObject({ content: 'hello world' });
+  });
+
+  it('still rejects a response that declares a non-stream Content-Type', async () => {
+    const provider = new ChatGPTPlanProvider({
+      type: 'chatgpt-plan',
+      clientId: 'client-1',
+      sessionManager: session(),
+      defaultModel: 'gpt-test',
+      fetch: vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), {
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    });
+
+    await expect(
+      provider.chat([{ role: 'user', content: 'hello' }]),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+
   it('streams text but fails when the connection ends without response.completed', async () => {
     const provider = new ChatGPTPlanProvider({
       type: 'chatgpt-plan',

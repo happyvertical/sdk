@@ -653,12 +653,15 @@ export class ChatGPTPlanProvider implements AIInterface {
         signal: controls.signal,
       });
       if (!response.ok) throw await responseError(response, token, model);
+      // OpenAI's plan endpoint can stream valid events with no Content-Type
+      // header. Only a declared non-stream type is rejected up front; a body
+      // that is not an event stream still fails below, because it never
+      // reaches `response.completed`.
+      const contentType = response.headers.get('content-type')?.toLowerCase();
       if (
         !response.body ||
-        !response.headers
-          .get('content-type')
-          ?.toLowerCase()
-          .includes('text/event-stream')
+        (contentType !== undefined &&
+          !contentType.includes('text/event-stream'))
       )
         throw new ChatGPTPlanError(
           'ChatGPT plan response did not provide an event stream',
