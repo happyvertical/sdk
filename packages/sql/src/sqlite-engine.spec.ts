@@ -194,6 +194,14 @@ describe('DatabaseInterface.reopenOptions', () => {
     }
   });
 
+  it('keeps an absolute file:// URL exactly as given', async () => {
+    const root = await tempRoot();
+    const url = `file://${join(root, 'a%23b.db')}`;
+    const db = await track(await getDatabase({ type: 'sqlite', url }));
+    const reopened = db.reopenOptions?.() as { url: string };
+    expect(reopened.url).toBe(url);
+  });
+
   it('refuses with a typed error where reopening is not safe', async () => {
     const memory = await track(
       await getDatabase({ type: 'sqlite', url: ':memory:' }),

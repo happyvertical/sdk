@@ -105,7 +105,8 @@ export function resetSqliteFileTracking(): void {
  * reaches the same file. Remote URLs are returned as they are.
  */
 function absoluteSqliteUrl(url: string): string {
-  if (REMOTE_URL.test(url)) return url;
+  // A `file://` URL is already absolute, and decoding it would lose escapes.
+  if (REMOTE_URL.test(url) || url.startsWith('file://')) return url;
   const local = localSqliteFilePath(url);
   if (!local) return url;
   const query = url.startsWith('file:') ? url.split('?').slice(1) : [];
