@@ -34,6 +34,12 @@
         "vite.config.ts",
         "vitest.config.ts"
       ],
+      "env": [
+        "VITEST_INCLUDE_OPTIONAL",
+        "RUN_INTEGRATION_TESTS",
+        "HV_SPEECH_MODEL_TESTS",
+        "ENVIRONMENT_CANADA_INTEGRATION"
+      ],
       "outputs": ["coverage/**"]
     },
     "test:watch": {
