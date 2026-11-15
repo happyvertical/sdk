@@ -907,8 +907,11 @@ export interface DatabaseInterface {
    * reopen through `@libsql/client`. It contains no cache identity, so each
    * call to `getDatabase` makes a separate connection. It may contain
    * credentials (`authToken`, `password`); treat it like the options you
-   * originally passed. SQLite `secureFile.windowsCustody.verify` is a function
-   * and cannot cross `postMessage`; supply it again in the worker.
+   * originally passed. It is plain data (`structuredClone`-safe) and a copy. A
+   * SQLite `secureFile.windowsCustody.verify` function is left out because it
+   * cannot cross a thread boundary; the worker supplies its own (Windows fails
+   * closed without it). Per-connection settings such as `PRAGMA busy_timeout`
+   * are not carried over; re-apply them. PostgreSQL gets its own pool.
    *
    * @throws {ReopenNotSupportedError} for in-memory databases and for
    * engines that allow one owner per database (DuckDB, PGlite, JSON).

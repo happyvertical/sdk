@@ -355,7 +355,7 @@ acquisition is intentional. Secure mode requires the package's supported Node
 runtime with built-in `node:sqlite`; it installs no additional native peer.
 Default LibSQL use remains unchanged.
 
-### Which SQLite engine backs a connection, and a safe second connection
+### Which SQLite engine backs a connection, and a second connection on the same engine
 
 A SQLite file can be opened through two separate copies of SQLite that live in
 one process: the `node:sqlite` built into Node (used by `secureFile` and by
@@ -398,9 +398,28 @@ const second = await getDatabase(workerData.db); // same engine, own connection
 engine, with no cache identity, so each `getDatabase` call is a separate
 connection. A `secureFile` connection yields `secureFile` options (and so
 `node:sqlite`); a plain one yields `@libsql/client` options. The result can hold
-credentials (`authToken`, `encryptionKey`, `password`). It is structured-cloneable
-except `secureFile.windowsCustody.verify`, a function you supply again in the
-worker. Paths are made absolute.
+credentials (`authToken`, `encryptionKey`, `password`). It is plain data that
+survives `structuredClone`, `workerData` and `postMessage` unchanged, and it is a
+copy: changing it does not change the connection. Paths, including
+`secureFile.root`, are made absolute when the connection is opened, so a later
+`process.chdir` does not move them.
+
+`secureFile.windowsCustody` is a function and cannot cross a thread boundary, so
+it is **left out** of the options. That keeps the custody check from being
+smuggled across: on Windows `getDatabase` fails closed in the worker until the
+worker passes its own verifier
+(`{ ...options, secureFile: { ...options.secureFile, windowsCustody } }`). It is
+ignored on macOS and Linux.
+
+**Per-connection settings are not carried over.** Neither engine sets a busy
+timeout, so a reopened connection that overlaps a write fails at once with
+`database is locked` (it is safe, not patient). Re-apply what you set on the
+first connection after reopening, for example
+`await second.query('PRAGMA busy_timeout = 5000')`, which makes the write wait
+for the lock instead. The same goes for any other `PRAGMA` or temporary table.
+
+PostgreSQL reopens get their own pool, not a share of the first one, with `max`
+capped at 5 by default (set `max` on the returned options to change it).
 
 | Connection | `engine` | `reopenOptions()` |
 |------------|----------|-------------------|
@@ -422,6 +441,18 @@ adapter emits a one-time process warning with code `HV_SQL_SQLITE_ENGINE_MIX`.
 It only sees connections in its own thread, because the bookkeeping is
 per-thread module state; it cannot see a worker. Check `engine` where you hand
 a file to another thread. It never refuses, so existing callers keep working.
+
+Reading `engine`:
+
+- `undefined` means the object is not an adapter connection from this package (a
+  wrapper, a proxy, a hand-written test double). Treat it as unsafe to share a
+  file with; do not assume it matches anything.
+- Local and remote libsql both report `'libsql'`; remote databases have no local
+  file lock to share, so only a local `url` matters for the hazard.
+- `'node-sqlite'` names the copy of SQLite the connection uses. A connection with
+  native `notifications` also opens the same file through the optional honker
+  module, which may carry its own copy of SQLite; that hazard predates
+  `engine` and is not described by it.
 
 ### Template Literal Queries
 

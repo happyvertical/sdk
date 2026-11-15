@@ -107,3 +107,7 @@ transaction handles and scoped `tx`. Open a worker's second connection with
 `getDatabase({ type: 'sqlite', url })` for a file another connection holds
 through `secureFile`. An in-thread mix emits warning `HV_SQL_SQLITE_ENGINE_MIX`;
 workers are not seen. Never change the default engine selection for this.
+`reopenOptions()` carries no PRAGMAs: re-apply `PRAGMA busy_timeout` in the worker
+or its writes fail at once with "database is locked". `secureFile.windowsCustody`
+(a function) is left out of the options; a Windows worker supplies its own.
+`engine === undefined` means a wrapper or double: treat as unsafe to share.

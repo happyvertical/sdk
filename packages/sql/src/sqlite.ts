@@ -28,6 +28,7 @@ import { redactDatabaseUrl } from './shared/redact-database-url';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache';
 import {
   createSqliteReopenOptions,
+  remoteSqliteUrl,
   trackSqliteFile,
 } from './shared/sqlite-engine';
 import {
@@ -236,8 +237,7 @@ async function guardRemoteTransaction(
 }
 
 function remoteLibSqlUrl(url: string): string | undefined {
-  const normalized = url.replace(/[\t\n\r]/g, '').trim();
-  return /^(?:https?|libsql):/i.test(normalized) ? normalized : undefined;
+  return remoteSqliteUrl(url);
 }
 
 interface InvocationBarrier {
@@ -1478,7 +1478,6 @@ async function createDatabase(
     // Validate queue configuration before a secure client can create or open
     // its file. Invalid configuration must not leave an acquired resource.
     const client = await clientFactory();
-    const releaseFile = trackSqliteFile(url, engine);
     const reopenOptions = createSqliteReopenOptions(engine, options, url);
     const remote = remoteLibSqlUrl(url) !== undefined;
     const reservesTransaction =
@@ -1534,6 +1533,9 @@ async function createDatabase(
         throw error;
       }
     }
+    // Tracked only once initialization has succeeded, so a failed open leaves
+    // no entry behind to raise a false engine-mix warning later.
+    const releaseFile = trackSqliteFile(url, engine);
 
     /**
      * Serializes a value for SQLite storage

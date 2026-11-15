@@ -7,7 +7,15 @@ import { type DatabaseEngine, ReopenNotSupportedError } from './types';
 /** The SQLite engines, which share files but not file locks. */
 type SqliteEngine = Extract<DatabaseEngine, 'node-sqlite' | 'libsql'>;
 
-const REMOTE_URL = /^(?:https?|libsql):/i;
+/**
+ * The normalized URL when `url` names a remote LibSQL database (`libsql:`,
+ * `http:` or `https:`), otherwise `undefined`. The adapter uses this one test
+ * everywhere, so a URL with stray whitespace is remote in every code path.
+ */
+export function remoteSqliteUrl(url: string): string | undefined {
+  const normalized = url.replace(/[\t\n\r]/g, '').trim();
+  return /^(?:https?|libsql):/i.test(normalized) ? normalized : undefined;
+}
 
 /**
  * The local file a SQLite URL opens, or `undefined` for in-memory and remote
@@ -15,7 +23,7 @@ const REMOTE_URL = /^(?:https?|libsql):/i;
  */
 export function localSqliteFilePath(url: string): string | undefined {
   if (url === ':memory:' || url.startsWith('file::memory:')) return undefined;
-  if (REMOTE_URL.test(url)) return undefined;
+  if (remoteSqliteUrl(url)) return undefined;
   try {
     if (url.startsWith('file://')) return fileURLToPath(new URL(url));
     if (url.startsWith('file:')) {
@@ -106,7 +114,9 @@ export function resetSqliteFileTracking(): void {
  */
 function absoluteSqliteUrl(url: string): string {
   // A `file://` URL is already absolute, and decoding it would lose escapes.
-  if (REMOTE_URL.test(url) || url.startsWith('file://')) return url;
+  const remote = remoteSqliteUrl(url);
+  if (remote) return remote;
+  if (url.startsWith('file://')) return url;
   const local = localSqliteFilePath(url);
   if (!local) return url;
   const query = url.startsWith('file:') ? url.split('?').slice(1) : [];
@@ -124,6 +134,19 @@ export function createSqliteReopenOptions(
 ): () => SqliteOptions & { type: 'sqlite' } {
   const memory = url === ':memory:' || url.startsWith('file::memory:');
   const location = memory ? url : absoluteSqliteUrl(url);
+  // Fixed at acquisition like the path. `windowsCustody` is a function and
+  // cannot cross a thread boundary; it is left out, so a Windows worker must
+  // supply its own verifier or `getDatabase` fails closed.
+  const secureFile =
+    options.secureFile && typeof options.secureFile === 'object'
+      ? {
+          driver: options.secureFile.driver,
+          custody: options.secureFile.custody,
+          ...(options.secureFile.root === undefined
+            ? {}
+            : { root: resolve(options.secureFile.root) }),
+        }
+      : undefined;
   return () => {
     if (memory) {
       throw new ReopenNotSupportedError(
@@ -143,8 +166,11 @@ export function createSqliteReopenOptions(
       }),
     };
     if (engine === 'node-sqlite') {
-      if (options.secureFile) reopened.secureFile = options.secureFile;
-      if (options.capabilities) reopened.capabilities = options.capabilities;
+      // Copies, so a caller changing the result cannot change this connection.
+      if (secureFile) reopened.secureFile = { ...secureFile };
+      if (options.capabilities) {
+        reopened.capabilities = structuredClone(options.capabilities);
+      }
       return reopened;
     }
     return Object.assign(

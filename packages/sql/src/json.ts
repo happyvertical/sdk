@@ -32,17 +32,17 @@ import type {
 } from './shared/types';
 import { NestedTransactionError, resolveSchemas } from './shared/types';
 
-const reopenOptions = refuseReopen(
-  'json',
-  'every connection keeps its own in-memory copy of the files, so concurrent writers lose updates',
-);
-
 import {
   buildAdapterWhere as buildWhere,
   formatDbError,
   resolveInsertColumns,
   wrapDatabaseError,
 } from './shared/utils';
+
+const reopenOptions = refuseReopen(
+  'json',
+  'every connection keeps its own in-memory copy of the files, so concurrent writers lose updates',
+);
 
 /**
  * Extend globalThis to include our connection cache properties.

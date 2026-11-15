@@ -32,6 +32,9 @@ import type {
 } from './shared/types';
 import { wrapDatabaseError } from './shared/utils';
 
+/** Default pool size of a reopened PostgreSQL connection. */
+const REOPEN_POOL_MAX = 5;
+
 const MAX_TIMER_DELAY_MILLIS = 2_147_483_647;
 
 /**
@@ -332,6 +335,9 @@ async function createDatabase(
       type: 'postgres',
       // An equal configuration would otherwise return this cached pool.
       cache: false,
+      // Every reopen is a pool of its own. Keep it small by default; a caller
+      // who needs more overrides `max` on the returned options.
+      max: Math.min(config.max, REOPEN_POOL_MAX),
     };
     return reopened;
   };
