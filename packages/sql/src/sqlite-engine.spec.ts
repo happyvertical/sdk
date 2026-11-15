@@ -173,14 +173,22 @@ describe('DatabaseInterface.reopenOptions', () => {
     expect(plain.reopenOptions?.()).not.toHaveProperty('secureFile');
   });
 
-  it('returns an absolute url for a relative path', async () => {
+  it('keeps the file it was acquired with after the working directory changes', async () => {
     const root = await tempRoot();
+    const other = await tempRoot();
     const previous = process.cwd();
     process.chdir(root);
     try {
-      const db = await track(await getDatabase(libsqlOptions('rel.db')));
-      const reopened = db.reopenOptions?.() as { url: string };
-      expect(reopened.url).toBe(join(await realpath(root), 'rel.db'));
+      const plain = await track(await getDatabase(libsqlOptions('rel.db')));
+      const fileUrl = await track(
+        await getDatabase({ type: 'sqlite', url: 'file:rel2.db' }),
+      );
+      process.chdir(other);
+      const real = await realpath(root);
+      const plainOptions = plain.reopenOptions?.() as { url: string };
+      const fileUrlOptions = fileUrl.reopenOptions?.() as { url: string };
+      expect(plainOptions.url).toBe(join(real, 'rel.db'));
+      expect(fileUrlOptions.url).toBe(join(real, 'rel2.db'));
     } finally {
       process.chdir(previous);
     }

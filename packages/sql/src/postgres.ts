@@ -324,12 +324,17 @@ async function createDatabase(
 
   // Another thread can open its own pool against the same server, so the
   // effective options are the reopen options. They may carry credentials.
-  const reopenOptions = (): ReopenOptions => ({
-    type: 'postgres',
-    ...Object.fromEntries(
-      Object.entries(config).filter(([, value]) => value !== undefined),
-    ),
-  });
+  const reopenOptions = (): ReopenOptions => {
+    const reopened: PostgresOptions & { type: 'postgres' } = {
+      ...(Object.fromEntries(
+        Object.entries(config).filter(([, value]) => value !== undefined),
+      ) as PostgresOptions),
+      type: 'postgres',
+      // An equal configuration would otherwise return this cached pool.
+      cache: false,
+    };
+    return reopened;
+  };
 
   // Create a connection pool with explicit max to prevent exhaustion.
   // pg defaults to 10 which is too low for SMRT apps that sync 30+ table

@@ -16,7 +16,7 @@ import {
 } from './shared/alter-utils.js';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache.js';
 import {
-  sqliteReopenOptions,
+  createSqliteReopenOptions,
   trackSqliteFile,
 } from './shared/sqlite-engine.js';
 import { createTransactionLock } from './shared/transaction-lock.js';
@@ -1713,6 +1713,12 @@ async function createNativeSqliteDatabase(
     };
     closeResources = close;
 
+    const reopenOptions = createSqliteReopenOptions(
+      'node-sqlite',
+      options,
+      url,
+    );
+
     function buildDatabaseInterface(
       upsertImpl: DatabaseInterface['upsert'],
       transactionImpl: DatabaseInterface['transaction'] = transaction,
@@ -1721,7 +1727,7 @@ async function createNativeSqliteDatabase(
       return {
         url,
         engine: 'node-sqlite',
-        reopenOptions: () => sqliteReopenOptions('node-sqlite', options, url),
+        reopenOptions,
         client: database,
         query,
         insert,

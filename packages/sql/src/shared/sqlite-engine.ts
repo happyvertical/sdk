@@ -100,42 +100,58 @@ export function resetSqliteFileTracking(): void {
 }
 
 /**
- * Options that reopen the same SQLite database on the same engine, for
- * another thread.
+ * The location a reopen should use, fixed when the connection is acquired so a
+ * later `process.chdir` or a worker with another working directory still
+ * reaches the same file. Remote URLs are returned as they are.
  */
-export function sqliteReopenOptions(
+function absoluteSqliteUrl(url: string): string {
+  if (REMOTE_URL.test(url)) return url;
+  const local = localSqliteFilePath(url);
+  if (!local) return url;
+  const query = url.startsWith('file:') ? url.split('?').slice(1) : [];
+  return query.length ? `file:${local}?${query.join('?')}` : local;
+}
+
+/**
+ * Builds the `reopenOptions` function for a SQLite connection: options that
+ * reopen the same database on the same engine, for another thread.
+ */
+export function createSqliteReopenOptions(
   engine: SqliteEngine,
   options: SqliteOptions,
   url: string,
-): SqliteOptions & { type: 'sqlite' } {
-  if (url === ':memory:' || url.startsWith('file::memory:')) {
-    throw new ReopenNotSupportedError(
-      engine,
-      'an in-memory database exists only inside its own connection',
+): () => SqliteOptions & { type: 'sqlite' } {
+  const memory = url === ':memory:' || url.startsWith('file::memory:');
+  const location = memory ? url : absoluteSqliteUrl(url);
+  return () => {
+    if (memory) {
+      throw new ReopenNotSupportedError(
+        engine,
+        'an in-memory database exists only inside its own connection',
+      );
+    }
+    const defined = <T extends object>(value: T): T =>
+      Object.fromEntries(
+        Object.entries(value).filter(([, entry]) => entry !== undefined),
+      ) as T;
+    const reopened: SqliteOptions & { type: 'sqlite' } = {
+      type: 'sqlite',
+      url: location,
+      ...defined({
+        transactionQueueTimeout: options.transactionQueueTimeout,
+      }),
+    };
+    if (engine === 'node-sqlite') {
+      if (options.secureFile) reopened.secureFile = options.secureFile;
+      if (options.capabilities) reopened.capabilities = options.capabilities;
+      return reopened;
+    }
+    return Object.assign(
+      reopened,
+      defined({
+        authToken: options.authToken,
+        encryptionKey: options.encryptionKey,
+      }),
     );
-  }
-  const defined = <T extends object>(value: T): T =>
-    Object.fromEntries(
-      Object.entries(value).filter(([, entry]) => entry !== undefined),
-    ) as T;
-  const reopened: SqliteOptions & { type: 'sqlite' } = {
-    type: 'sqlite',
-    // A relative path resolves against the working directory, which can change.
-    url: REMOTE_URL.test(url) || url.startsWith('file:') ? url : resolve(url),
-    ...defined({
-      transactionQueueTimeout: options.transactionQueueTimeout,
-    }),
   };
-  if (engine === 'node-sqlite') {
-    if (options.secureFile) reopened.secureFile = options.secureFile;
-    if (options.capabilities) reopened.capabilities = options.capabilities;
-    return reopened;
-  }
-  return Object.assign(
-    reopened,
-    defined({
-      authToken: options.authToken,
-      encryptionKey: options.encryptionKey,
-    }),
-  );
 }

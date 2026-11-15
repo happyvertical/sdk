@@ -26,7 +26,10 @@ import {
 import { validateDatabaseCacheOptions } from './shared/connection-cache';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache';
-import { sqliteReopenOptions, trackSqliteFile } from './shared/sqlite-engine';
+import {
+  createSqliteReopenOptions,
+  trackSqliteFile,
+} from './shared/sqlite-engine';
 import {
   createTransactionLock,
   DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS,
@@ -1476,7 +1479,7 @@ async function createDatabase(
     // its file. Invalid configuration must not leave an acquired resource.
     const client = await clientFactory();
     const releaseFile = trackSqliteFile(url, engine);
-    const reopenOptions = () => sqliteReopenOptions(engine, options, url);
+    const reopenOptions = createSqliteReopenOptions(engine, options, url);
     const remote = remoteLibSqlUrl(url) !== undefined;
     const reservesTransaction =
       remote || client.transactionReservation === 'exclusive';
