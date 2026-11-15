@@ -25,6 +25,7 @@ import {
 import type {
   DatabaseCacheOptions,
   DatabaseInterface,
+  ReopenOptions,
   SchemaInitializationOptions,
   SessionHandle,
   TransactionHandle,
@@ -320,6 +321,15 @@ async function createDatabase(
   const url: string =
     (config.url as string) ||
     `postgresql://${user}${password ? `:${password}` : ''}@${host}:${port}/${database || 'postgres'}`;
+
+  // Another thread can open its own pool against the same server, so the
+  // effective options are the reopen options. They may carry credentials.
+  const reopenOptions = (): ReopenOptions => ({
+    type: 'postgres',
+    ...Object.fromEntries(
+      Object.entries(config).filter(([, value]) => value !== undefined),
+    ),
+  });
 
   // Create a connection pool with explicit max to prevent exhaustion.
   // pg defaults to 10 which is too low for SMRT apps that sync 30+ table
@@ -805,6 +815,8 @@ async function createDatabase(
       );
       txDb = {
         url,
+        engine: 'postgres',
+        reopenOptions,
         client: transactionState.client,
         ...createClientMethods(
           transactionState.executor,
@@ -914,6 +926,8 @@ async function createDatabase(
     );
     txHandle = {
       url,
+      engine: 'postgres',
+      reopenOptions,
       client: transactionState.client,
       ...createClientMethods(
         transactionState.executor,
@@ -943,6 +957,8 @@ async function createDatabase(
     const schemaManager = new DatabaseSchemaManager();
     const currentDb: DatabaseInterface = {
       url,
+      engine: 'postgres',
+      reopenOptions,
       client,
       insert,
       update,
@@ -972,6 +988,8 @@ async function createDatabase(
 
   db = {
     url,
+    engine: 'postgres',
+    reopenOptions,
     client,
     insert,
     update,

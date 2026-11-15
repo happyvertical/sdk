@@ -30,6 +30,77 @@ export class NestedTransactionError extends DatabaseError {
 }
 
 /**
+ * The database engine that actually backs a connection.
+ *
+ * This is the engine, not the adapter or the file format. SQLite is reachable
+ * through two separate copies of the engine that live in one process, and
+ * their file locks do not coordinate:
+ *
+ * - `'node-sqlite'`: the copy built into Node (`node:sqlite`). Used by
+ *   `secureFile` connections and by connections that enable native
+ *   `capabilities`.
+ * - `'libsql'`: the copy inside `@libsql/client`. Used by every other SQLite
+ *   connection, including `libsql://` remote databases.
+ * - `'postgres'`, `'pglite'`, `'duckdb'`, `'json'`: the other adapters.
+ *
+ * Two connections to one SQLite file are only safe together when they report
+ * the same engine.
+ */
+export type DatabaseEngine =
+  | 'node-sqlite'
+  | 'libsql'
+  | 'postgres'
+  | 'pglite'
+  | 'duckdb'
+  | 'json';
+
+/**
+ * Connection options returned by {@link DatabaseInterface.reopenOptions}.
+ * Treat them as opaque and pass them to `getDatabase()` as they are. `type`
+ * names the adapter (`'sqlite'` or `'postgres'`; the other adapters refuse to
+ * reopen); the remaining keys are that adapter's options (`SqliteOptions`,
+ * `PostgresOptions`) and may include credentials.
+ */
+export interface ReopenOptions {
+  readonly type: 'sqlite' | 'postgres';
+}
+
+/**
+ * Error thrown by {@link DatabaseInterface.reopenOptions} when the connection
+ * cannot be safely reopened from another thread, for example an in-memory
+ * database (each connection gets its own copy), or an engine that allows one
+ * owner per file or directory (DuckDB, PGlite, JSON).
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   workerData = db.reopenOptions?.();
+ * } catch (error) {
+ *   if (error instanceof ReopenNotSupportedError) {
+ *     // Keep the work on this connection instead.
+ *   }
+ * }
+ * ```
+ */
+export class ReopenNotSupportedError extends DatabaseError {
+  /** The engine of the connection that refused. */
+  readonly engine: DatabaseEngine;
+
+  constructor(
+    engine: DatabaseEngine,
+    reason: string,
+    context?: Record<string, unknown>,
+  ) {
+    super(
+      `Cannot reopen a ${engine} connection from another thread: ${reason}`,
+      { ...context, engine },
+    );
+    this.name = 'ReopenNotSupportedError';
+    this.engine = engine;
+  }
+}
+
+/**
  * WHERE clause input for database queries
  *
  * Supports two formats:
@@ -812,6 +883,46 @@ export interface DatabaseInterface {
    * Underlying database client instance
    */
   client: any;
+
+  /**
+   * The database engine backing this connection (see {@link DatabaseEngine}).
+   *
+   * The same value on the connection, on its transaction handles and on the
+   * scoped interface passed to `transaction()`. Every adapter in this package
+   * sets it; it is typed optional only so that hand-written
+   * `DatabaseInterface` test doubles keep compiling.
+   *
+   * Two connections to one SQLite file must report the same engine: the
+   * `node-sqlite` and `libsql` copies of SQLite do not coordinate file locks,
+   * so mixing them on one file corrupts it.
+   */
+  readonly engine?: DatabaseEngine;
+
+  /**
+   * Connection options that open the same database on the same engine, for
+   * use from another thread (for example `getDatabase(options)` in a worker).
+   *
+   * The result keeps the engine: a `secureFile` connection yields options that
+   * reopen through `node:sqlite`, and a plain connection yields options that
+   * reopen through `@libsql/client`. It contains no cache identity, so each
+   * call to `getDatabase` makes a separate connection. It may contain
+   * credentials (`authToken`, `password`); treat it like the options you
+   * originally passed. SQLite `secureFile.windowsCustody.verify` is a function
+   * and cannot cross `postMessage`; supply it again in the worker.
+   *
+   * @throws {ReopenNotSupportedError} for in-memory databases and for
+   * engines that allow one owner per database (DuckDB, PGlite, JSON).
+   *
+   * @example
+   * ```typescript
+   * import { Worker } from 'node:worker_threads';
+   * new Worker(new URL('./worker.js', import.meta.url), {
+   *   workerData: { db: db.reopenOptions?.() },
+   * });
+   * // worker.js: const db2 = await getDatabase(workerData.db);
+   * ```
+   */
+  reopenOptions?: () => ReopenOptions;
 
   /**
    * Inserts one or more records into a table

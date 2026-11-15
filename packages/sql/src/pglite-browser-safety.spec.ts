@@ -73,6 +73,7 @@ describe('pglite adapter browser safety', () => {
         'shared/alter-utils.ts',
         'shared/connection-cache.ts',
         'shared/postgres-dialect.ts',
+        'shared/reopen.ts',
         'shared/transaction-lock.ts',
         'shared/types.ts',
         'shared/utils.ts',

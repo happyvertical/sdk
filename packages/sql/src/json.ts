@@ -18,6 +18,7 @@ import {
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
 import { serializeDuckDBStatements } from './shared/duckdb-statement-queue';
 import { redactDatabaseUrl } from './shared/redact-database-url';
+import { refuseReopen } from './shared/reopen';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
   DatabaseInterface,
@@ -30,6 +31,12 @@ import type {
   UpsertOptions,
 } from './shared/types';
 import { NestedTransactionError, resolveSchemas } from './shared/types';
+
+const reopenOptions = refuseReopen(
+  'json',
+  'every connection keeps its own in-memory copy of the files, so concurrent writers lose updates',
+);
+
 import {
   buildAdapterWhere as buildWhere,
   formatDbError,
@@ -2357,6 +2364,8 @@ async function createJSONDatabase(
       const schemaManager = new DatabaseSchemaManager();
       const currentDb: DatabaseInterface = {
         url,
+        engine: 'json',
+        reopenOptions,
         client: connection,
         query,
         insert,
@@ -2431,6 +2440,8 @@ async function createJSONDatabase(
     const createTransactionScope = (): DatabaseInterface => {
       const txDb: DatabaseInterface = {
         url,
+        engine: 'json',
+        reopenOptions,
         client: connection,
         insert,
         get,
@@ -2537,6 +2548,8 @@ async function createJSONDatabase(
     const closeResources = createDuckDBResourceCloser(connection, instance);
     db = {
       url,
+      engine: 'json',
+      reopenOptions,
       requiresSchemaCheck: true,
       client: connection,
       query,

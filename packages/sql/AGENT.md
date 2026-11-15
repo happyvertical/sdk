@@ -93,3 +93,17 @@ malformed names and expressions still reject.
 
 Aggregate numeric compatibility applies to operands/ordinals, while SELECT aliases,
 FROM/JOIN names and ORDER BY selected aliases always use identifier rendering.
+
+## SQLite engines: `db.engine` and `db.reopenOptions()`
+
+A SQLite file opens through `node:sqlite` (`secureFile`, native `capabilities`)
+or `@libsql/client` (everything else). These are separate copies of SQLite
+whose locks do not coordinate, so one file must never be held through both in
+one process, including a worker thread. `db.engine` is `'node-sqlite' |
+'libsql' | 'postgres' | 'pglite' | 'duckdb' | 'json'`, present on connections,
+transaction handles and scoped `tx`. Open a worker's second connection with
+`getDatabase(db.reopenOptions())`, which keeps the engine; it throws
+`ReopenNotSupportedError` for `:memory:`, PGlite, DuckDB and JSON. Do not call
+`getDatabase({ type: 'sqlite', url })` for a file another connection holds
+through `secureFile`. An in-thread mix emits warning `HV_SQL_SQLITE_ENGINE_MIX`;
+workers are not seen. Never change the default engine selection for this.

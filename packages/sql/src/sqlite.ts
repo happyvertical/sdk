@@ -26,6 +26,7 @@ import {
 import { validateDatabaseCacheOptions } from './shared/connection-cache';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache';
+import { sqliteReopenOptions, trackSqliteFile } from './shared/sqlite-engine';
 import {
   createTransactionLock,
   DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS,
@@ -1436,7 +1437,7 @@ export async function getDatabase(
     }
 
     return getCachedSqliteDatabase('secure', options, () =>
-      createDatabase(options, url, () =>
+      createDatabase(options, url, 'node-sqlite', () =>
         createSecureSqliteClient(url, {
           custody: secureOptions.custody,
           root: secureOptions.root,
@@ -1452,13 +1453,14 @@ export async function getDatabase(
   }
 
   return getCachedSqliteDatabase('libsql', options, () =>
-    createDatabase(options, url),
+    createDatabase(options, url, 'libsql'),
   );
 }
 
 async function createDatabase(
   options: SqliteOptions,
   url: string,
+  engine: 'node-sqlite' | 'libsql',
   clientFactory: () => Promise<SqliteClientLike> = () =>
     createLibSQLClient(options),
 ): Promise<DatabaseInterface> {
@@ -1473,6 +1475,8 @@ async function createDatabase(
     // Validate queue configuration before a secure client can create or open
     // its file. Invalid configuration must not leave an acquired resource.
     const client = await clientFactory();
+    const releaseFile = trackSqliteFile(url, engine);
+    const reopenOptions = () => sqliteReopenOptions(engine, options, url);
     const remote = remoteLibSqlUrl(url) !== undefined;
     const reservesTransaction =
       remote || client.transactionReservation === 'exclusive';
@@ -2795,6 +2799,8 @@ async function createDatabase(
 
       const txDb: DatabaseInterface = {
         url,
+        engine,
+        reopenOptions,
         client: reservesTransaction ? scopedClient : transactionClient,
         insert: scopedInsert,
         get: scopedGet,
@@ -3159,6 +3165,8 @@ async function createDatabase(
       const schemaManager = new DatabaseSchemaManager();
       const currentDb: DatabaseInterface = {
         url,
+        engine,
+        reopenOptions,
         client,
         query,
         insert,
@@ -3358,9 +3366,12 @@ async function createDatabase(
       if (closed) return;
       await client.close();
       closed = true;
+      releaseFile();
     };
     const db: DatabaseInterface = {
       url,
+      engine,
+      reopenOptions,
       client,
       query,
       insert,

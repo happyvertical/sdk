@@ -5,6 +5,7 @@ import type {
   DatabaseInterface,
   DuckDBOptions,
   JSONOptions,
+  ReopenOptions,
 } from './shared/types';
 import type { SqliteOptions } from './sqlite';
 
@@ -70,7 +71,7 @@ function isDatabaseInstance(value: any): value is DatabaseInterface {
  * @throws Error if the database type is invalid
  */
 export async function getDatabase(
-  options: GetDatabaseOptions | DatabaseInterface = {},
+  options: GetDatabaseOptions | ReopenOptions | DatabaseInterface = {},
 ): Promise<DatabaseInterface> {
   // If a database instance is passed, return it directly
   if (isDatabaseInstance(options)) {
