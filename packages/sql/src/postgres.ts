@@ -25,11 +25,15 @@ import {
 import type {
   DatabaseCacheOptions,
   DatabaseInterface,
+  ReopenOptions,
   SchemaInitializationOptions,
   SessionHandle,
   TransactionHandle,
 } from './shared/types';
 import { wrapDatabaseError } from './shared/utils';
+
+/** Default pool size of a reopened PostgreSQL connection. */
+const REOPEN_POOL_MAX = 5;
 
 const MAX_TIMER_DELAY_MILLIS = 2_147_483_647;
 
@@ -320,6 +324,23 @@ async function createDatabase(
   const url: string =
     (config.url as string) ||
     `postgresql://${user}${password ? `:${password}` : ''}@${host}:${port}/${database || 'postgres'}`;
+
+  // Another thread can open its own pool against the same server, so the
+  // effective options are the reopen options. They may carry credentials.
+  const reopenOptions = (): ReopenOptions => {
+    const reopened: PostgresOptions & { type: 'postgres' } = {
+      ...(Object.fromEntries(
+        Object.entries(config).filter(([, value]) => value !== undefined),
+      ) as PostgresOptions),
+      type: 'postgres',
+      // An equal configuration would otherwise return this cached pool.
+      cache: false,
+      // Every reopen is a pool of its own. Keep it small by default; a caller
+      // who needs more overrides `max` on the returned options.
+      max: Math.min(config.max, REOPEN_POOL_MAX),
+    };
+    return reopened;
+  };
 
   // Create a connection pool with explicit max to prevent exhaustion.
   // pg defaults to 10 which is too low for SMRT apps that sync 30+ table
@@ -805,6 +826,8 @@ async function createDatabase(
       );
       txDb = {
         url,
+        engine: 'postgres',
+        reopenOptions,
         client: transactionState.client,
         ...createClientMethods(
           transactionState.executor,
@@ -914,6 +937,8 @@ async function createDatabase(
     );
     txHandle = {
       url,
+      engine: 'postgres',
+      reopenOptions,
       client: transactionState.client,
       ...createClientMethods(
         transactionState.executor,
@@ -943,6 +968,8 @@ async function createDatabase(
     const schemaManager = new DatabaseSchemaManager();
     const currentDb: DatabaseInterface = {
       url,
+      engine: 'postgres',
+      reopenOptions,
       client,
       insert,
       update,
@@ -972,6 +999,8 @@ async function createDatabase(
 
   db = {
     url,
+    engine: 'postgres',
+    reopenOptions,
     client,
     insert,
     update,

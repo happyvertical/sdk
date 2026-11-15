@@ -15,6 +15,10 @@ import {
   validateTableName,
 } from './shared/alter-utils.js';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache.js';
+import {
+  createSqliteReopenOptions,
+  trackSqliteFile,
+} from './shared/sqlite-engine.js';
 import { createTransactionLock } from './shared/transaction-lock.js';
 import type {
   ColumnDefinition,
@@ -1697,12 +1701,23 @@ async function createNativeSqliteDatabase(
       },
     };
 
-    const close = createNativeSqliteCloser(
+    const closeNative = createNativeSqliteCloser(
       notificationCloseables,
       honkerDb,
       database,
     );
+    const releaseFile = trackSqliteFile(url, 'node-sqlite');
+    const close = async () => {
+      await closeNative();
+      releaseFile();
+    };
     closeResources = close;
+
+    const reopenOptions = createSqliteReopenOptions(
+      'node-sqlite',
+      options,
+      url,
+    );
 
     function buildDatabaseInterface(
       upsertImpl: DatabaseInterface['upsert'],
@@ -1711,6 +1726,8 @@ async function createNativeSqliteDatabase(
     ): DatabaseInterface {
       return {
         url,
+        engine: 'node-sqlite',
+        reopenOptions,
         client: database,
         query,
         insert,

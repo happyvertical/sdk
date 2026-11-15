@@ -27,6 +27,11 @@ import { validateDatabaseCacheOptions } from './shared/connection-cache';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache';
 import {
+  createSqliteReopenOptions,
+  remoteSqliteUrl,
+  trackSqliteFile,
+} from './shared/sqlite-engine';
+import {
   createTransactionLock,
   DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS,
 } from './shared/transaction-lock';
@@ -232,8 +237,7 @@ async function guardRemoteTransaction(
 }
 
 function remoteLibSqlUrl(url: string): string | undefined {
-  const normalized = url.replace(/[\t\n\r]/g, '').trim();
-  return /^(?:https?|libsql):/i.test(normalized) ? normalized : undefined;
+  return remoteSqliteUrl(url);
 }
 
 interface InvocationBarrier {
@@ -1436,7 +1440,7 @@ export async function getDatabase(
     }
 
     return getCachedSqliteDatabase('secure', options, () =>
-      createDatabase(options, url, () =>
+      createDatabase(options, url, 'node-sqlite', () =>
         createSecureSqliteClient(url, {
           custody: secureOptions.custody,
           root: secureOptions.root,
@@ -1452,13 +1456,14 @@ export async function getDatabase(
   }
 
   return getCachedSqliteDatabase('libsql', options, () =>
-    createDatabase(options, url),
+    createDatabase(options, url, 'libsql'),
   );
 }
 
 async function createDatabase(
   options: SqliteOptions,
   url: string,
+  engine: 'node-sqlite' | 'libsql',
   clientFactory: () => Promise<SqliteClientLike> = () =>
     createLibSQLClient(options),
 ): Promise<DatabaseInterface> {
@@ -1473,6 +1478,7 @@ async function createDatabase(
     // Validate queue configuration before a secure client can create or open
     // its file. Invalid configuration must not leave an acquired resource.
     const client = await clientFactory();
+    const reopenOptions = createSqliteReopenOptions(engine, options, url);
     const remote = remoteLibSqlUrl(url) !== undefined;
     const reservesTransaction =
       remote || client.transactionReservation === 'exclusive';
@@ -1527,6 +1533,9 @@ async function createDatabase(
         throw error;
       }
     }
+    // Tracked only once initialization has succeeded, so a failed open leaves
+    // no entry behind to raise a false engine-mix warning later.
+    const releaseFile = trackSqliteFile(url, engine);
 
     /**
      * Serializes a value for SQLite storage
@@ -2795,6 +2804,8 @@ async function createDatabase(
 
       const txDb: DatabaseInterface = {
         url,
+        engine,
+        reopenOptions,
         client: reservesTransaction ? scopedClient : transactionClient,
         insert: scopedInsert,
         get: scopedGet,
@@ -3159,6 +3170,8 @@ async function createDatabase(
       const schemaManager = new DatabaseSchemaManager();
       const currentDb: DatabaseInterface = {
         url,
+        engine,
+        reopenOptions,
         client,
         query,
         insert,
@@ -3358,9 +3371,12 @@ async function createDatabase(
       if (closed) return;
       await client.close();
       closed = true;
+      releaseFile();
     };
     const db: DatabaseInterface = {
       url,
+      engine,
+      reopenOptions,
       client,
       query,
       insert,

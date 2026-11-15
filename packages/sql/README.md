@@ -355,6 +355,105 @@ acquisition is intentional. Secure mode requires the package's supported Node
 runtime with built-in `node:sqlite`; it installs no additional native peer.
 Default LibSQL use remains unchanged.
 
+### Which SQLite engine backs a connection, and a second connection on the same engine
+
+A SQLite file can be opened through two separate copies of SQLite that live in
+one process: the `node:sqlite` built into Node (used by `secureFile` and by
+native `capabilities`) and the one inside `@libsql/client` (used by every other
+local or remote SQLite connection). Their file locks do not coordinate. If both
+hold one file in the same process, a writer on one does not wait for a writer
+on the other, and a WAL-mode file is corrupted within seconds (`locking
+protocol`, `database disk image is malformed`). This applies across threads
+too: a worker thread that opens `{ type: 'sqlite', url }` gets libsql even when
+the main thread holds the file through `node:sqlite`.
+
+Ask the connection which engine it uses:
+
+```typescript
+const db = await getDatabase({ type: 'sqlite', url: 'app.db', secureFile });
+db.engine; // 'node-sqlite'
+// 'node-sqlite' | 'libsql' | 'postgres' | 'pglite' | 'duckdb' | 'json'
+```
+
+`db.engine` is the same on the connection, on `beginTransaction()` handles and
+on the `tx` passed to `transaction()`. Two connections to one SQLite file are
+safe together only when their `engine` values are equal.
+
+To open a second connection from a worker thread, take the options from the
+first one instead of rebuilding them:
+
+```typescript
+import { Worker } from 'node:worker_threads';
+
+new Worker(new URL('./worker.js', import.meta.url), {
+  workerData: { db: db.reopenOptions?.() },
+});
+
+// worker.js
+const second = await getDatabase(workerData.db); // same engine, own connection
+```
+
+`reopenOptions()` returns an opaque `ReopenOptions` value (pass it straight to
+`getDatabase`) that reopens the same database on the same
+engine, with no cache identity, so each `getDatabase` call is a separate
+connection. A `secureFile` connection yields `secureFile` options (and so
+`node:sqlite`); a plain one yields `@libsql/client` options. The result can hold
+credentials (`authToken`, `encryptionKey`, `password`). It is plain data that
+survives `structuredClone`, `workerData` and `postMessage` unchanged, and it is a
+copy: changing it does not change the connection. Paths, including
+`secureFile.root`, are made absolute when the connection is opened, so a later
+`process.chdir` does not move them.
+
+`secureFile.windowsCustody` is a function and cannot cross a thread boundary, so
+it is **left out** of the options. That keeps the custody check from being
+smuggled across: on Windows `getDatabase` fails closed in the worker until the
+worker passes its own verifier
+(`{ ...options, secureFile: { ...options.secureFile, windowsCustody } }`). It is
+ignored on macOS and Linux.
+
+**Per-connection settings are not carried over.** Neither engine sets a busy
+timeout, so a reopened connection that overlaps a write fails at once with
+`database is locked` (it is safe, not patient). Re-apply what you set on the
+first connection after reopening, for example
+`await second.query('PRAGMA busy_timeout = 5000')`, which makes the write wait
+for the lock instead. The same goes for any other `PRAGMA` or temporary table.
+
+PostgreSQL reopens get their own pool, not a share of the first one, with `max`
+capped at 5 by default (set `max` on the returned options to change it).
+
+| Connection | `engine` | `reopenOptions()` |
+|------------|----------|-------------------|
+| SQLite file, default | `'libsql'` | `{ type: 'sqlite', url, ... }` |
+| SQLite file, `secureFile` or native `capabilities` | `'node-sqlite'` | same, with `secureFile` / `capabilities` |
+| SQLite remote (`libsql://`, `https://`) | `'libsql'` | same URL and `authToken` |
+| SQLite `:memory:` | `'libsql'` | throws `ReopenNotSupportedError` |
+| PostgreSQL | `'postgres'` | the effective connection options |
+| PGlite, DuckDB, JSON | `'pglite'`, `'duckdb'`, `'json'` | throws `ReopenNotSupportedError` |
+
+`ReopenNotSupportedError` (a `DatabaseError`, with an `engine` property) means
+the database has one owner: an in-memory database exists only inside its
+connection, DuckDB and PGlite hold their files exclusively, and JSON keeps a
+private in-memory copy per connection. Keep that work on the existing
+connection.
+
+When one thread opens the same resolved file path through both engines, the
+adapter emits a one-time process warning with code `HV_SQL_SQLITE_ENGINE_MIX`.
+It only sees connections in its own thread, because the bookkeeping is
+per-thread module state; it cannot see a worker. Check `engine` where you hand
+a file to another thread. It never refuses, so existing callers keep working.
+
+Reading `engine`:
+
+- `undefined` means the object is not an adapter connection from this package (a
+  wrapper, a proxy, a hand-written test double). Treat it as unsafe to share a
+  file with; do not assume it matches anything.
+- Local and remote libsql both report `'libsql'`; remote databases have no local
+  file lock to share, so only a local `url` matters for the hazard.
+- `'node-sqlite'` names the copy of SQLite the connection uses. A connection with
+  native `notifications` also opens the same file through the optional honker
+  module, which may carry its own copy of SQLite; that hazard predates
+  `engine` and is not described by it.
+
 ### Template Literal Queries
 
 ```typescript
@@ -1037,7 +1136,7 @@ shipping it beyond development or test environments.
 
 **Factory**: `getDatabase(options)` — creates or returns a cached database connection.
 
-**Interface** (`DatabaseInterface`): `many`, `single`, `pluck`, `execute`, `query`, `insert`, `get`, `list`, `update`, `upsert`, `getOrInsert`, `delete`, `count`, `table`, `tableExists`, `syncSchema`, `transaction`, `beginTransaction`, `vector`, `notifications`, `close`.
+**Interface** (`DatabaseInterface`): `many`, `single`, `pluck`, `execute`, `query`, `insert`, `get`, `list`, `update`, `upsert`, `getOrInsert`, `delete`, `count`, `table`, `tableExists`, `syncSchema`, `transaction`, `beginTransaction`, `vector`, `notifications`, `close`, plus `engine` and `reopenOptions()` (see above).
 
 **Utilities**: `buildWhere`, `raw`, `syncSchema`, `tableExists`, `escapeSqlValue`, `validateColumnName`, `formatDbError`, `convertUniqueIndexesToInlineConstraints`.
 

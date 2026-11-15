@@ -29,6 +29,7 @@ import {
   createVectorCapabilities,
   type PostgresQueryExecutor,
 } from './shared/postgres-dialect';
+import { refuseReopen } from './shared/reopen';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
   DatabaseCacheOptions,
@@ -253,6 +254,10 @@ async function createDatabase(
   options: PGliteOptions,
   dataDir: string,
 ): Promise<DatabaseInterface> {
+  const reopenOptions = refuseReopen(
+    'pglite',
+    'PGlite runs inside one thread and owns its data directory exclusively',
+  );
   const pglite = await importPGlite();
   const isStatementError = (error: unknown): boolean =>
     error instanceof pglite.messages.DatabaseError;
@@ -404,6 +409,8 @@ async function createDatabase(
     );
     scoped = {
       url: dataDir,
+      engine: 'pglite',
+      reopenOptions,
       client: state.rawClient,
       ...createClientMethods(
         state.executor,
@@ -519,6 +526,8 @@ async function createDatabase(
     const schemaManager = new DatabaseSchemaManager();
     const currentDb: DatabaseInterface = {
       url: dataDir,
+      engine: 'pglite',
+      reopenOptions,
       client: pg,
       insert,
       update,
@@ -548,6 +557,8 @@ async function createDatabase(
 
   db = {
     url: dataDir,
+    engine: 'pglite',
+    reopenOptions,
     client: pg,
     insert,
     update,

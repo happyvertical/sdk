@@ -22,6 +22,7 @@ import {
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
 import { serializeDuckDBStatements } from './shared/duckdb-statement-queue';
 import { redactDatabaseUrl } from './shared/redact-database-url';
+import { refuseReopen } from './shared/reopen';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
   ColumnDefinition,
@@ -322,6 +323,10 @@ export async function getDatabase(
     options.transactionQueueTimeout,
   );
   const closeResources = createDuckDBResourceCloser(connection, instance);
+  const reopenOptions = refuseReopen(
+    'duckdb',
+    'DuckDB allows one instance per database file in a process, so a second thread cannot open it',
+  );
 
   /**
    * Inserts one or more records into a table
@@ -1183,6 +1188,8 @@ export async function getDatabase(
     const schemaManager = new DatabaseSchemaManager();
     const currentDb: DatabaseInterface = {
       url,
+      engine: 'duckdb',
+      reopenOptions,
       client: connection,
       query,
       insert,
@@ -1466,6 +1473,8 @@ export async function getDatabase(
   const createTransactionScope = (): DatabaseInterface => {
     const txDb: DatabaseInterface = {
       url,
+      engine: 'duckdb',
+      reopenOptions,
       client: connection,
       insert,
       get,
@@ -1571,6 +1580,8 @@ export async function getDatabase(
 
   return {
     url,
+    engine: 'duckdb',
+    reopenOptions,
     requiresSchemaCheck: true,
     client: connection,
     query,
