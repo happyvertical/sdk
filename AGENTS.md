@@ -55,7 +55,10 @@ pnpm lint
 pnpm build
 ```
 
-Use Turbo filters for focused package work. Changes to workflow, release,
+Use Turbo filters for focused package work (`--filter='...[origin/main]'` for
+changed packages). Local Turbo defaults to concurrency 4; never export
+`VITEST_MAX_WORKERS` globally, since it overrides the one-worker pin. See
+`.github/CI.md`. Changes to workflow, release,
 workspace, or shared package contracts require the broader checks represented
 by the pull-request `Required CI` aggregator.
 

@@ -47,6 +47,25 @@ remote cache must produce warnings and a cold local build, not fail a job.
 Validation seed builds use `TURBO_FORCE=true` where exercising the current
 commit is required.
 
+## Running tests from parallel worktrees
+
+`turbo.json` defaults local runs to `--concurrency=4` (CI passes its own
+`--concurrency` and is unaffected), and bounds the local Turbo cache with
+`cacheMaxAge` (14d) and `cacheMaxSize` (10GB). The local cache is shared by all
+git worktrees of a clone. When several worktrees validate at once, test only
+changed packages:
+
+```bash
+pnpm exec turbo run test --filter='...[origin/main]'
+```
+
+Vitest is pinned to one forked worker in `vitest.shared.ts`.
+`VITEST_MAX_WORKERS` overrides that pin, so set it per command when needed and
+never export it globally. The `test` task hashes `VITEST_INCLUDE_OPTIONAL`,
+`RUN_INTEGRATION_TESTS`, `HV_SPEECH_MODEL_TESTS` and
+`ENVIRONMENT_CANADA_INTEGRATION`; add any new variable that changes which tests
+run to its `env` list.
+
 ## Vitest configuration
 
 Root test commands load `vitest.config.ts`. Package-local commands must pass
