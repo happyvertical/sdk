@@ -2,6 +2,8 @@
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
   "concurrency": "4",
+  "cacheMaxAge": "14d",
+  "cacheMaxSize": "10GB",
   "globalPassThroughEnv": ["PUBLISH_PACK_OUTPUT_DIR"],
   "tasks": {
     "build": {
