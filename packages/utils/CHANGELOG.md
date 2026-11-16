@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.113.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - Generate the PostgreSQL cache identity key on first use (#1533) (sql)
+
 ## 0.113.0
 
 ## 0.112.3
