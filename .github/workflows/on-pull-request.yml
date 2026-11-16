@@ -11,8 +11,10 @@ on:
   merge_group:
     types: [checks_requested]
 concurrency:
+  # The event name keeps a base-branch run of an older trigger from cancelling
+  # this workflow's own run for the same PR (seen while migrating, #1501).
   group: >-
-    ${{ github.workflow }}-${{
+    ${{ github.workflow }}-${{ github.event_name }}-${{
       github.event.pull_request.number ||
       github.event.merge_group.head_sha ||
       github.ref
