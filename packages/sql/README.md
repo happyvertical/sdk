@@ -233,7 +233,9 @@ always `await clearConnectionCache()` before opening a replacement connection.
 An explicit `dbid` is an opaque, stable caller-owned cache identity and must be
 non-empty. Without
 one, PostgreSQL derives a credential- and pool-option-sensitive identity using
-a process-keyed digest. The pool identity includes `max`,
+a process-keyed digest. The digest key is generated on the first PostgreSQL
+`getDatabase()` that needs it, not when the package is imported, so importing
+`@happyvertical/sql` in a worker thread leaves no key generation in flight. The pool identity includes `max`,
 `connectionTimeoutMillis`, and `idleTimeoutMillis`; connection URLs, usernames,
 passwords, and option names are not stored in readable cache keys. SQLite
 caches only connections with a `dbid` (automatically assigned to the default
