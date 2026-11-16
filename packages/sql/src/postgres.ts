@@ -127,14 +127,43 @@ declare global {
     | undefined;
 }
 
-globalThis.__haveSqlPostgresCacheHmacKey ??= webcrypto.subtle.generateKey(
-  { name: 'HMAC', hash: 'SHA-256' },
-  false,
-  ['sign'],
-) as Promise<CryptoKey>;
 globalThis.__haveSqlPostgresConnectionCache ??=
   new ConnectionCache<DatabaseInterface>();
 const connectionCache = globalThis.__haveSqlPostgresConnectionCache;
+
+/**
+ * Returns the process-local cache identity HMAC key, generating it on first
+ * use. Generating it at import would leave a WebCrypto key job in flight in
+ * every isolate that loads the package, and Node aborts the whole process when
+ * a worker thread is terminated while such a job completes (#1518).
+ *
+ * Concurrent first callers share one pending promise. The promise lives on
+ * `globalThis` so every copy of this module in an isolate derives the same
+ * cache identities. A rejected generation is dropped so the next call retries.
+ */
+function getPostgresCacheHmacKey(): Promise<CryptoKey> {
+  const existing = globalThis.__haveSqlPostgresCacheHmacKey;
+  if (existing) {
+    return existing;
+  }
+  let pending: Promise<CryptoKey>;
+  try {
+    pending = webcrypto.subtle.generateKey(
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    ) as Promise<CryptoKey>;
+  } catch (error) {
+    pending = Promise.reject(error);
+  }
+  globalThis.__haveSqlPostgresCacheHmacKey = pending;
+  pending.catch(() => {
+    if (globalThis.__haveSqlPostgresCacheHmacKey === pending) {
+      globalThis.__haveSqlPostgresCacheHmacKey = undefined;
+    }
+  });
+  return pending;
+}
 
 /**
  * Clears the PostgreSQL connection cache.
@@ -253,10 +282,7 @@ async function derivePostgresConnectionCacheKey(
     connectionTimeoutMillis: effective.connectionTimeoutMillis ?? null,
     idleTimeoutMillis: effective.idleTimeoutMillis ?? null,
   });
-  const hmacKey = await globalThis.__haveSqlPostgresCacheHmacKey;
-  if (!hmacKey) {
-    throw new Error('PostgreSQL cache identity key was not initialized');
-  }
+  const hmacKey = await getPostgresCacheHmacKey();
   const signature = await webcrypto.subtle.sign(
     'HMAC',
     hmacKey,
