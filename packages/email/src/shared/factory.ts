@@ -8,6 +8,7 @@ import type {
   GetEmailClientOptions,
   GmailOptions,
   IMAPOptions,
+  JMAPOptions,
   POP3Options,
   SMTPOptions,
 } from './types';
@@ -38,6 +39,12 @@ export function isGmailOptions(
   opts: GetEmailClientOptions,
 ): opts is GmailOptions {
   return opts.type === 'gmail';
+}
+
+export function isJMAPOptions(
+  opts: GetEmailClientOptions,
+): opts is JMAPOptions {
+  return opts.type === 'jmap';
 }
 
 // ============================================================================
@@ -107,6 +114,11 @@ export async function getEmailClient(
     return new GmailAdapter(opts);
   }
 
+  if (isJMAPOptions(opts)) {
+    const { JMAPAdapter } = await import('../adapters/jmap.js');
+    return new JMAPAdapter(opts);
+  }
+
   throw new Error(
     `Unknown email client type: ${(opts as { type: string }).type}`,
   );
@@ -140,6 +152,10 @@ export async function getEmailClient(
  * - HAVE_EMAIL_IMAP_PORT
  * - HAVE_EMAIL_IMAP_SECURE
  *
+ * JMAP-specific:
+ * - HAVE_EMAIL_JMAP_URL
+ * - HAVE_EMAIL_JMAP_TOKEN (bearer) or HAVE_EMAIL_USER + HAVE_EMAIL_PASSWORD
+ *
  * Gmail-specific:
  * - HAVE_EMAIL_GMAIL_CLIENT_ID
  * - HAVE_EMAIL_GMAIL_CLIENT_SECRET
@@ -171,6 +187,10 @@ async function loadEnvironmentConfig(
 
   if (options.type === 'gmail') {
     return loadGmailEnvironmentConfig(options as GmailOptions);
+  }
+
+  if (options.type === 'jmap') {
+    return loadJMAPEnvironmentConfig(options as JMAPOptions);
   }
 
   return options;
@@ -276,6 +296,23 @@ function loadGmailEnvironmentConfig(options: GmailOptions): GmailOptions {
       accessToken: process.env.HAVE_EMAIL_GMAIL_ACCESS_TOKEN,
     },
     userId: options.userId || process.env.HAVE_EMAIL_GMAIL_USER_ID || 'me',
+    debug: options.debug ?? process.env.HAVE_EMAIL_DEBUG === 'true',
+  };
+}
+
+function loadJMAPEnvironmentConfig(options: JMAPOptions): JMAPOptions {
+  const token = process.env.HAVE_EMAIL_JMAP_TOKEN;
+  return {
+    ...options,
+    url: options.url || process.env.HAVE_EMAIL_JMAP_URL || '',
+    auth:
+      options.auth ||
+      (token
+        ? { type: 'bearer' as const, token }
+        : {
+            user: process.env.HAVE_EMAIL_USER || '',
+            pass: process.env.HAVE_EMAIL_PASSWORD || '',
+          }),
     debug: options.debug ?? process.env.HAVE_EMAIL_DEBUG === 'true',
   };
 }

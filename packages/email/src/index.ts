@@ -8,6 +8,7 @@
 // Adapters (for direct instantiation if needed)
 export { GmailAdapter } from './adapters/gmail.js';
 export { IMAPAdapter } from './adapters/imap.js';
+export { JMAPAdapter } from './adapters/jmap.js';
 export { POP3Adapter } from './adapters/pop3.js';
 export { SMTPAdapter } from './adapters/smtp.js';
 // Base class (for extension)
@@ -32,14 +33,20 @@ export {
   getEmailClient,
   isGmailOptions,
   isIMAPOptions,
+  isJMAPOptions,
   isPOP3Options,
   isSMTPOptions,
 } from './shared/factory.js';
-
 // Types
 export type {
   AdapterType,
   Attachment,
+  ChangeFeedBatch,
+  ChangeFeedOptions,
+  ChangeFeedResult,
+  ChangeFeedResyncRequired,
+  ChangeHint,
+  ChangeHintListener,
   EmailAddress,
   EmailClient,
   EmailClientCapabilities,
@@ -52,10 +59,14 @@ export type {
   GetEmailClientOptions,
   GmailOptions,
   IMAPOptions,
+  JMAPOptions,
   MessageFlag,
   POP3Options,
   SearchCriteria,
   SendOptions,
   SendResult,
   SMTPOptions,
+  SubscribeChangesOptions,
+  Unsubscribe,
 } from './shared/types.js';
+export { isResyncRequired } from './shared/types.js';

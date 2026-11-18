@@ -88,9 +88,20 @@ export class EmailBridgeAdapter extends BaseMessageClient {
   }
 
   async getThread(threadId: string): Promise<Message[]> {
-    // Email threads are tracked by References/In-Reply-To headers.
-    // Fetch by thread ID isn't natively supported across all email adapters,
-    // so we fetch the root message and return it as a single-item thread.
+    const client = await this.getClient();
+
+    // Adapters with native threads (JMAP) return the whole conversation.
+    if (client.getThread) {
+      try {
+        const emails = await client.getThread(threadId);
+        return emails.map((email) => this.fromEmailMessage(email));
+      } catch (error) {
+        throw new MessageNotFoundError(threadId, 'email', error);
+      }
+    }
+
+    // Other adapters have no thread lookup: treat the id as a message id and
+    // return it as a single-item thread.
     const message = await this.getMessage(threadId);
     return [message];
   }
