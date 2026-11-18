@@ -1,3 +1,4 @@
+import { currencyMinorUnitFactor, isCurrencyMinorUnit } from './line-amount.js';
 import { QuickBooksReceivableTransfers } from './receivable-operations.js';
 import {
   type QuickBooksReceivableRequest,
@@ -13,7 +14,11 @@ import {
 /// <reference path="../../intuit-oauth.d.ts" />
 
 import { createHmac } from 'node:crypto';
-import { QuickBooksWriteError } from '../../errors.js';
+import {
+  AccountingReauthRequiredError,
+  QuickBooksOAuthError,
+  QuickBooksWriteError,
+} from '../../errors.js';
 import type {
   AccountingProvider,
   Address,
@@ -41,8 +46,15 @@ import type {
   PaymentInput,
   PaymentOperations,
   QuickBooksCreditMemoRequest,
+  QuickBooksCustomerFindOrCreateResult,
+  QuickBooksCustomerFindQuery,
+  QuickBooksCustomerOperations as QuickBooksCustomerOperationsContract,
   QuickBooksInvoiceRequest,
   QuickBooksOptions,
+  QuickBooksPaymentCreateResult,
+  QuickBooksPaymentInput,
+  QuickBooksPaymentOperations as QuickBooksPaymentOperationsContract,
+  QuickBooksPaymentRequest,
   SyncResult,
   TokenSet,
   VendorInput,
@@ -56,6 +68,11 @@ import {
   validateQuickBooksCreditMemoRequest,
   validateQuickBooksInvoiceRequest,
 } from './invoice-request.js';
+import { isRefreshGrantRejected } from './oauth.js';
+import {
+  mapQuickBooksPayment,
+  validateQuickBooksPaymentRequest,
+} from './payment-request.js';
 
 // =============================================================================
 // Utility Functions
@@ -109,12 +126,12 @@ export class QuickBooksProvider implements AccountingProvider {
   private accessToken: string | null = null;
   private tokenExpiresAt: Date | null = null;
 
-  readonly customers: CustomerOperations;
+  readonly customers: QuickBooksCustomerOperationsContract;
   readonly invoices: InvoiceOperations;
   readonly creditMemos: CreditMemoOperations;
   readonly vendors: VendorOperations;
   readonly bills: BillOperations;
-  readonly payments: PaymentOperations;
+  readonly payments: QuickBooksPaymentOperationsContract;
   readonly audit: AuditOperations;
   readonly webhooks: WebhookOperations;
 
@@ -185,6 +202,28 @@ export class QuickBooksProvider implements AccountingProvider {
     return this.accessToken;
   }
 
+  private homeCurrencyCache?: Promise<string>;
+
+  /** The company's home currency, read once per provider instance. */
+  homeCurrency(): Promise<string> {
+    this.homeCurrencyCache ??= this.request<{
+      Preferences?: { CurrencyPrefs?: { HomeCurrency?: { value?: string } } };
+    }>('GET', 'preferences').then(
+      (prefs) => {
+        const value = prefs.Preferences?.CurrencyPrefs?.HomeCurrency?.value;
+        if (typeof value !== 'string' || !value)
+          throw new Error('QuickBooks home currency is unavailable');
+        return value;
+      },
+      (error) => {
+        // Do not cache a failed lookup.
+        this.homeCurrencyCache = undefined;
+        throw error;
+      },
+    );
+    return this.homeCurrencyCache;
+  }
+
   /**
    * Refresh the OAuth access token
    */
@@ -209,7 +248,19 @@ export class QuickBooksProvider implements AccountingProvider {
       access_token: this.accessToken || '',
     });
 
-    const response = await oauthClient.refresh();
+    let response: Awaited<ReturnType<typeof oauthClient.refresh>>;
+    try {
+      response = await oauthClient.refresh();
+    } catch (error) {
+      // Surface a rejected grant as a typed error without provider text.
+      if (isRefreshGrantRejected(error))
+        throw new AccountingReauthRequiredError({
+          provider: 'quickbooks',
+          realmId: this.options.realmId,
+        });
+      // The raw error carries the token response; never rethrow it.
+      throw new QuickBooksOAuthError('EXCHANGE_FAILED');
+    }
     const token = response.getJson();
 
     return {
@@ -230,6 +281,7 @@ export class QuickBooksProvider implements AccountingProvider {
     createRequest?:
       | QuickBooksInvoiceRequest
       | QuickBooksCreditMemoRequest
+      | QuickBooksPaymentRequest
       | QuickBooksReceivableRequest,
   ): Promise<T> {
     // Freeze identity and bytes before any asynchronous work.
@@ -247,7 +299,14 @@ export class QuickBooksProvider implements AccountingProvider {
           'QuickBooks request identity is only supported for prepared invoice, credit memo, journal or noncash application creation',
         );
       }
-      if (endpoint === 'journalentry' || endpoint === 'payment') {
+      if (endpoint === 'payment' && !('endpoint' in createRequest)) {
+        validateQuickBooksPaymentRequest(
+          createRequest as QuickBooksPaymentRequest,
+          realmId,
+          environment,
+          serializedBody,
+        );
+      } else if (endpoint === 'journalentry' || endpoint === 'payment') {
         if (
           !('endpoint' in createRequest) ||
           createRequest.endpoint !== endpoint
@@ -405,7 +464,9 @@ export class QuickBooksProvider implements AccountingProvider {
 // Customer Operations
 // =============================================================================
 
-class QuickBooksCustomerOperations implements CustomerOperations {
+class QuickBooksCustomerOperations
+  implements QuickBooksCustomerOperationsContract
+{
   constructor(private provider: QuickBooksProvider) {}
 
   async push(customer: CustomerInput): Promise<SyncResult> {
@@ -441,6 +502,70 @@ class QuickBooksCustomerOperations implements CustomerOperations {
       limit,
     );
     return customers.map(mapQBOToCustomer);
+  }
+
+  async find(query: QuickBooksCustomerFindQuery): Promise<ExternalCustomer[]> {
+    const displayName = normalizeLookup(query?.displayName, 'displayName');
+    const email = normalizeLookup(query?.email, 'email');
+    if (displayName === undefined && email === undefined)
+      throw new Error('QuickBooks customer find requires displayName or email');
+
+    // QuickBooks queries have no OR, so each criterion is its own query.
+    const clauses: string[] = [];
+    if (displayName !== undefined)
+      clauses.push(`DisplayName = ${quoteQboString(displayName)}`);
+    if (email !== undefined)
+      clauses.push(`PrimaryEmailAddr = ${quoteQboString(email)}`);
+    const rows: QBOCustomer[] = [];
+    for (const clause of clauses)
+      rows.push(
+        ...(await this.provider.queryAll<QBOCustomer>(
+          'Customer',
+          query.includeInactive
+            ? `${clause} AND Active IN (true, false)`
+            : clause,
+        )),
+      );
+    const seen = new Set<string>();
+    const matches: ExternalCustomer[] = [];
+    for (const row of rows) {
+      if (seen.has(row.Id)) continue;
+      // Guard against provider-side fuzziness: keep only exact (case-folded) hits.
+      const byName =
+        displayName !== undefined &&
+        row.DisplayName?.trim().toLowerCase() === displayName.toLowerCase();
+      const byEmail =
+        email !== undefined &&
+        row.PrimaryEmailAddr?.Address?.trim().toLowerCase() ===
+          email.toLowerCase();
+      if (!byName && !byEmail) continue;
+      seen.add(row.Id);
+      matches.push(mapQBOToCustomer(row));
+    }
+    return matches;
+  }
+
+  async findOrCreate(
+    customer: CustomerInput,
+  ): Promise<QuickBooksCustomerFindOrCreateResult> {
+    const candidates = await this.find({
+      displayName: customer.name,
+      email: customer.email,
+      // DisplayName uniqueness includes inactive customers; never reactivate.
+      includeInactive: true,
+    });
+    if (candidates.length === 1) return { match: 'existing', candidates };
+    if (candidates.length > 1) return { match: 'ambiguous', candidates };
+
+    const response = await this.provider.request<{ Customer: QBOCustomer }>(
+      'POST',
+      'customer',
+      mapCustomerToQBO(customer),
+    );
+    return {
+      match: 'created',
+      candidates: [mapQBOToCustomer(response.Customer)],
+    };
   }
 
   async sync(customer: CustomerInput): Promise<SyncResult> {
@@ -802,8 +927,65 @@ class QuickBooksBillOperations implements BillOperations {
 // Payment Operations
 // =============================================================================
 
-class QuickBooksPaymentOperations implements PaymentOperations {
+class QuickBooksPaymentOperations
+  implements QuickBooksPaymentOperationsContract
+{
   constructor(private provider: QuickBooksProvider) {}
+
+  async create(
+    input: QuickBooksPaymentInput,
+    request: QuickBooksPaymentRequest,
+  ): Promise<QuickBooksPaymentCreateResult> {
+    const payload = mapQuickBooksPayment(input);
+    // request() validates the descriptor against these exact bytes before sending.
+    const response = await this.provider.request<{ Payment: QBOPayment }>(
+      'POST',
+      'payment',
+      payload,
+      request,
+    );
+    const externalId = response.Payment.Id;
+    const unknown = (cause: unknown) =>
+      new QuickBooksWriteError({
+        outcome: 'unknown',
+        realmId: this.provider.realmId,
+        environment: this.provider.environment,
+        endpoint: 'payment',
+        requestId: request.requestId,
+        payloadHash: request.payloadHash,
+        externalId,
+        cause,
+      });
+    // A created payment is unconfirmed until an independent readback agrees.
+    let record: QBOPayment;
+    try {
+      const readback = await this.provider.request<{ Payment: QBOPayment }>(
+        'GET',
+        `payment/${encodeURIComponent(externalId)}`,
+      );
+      record = readback.Payment;
+      // QuickBooks omits CurrencyRef on home-currency transactions.
+      const effectiveCurrency =
+        record?.CurrencyRef?.value ?? (await this.provider.homeCurrency());
+      verifyPaymentReadback(payload, externalId, record, effectiveCurrency);
+    } catch (cause) {
+      throw unknown(cause);
+    }
+    return {
+      externalId,
+      syncToken: record.SyncToken,
+      customerRef: payload.CustomerRef.value,
+      depositToAccountRef: payload.DepositToAccountRef.value,
+      currency: payload.CurrencyRef.value,
+      paidOn: payload.TxnDate,
+      amount: payload.TotalAmt,
+      applications: payload.Line.map((line) => ({
+        invoiceRef: line.LinkedTxn[0].TxnId,
+        amount: line.Amount,
+      })),
+      payment: mapQBOToPayment(record),
+    };
+  }
 
   async pull(externalId: string): Promise<ExternalPayment> {
     const response = await this.provider.request<{ Payment: QBOPayment }>(
@@ -1177,6 +1359,27 @@ function mapQBOResourceType(
 // Mapping Functions
 // =============================================================================
 
+/**
+ * Quote a value as a QBO query string literal. QBO escapes a single quote and
+ * a backslash with a leading backslash.
+ */
+function quoteQboString(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+/** Trim and validate a lookup value; control characters are never legitimate. */
+function normalizeLookup(
+  value: string | undefined,
+  label: string,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: reject control characters in query input
+  if (!trimmed || trimmed.length > 500 || /[\u0000-\u001f\u007f]/.test(trimmed))
+    throw new Error(`QuickBooks customer ${label} is not a valid lookup value`);
+  return trimmed;
+}
+
 function mapCustomerToQBO(customer: CustomerInput): QBOCustomerCreate {
   return {
     DisplayName: customer.name,
@@ -1201,6 +1404,7 @@ function mapQBOToCustomer(qbo: QBOCustomer): ExternalCustomer {
     billingAddress: mapQBOToAddress(qbo.BillAddr),
     balance: qbo.Balance,
     currency: qbo.CurrencyRef?.value,
+    ...(qbo.Active === undefined ? {} : { active: qbo.Active }),
     raw: qbo,
   };
 }
@@ -1317,6 +1521,54 @@ function mapBillStatus(
   return 'pending';
 }
 
+function verifyPaymentReadback(
+  expected: ReturnType<typeof mapQuickBooksPayment>,
+  externalId: string,
+  actual: QBOPayment | undefined,
+  effectiveCurrency: string,
+): void {
+  const differs = () => {
+    // Never include provider payloads in the error.
+    throw new Error('QuickBooks payment readback differs from the request');
+  };
+  if (!actual || actual.Id !== externalId) differs();
+  const record = actual as QBOPayment;
+  const minor = (value: unknown, currency: string) =>
+    typeof value === 'number' && isCurrencyMinorUnit(value, currency)
+      ? BigInt(Math.round(value * (currencyMinorUnitFactor(currency) ?? 1)))
+      : undefined;
+  const currency = expected.CurrencyRef.value;
+  if (
+    record.CustomerRef?.value !== expected.CustomerRef.value ||
+    record.DepositToAccountRef?.value !== expected.DepositToAccountRef.value ||
+    record.TxnDate !== expected.TxnDate ||
+    effectiveCurrency !== currency ||
+    minor(record.TotalAmt, currency) !== minor(expected.TotalAmt, currency) ||
+    (record.UnappliedAmt !== undefined && record.UnappliedAmt !== 0) ||
+    (expected.PaymentRefNum !== undefined &&
+      record.PaymentRefNum !== expected.PaymentRefNum) ||
+    (expected.PaymentMethodRef !== undefined &&
+      record.PaymentMethodRef?.value !== expected.PaymentMethodRef.value) ||
+    (expected.PrivateNote !== undefined &&
+      record.PrivateNote !== expected.PrivateNote)
+  )
+    differs();
+  const linked = new Map<string, bigint>();
+  for (const line of record.Line ?? []) {
+    for (const txn of line.LinkedTxn ?? []) {
+      if (txn.TxnType !== 'Invoice' || linked.has(txn.TxnId)) differs();
+      const amount = minor(line.Amount, currency);
+      if (amount === undefined || (line.LinkedTxn?.length ?? 0) !== 1)
+        differs();
+      linked.set(txn.TxnId, amount as bigint);
+    }
+  }
+  if (linked.size !== expected.Line.length) differs();
+  for (const line of expected.Line)
+    if (linked.get(line.LinkedTxn[0].TxnId) !== minor(line.Amount, currency))
+      differs();
+}
+
 function mapQBOToPayment(qbo: QBOPayment): ExternalPayment {
   return {
     externalId: qbo.Id,
@@ -1388,6 +1640,7 @@ interface QBOPhone {
 // Customer types
 interface QBOCustomerBase {
   DisplayName: string;
+  Active?: boolean;
   PrimaryEmailAddr?: QBOEmail;
   PrimaryPhone?: QBOPhone;
   BillAddr?: QBOAddress;
@@ -1524,8 +1777,11 @@ interface QBOPayment {
   TxnDate: string;
   TotalAmt?: number;
   CustomerRef?: QBORef;
+  DepositToAccountRef?: QBORef;
+  UnappliedAmt?: number;
   PaymentMethodRef?: QBORef;
   PaymentRefNum?: string;
+  PrivateNote?: string;
   Line?: QBOPaymentLine[];
   CurrencyRef?: QBORef;
 }

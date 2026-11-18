@@ -41,6 +41,71 @@ not make those application decisions. The redirect URI must also be registered
 in Intuit's developer portal. See Intuit's [OAuth client authorization-code flow](https://github.com/intuit/oauth-jsclient#authorization-code-flow)
 and [revocation helper](https://github.com/intuit/oauth-jsclient#revoke-access_token).
 
+### Refresh tokens and reauthorization
+
+QuickBooks rotates the refresh token on every refresh. Both
+`oauth.refresh({ refreshToken })` and `QuickBooksProvider` (through
+`onTokenRefresh(tokens)`) return the new `refreshToken`; the host must durably
+persist it before using the new access token, because the previous one may stop
+working.
+
+When Intuit rejects the refresh grant (`invalid_grant`: revoked consent or an
+expired refresh token), both throw `AccountingReauthRequiredError` with
+`code === 'REAUTH_REQUIRED'`. The connection cannot recover without the user
+reconnecting, so mark it as needing reauthorization instead of retrying.
+Transient failures keep their ordinary errors. The error never carries provider
+text or token material.
+
+## QuickBooks customer lookup
+
+Connecting an existing company must not duplicate its customers.
+`provider.customers.find({ displayName?, email?, includeInactive? })` returns
+every exact (case-insensitive) match; values are escaped for the QBO query
+language, and when both criteria are given the union is returned (QBO queries
+have no `OR`, so each runs separately). `provider.customers.findOrCreate(customer)`
+looks up `customer.name` and `customer.email` and returns
+`{ match: 'existing' | 'created' | 'ambiguous', candidates }`. It creates only
+when nothing matches and never creates on ambiguity; the host picks from
+`candidates`. If a create has an uncertain outcome it throws
+`QuickBooksWriteError`; call `find` again before retrying.
+
+## QuickBooks payments applied to invoices
+
+Record a received payment against existing invoices with an idempotent
+`requestid`. Prepare the descriptor once, persist it with your payment record
+before the first send, and reuse it unchanged on every retry:
+
+```ts
+import { prepareQuickBooksPaymentRequest } from '@happyvertical/accounting';
+
+const input = {
+  customerRef: 'qbo-customer-id',
+  depositToAccountRef: 'qbo-bank-account-id',
+  paidOn: '2026-11-10',
+  currency: 'CAD',
+  amount: 150.5,
+  applications: [
+    { invoiceRef: 'qbo-invoice-1', amount: 100 },
+    { invoiceRef: 'qbo-invoice-2', amount: 50.5 },
+  ],
+  reference: 'ch_123',
+};
+const request = prepareQuickBooksPaymentRequest(input, {
+  requestId: 'pay-0001',
+  realmId,
+  environment: 'production',
+});
+const result = await provider.payments.create(input, request);
+```
+
+Amounts must be positive, exact in the currency's minor unit, and the total must
+equal the sum of the applications. `create` reads the payment back and verifies
+total, customer, deposit account, date, no unapplied remainder, and each linked
+invoice and amount. A rejected or unverifiable write throws
+`QuickBooksWriteError` (`outcome: 'unknown'` carries the `externalId` of any
+payment that may exist); reconcile with `payments.pull(externalId)` before
+creating a new request identity.
+
 ## Frozen QuickBooks document readback
 
 `verifyQuickBooksInvoiceReadback(invoice, request, observation)` and

@@ -50,7 +50,13 @@ export interface QuickBooksOptions extends BaseAccountingOptions {
   redirectUri?: string;
   /** Webhook verifier token for signature validation */
   webhookVerifierToken?: string;
-  /** Callback when tokens are refreshed (persist to storage) */
+  /**
+   * Callback when tokens are refreshed (persist to storage). QuickBooks
+   * rotates refresh tokens on every refresh, so the host must durably persist
+   * `tokens.refreshToken` here before relying on the new access token; the
+   * previous refresh token may stop working. A rejected grant (revoked consent
+   * or expired refresh token) throws `AccountingReauthRequiredError`.
+   */
   onTokenRefresh?: (tokens: TokenSet) => Promise<void>;
 }
 
@@ -138,6 +144,13 @@ export interface QuickBooksOAuthClient {
     callbackUrl: string;
     expectedState: string;
   }): Promise<QuickBooksOAuthConnection>;
+  /**
+   * Exchange a refresh token for a new token set. QuickBooks rotates refresh
+   * tokens: the host must durably persist the returned `refreshToken` before
+   * using the new access token. Throws `AccountingReauthRequiredError`
+   * (`REAUTH_REQUIRED`) when the grant is rejected (revoked or expired).
+   */
+  refresh(input: { refreshToken: string }): Promise<TokenSet>;
   revoke(input: { refreshToken: string }): Promise<void>;
 }
 
@@ -307,6 +320,70 @@ export interface QuickBooksInvoiceRequest {
   readonly environment: 'sandbox' | 'production';
   /** SHA-256 of the exact mapped JSON payload; not an authorization signature. */
   readonly payloadHash: string;
+}
+
+/** Persist this descriptor with the payment before the first QuickBooks create. */
+export interface QuickBooksPaymentRequest {
+  readonly requestId: string;
+  readonly realmId: string;
+  readonly environment: 'sandbox' | 'production';
+  /** SHA-256 of the exact mapped JSON payload; not an authorization signature. */
+  readonly payloadHash: string;
+}
+
+/** A received payment to record in QuickBooks against existing invoices. */
+export interface QuickBooksPaymentInput {
+  /** Existing Customer.Id that owns every applied invoice. */
+  customerRef: string;
+  /** Existing Account.Id (Bank or Other Current Asset) the payment is deposited to. */
+  depositToAccountRef: string;
+  /** Payment date, `YYYY-MM-DD`. */
+  paidOn: string;
+  /** ISO 4217 code; amounts must be exact in its minor unit. */
+  currency: string;
+  /** Total received, in the currency's major unit. Must equal the applications' sum. */
+  amount: number;
+  /** Invoices to apply the payment to (at least one, each at most once). */
+  applications: { invoiceRef: string; amount: number }[];
+  /** Optional reference number (QuickBooks PaymentRefNum, up to 21 characters). */
+  reference?: string;
+  /** Optional existing PaymentMethod.Id. */
+  paymentMethodRef?: string;
+  /** Optional private note. */
+  privateNote?: string;
+}
+
+/** Verified result of {@link QuickBooksPaymentOperations.create}. */
+export interface QuickBooksPaymentCreateResult {
+  externalId: string;
+  syncToken: string;
+  customerRef: string;
+  depositToAccountRef: string;
+  currency: string;
+  paidOn: string;
+  /** Total payment amount confirmed by readback. */
+  amount: number;
+  /** Invoice applications confirmed by readback. */
+  applications: { invoiceRef: string; amount: number }[];
+  /** The payment as read back from QuickBooks. */
+  payment: ExternalPayment;
+}
+
+/** QuickBooks payment operations, including idempotent creation. */
+export interface QuickBooksPaymentOperations extends PaymentOperations {
+  /**
+   * Record a received payment applied to invoices, sent with the prepared
+   * `requestid` so a retry cannot double-record it, then read it back and
+   * verify amount, customer, deposit account and linked invoices. Prepare the
+   * request once with `prepareQuickBooksPaymentRequest`, persist it, and reuse
+   * it unchanged on every retry. Throws `QuickBooksWriteError` when the write
+   * was rejected or its outcome (including a failed verification) is
+   * unknown; its `externalId` identifies any payment that may exist.
+   */
+  create(
+    input: QuickBooksPaymentInput,
+    request: QuickBooksPaymentRequest,
+  ): Promise<QuickBooksPaymentCreateResult>;
 }
 
 /** Persist this descriptor with the frozen credit memo before the first QuickBooks create. */
@@ -548,6 +625,8 @@ export interface ExternalCustomer extends ExternalRecord {
   billingAddress?: Address;
   balance?: number;
   currency?: string;
+  /** QuickBooks only: false when the customer is inactive. */
+  active?: boolean;
 }
 
 /**
@@ -1112,6 +1191,46 @@ export interface CustomerOperations {
   list(options?: ListOptions): Promise<ExternalCustomer[]>;
   /** Sync customer (create or update) */
   sync(customer: CustomerInput): Promise<SyncResult>;
+}
+
+/**
+ * Criteria for finding existing QuickBooks customers. At least one is required.
+ * When both are given, customers matching either are returned.
+ */
+export interface QuickBooksCustomerFindQuery {
+  /** Exact DisplayName, compared case-insensitively after trimming. */
+  displayName?: string;
+  /** Exact primary email address, compared case-insensitively. */
+  email?: string;
+  /** Also return inactive customers (QuickBooks omits them by default). */
+  includeInactive?: boolean;
+}
+
+/** Outcome of {@link QuickBooksCustomerOperations.findOrCreate}. */
+export interface QuickBooksCustomerFindOrCreateResult {
+  /**
+   * - `existing`: exactly one customer matched; nothing was created.
+   * - `created`: nothing matched; the customer was created.
+   * - `ambiguous`: several matched; nothing was created. The host chooses.
+   */
+  match: 'existing' | 'created' | 'ambiguous';
+  /** The matching customers, or the single created customer. */
+  candidates: ExternalCustomer[];
+}
+
+/** QuickBooks customer operations, including duplicate-safe lookup. */
+export interface QuickBooksCustomerOperations extends CustomerOperations {
+  /** Find customers by display name and/or email, returning every candidate. */
+  find(query: QuickBooksCustomerFindQuery): Promise<ExternalCustomer[]>;
+  /**
+   * Find an existing customer by `customer.name` and `customer.email`, and
+   * create one only when there is no candidate. Never creates on ambiguity.
+   * If the create outcome is uncertain it throws `QuickBooksWriteError`; call
+   * `find` again before retrying.
+   */
+  findOrCreate(
+    customer: CustomerInput,
+  ): Promise<QuickBooksCustomerFindOrCreateResult>;
 }
 
 /**

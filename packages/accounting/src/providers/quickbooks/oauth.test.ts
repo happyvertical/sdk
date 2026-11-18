@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  AccountingReauthRequiredError,
   createQuickBooksOAuthClient,
   QuickBooksOAuthError,
 } from '../../index.js';
@@ -8,6 +9,7 @@ const oauth = vi.hoisted(() => {
   const authorizeUri = vi.fn();
   const createToken = vi.fn();
   const revoke = vi.fn();
+  const refreshUsingToken = vi.fn();
   const construct = vi.fn();
   class MockOAuthClient {
     constructor(options: unknown) {
@@ -16,8 +18,16 @@ const oauth = vi.hoisted(() => {
     authorizeUri = authorizeUri;
     createToken = createToken;
     revoke = revoke;
+    refreshUsingToken = refreshUsingToken;
   }
-  return { authorizeUri, createToken, revoke, construct, MockOAuthClient };
+  return {
+    authorizeUri,
+    createToken,
+    revoke,
+    refreshUsingToken,
+    construct,
+    MockOAuthClient,
+  };
 });
 
 vi.mock('intuit-oauth', () => ({ default: oauth.MockOAuthClient }));
@@ -222,5 +232,71 @@ describe('QuickBooks OAuth client', () => {
       message: 'QuickBooks OAuth authorization failed',
     });
     expect(caught).not.toHaveProperty('cause');
+  });
+
+  describe('refresh', () => {
+    const rejected = () =>
+      Object.assign(new Error('invalid_grant'), {
+        error: 'invalid_grant',
+        error_description: 'Token invalid secret-refresh-token',
+      });
+
+    it('returns the rotated token set', async () => {
+      oauth.refreshUsingToken.mockResolvedValue({
+        getJson: () => ({
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_in: 3600,
+          token_type: 'bearer',
+        }),
+      });
+      const tokens = await (await client()).refresh({
+        refreshToken: 'old-refresh',
+      });
+      expect(oauth.refreshUsingToken).toHaveBeenCalledWith('old-refresh');
+      expect(tokens).toMatchObject({
+        accessToken: 'new-access',
+        refreshToken: 'new-refresh',
+      });
+    });
+
+    it('throws a typed reauth error when the grant is rejected', async () => {
+      oauth.refreshUsingToken.mockRejectedValue(rejected());
+      let caught: unknown;
+      try {
+        await (await client()).refresh({
+          refreshToken: 'secret-refresh-token',
+        });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(AccountingReauthRequiredError);
+      expect(caught).toMatchObject({
+        code: 'REAUTH_REQUIRED',
+        provider: 'quickbooks',
+      });
+      expect(String((caught as Error).message)).not.toContain('secret');
+      expect(caught).not.toHaveProperty('cause');
+    });
+
+    it('detects a rejected grant in the raw response body', async () => {
+      oauth.refreshUsingToken.mockRejectedValue(
+        Object.assign(new Error('Bad Request'), {
+          authResponse: { body: JSON.stringify({ error: 'invalid_grant' }) },
+        }),
+      );
+      await expect(
+        (await client()).refresh({ refreshToken: 'refresh-token' }),
+      ).rejects.toBeInstanceOf(AccountingReauthRequiredError);
+    });
+
+    it('keeps transient failures as sanitized exchange errors', async () => {
+      oauth.refreshUsingToken.mockRejectedValue(
+        Object.assign(new Error('503 secret'), { error: 'server_error' }),
+      );
+      await expect(
+        (await client()).refresh({ refreshToken: 'refresh-token' }),
+      ).rejects.toMatchObject({ code: 'EXCHANGE_FAILED' });
+    });
   });
 });

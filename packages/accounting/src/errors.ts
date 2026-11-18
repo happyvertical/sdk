@@ -113,3 +113,25 @@ const messages: Record<QuickBooksOAuthErrorCode, string> = {
   EXCHANGE_FAILED: 'QuickBooks OAuth token exchange failed',
   REVOCATION_FAILED: 'QuickBooks OAuth token revocation failed',
 };
+
+/**
+ * The provider rejected a refresh grant (`invalid_grant`: revoked consent or an
+ * expired or already-rotated refresh token). The connection cannot recover
+ * without the user reconnecting, so hosts should mark it as needing
+ * reauthorization instead of retrying. The message and fields never carry
+ * provider text or token material.
+ */
+export class AccountingReauthRequiredError extends Error {
+  readonly code = 'REAUTH_REQUIRED';
+  readonly provider: 'quickbooks';
+  readonly realmId?: string;
+
+  constructor(details: { provider: 'quickbooks'; realmId?: string }) {
+    super(
+      `${details.provider} authorization was rejected; the user must reconnect`,
+    );
+    this.name = 'AccountingReauthRequiredError';
+    this.provider = details.provider;
+    this.realmId = details.realmId;
+  }
+}

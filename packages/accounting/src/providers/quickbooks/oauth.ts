@@ -1,5 +1,8 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { QuickBooksOAuthError } from '../../errors.js';
+import {
+  AccountingReauthRequiredError,
+  QuickBooksOAuthError,
+} from '../../errors.js';
 import type {
   QuickBooksOAuthClient,
   QuickBooksOAuthConnection,
@@ -81,6 +84,19 @@ export async function createQuickBooksOAuthClient(
       }
     },
 
+    async refresh({ refreshToken }) {
+      validateOpaque(refreshToken, 'INVALID_TOKEN');
+      try {
+        const response = await client.refreshUsingToken(refreshToken);
+        return mapTokens(response.getJson());
+      } catch (error) {
+        if (isRefreshGrantRejected(error))
+          throw new AccountingReauthRequiredError({ provider: 'quickbooks' });
+        if (error instanceof QuickBooksOAuthError) throw error;
+        throw new QuickBooksOAuthError('EXCHANGE_FAILED');
+      }
+    },
+
     async revoke({ refreshToken }) {
       validateOpaque(refreshToken, 'INVALID_TOKEN');
       try {
@@ -90,6 +106,41 @@ export async function createQuickBooksOAuthClient(
       }
     },
   };
+}
+
+/**
+ * Whether an intuit-oauth refresh failure is a rejected grant (`invalid_grant`).
+ * intuit-oauth wraps token-endpoint errors with the OAuth `error` code and the
+ * raw response body; only the code is inspected, never retained.
+ * @internal
+ */
+export function isRefreshGrantRejected(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const failure = error as {
+    error?: unknown;
+    message?: unknown;
+    authResponse?: { body?: unknown } | string;
+  };
+  if (failure.error === 'invalid_grant' || failure.message === 'invalid_grant')
+    return true;
+  const body =
+    typeof failure.authResponse === 'object'
+      ? failure.authResponse?.body
+      : undefined;
+  if (typeof body === 'string') {
+    try {
+      return (
+        (JSON.parse(body) as { error?: unknown })?.error === 'invalid_grant'
+      );
+    } catch {
+      return false;
+    }
+  }
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    (body as { error?: unknown }).error === 'invalid_grant'
+  );
 }
 
 function validateOptions(options: QuickBooksOAuthOptions): URL {
