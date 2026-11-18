@@ -465,3 +465,43 @@ describe('JMAP feed robustness', () => {
     });
   });
 });
+
+describe('JMAP bodies and object limits', () => {
+  it('keeps plain-text sections around an HTML body', async () => {
+    const m = fx.addEmail({ subject: 'mixed', html: '<p>main</p>' });
+    fx.wrap.set(m.id, ['header <b>', 'footer & more']);
+    const got = await adapter().getMessage(m.id);
+    expect(got.html).toBe(
+      '<div style="white-space:pre-wrap">header &lt;b&gt;</div>\n<p>main</p>\n<div style="white-space:pre-wrap">footer &amp; more</div>',
+    );
+    expect(got.text).toBe('body 1');
+  });
+
+  it('fetches long threads in chunks of the server maxObjectsInGet', async () => {
+    fx.maxObjectsInGet = 2;
+    for (let i = 0; i < 5; i++)
+      fx.addEmail({ subject: `r${i}`, threadId: 'long' });
+    const thread = await adapter().getThread('long');
+    expect(thread.map((m) => m.subject)).toEqual([
+      'r0',
+      'r1',
+      'r2',
+      'r3',
+      'r4',
+    ]);
+  });
+
+  it('clamps the feed page size to maxObjectsInGet', async () => {
+    fx.maxObjectsInGet = 2;
+    for (let i = 0; i < 5; i++) fx.addEmail({ subject: `f${i}` });
+    const client = adapter();
+    const first = batch(await client.getChanges({ limit: 100 }));
+    expect(first.added).toHaveLength(2);
+    expect(first.hasMore).toBe(true);
+    fx.addEmail({ subject: 'new1' });
+    fx.addEmail({ subject: 'new2' });
+    fx.addEmail({ subject: 'new3' });
+    const start = batch(await adapter().getChanges({ limit: 100 }));
+    expect(start.hasMore).toBe(true);
+  });
+});

@@ -701,14 +701,36 @@ export class JMAPAdapter extends BaseEmailClient {
       .filter(([, on]) => on)
       .map(([keyword]) => KEYWORD_TO_FLAG[keyword.toLowerCase()] ?? keyword);
 
-    const bodyText = (parts: JMAPBodyPart[] | undefined, type: string) => {
-      const matching = (parts ?? []).filter((p) => p.type === type);
-      if (matching.length === 0) return undefined;
-      return matching
-        .map((p) => (p.partId ? email.bodyValues?.[p.partId]?.value : ''))
-        .filter((v): v is string => typeof v === 'string')
-        .join('\n');
-    };
+    const partValue = (p: JMAPBodyPart) =>
+      p.partId ? email.bodyValues?.[p.partId]?.value : undefined;
+    const escapeHtml = (v: string) =>
+      v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // textBody/htmlBody are ordered part lists to concatenate: a multipart
+    // message can interleave text/plain sections with the HTML body, so keep
+    // every part (plain parts become preformatted HTML inside the html body).
+    const textParts = (email.textBody ?? []).filter(
+      (p) => p.type === 'text/plain',
+    );
+    const text =
+      textParts.length > 0
+        ? textParts
+            .map(partValue)
+            .filter((v): v is string => typeof v === 'string')
+            .join('\n')
+        : undefined;
+    const htmlList = email.htmlBody ?? [];
+    const html = htmlList.some((p) => p.type === 'text/html')
+      ? htmlList
+          .map((p) => {
+            const v = partValue(p);
+            if (typeof v !== 'string') return undefined;
+            return p.type === 'text/html'
+              ? v
+              : `<div style="white-space:pre-wrap">${escapeHtml(v)}</div>`;
+          })
+          .filter((v): v is string => v !== undefined)
+          .join('\n')
+      : undefined;
     const attachments: Attachment[] | undefined = email.attachments?.map(
       (a) => ({
         id: a.blobId ?? undefined,
@@ -737,8 +759,8 @@ export class JMAPAdapter extends BaseEmailClient {
       replyTo: this.addresses(email.replyTo)[0],
       subject: email.subject ?? '',
       date: dateValue ? new Date(dateValue) : undefined,
-      text: bodyText(email.textBody, 'text/plain'),
-      html: bodyText(email.htmlBody, 'text/html'),
+      text,
+      html,
       attachments,
       folder: folders[0],
       folders,
@@ -753,14 +775,35 @@ export class JMAPAdapter extends BaseEmailClient {
   ): Promise<{ emails: JMAPEmail[]; notFound: string[] }> {
     if (ids.length === 0) return { emails: [], notFound: [] };
     await this.ensureSession();
-    const responses = await this.call([
-      ['Email/get', this.emailGetArgs(ids, includeBodies), 'g'],
-    ]);
-    const res = this.result(responses, 'g') as {
-      list: JMAPEmail[];
-      notFound?: string[];
-    };
-    return { emails: res.list, notFound: res.notFound ?? [] };
+    const emails: JMAPEmail[] = [];
+    const notFound: string[] = [];
+    // Respect the server's maxObjectsInGet by fetching in chunks.
+    const size = this.maxObjectsInGet();
+    for (let i = 0; i < ids.length; i += size) {
+      const responses = await this.call([
+        [
+          'Email/get',
+          this.emailGetArgs(ids.slice(i, i + size), includeBodies),
+          'g',
+        ],
+      ]);
+      const res = this.result(responses, 'g') as {
+        list: JMAPEmail[];
+        notFound?: string[];
+      };
+      emails.push(...res.list);
+      notFound.push(...(res.notFound ?? []));
+    }
+    return { emails, notFound };
+  }
+
+  /** Server's maxObjectsInGet (RFC 8620 section 2), defaulting to a safe 50. */
+  private maxObjectsInGet(): number {
+    const core = this.session?.capabilities?.[CAP_CORE] as
+      | { maxObjectsInGet?: number }
+      | undefined;
+    const max = core?.maxObjectsInGet;
+    return typeof max === 'number' && max > 0 ? max : 50;
   }
 
   async getMessage(messageId: string): Promise<EmailMessage> {
@@ -774,27 +817,20 @@ export class JMAPAdapter extends BaseEmailClient {
     await this.ensureSession();
     const responses = await this.call([
       ['Thread/get', { accountId: this.accountId, ids: [threadId] }, 't'],
-      [
-        'Email/get',
-        this.emailGetArgs(
-          { resultOf: 't', name: 'Thread/get', path: '/list/*/emailIds' },
-          true,
-        ),
-        'g',
-      ],
     ]);
     const thread = this.result(responses, 't') as {
       list: { id: string; emailIds: string[] }[];
-      notFound?: string[];
     };
     if (thread.list.length === 0) {
       throw new MessageNotFoundError(threadId, 'jmap');
     }
-    const { list } = this.result(responses, 'g') as { list: JMAPEmail[] };
+    // Thread/get lists emailIds in conversation order; getEmails chunks by
+    // the server's maxObjectsInGet so long threads still fit.
+    const ids = thread.list[0].emailIds;
+    const { emails } = await this.getEmails(ids, true);
     const mailboxes = await this.mailboxList();
-    const byId = new Map(list.map((e) => [e.id, e]));
-    // Thread/get lists emailIds in conversation order.
-    return thread.list[0].emailIds
+    const byId = new Map(emails.map((e) => [e.id, e]));
+    return ids
       .map((id) => byId.get(id))
       .filter((e): e is JMAPEmail => e !== undefined)
       .map((e) => this.mapEmail(e, mailboxes));
@@ -966,7 +1002,10 @@ export class JMAPAdapter extends BaseEmailClient {
 
   async getChanges(options: ChangeFeedOptions = {}): Promise<ChangeFeedResult> {
     await this.ensureSession();
-    const limit = Math.max(1, options.limit ?? DEFAULT_FEED_LIMIT);
+    const limit = Math.min(
+      Math.max(1, options.limit ?? DEFAULT_FEED_LIMIT),
+      this.maxObjectsInGet(),
+    );
     const includeBodies = options.includeBodies ?? false;
 
     if (options.cursor === undefined) {

@@ -68,6 +68,10 @@ export class JMAPFixture {
   maxQueryPage = Infinity;
   /** Mailbox/changes always claims more changes. */
   mailboxChangesNeverEnd = false;
+  /** Advertised core maxObjectsInGet; Email/get beyond it fails. */
+  maxObjectsInGet = 500;
+  /** Extra text/plain parts around an HTML body: id -> [before, after]. */
+  wrap = new Map<string, [string, string]>();
 
   async start(): Promise<void> {
     this.server = createServer((req, res) => void this.handle(req, res));
@@ -231,7 +235,7 @@ export class JMAPFixture {
   private session() {
     return {
       capabilities: {
-        'urn:ietf:params:jmap:core': {},
+        'urn:ietf:params:jmap:core': { maxObjectsInGet: this.maxObjectsInGet },
         'urn:ietf:params:jmap:mail': {},
       },
       accounts: { [ACCOUNT_ID]: { name: 'alice@example.test' } },
@@ -378,6 +382,11 @@ export class JMAPFixture {
         };
       }
       case 'Email/get': {
+        if ((a.ids?.length ?? 0) > this.maxObjectsInGet) {
+          throw Object.assign(new Error('too many'), {
+            jmapType: 'requestTooLarge',
+          });
+        }
         const wanted: string[] = a.ids ?? [...this.emails.keys()];
         const list: any[] = [];
         const notFound: string[] = [];
@@ -572,31 +581,47 @@ export class JMAPFixture {
           cid: null,
         },
       ],
-      htmlBody: e.html
-        ? [
-            {
-              partId: '2',
-              blobId: 'b2',
-              size: e.html.length,
-              type: 'text/html',
-              name: null,
-              disposition: null,
-              cid: null,
-            },
-          ]
-        : [
-            {
-              partId: '1',
-              blobId: 'b1',
-              size: e.text.length,
-              type: 'text/plain',
-              name: null,
-              disposition: null,
-              cid: null,
-            },
-          ],
+      htmlBody: this.wrap.has(e.id)
+        ? ['p0', '2', 'p1'].map((partId) => ({
+            partId,
+            blobId: `b${partId}`,
+            size: 1,
+            type: partId === '2' ? 'text/html' : 'text/plain',
+            name: null,
+            disposition: null,
+            cid: null,
+          }))
+        : e.html
+          ? [
+              {
+                partId: '2',
+                blobId: 'b2',
+                size: e.html.length,
+                type: 'text/html',
+                name: null,
+                disposition: null,
+                cid: null,
+              },
+            ]
+          : [
+              {
+                partId: '1',
+                blobId: 'b1',
+                size: e.text.length,
+                type: 'text/plain',
+                name: null,
+                disposition: null,
+                cid: null,
+              },
+            ],
       attachments: [],
       bodyValues: {
+        ...(this.wrap.has(e.id)
+          ? {
+              p0: { value: this.wrap.get(e.id)?.[0] },
+              p1: { value: this.wrap.get(e.id)?.[1] },
+            }
+          : {}),
         '1': { value: e.text },
         ...(e.html ? { '2': { value: e.html } } : {}),
       },
