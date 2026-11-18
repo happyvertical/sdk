@@ -24,6 +24,7 @@ import {
   EmailError,
   FolderNotFoundError,
   MessageNotFoundError,
+  SendError,
   TimeoutError,
 } from '../shared/errors';
 import type {
@@ -282,8 +283,8 @@ export class JMAPAdapter extends BaseEmailClient {
   }
 
   async getCapabilities(): Promise<EmailClientCapabilities> {
-    await this.ensureSession();
-    const submission = false; // @@SUBMISSION@@
+    const session = await this.ensureSession();
+    const submission = this.submissionAccountId(session) === this.accountId;
     return {
       send: submission,
       receive: true,
@@ -1513,15 +1514,319 @@ export class JMAPAdapter extends BaseEmailClient {
     return `<${randomUUID()}@${domain}>`;
   }
 
-  async send(
-    _message: EmailMessage,
-    _options?: SendOptions,
-  ): Promise<SendResult> {
-    throw new EmailError(
-      'Sending through JMAP is not implemented yet',
-      'NOT_SUPPORTED',
-      'jmap',
+  // ========================================================================
+  // Submission (EmailSubmission/set)
+  // ========================================================================
+
+  private requireSubmission(): void {
+    const session = this.session as JMAPSession;
+    const account = this.submissionAccountId(session);
+    if (!account) {
+      throw new EmailError(
+        'JMAP server does not offer submission (urn:ietf:params:jmap:submission)',
+        'NOT_SUPPORTED',
+        'jmap',
+      );
+    }
+    if (account !== this.accountId) {
+      // Email and EmailSubmission must live in one account to be chained.
+      throw new EmailError(
+        'JMAP submission account differs from the mail account; sending is not supported for this account',
+        'NOT_SUPPORTED',
+        'jmap',
+      );
+    }
+  }
+
+  async listIdentities(): Promise<EmailIdentity[]> {
+    await this.ensureSession();
+    this.requireSubmission();
+    const responses = await this.call(
+      [['Identity/get', { accountId: this.accountId, ids: null }, 'id']],
+      USING_SUBMISSION,
     );
+    const res = this.result(responses, 'id') as {
+      list: {
+        id: string;
+        name?: string;
+        email: string;
+        replyTo?: JMAPAddress[] | null;
+        bcc?: JMAPAddress[] | null;
+      }[];
+    };
+    return res.list.map((i) => ({
+      id: i.id,
+      name: i.name || undefined,
+      email: i.email,
+      replyTo: i.replyTo ? this.addresses(i.replyTo) : undefined,
+      bcc: i.bcc ? this.addresses(i.bcc) : undefined,
+    }));
+  }
+
+  /** Does the identity authorise this sender address? Supports `*@domain` wildcards. */
+  private identityOwns(identity: EmailIdentity, address: string): boolean {
+    const own = identity.email.trim().toLowerCase();
+    const addr = address.trim().toLowerCase();
+    if (!own || !addr) return false;
+    if (own.startsWith('*@'))
+      return addr.endsWith(own.slice(1)) && addr.length > own.length - 1;
+    return own === addr;
+  }
+
+  /**
+   * Choose the submission identity. The sender address must be owned by the
+   * account: an explicit identityId is checked against the From address, and
+   * without one exactly one identity must match. Nothing is created on the
+   * server unless this succeeds.
+   */
+  private pickIdentity(
+    identities: EmailIdentity[],
+    from: string,
+    identityId?: string,
+  ): EmailIdentity {
+    if (identityId) {
+      const chosen = identities.find((i) => i.id === identityId);
+      if (!chosen) {
+        throw new EmailError(
+          `Identity ${identityId} does not belong to this account`,
+          'IDENTITY_NOT_FOUND',
+          'jmap',
+        );
+      }
+      if (!this.identityOwns(chosen, from)) {
+        throw new EmailError(
+          `Identity ${identityId} is not authorised to send as ${from}`,
+          'IDENTITY_MISMATCH',
+          'jmap',
+        );
+      }
+      return chosen;
+    }
+    const exact = identities.filter(
+      (i) => !i.email.startsWith('*@') && this.identityOwns(i, from),
+    );
+    if (exact.length > 1) {
+      throw new EmailError(
+        `More than one identity matches ${from}; pass identityId`,
+        'IDENTITY_AMBIGUOUS',
+        'jmap',
+      );
+    }
+    const match =
+      exact[0] ?? identities.find((i) => this.identityOwns(i, from));
+    if (!match) {
+      throw new EmailError(
+        `This account has no identity for ${from}; refusing to send`,
+        'FROM_NOT_OWNED',
+        'jmap',
+      );
+    }
+    return match;
+  }
+
+  /**
+   * Send through EmailSubmission/set.
+   *
+   * New message: one request creates the message (as `$draft` in Drafts) and
+   * submits it with the identity chosen for its From address; on success the
+   * server files it into Sent (`saveToSent`, default when a Sent mailbox
+   * exists) or destroys it. Draft-then-submit: pass `options.draftId` (from
+   * createDraft); the stored draft is submitted and `message` is ignored.
+   *
+   * Guards, all checked before anything is created: the From address must be
+   * owned by the account's identity (`FROM_NOT_OWNED`, `IDENTITY_MISMATCH`,
+   * `IDENTITY_NOT_FOUND`, `IDENTITY_AMBIGUOUS`), an envelope sender must
+   * belong to the same identity (`ENVELOPE_FROM_NOT_OWNED`), only genuine
+   * drafts can be submitted (`NOT_A_DRAFT`), and there must be a recipient.
+   * `accepted` lists the queued recipients: JMAP reports delivery later.
+   */
+  async send(
+    message: EmailMessage,
+    options: SendOptions = {},
+  ): Promise<SendResult> {
+    await this.ensureSession();
+    this.requireSubmission();
+
+    let draft: JMAPEmail | undefined;
+    let from: string;
+    let recipients: string[];
+    if (options.draftId) {
+      draft = await this.requireDraft(options.draftId);
+      from = draft.from?.[0]?.email ?? '';
+      recipients = [
+        ...(draft.to ?? []),
+        ...(draft.cc ?? []),
+        ...(draft.bcc ?? []),
+      ].map((a) => a.email);
+      if (!from) {
+        throw new EmailError(
+          'Draft has no From address; refusing to send',
+          'FROM_NOT_OWNED',
+          'jmap',
+        );
+      }
+    } else {
+      this.validateMessage(message);
+      from = message.from.address;
+      recipients = [
+        ...message.to,
+        ...(message.cc ?? []),
+        ...(message.bcc ?? []),
+      ].map((a) => a.address);
+    }
+
+    const identity = this.pickIdentity(
+      await this.listIdentities(),
+      from,
+      options.identityId,
+    );
+
+    let envelope: Record<string, unknown> | undefined;
+    if (options.envelope?.from || options.envelope?.to) {
+      const mailFrom = options.envelope.from ?? from;
+      if (!this.identityOwns(identity, mailFrom)) {
+        throw new EmailError(
+          `Envelope sender ${mailFrom} is not owned by identity ${identity.id}`,
+          'ENVELOPE_FROM_NOT_OWNED',
+          'jmap',
+        );
+      }
+      const to = options.envelope.to;
+      const rcpt =
+        to === undefined ? recipients : Array.isArray(to) ? to : [to];
+      for (const address of rcpt) this.validateEmail({ address });
+      envelope = {
+        mailFrom: { email: mailFrom },
+        rcptTo: rcpt.map((email) => ({ email })),
+      };
+      recipients = rcpt;
+    }
+    if (recipients.length === 0) {
+      throw new EmailError(
+        'Message has no recipients',
+        'NO_RECIPIENTS',
+        'jmap',
+      );
+    }
+
+    const drafts = await this.mailboxByRole('drafts');
+    const sent = await this.mailboxByRole('sent');
+    if (options.saveToSent === true && !sent) {
+      throw new FolderNotFoundError('\\Sent', 'jmap');
+    }
+    const saveToSent = options.saveToSent ?? sent !== undefined;
+
+    const calls: MethodCall[] = [];
+    let emailRef: string;
+    const messageId = draft
+      ? draft.messageId?.[0]
+      : this.stripAngles(this.newMessageId(message, options.messageId));
+    if (draft) {
+      emailRef = options.draftId as string;
+    } else {
+      const createIn = drafts ?? sent;
+      if (!createIn) throw new FolderNotFoundError('\\Drafts', 'jmap');
+      calls.push([
+        'Email/set',
+        {
+          accountId: this.accountId,
+          create: {
+            msg: this.composeEmail(message, {
+              mailboxIds: { [createIn.id]: true },
+              keywords: { $draft: true, $seen: true },
+              messageId,
+              date: options.date,
+              headers: options.headers,
+            }),
+          },
+        },
+        'es',
+      ]);
+      emailRef = '#msg';
+    }
+
+    const submission: Record<string, unknown> = {
+      accountId: this.accountId,
+      create: {
+        sub: {
+          emailId: emailRef,
+          identityId: identity.id,
+          ...(envelope ? { envelope } : {}),
+        },
+      },
+    };
+    if (saveToSent && sent) {
+      const patch: Record<string, unknown> = {
+        'keywords/$draft': null,
+        [`mailboxIds/${sent.id}`]: true,
+      };
+      if (drafts && drafts.id !== sent.id)
+        patch[`mailboxIds/${drafts.id}`] = null;
+      submission.onSuccessUpdateEmail = { '#sub': patch };
+    } else {
+      submission.onSuccessDestroyEmail = ['#sub'];
+    }
+    calls.push(['EmailSubmission/set', submission, 'ss']);
+
+    const responses = await this.call(calls, USING_SUBMISSION);
+
+    let createdMessage: { id: string; threadId?: string } | undefined;
+    if (!draft) {
+      const es = this.result(responses, 'es') as {
+        created?: Record<string, { id: string; threadId?: string }>;
+        notCreated?: Record<string, { type: string; description?: string }>;
+      };
+      if (es.notCreated?.msg) throw this.methodError(es.notCreated.msg);
+      createdMessage = es.created?.msg;
+    }
+
+    const cleanup = async () => {
+      if (!createdMessage) return;
+      try {
+        await this.call([
+          [
+            'Email/set',
+            { accountId: this.accountId, destroy: [createdMessage.id] },
+            'cleanup',
+          ],
+        ]);
+      } catch {
+        // best effort: a leftover draft is harmless and visible to the user
+      }
+    };
+    let ss: {
+      created?: Record<string, { id: string; undoStatus?: string }>;
+      notCreated?: Record<string, { type: string; description?: string }>;
+    };
+    try {
+      ss = this.result(responses, 'ss') as typeof ss;
+    } catch (error) {
+      await cleanup();
+      throw error;
+    }
+    const failure = ss.notCreated?.sub;
+    if (failure || !ss.created?.sub) {
+      await cleanup();
+      const type = failure?.type ?? 'serverFail';
+      throw new SendError(
+        `JMAP submission rejected: ${type}${failure?.description ? ` (${failure.description})` : ''}`,
+        [],
+        recipients,
+        'jmap',
+        failure,
+      );
+    }
+
+    return {
+      messageId: messageId ?? '',
+      accepted: recipients,
+      rejected: [],
+      response: `jmap:${ss.created.sub.undoStatus ?? 'pending'}`,
+      id: createdMessage?.id ?? options.draftId,
+      threadId: createdMessage?.threadId ?? draft?.threadId,
+      submissionId: ss.created.sub.id,
+      identityId: identity.id,
+    };
   }
 
   // ========================================================================

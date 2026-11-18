@@ -71,7 +71,7 @@ describe('JMAP session and auth', () => {
       changeFeed: true,
       push: true,
       threads: true,
-      send: false,
+      send: true,
     });
   });
 });
@@ -157,12 +157,6 @@ describe('JMAP folders and messages', () => {
     expect((await client.listFolders()).map((f) => f.path)).not.toContain(
       'Projects/Y/Z',
     );
-  });
-
-  it('does not implement send yet', async () => {
-    await expect(adapter().send({} as never)).rejects.toMatchObject({
-      code: 'NOT_SUPPORTED',
-    });
   });
 });
 
@@ -719,5 +713,215 @@ describe('JMAP triage write-back', () => {
       }),
     ).rejects.toMatchObject({ code: 'NOT_SUPPORTED' });
     expect([...fx.emails.values()]).toHaveLength(0);
+  });
+});
+
+describe('JMAP submission', () => {
+  const message = {
+    from: { name: 'Alice', address: 'alice@example.test' },
+    to: [{ address: 'bob@example.test' }],
+    cc: [{ address: 'carol@example.test' }],
+    subject: 'Hi',
+    text: 'plain',
+    html: '<p>html</p>',
+  };
+
+  async function connected() {
+    const client = adapter();
+    await client.connect();
+    return client;
+  }
+  const writes = () =>
+    fx.requests.filter((r) =>
+      r.body?.methodCalls?.some(([n]: [string]) =>
+        ['Email/set', 'EmailSubmission/set'].includes(n),
+      ),
+    );
+
+  it('reports send support from the session and lists identities', async () => {
+    const client = await connected();
+    expect((await client.getCapabilities()).send).toBe(true);
+    expect((await client.getCapabilities()).writeBack?.submission).toBe(true);
+    expect((await client.listIdentities()).map((i) => i.email)).toEqual([
+      'alice@example.test',
+      'team@example.test',
+      '*@alias.test',
+    ]);
+    fx.submission = false;
+    const bare = adapter();
+    expect((await bare.getCapabilities()).send).toBe(false);
+    await expect(bare.send(message)).rejects.toMatchObject({
+      code: 'NOT_SUPPORTED',
+    });
+  });
+
+  it('submits as the matching identity and files the copy in Sent', async () => {
+    const client = await connected();
+    const result = await client.send(message, {
+      messageId: '<fixed@example.test>',
+    });
+    expect(result).toMatchObject({
+      messageId: 'fixed@example.test',
+      accepted: ['bob@example.test', 'carol@example.test'],
+      rejected: [],
+      identityId: 'id-alice',
+      response: 'jmap:pending',
+    });
+    expect(result.submissionId).toBeDefined();
+    expect(fx.submissions).toHaveLength(1);
+    const stored = fx.emails.get(result.id as string);
+    expect(stored?.mailboxIds).toEqual({ 'mb-sent': true });
+    expect(stored?.keywords.$draft).toBeUndefined();
+    expect(stored?.text).toBe('plain');
+    expect(stored?.html).toBe('<p>html</p>');
+    // Submission went to the same trusted API endpoint with the same credentials.
+    const last = fx.requests.at(-1);
+    expect(last?.url).toBe('/jmap/api');
+    expect(last?.auth).toMatch(/^Basic /);
+    expect(last?.body.using).toContain('urn:ietf:params:jmap:submission');
+  });
+
+  it('can skip the sent copy', async () => {
+    const client = await connected();
+    const result = await client.send(message, { saveToSent: false });
+    expect(fx.emails.has(result.id as string)).toBe(false);
+    expect(fx.submissions).toHaveLength(1);
+  });
+
+  it('matches wildcard identities by domain, not by suffix trick', async () => {
+    const client = await connected();
+    const ok = await client.send({
+      ...message,
+      from: { address: 'anyone@alias.test' },
+    });
+    expect(ok.identityId).toBe('id-wild');
+    await expect(
+      client.send({ ...message, from: { address: 'x@evilalias.test' } }),
+    ).rejects.toMatchObject({ code: 'FROM_NOT_OWNED' });
+  });
+
+  it('refuses a From address the account does not own, before creating anything', async () => {
+    const client = await connected();
+    const before = writes().length;
+    await expect(
+      client.send({ ...message, from: { address: 'ceo@victim.test' } }),
+    ).rejects.toMatchObject({ code: 'FROM_NOT_OWNED' });
+    expect(writes()).toHaveLength(before);
+    expect(fx.emails.size).toBe(0);
+    expect(fx.submissions).toHaveLength(0);
+  });
+
+  it('refuses an identity that does not match the From address', async () => {
+    const client = await connected();
+    await expect(
+      client.send(message, { identityId: 'id-team' }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_MISMATCH' });
+    await expect(
+      client.send(message, { identityId: 'id-someone-else' }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_NOT_FOUND' });
+    expect(writes()).toHaveLength(0);
+    expect(fx.emails.size).toBe(0);
+  });
+
+  it('refuses an envelope sender outside the chosen identity', async () => {
+    const client = await connected();
+    await expect(
+      client.send(message, { envelope: { from: 'ceo@victim.test' } }),
+    ).rejects.toMatchObject({ code: 'ENVELOPE_FROM_NOT_OWNED' });
+    expect(writes()).toHaveLength(0);
+    const ok = await client.send(message, {
+      envelope: { from: 'alice@example.test', to: ['only@example.test'] },
+    });
+    expect(ok.accepted).toEqual(['only@example.test']);
+    expect(fx.submissions[0].envelope).toEqual({
+      mailFrom: { email: 'alice@example.test' },
+      rcptTo: [{ email: 'only@example.test' }],
+    });
+  });
+
+  it('refuses ambiguous identities and header injection', async () => {
+    fx.identities.push({
+      id: 'id-dup',
+      name: 'Dup',
+      email: 'alice@example.test',
+    });
+    const client = await connected();
+    await expect(client.send(message)).rejects.toMatchObject({
+      code: 'IDENTITY_AMBIGUOUS',
+    });
+    expect(
+      (await client.send(message, { identityId: 'id-dup' })).identityId,
+    ).toBe('id-dup');
+    await expect(
+      client.send(message, {
+        identityId: 'id-dup',
+        headers: { 'X-A': 'v\r\nBcc: evil@x.test' },
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(
+      client.send(message, {
+        identityId: 'id-dup',
+        headers: { From: 'spoof@x.test' },
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+
+  it('requires a recipient and a valid message', async () => {
+    const client = await connected();
+    await expect(
+      client.send({ ...message, to: [], cc: undefined }),
+    ).rejects.toMatchObject({ code: 'INVALID_MESSAGE' });
+    expect(writes()).toHaveLength(0);
+  });
+
+  it('cleans up the staged message when the server rejects the submission', async () => {
+    fx.submissionError = 'forbiddenFrom';
+    const client = await connected();
+    await expect(client.send(message)).rejects.toMatchObject({
+      code: 'SEND_ERROR',
+      rejected: ['bob@example.test', 'carol@example.test'],
+    });
+    expect(fx.emails.size).toBe(0);
+    expect(fx.submissions).toHaveLength(0);
+  });
+
+  it('submits a stored draft (draft-then-submit) and files it into Sent', async () => {
+    const client = await connected();
+    const draft = await client.createDraft(message);
+    const result = await client.send(message, { draftId: draft.id });
+    expect(result.id).toBe(draft.id);
+    expect(result.messageId).toBe(draft.messageId);
+    expect(fx.emails.get(draft.id)?.mailboxIds).toEqual({ 'mb-sent': true });
+    expect(fx.emails.get(draft.id)?.keywords.$draft).toBeUndefined();
+  });
+
+  it('never submits a non-draft, and checks a draft against identities too', async () => {
+    const received = fx.addEmail({
+      subject: 'inbound',
+      from: [{ email: 'ceo@victim.test' }],
+    });
+    const client = await connected();
+    await expect(
+      client.send(message, { draftId: received.id }),
+    ).rejects.toMatchObject({ code: 'NOT_A_DRAFT' });
+    const forged = await client.createDraft({
+      ...message,
+      from: { address: 'ceo@victim.test' },
+    });
+    await expect(
+      client.send(message, { draftId: forged.id }),
+    ).rejects.toMatchObject({ code: 'FROM_NOT_OWNED' });
+    await expect(
+      client.send(message, { draftId: forged.id, identityId: 'id-alice' }),
+    ).rejects.toMatchObject({ code: 'IDENTITY_MISMATCH' });
+    expect(fx.submissions).toHaveLength(0);
+  });
+
+  it('refuses a submission apiUrl outside the trusted origins', async () => {
+    fx.apiUrlOverride = 'https://evil.test/jmap/api';
+    await expect(adapter().send(message)).rejects.toMatchObject({
+      code: 'UNTRUSTED_ORIGIN',
+    });
+    expect(fx.submissions).toHaveLength(0);
   });
 });

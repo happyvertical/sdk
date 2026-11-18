@@ -76,8 +76,29 @@ account returns `{ status: 'resync-required' }` instead of throwing.
 `subscribeChanges()` (`push` capability) is an optional EventSource hint that
 tells you when to call `getChanges()`; it carries no data.
 
-The JMAP adapter does not implement `send()` yet; submission, drafts and
-keyword/role write-back are separate work.
+## Triage write-back and submission
+
+Optional `EmailClient` methods, advertised by `getCapabilities().writeBack`
+(absent or `false` means unsupported, the method is `undefined`; IMAP, Gmail
+and the other adapters do not implement them yet). The JMAP adapter implements
+all of them:
+
+- `updateFlags(ids, { add, remove })`: `\\Seen`, `\\Flagged`, `\\Answered` or any
+  keyword (`$junk`, `$phishing`, custom). `\\Draft`/`\\Deleted` are rejected.
+- `updateLabels(ids, { add, remove })`: mailbox membership by name, path, id or `\\Role`.
+- `archive(ids)` (inbox to Archive), `markSpam(ids, spam = true)` (Junk plus `$junk`/`$notjunk`).
+- `createDraft`, `updateDraft` (replaces the draft, so the id changes), `deleteDraft`.
+  Only messages carrying `$draft` are touched.
+- `listIdentities()` and `send()`. `send()` uses `EmailSubmission/set`; the
+  From address must belong to one of the account's identities (wildcards such
+  as `*@example.com` supported) or nothing is created or sent. `identityId`,
+  `draftId` (draft-then-submit) and `saveToSent` are `SendOptions`. Attachments
+  must reference an already uploaded blob (`Attachment.id`).
+
+Per-message outcomes are returned (`WriteBackResult { updated, failed, state,
+oldState }`), not thrown, and every operation is idempotent, so a replay after
+a crash is safe. Submission and write-back use the same trusted-origin and
+https checks as the rest of the adapter.
 
 ## Package validation
 
