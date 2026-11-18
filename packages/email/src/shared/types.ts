@@ -51,6 +51,8 @@ export interface EmailAddress {
 }
 
 export interface Attachment {
+  /** Provider-specific attachment/blob id (JMAP blobId), when the adapter has one. */
+  id?: string;
   filename?: string;
   contentType: string;
   size: number;
@@ -472,11 +474,46 @@ export interface GmailOptions {
   debug?: boolean;
 }
 
+export interface JMAPOptions {
+  type: 'jmap';
+
+  /**
+   * Server origin or base URL (e.g. 'https://mail.example.com'). The session
+   * resource is discovered at `/.well-known/jmap` (RFC 8620 section 2.2).
+   */
+  url: string;
+  /** Explicit session resource URL; skips /.well-known/jmap discovery. */
+  sessionUrl?: string;
+
+  // Authentication: caller-supplied app password (Basic) or bearer token.
+  auth:
+    | {
+        user: string;
+        pass: string;
+      }
+    | {
+        type: 'bearer';
+        token: string;
+      };
+
+  /** Mail account id. Defaults to the session's primary mail account. */
+  accountId?: string;
+
+  /** Custom fetch (proxies, tests). Defaults to the global fetch. */
+  fetch?: typeof fetch;
+  /** Per-request timeout in milliseconds. Default 30000. */
+  timeoutMs?: number;
+
+  // Logging
+  debug?: boolean;
+}
+
 export type GetEmailClientOptions =
   | SMTPOptions
   | IMAPOptions
   | POP3Options
-  | GmailOptions;
+  | GmailOptions
+  | JMAPOptions;
 
 // ============================================================================
 // Base Configuration
