@@ -352,3 +352,27 @@ async function viWaitFor(cond: () => boolean, ms = 3000) {
     await new Promise((r) => setTimeout(r, 10));
   }
 }
+
+describe('JMAP threads', () => {
+  it('getThread returns the whole conversation oldest first', async () => {
+    const root = fx.addEmail({ subject: 'topic', threadId: 'tx' });
+    fx.addEmail({ subject: 'unrelated' });
+    const reply = fx.addEmail({
+      subject: 'Re: topic',
+      threadId: 'tx',
+      inReplyTo: root.messageId,
+    });
+    const client = adapter();
+    const thread = await client.getThread('tx');
+    expect(thread.map((m) => m.id)).toEqual([root.id, reply.id]);
+    expect(thread.every((m) => m.threadId === 'tx')).toBe(true);
+    expect(thread[1].inReplyTo).toBe(root.messageId[0]);
+    expect(thread[0].text).toBe('body 1');
+  });
+
+  it('getThread throws MessageNotFoundError for an unknown thread', async () => {
+    await expect(adapter().getThread('missing')).rejects.toBeInstanceOf(
+      MessageNotFoundError,
+    );
+  });
+});

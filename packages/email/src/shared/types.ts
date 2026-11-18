@@ -243,6 +243,13 @@ export interface EmailClient {
   getCapabilities(): Promise<EmailClientCapabilities>;
   getAdapter(): AdapterType;
 
+  /**
+   * Every message in a conversation, oldest first. Optional: adapters with
+   * native threads implement it (see EmailClientCapabilities.threads); others
+   * leave it undefined and callers fall back to References/In-Reply-To.
+   */
+  getThread?(threadId: string): Promise<EmailMessage[]>;
+
   // Optional incremental sync (see EmailClientCapabilities.changeFeed/push)
   getChanges?(options?: ChangeFeedOptions): Promise<ChangeFeedResult>;
   subscribeChanges?(

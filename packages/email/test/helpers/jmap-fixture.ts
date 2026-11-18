@@ -259,10 +259,10 @@ export class JMAPFixture {
           jmapType: 'invalidResultReference',
         });
       }
-      resolved[key.slice(1)] = ref.path
-        .split('/')
-        .filter(Boolean)
-        .reduce((v: any, k: string) => v[k], source[1]);
+      resolved[key.slice(1)] = resolvePointer(
+        source[1],
+        ref.path.split('/').filter(Boolean),
+      );
       delete resolved[key];
     }
     return resolved;
@@ -586,4 +586,14 @@ export class JMAPFixture {
     for (const p of props) out[p] = full[p];
     return out;
   }
+}
+
+/** JSON pointer with the JMAP '*' wildcard (maps over an array and flattens). */
+function resolvePointer(value: any, parts: string[]): any {
+  if (parts.length === 0) return value;
+  const [head, ...rest] = parts;
+  if (head === '*') {
+    return value.flatMap((v: any) => resolvePointer(v, rest));
+  }
+  return resolvePointer(value[head], rest);
 }

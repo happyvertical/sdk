@@ -704,6 +704,37 @@ export class JMAPAdapter extends BaseEmailClient {
     return this.mapEmail(emails[0], await this.mailboxList());
   }
 
+  /** Native JMAP thread (Thread/get): messages oldest first, with bodies. */
+  async getThread(threadId: string): Promise<EmailMessage[]> {
+    await this.ensureSession();
+    const responses = await this.call([
+      ['Thread/get', { accountId: this.accountId, ids: [threadId] }, 't'],
+      [
+        'Email/get',
+        this.emailGetArgs(
+          { resultOf: 't', name: 'Thread/get', path: '/list/*/emailIds' },
+          true,
+        ),
+        'g',
+      ],
+    ]);
+    const thread = this.result(responses, 't') as {
+      list: { id: string; emailIds: string[] }[];
+      notFound?: string[];
+    };
+    if (thread.list.length === 0) {
+      throw new MessageNotFoundError(threadId, 'jmap');
+    }
+    const { list } = this.result(responses, 'g') as { list: JMAPEmail[] };
+    const mailboxes = await this.mailboxList();
+    const byId = new Map(list.map((e) => [e.id, e]));
+    // Thread/get lists emailIds in conversation order.
+    return thread.list[0].emailIds
+      .map((id) => byId.get(id))
+      .filter((e): e is JMAPEmail => e !== undefined)
+      .map((e) => this.mapEmail(e, mailboxes));
+  }
+
   async fetch(options: FetchOptions = {}): Promise<EmailMessage[]> {
     await this.ensureSession();
     const mailboxes = await this.mailboxList();
