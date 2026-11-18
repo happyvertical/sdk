@@ -322,6 +322,70 @@ export interface QuickBooksInvoiceRequest {
   readonly payloadHash: string;
 }
 
+/** Persist this descriptor with the payment before the first QuickBooks create. */
+export interface QuickBooksPaymentRequest {
+  readonly requestId: string;
+  readonly realmId: string;
+  readonly environment: 'sandbox' | 'production';
+  /** SHA-256 of the exact mapped JSON payload; not an authorization signature. */
+  readonly payloadHash: string;
+}
+
+/** A received payment to record in QuickBooks against existing invoices. */
+export interface QuickBooksPaymentInput {
+  /** Existing Customer.Id that owns every applied invoice. */
+  customerRef: string;
+  /** Existing Account.Id (Bank or Other Current Asset) the payment is deposited to. */
+  depositToAccountRef: string;
+  /** Payment date, `YYYY-MM-DD`. */
+  paidOn: string;
+  /** ISO 4217 code; amounts must be exact in its minor unit. */
+  currency: string;
+  /** Total received, in the currency's major unit. Must equal the applications' sum. */
+  amount: number;
+  /** Invoices to apply the payment to (at least one, each at most once). */
+  applications: { invoiceRef: string; amount: number }[];
+  /** Optional reference number (QuickBooks PaymentRefNum, up to 21 characters). */
+  reference?: string;
+  /** Optional existing PaymentMethod.Id. */
+  paymentMethodRef?: string;
+  /** Optional private note. */
+  privateNote?: string;
+}
+
+/** Verified result of {@link QuickBooksPaymentOperations.create}. */
+export interface QuickBooksPaymentCreateResult {
+  externalId: string;
+  syncToken: string;
+  customerRef: string;
+  depositToAccountRef: string;
+  currency: string;
+  paidOn: string;
+  /** Total payment amount confirmed by readback. */
+  amount: number;
+  /** Invoice applications confirmed by readback. */
+  applications: { invoiceRef: string; amount: number }[];
+  /** The payment as read back from QuickBooks. */
+  payment: ExternalPayment;
+}
+
+/** QuickBooks payment operations, including idempotent creation. */
+export interface QuickBooksPaymentOperations extends PaymentOperations {
+  /**
+   * Record a received payment applied to invoices, sent with the prepared
+   * `requestid` so a retry cannot double-record it, then read it back and
+   * verify amount, customer, deposit account and linked invoices. Prepare the
+   * request once with `prepareQuickBooksPaymentRequest`, persist it, and reuse
+   * it unchanged on every retry. Throws `QuickBooksWriteError` when the write
+   * was rejected or its outcome (including a failed verification) is
+   * unknown; its `externalId` identifies any payment that may exist.
+   */
+  create(
+    input: QuickBooksPaymentInput,
+    request: QuickBooksPaymentRequest,
+  ): Promise<QuickBooksPaymentCreateResult>;
+}
+
 /** Persist this descriptor with the frozen credit memo before the first QuickBooks create. */
 export interface QuickBooksCreditMemoRequest {
   readonly requestId: string;
@@ -561,6 +625,8 @@ export interface ExternalCustomer extends ExternalRecord {
   billingAddress?: Address;
   balance?: number;
   currency?: string;
+  /** QuickBooks only: false when the customer is inactive. */
+  active?: boolean;
 }
 
 /**

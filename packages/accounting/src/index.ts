@@ -57,6 +57,7 @@ export {
   prepareQuickBooksInvoiceRequest,
 } from './providers/quickbooks/invoice-request.js';
 export { createQuickBooksOAuthClient } from './providers/quickbooks/oauth.js';
+export { prepareQuickBooksPaymentRequest } from './providers/quickbooks/payment-request.js';
 // Re-export all types
 export * from './types.js';
 
