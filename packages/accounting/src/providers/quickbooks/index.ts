@@ -202,6 +202,28 @@ export class QuickBooksProvider implements AccountingProvider {
     return this.accessToken;
   }
 
+  private homeCurrencyCache?: Promise<string>;
+
+  /** The company's home currency, read once per provider instance. */
+  homeCurrency(): Promise<string> {
+    this.homeCurrencyCache ??= this.request<{
+      Preferences?: { CurrencyPrefs?: { HomeCurrency?: { value?: string } } };
+    }>('GET', 'preferences').then(
+      (prefs) => {
+        const value = prefs.Preferences?.CurrencyPrefs?.HomeCurrency?.value;
+        if (typeof value !== 'string' || !value)
+          throw new Error('QuickBooks home currency is unavailable');
+        return value;
+      },
+      (error) => {
+        // Do not cache a failed lookup.
+        this.homeCurrencyCache = undefined;
+        throw error;
+      },
+    );
+    return this.homeCurrencyCache;
+  }
+
   /**
    * Refresh the OAuth access token
    */
@@ -942,7 +964,10 @@ class QuickBooksPaymentOperations
         `payment/${encodeURIComponent(externalId)}`,
       );
       record = readback.Payment;
-      verifyPaymentReadback(payload, externalId, record);
+      // QuickBooks omits CurrencyRef on home-currency transactions.
+      const effectiveCurrency =
+        record?.CurrencyRef?.value ?? (await this.provider.homeCurrency());
+      verifyPaymentReadback(payload, externalId, record, effectiveCurrency);
     } catch (cause) {
       throw unknown(cause);
     }
@@ -1500,6 +1525,7 @@ function verifyPaymentReadback(
   expected: ReturnType<typeof mapQuickBooksPayment>,
   externalId: string,
   actual: QBOPayment | undefined,
+  effectiveCurrency: string,
 ): void {
   const differs = () => {
     // Never include provider payloads in the error.
@@ -1516,8 +1542,7 @@ function verifyPaymentReadback(
     record.CustomerRef?.value !== expected.CustomerRef.value ||
     record.DepositToAccountRef?.value !== expected.DepositToAccountRef.value ||
     record.TxnDate !== expected.TxnDate ||
-    (record.CurrencyRef?.value !== undefined &&
-      record.CurrencyRef.value !== currency) ||
+    effectiveCurrency !== currency ||
     minor(record.TotalAmt, currency) !== minor(expected.TotalAmt, currency) ||
     (record.UnappliedAmt !== undefined && record.UnappliedAmt !== 0) ||
     (expected.PaymentRefNum !== undefined &&

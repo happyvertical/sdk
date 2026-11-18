@@ -58,7 +58,7 @@ function stored(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function mockFetch(readback: unknown, postStatus = 200) {
+function mockFetch(readback: unknown, postStatus = 200, homeCurrency = 'CAD') {
   const calls: { url: URL; method: string; body?: string }[] = [];
   vi.stubGlobal(
     'fetch',
@@ -68,6 +68,14 @@ function mockFetch(readback: unknown, postStatus = 200) {
         method: init.method as string,
         body: init.body as string | undefined,
       });
+      if (url.includes('/preferences'))
+        return new Response(
+          JSON.stringify({
+            Preferences: {
+              CurrencyPrefs: { HomeCurrency: { value: homeCurrency } },
+            },
+          }),
+        );
       if (init.method === 'POST')
         return new Response(
           postStatus === 200
@@ -169,6 +177,46 @@ describe('QuickBooks payment creation', () => {
       externalId: 'pay-remote-1',
       requestId: 'pay-1',
     });
+  });
+
+  it('treats a missing readback CurrencyRef as the home currency', async () => {
+    mockFetch(stored({ CurrencyRef: undefined }));
+    const request = prepareQuickBooksPaymentRequest(input(), identity);
+    await expect(
+      provider().payments.create(input(), request),
+    ).resolves.toMatchObject({ externalId: 'pay-remote-1' });
+  });
+
+  it('fails closed when CurrencyRef is missing and the input is not in the home currency', async () => {
+    mockFetch(stored({ CurrencyRef: undefined }), 200, 'USD');
+    const request = prepareQuickBooksPaymentRequest(input(), identity);
+    const error = await provider()
+      .payments.create(input(), request)
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(QuickBooksWriteError);
+    expect(error).toMatchObject({
+      outcome: 'unknown',
+      externalId: 'pay-remote-1',
+    });
+  });
+
+  it('fails closed when the home currency cannot be determined', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) =>
+        init.method === 'POST'
+          ? new Response(JSON.stringify({ Payment: stored() }))
+          : url.includes('/preferences')
+            ? new Response('{}')
+            : new Response(
+                JSON.stringify({ Payment: stored({ CurrencyRef: undefined }) }),
+              ),
+      ),
+    );
+    const request = prepareQuickBooksPaymentRequest(input(), identity);
+    await expect(
+      provider().payments.create(input(), request),
+    ).rejects.toMatchObject({ outcome: 'unknown' });
   });
 
   it('reports a rejected create as a rejected write', async () => {
