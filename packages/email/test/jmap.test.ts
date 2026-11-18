@@ -917,6 +917,61 @@ describe('JMAP submission', () => {
     expect(fx.submissions).toHaveLength(0);
   });
 
+  it('refuses drafts with several From entries or a foreign Sender', async () => {
+    const client = await connected();
+    const multi = fx.addEmail({
+      subject: 'multi',
+      mailboxIds: { 'mb-drafts': true },
+      keywords: { $draft: true },
+      from: [{ email: 'alice@example.test' }, { email: 'ceo@victim.test' }],
+    });
+    await expect(
+      client.send(message, { draftId: multi.id }),
+    ).rejects.toMatchObject({
+      code: 'FROM_NOT_OWNED',
+    });
+    const foreign = fx.addEmail({
+      subject: 'sender',
+      mailboxIds: { 'mb-drafts': true },
+      keywords: { $draft: true },
+      from: [{ email: 'alice@example.test' }],
+      sender: [{ email: 'ceo@victim.test' }],
+    });
+    await expect(
+      client.send(message, { draftId: foreign.id }),
+    ).rejects.toMatchObject({
+      code: 'FROM_NOT_OWNED',
+    });
+    const own = fx.addEmail({
+      subject: 'own sender',
+      mailboxIds: { 'mb-drafts': true },
+      keywords: { $draft: true },
+      from: [{ email: 'alice@example.test' }],
+      sender: [{ email: 'alice@example.test' }],
+    });
+    expect((await client.send(message, { draftId: own.id })).identityId).toBe(
+      'id-alice',
+    );
+    expect(fx.submissions).toHaveLength(1);
+  });
+
+  it('reports a failed sent-copy update and never re-delivers a retried draft', async () => {
+    fx.implicitUpdateError = 'invalidProperties';
+    const client = await connected();
+    const draft = await client.createDraft(message);
+    const first = await client.send(message, { draftId: draft.id });
+    expect(first.sentCopyError).toBe('invalidProperties');
+    expect(fx.submissions).toHaveLength(1);
+    // The draft is still $draft, but a retry must not deliver again.
+    expect(fx.emails.get(draft.id)?.keywords.$draft).toBe(true);
+    await expect(
+      client.send(message, { draftId: draft.id }),
+    ).rejects.toMatchObject({
+      code: 'ALREADY_SUBMITTED',
+    });
+    expect(fx.submissions).toHaveLength(1);
+  });
+
   it('refuses a submission apiUrl outside the trusted origins', async () => {
     fx.apiUrlOverride = 'https://evil.test/jmap/api';
     await expect(adapter().send(message)).rejects.toMatchObject({

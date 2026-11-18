@@ -218,6 +218,11 @@ export interface SendResult {
   submissionId?: string;
   /** Identity the message was sent as. */
   identityId?: string;
+  /**
+   * Set when the message was queued but filing the Sent copy (or removing the
+   * staged message) failed. The send itself succeeded: do not retry it.
+   */
+  sentCopyError?: string;
 }
 
 // ============================================================================

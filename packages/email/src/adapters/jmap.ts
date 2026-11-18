@@ -1624,6 +1624,62 @@ export class JMAPAdapter extends BaseEmailClient {
     return match;
   }
 
+  /** Addresses in the draft's `sender` header (empty when absent). */
+  private async draftSenders(draftId: string): Promise<string[]> {
+    const responses = await this.call([
+      [
+        'Email/get',
+        { accountId: this.accountId, ids: [draftId], properties: ['sender'] },
+        's',
+      ],
+    ]);
+    const res = this.result(responses, 's') as {
+      list: { sender?: JMAPAddress[] | null }[];
+    };
+    return (res.list[0]?.sender ?? []).map((a) => a.email);
+  }
+
+  /**
+   * A draft that already has a live submission must not be submitted again
+   * (a retry after a partial failure would deliver twice).
+   */
+  private async assertNotSubmitted(emailId: string): Promise<void> {
+    const responses = await this.call(
+      [
+        [
+          'EmailSubmission/query',
+          { accountId: this.accountId, filter: { emailIds: [emailId] } },
+          'sq',
+        ],
+        [
+          'EmailSubmission/get',
+          {
+            accountId: this.accountId,
+            '#ids': {
+              resultOf: 'sq',
+              name: 'EmailSubmission/query',
+              path: '/ids',
+            },
+            properties: ['id', 'undoStatus'],
+          },
+          'sg',
+        ],
+      ],
+      USING_SUBMISSION,
+    );
+    const res = this.result(responses, 'sg') as {
+      list: { id: string; undoStatus?: string }[];
+    };
+    const live = res.list.find((s) => s.undoStatus !== 'canceled');
+    if (live) {
+      throw new EmailError(
+        `Draft ${emailId} was already submitted (submission ${live.id}); not sending again`,
+        'ALREADY_SUBMITTED',
+        'jmap',
+      );
+    }
+  }
+
   /**
    * Send through EmailSubmission/set.
    *
@@ -1650,8 +1706,19 @@ export class JMAPAdapter extends BaseEmailClient {
     let draft: JMAPEmail | undefined;
     let from: string;
     let recipients: string[];
+    let draftSender: string[] = [];
     if (options.draftId) {
       draft = await this.requireDraft(options.draftId);
+      // A draft written by another client may carry several From entries or
+      // a Sender header; every sender-bearing header must be ours.
+      if ((draft.from?.length ?? 0) !== 1) {
+        throw new EmailError(
+          'Draft must have exactly one From address; refusing to send',
+          'FROM_NOT_OWNED',
+          'jmap',
+        );
+      }
+      draftSender = await this.draftSenders(options.draftId);
       from = draft.from?.[0]?.email ?? '';
       recipients = [
         ...(draft.to ?? []),
@@ -1680,6 +1747,17 @@ export class JMAPAdapter extends BaseEmailClient {
       from,
       options.identityId,
     );
+
+    for (const sender of draftSender) {
+      if (!this.identityOwns(identity, sender)) {
+        throw new EmailError(
+          `Draft Sender ${sender} is not owned by identity ${identity.id}; refusing to send`,
+          'FROM_NOT_OWNED',
+          'jmap',
+        );
+      }
+    }
+    if (draft) await this.assertNotSubmitted(options.draftId as string);
 
     let envelope: Record<string, unknown> | undefined;
     if (options.envelope?.from || options.envelope?.to) {
@@ -1817,7 +1895,31 @@ export class JMAPAdapter extends BaseEmailClient {
       );
     }
 
+    // The server runs onSuccessUpdateEmail/DestroyEmail implicitly and reports
+    // it as a second Email/set response. The mail is already queued, so a
+    // failure there is reported, never thrown (a retry would deliver twice).
+    const implicit = responses.find(
+      (r) => r[2] === 'ss' && r[0] !== 'EmailSubmission/set',
+    );
+    let sentCopyError: string | undefined;
+    if (implicit) {
+      const body = implicit[1] as {
+        type?: string;
+        notUpdated?: Record<string, { type: string }>;
+        notDestroyed?: Record<string, { type: string }>;
+      };
+      const failed =
+        implicit[0] === 'error'
+          ? body.type
+          : Object.values({
+              ...body.notUpdated,
+              ...body.notDestroyed,
+            })[0]?.type;
+      if (failed) sentCopyError = String(failed);
+    }
+
     return {
+      ...(sentCopyError ? { sentCopyError } : {}),
       messageId: messageId ?? '',
       accepted: recipients,
       rejected: [],

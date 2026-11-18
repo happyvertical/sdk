@@ -22,6 +22,7 @@ export interface FixtureEmail {
   to: { name?: string; email: string }[];
   cc?: { name?: string; email: string }[];
   bcc?: { name?: string; email: string }[];
+  sender?: { name?: string; email: string }[];
   receivedAt: string;
   text: string;
   html?: string;
@@ -91,6 +92,8 @@ export class JMAPFixture {
   }[] = [];
   /** Make EmailSubmission/set reject the create with this error type. */
   submissionError: string | null = null;
+  /** Make the implicit onSuccessUpdateEmail fail with this SetError type. */
+  implicitUpdateError: string | null = null;
   private implicit: [string, any][] = [];
   private createdIds = new Map<string, string>();
 
@@ -459,6 +462,7 @@ export class JMAPFixture {
             from: props.from ?? [],
             to: props.to ?? [],
             cc: props.cc,
+            sender: props.sender,
             bcc: props.bcc,
             text,
             html: props.bodyValues?.html?.value,
@@ -519,6 +523,25 @@ export class JMAPFixture {
           notFound: [],
         };
       }
+      case 'EmailSubmission/query':
+        return {
+          accountId: a.accountId,
+          queryState: 'sq',
+          canCalculateChanges: false,
+          position: 0,
+          ids: this.submissions
+            .filter((x) => a.filter.emailIds.includes(x.emailId))
+            .map((x) => x.id),
+        };
+      case 'EmailSubmission/get':
+        return {
+          accountId: a.accountId,
+          state: 's1',
+          list: this.submissions
+            .filter((x) => a.ids.includes(x.id))
+            .map((x) => ({ id: x.id, undoStatus: 'pending' })),
+          notFound: [],
+        };
       case 'EmailSubmission/set': {
         const created: any = {};
         const notCreated: any = {};
@@ -573,7 +596,20 @@ export class JMAPFixture {
         const destroy = (a.onSuccessDestroyEmail ?? [])
           .map((ref: string) => subIds.get(ref.slice(1)))
           .filter(Boolean);
-        if (Object.keys(update).length > 0 || destroy.length > 0) {
+        if (this.implicitUpdateError && Object.keys(update).length > 0) {
+          this.implicit.push([
+            'Email/set',
+            {
+              accountId: a.accountId,
+              notUpdated: Object.fromEntries(
+                Object.keys(update).map((id) => [
+                  id,
+                  { type: this.implicitUpdateError },
+                ]),
+              ),
+            },
+          ]);
+        } else if (Object.keys(update).length > 0 || destroy.length > 0) {
           this.implicit.push([
             'Email/set',
             this.method('Email/set', {
@@ -742,6 +778,7 @@ export class JMAPFixture {
       to: e.to,
       cc: null,
       bcc: null,
+      sender: e.sender ?? null,
       replyTo: null,
       subject: e.subject,
       receivedAt: e.receivedAt,
