@@ -1,5 +1,7 @@
 # @happyvertical/icalendar
 
+## 0.114.1
+
 ## 0.114.0
 
 ## 0.113.1

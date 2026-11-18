@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.114.1
+
+### Patch Changes
+
+- ### Features
+
+  - QuickBooks reauth error, customer find-or-create, payment create (#1542) (accounting)
+
 ## 0.114.0
 
 ## 0.113.1
