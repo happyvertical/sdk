@@ -1,5 +1,16 @@
 # @happyvertical/email
 
+## 0.115.0
+
+### Minor Changes
+
+- e68310f: Add protocol-neutral triage write-back (`updateFlags`, `updateLabels`, `archive`, `markSpam`, `createDraft`/`updateDraft`/`deleteDraft`, `listIdentities`, `WriteBackCapabilities`) implemented for JMAP, and JMAP `send()` through `EmailSubmission/set` with identity selection, draft-then-submit and sent-copy. Sending is refused unless the From address belongs to an account identity.
+
+### Patch Changes
+
+- @happyvertical/logger@0.115.0
+- @happyvertical/utils@0.115.0
+
 ## 0.114.1
 
 ### Patch Changes
