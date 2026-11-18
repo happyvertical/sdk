@@ -386,6 +386,52 @@ export interface QuickBooksPaymentOperations extends PaymentOperations {
   ): Promise<QuickBooksPaymentCreateResult>;
 }
 
+/** One payment or credit applied to an invoice, as read from QuickBooks. */
+export interface QuickBooksInvoiceReadbackTransaction {
+  /** QuickBooks transaction id (a Payment id). */
+  id: string;
+  kind: 'payment' | 'credit' | 'refund';
+  /** Exact integer minor units applied to this invoice, not the whole transaction. */
+  amountMinor: number;
+}
+
+/**
+ * An invoice read in full: settlement state and every linked transaction.
+ * Amounts are integer ISO 4217 minor units of `currency`.
+ */
+export interface QuickBooksInvoiceReadback {
+  realmId: string;
+  environment: 'sandbox' | 'production';
+  externalId: string;
+  customerExternalId: string;
+  /** `CurrencyRef.value`, else the company home currency. */
+  currency: string;
+  subtotalMinor: number;
+  discountMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+  /** Provider calendar date (YYYY-MM-DD), or null when absent. */
+  dueDate: string | null;
+  balanceMinor: number;
+  voided: boolean;
+  /** True only after every linked transaction was read. */
+  complete: true;
+  transactions: QuickBooksInvoiceReadbackTransaction[];
+}
+
+/** QuickBooks invoice operations, including settlement readback. */
+export interface QuickBooksInvoiceOperations extends InvoiceOperations {
+  /**
+   * Read one invoice with its balance, void state and every linked payment or
+   * applied credit, each with the exact amount applied to this invoice.
+   * Throws (never a partial result) when the invoice is deleted or not found,
+   * a linked transaction cannot be read or attributed, or an amount is off the
+   * currency's minor-unit grid. `kind: 'refund'` is never emitted:
+   * QuickBooks does not link refunds to invoices.
+   */
+  readback(externalId: string): Promise<QuickBooksInvoiceReadback>;
+}
+
 /** Persist this descriptor with the frozen credit memo before the first QuickBooks create. */
 export interface QuickBooksCreditMemoRequest {
   readonly requestId: string;

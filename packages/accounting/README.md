@@ -126,6 +126,32 @@ original document, not its later cash settlement or a credit's application. A
 bounded search never proves absence; interrupted-owner and reconciliation decisions
 remain with the host's durable command coordinator.
 
+## QuickBooks invoice settlement readback
+
+`provider.invoices.readback(externalId)` reads one invoice with its balance, void
+state and every payment or credit applied to it, in integer ISO 4217 minor units:
+
+```ts
+const invoice = await provider.invoices.readback('123');
+// { realmId, environment, externalId, customerExternalId, currency,
+//   subtotalMinor, discountMinor, taxMinor, totalMinor, dueDate, balanceMinor,
+//   voided, complete: true,
+//   transactions: [{ id, kind: 'payment' | 'credit' | 'refund', amountMinor }] }
+```
+
+It reads the invoice, then each linked `Payment` once, and reports only the amount
+applied to this invoice. A zero-total payment that links a credit memo is a
+`credit`; a payment that mixes cash and credit lines, an unrecognized linked
+transaction type, a deleted or missing invoice, an unreadable linked payment or an
+amount off the currency's minor-unit grid throws instead of returning a partial
+result (errors never include provider payloads). A voided invoice reads as
+`voided: true` with the zero total QuickBooks reports. `kind: 'refund'` is never
+emitted because QuickBooks does not link refunds to invoices. Check
+`paid + credits + balance === total` before trusting the result.
+
+Hosts that need a tenant-scoped evidence shape add their own scope:
+`{ tenantId, ...(await provider.invoices.readback(id)) }`.
+
 ## QuickBooks invoice creation and retries
 
 QuickBooks sales lines can carry explicit references to existing entities in the
