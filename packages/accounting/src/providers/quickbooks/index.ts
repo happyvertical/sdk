@@ -44,6 +44,9 @@ import type {
   PaymentInput,
   PaymentOperations,
   QuickBooksCreditMemoRequest,
+  QuickBooksCustomerFindOrCreateResult,
+  QuickBooksCustomerFindQuery,
+  QuickBooksCustomerOperations as QuickBooksCustomerOperationsContract,
   QuickBooksInvoiceRequest,
   QuickBooksOptions,
   SyncResult,
@@ -113,7 +116,7 @@ export class QuickBooksProvider implements AccountingProvider {
   private accessToken: string | null = null;
   private tokenExpiresAt: Date | null = null;
 
-  readonly customers: CustomerOperations;
+  readonly customers: QuickBooksCustomerOperationsContract;
   readonly invoices: InvoiceOperations;
   readonly creditMemos: CreditMemoOperations;
   readonly vendors: VendorOperations;
@@ -420,7 +423,9 @@ export class QuickBooksProvider implements AccountingProvider {
 // Customer Operations
 // =============================================================================
 
-class QuickBooksCustomerOperations implements CustomerOperations {
+class QuickBooksCustomerOperations
+  implements QuickBooksCustomerOperationsContract
+{
   constructor(private provider: QuickBooksProvider) {}
 
   async push(customer: CustomerInput): Promise<SyncResult> {
@@ -456,6 +461,68 @@ class QuickBooksCustomerOperations implements CustomerOperations {
       limit,
     );
     return customers.map(mapQBOToCustomer);
+  }
+
+  async find(query: QuickBooksCustomerFindQuery): Promise<ExternalCustomer[]> {
+    const displayName = normalizeLookup(query?.displayName, 'displayName');
+    const email = normalizeLookup(query?.email, 'email');
+    if (displayName === undefined && email === undefined)
+      throw new Error('QuickBooks customer find requires displayName or email');
+
+    // QuickBooks queries have no OR, so each criterion is its own query.
+    const clauses: string[] = [];
+    if (displayName !== undefined)
+      clauses.push(`DisplayName = ${quoteQboString(displayName)}`);
+    if (email !== undefined)
+      clauses.push(`PrimaryEmailAddr = ${quoteQboString(email)}`);
+    const rows: QBOCustomer[] = [];
+    for (const clause of clauses)
+      rows.push(
+        ...(await this.provider.queryAll<QBOCustomer>(
+          'Customer',
+          query.includeInactive
+            ? `${clause} AND Active IN (true, false)`
+            : clause,
+        )),
+      );
+    const seen = new Set<string>();
+    const matches: ExternalCustomer[] = [];
+    for (const row of rows) {
+      if (seen.has(row.Id)) continue;
+      // Guard against provider-side fuzziness: keep only exact (case-folded) hits.
+      const byName =
+        displayName !== undefined &&
+        row.DisplayName?.trim().toLowerCase() === displayName.toLowerCase();
+      const byEmail =
+        email !== undefined &&
+        row.PrimaryEmailAddr?.Address?.trim().toLowerCase() ===
+          email.toLowerCase();
+      if (!byName && !byEmail) continue;
+      seen.add(row.Id);
+      matches.push(mapQBOToCustomer(row));
+    }
+    return matches;
+  }
+
+  async findOrCreate(
+    customer: CustomerInput,
+  ): Promise<QuickBooksCustomerFindOrCreateResult> {
+    const candidates = await this.find({
+      displayName: customer.name,
+      email: customer.email,
+    });
+    if (candidates.length === 1) return { match: 'existing', candidates };
+    if (candidates.length > 1) return { match: 'ambiguous', candidates };
+
+    const response = await this.provider.request<{ Customer: QBOCustomer }>(
+      'POST',
+      'customer',
+      mapCustomerToQBO(customer),
+    );
+    return {
+      match: 'created',
+      candidates: [mapQBOToCustomer(response.Customer)],
+    };
   }
 
   async sync(customer: CustomerInput): Promise<SyncResult> {
@@ -1191,6 +1258,27 @@ function mapQBOResourceType(
 // =============================================================================
 // Mapping Functions
 // =============================================================================
+
+/**
+ * Quote a value as a QBO query string literal. QBO escapes a single quote and
+ * a backslash with a leading backslash.
+ */
+function quoteQboString(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+/** Trim and validate a lookup value; control characters are never legitimate. */
+function normalizeLookup(
+  value: string | undefined,
+  label: string,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: reject control characters in query input
+  if (!trimmed || trimmed.length > 500 || /[\u0000-\u001f\u007f]/.test(trimmed))
+    throw new Error(`QuickBooks customer ${label} is not a valid lookup value`);
+  return trimmed;
+}
 
 function mapCustomerToQBO(customer: CustomerInput): QBOCustomerCreate {
   return {

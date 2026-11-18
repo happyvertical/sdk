@@ -56,6 +56,19 @@ reconnecting, so mark it as needing reauthorization instead of retrying.
 Transient failures keep their ordinary errors. The error never carries provider
 text or token material.
 
+## QuickBooks customer lookup
+
+Connecting an existing company must not duplicate its customers.
+`provider.customers.find({ displayName?, email?, includeInactive? })` returns
+every exact (case-insensitive) match; values are escaped for the QBO query
+language, and when both criteria are given the union is returned (QBO queries
+have no `OR`, so each runs separately). `provider.customers.findOrCreate(customer)`
+looks up `customer.name` and `customer.email` and returns
+`{ match: 'existing' | 'created' | 'ambiguous', candidates }`. It creates only
+when nothing matches and never creates on ambiguity; the host picks from
+`candidates`. If a create has an uncertain outcome it throws
+`QuickBooksWriteError`; call `find` again before retrying.
+
 ## Frozen QuickBooks document readback
 
 `verifyQuickBooksInvoiceReadback(invoice, request, observation)` and

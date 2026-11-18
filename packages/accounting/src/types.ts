@@ -1128,6 +1128,46 @@ export interface CustomerOperations {
 }
 
 /**
+ * Criteria for finding existing QuickBooks customers. At least one is required.
+ * When both are given, customers matching either are returned.
+ */
+export interface QuickBooksCustomerFindQuery {
+  /** Exact DisplayName, compared case-insensitively after trimming. */
+  displayName?: string;
+  /** Exact primary email address, compared case-insensitively. */
+  email?: string;
+  /** Also return inactive customers (QuickBooks omits them by default). */
+  includeInactive?: boolean;
+}
+
+/** Outcome of {@link QuickBooksCustomerOperations.findOrCreate}. */
+export interface QuickBooksCustomerFindOrCreateResult {
+  /**
+   * - `existing`: exactly one customer matched; nothing was created.
+   * - `created`: nothing matched; the customer was created.
+   * - `ambiguous`: several matched; nothing was created. The host chooses.
+   */
+  match: 'existing' | 'created' | 'ambiguous';
+  /** The matching customers, or the single created customer. */
+  candidates: ExternalCustomer[];
+}
+
+/** QuickBooks customer operations, including duplicate-safe lookup. */
+export interface QuickBooksCustomerOperations extends CustomerOperations {
+  /** Find customers by display name and/or email, returning every candidate. */
+  find(query: QuickBooksCustomerFindQuery): Promise<ExternalCustomer[]>;
+  /**
+   * Find an existing customer by `customer.name` and `customer.email`, and
+   * create one only when there is no candidate. Never creates on ambiguity.
+   * If the create outcome is uncertain it throws `QuickBooksWriteError`; call
+   * `find` again before retrying.
+   */
+  findOrCreate(
+    customer: CustomerInput,
+  ): Promise<QuickBooksCustomerFindOrCreateResult>;
+}
+
+/**
  * Invoice operations interface
  */
 export interface InvoiceOperations {
