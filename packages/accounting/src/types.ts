@@ -50,7 +50,13 @@ export interface QuickBooksOptions extends BaseAccountingOptions {
   redirectUri?: string;
   /** Webhook verifier token for signature validation */
   webhookVerifierToken?: string;
-  /** Callback when tokens are refreshed (persist to storage) */
+  /**
+   * Callback when tokens are refreshed (persist to storage). QuickBooks
+   * rotates refresh tokens on every refresh, so the host must durably persist
+   * `tokens.refreshToken` here before relying on the new access token; the
+   * previous refresh token may stop working. A rejected grant (revoked consent
+   * or expired refresh token) throws `AccountingReauthRequiredError`.
+   */
   onTokenRefresh?: (tokens: TokenSet) => Promise<void>;
 }
 
@@ -138,6 +144,13 @@ export interface QuickBooksOAuthClient {
     callbackUrl: string;
     expectedState: string;
   }): Promise<QuickBooksOAuthConnection>;
+  /**
+   * Exchange a refresh token for a new token set. QuickBooks rotates refresh
+   * tokens: the host must durably persist the returned `refreshToken` before
+   * using the new access token. Throws `AccountingReauthRequiredError`
+   * (`REAUTH_REQUIRED`) when the grant is rejected (revoked or expired).
+   */
+  refresh(input: { refreshToken: string }): Promise<TokenSet>;
   revoke(input: { refreshToken: string }): Promise<void>;
 }
 

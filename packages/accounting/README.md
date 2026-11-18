@@ -41,6 +41,21 @@ not make those application decisions. The redirect URI must also be registered
 in Intuit's developer portal. See Intuit's [OAuth client authorization-code flow](https://github.com/intuit/oauth-jsclient#authorization-code-flow)
 and [revocation helper](https://github.com/intuit/oauth-jsclient#revoke-access_token).
 
+### Refresh tokens and reauthorization
+
+QuickBooks rotates the refresh token on every refresh. Both
+`oauth.refresh({ refreshToken })` and `QuickBooksProvider` (through
+`onTokenRefresh(tokens)`) return the new `refreshToken`; the host must durably
+persist it before using the new access token, because the previous one may stop
+working.
+
+When Intuit rejects the refresh grant (`invalid_grant`: revoked consent or an
+expired refresh token), both throw `AccountingReauthRequiredError` with
+`code === 'REAUTH_REQUIRED'`. The connection cannot recover without the user
+reconnecting, so mark it as needing reauthorization instead of retrying.
+Transient failures keep their ordinary errors. The error never carries provider
+text or token material.
+
 ## Frozen QuickBooks document readback
 
 `verifyQuickBooksInvoiceReadback(invoice, request, observation)` and

@@ -13,7 +13,10 @@ import {
 /// <reference path="../../intuit-oauth.d.ts" />
 
 import { createHmac } from 'node:crypto';
-import { QuickBooksWriteError } from '../../errors.js';
+import {
+  AccountingReauthRequiredError,
+  QuickBooksWriteError,
+} from '../../errors.js';
 import type {
   AccountingProvider,
   Address,
@@ -56,6 +59,7 @@ import {
   validateQuickBooksCreditMemoRequest,
   validateQuickBooksInvoiceRequest,
 } from './invoice-request.js';
+import { isRefreshGrantRejected } from './oauth.js';
 
 // =============================================================================
 // Utility Functions
@@ -209,7 +213,18 @@ export class QuickBooksProvider implements AccountingProvider {
       access_token: this.accessToken || '',
     });
 
-    const response = await oauthClient.refresh();
+    let response: Awaited<ReturnType<typeof oauthClient.refresh>>;
+    try {
+      response = await oauthClient.refresh();
+    } catch (error) {
+      // Surface a rejected grant as a typed error without provider text.
+      if (isRefreshGrantRejected(error))
+        throw new AccountingReauthRequiredError({
+          provider: 'quickbooks',
+          realmId: this.options.realmId,
+        });
+      throw error;
+    }
     const token = response.getJson();
 
     return {

@@ -41,6 +41,7 @@ import type {
 
 export type { QuickBooksOAuthErrorCode } from './errors.js';
 export {
+  AccountingReauthRequiredError,
   QuickBooksOAuthError,
   QuickBooksWriteError,
   StripeApiError,
