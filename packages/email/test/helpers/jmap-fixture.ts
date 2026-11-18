@@ -20,6 +20,9 @@ export interface FixtureEmail {
   subject: string;
   from: { name?: string; email: string }[];
   to: { name?: string; email: string }[];
+  cc?: { name?: string; email: string }[];
+  bcc?: { name?: string; email: string }[];
+  sender?: { name?: string; email: string }[];
   receivedAt: string;
   text: string;
   html?: string;
@@ -70,8 +73,32 @@ export class JMAPFixture {
   mailboxChangesNeverEnd = false;
   /** Advertised core maxObjectsInGet; Email/get beyond it fails. */
   maxObjectsInGet = 500;
+  maxObjectsInSet = 500;
   /** Extra text/plain parts around an HTML body: id -> [before, after]. */
   wrap = new Map<string, [string, string]>();
+  /** Advertise urn:ietf:params:jmap:submission. */
+  submission = true;
+  identities: { id: string; name: string; email: string }[] = [
+    { id: 'id-alice', name: 'Alice', email: 'alice@example.test' },
+    { id: 'id-team', name: 'Team', email: 'team@example.test' },
+    { id: 'id-wild', name: 'Alias domain', email: '*@alias.test' },
+  ];
+  /** EmailSubmission/set creations accepted, for assertions. */
+  submissions: {
+    id: string;
+    emailId: string;
+    identityId: string;
+    envelope: any;
+  }[] = [];
+  /** Make EmailSubmission/set reject the create with this error type. */
+  submissionError: string | null = null;
+  /** Make the implicit onSuccessUpdateEmail fail with this SetError type. */
+  implicitUpdateError: string | null = null;
+  /** Hold EmailSubmission/query responses until this many are waiting (race tests). */
+  queryBarrier = 0;
+  private barrierWaiting: (() => void)[] = [];
+  private implicit: [string, any][] = [];
+  private createdIds = new Map<string, string>();
 
   async start(): Promise<void> {
     this.server = createServer((req, res) => void this.handle(req, res));
@@ -82,6 +109,8 @@ export class JMAPFixture {
     this.addMailbox('mb-inbox', 'Inbox', null, 'inbox');
     this.addMailbox('mb-sent', 'Sent', null, 'sent');
     this.addMailbox('mb-archive', 'Archive', null, 'archive');
+    this.addMailbox('mb-drafts', 'Drafts', null, 'drafts');
+    this.addMailbox('mb-junk', 'Junk', null, 'junk');
     this.addMailbox('mb-proj', 'Projects', null, null);
     this.addMailbox('mb-proj-x', 'X', 'mb-proj', null);
     this.requests = [];
@@ -94,6 +123,9 @@ export class JMAPFixture {
   }
 
   // ---- state mutation helpers (what a real server does on delivery etc.) ----
+
+  /** Hooks run at the start of successive Email/set calls (simulate a racing client). */
+  beforeEmailSet: Array<() => void> = [];
 
   get emailStateString(): string {
     return `e${this.emailState}`;
@@ -195,6 +227,18 @@ export class JMAPFixture {
       body,
     });
 
+    if (
+      this.queryBarrier > 0 &&
+      body?.methodCalls?.some((c: [string]) => c[0] === 'EmailSubmission/query')
+    ) {
+      await new Promise<void>((resolve) => {
+        this.barrierWaiting.push(resolve);
+        if (this.barrierWaiting.length >= this.queryBarrier) {
+          for (const r of this.barrierWaiting.splice(0)) r();
+        }
+      });
+    }
+
     if (!auth || !this.validAuth.includes(auth)) {
       res.writeHead(401).end();
       return;
@@ -235,11 +279,20 @@ export class JMAPFixture {
   private session() {
     return {
       capabilities: {
-        'urn:ietf:params:jmap:core': { maxObjectsInGet: this.maxObjectsInGet },
+        'urn:ietf:params:jmap:core': {
+          maxObjectsInGet: this.maxObjectsInGet,
+          maxObjectsInSet: this.maxObjectsInSet,
+        },
         'urn:ietf:params:jmap:mail': {},
+        ...(this.submission ? { 'urn:ietf:params:jmap:submission': {} } : {}),
       },
       accounts: { [ACCOUNT_ID]: { name: 'alice@example.test' } },
-      primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID },
+      primaryAccounts: {
+        'urn:ietf:params:jmap:mail': ACCOUNT_ID,
+        ...(this.submission
+          ? { 'urn:ietf:params:jmap:submission': ACCOUNT_ID }
+          : {}),
+      },
       apiUrl: this.apiUrlOverride ?? `${this.baseUrl}/jmap/api`,
       eventSourceUrl:
         this.eventSourceUrlOverride ??
@@ -250,10 +303,12 @@ export class JMAPFixture {
 
   private dispatch(calls: [string, any, string][]) {
     const out: [string, any, string][] = [];
+    this.createdIds = new Map();
     for (const [name, rawArgs, id] of calls) {
       try {
         const args = this.resolveRefs(rawArgs, out);
         out.push([name, this.method(name, args), id]);
+        for (const extra of this.implicit.splice(0)) out.push([...extra, id]);
       } catch (e: any) {
         out.push([
           'error',
@@ -403,25 +458,50 @@ export class JMAPFixture {
         };
       }
       case 'Email/set': {
+        this.beforeEmailSet.shift()?.();
+        if (a.ifInState && a.ifInState !== this.emailStateString) {
+          throw Object.assign(new Error('state'), {
+            jmapType: 'stateMismatch',
+          });
+        }
+        const oldState = this.emailStateString;
+        const created: any = {};
+        const notCreated: any = {};
+        for (const [cid, props] of Object.entries<any>(a.create ?? {})) {
+          const ids = Object.keys(props.mailboxIds ?? {});
+          if (ids.length === 0 || ids.some((m) => !this.mailboxes.has(m))) {
+            notCreated[cid] = { type: 'invalidProperties' };
+            continue;
+          }
+          const text = props.bodyValues?.text?.value ?? '';
+          const email = this.addEmail({
+            subject: props.subject ?? '',
+            mailboxIds: props.mailboxIds,
+            keywords: props.keywords ?? {},
+            from: props.from ?? [],
+            to: props.to ?? [],
+            cc: props.cc,
+            sender: props.sender,
+            bcc: props.bcc,
+            text,
+            html: props.bodyValues?.html?.value,
+            messageId: props.messageId ?? [`gen-${this.nextId}@example.test`],
+            inReplyTo: props.inReplyTo,
+          });
+          this.createdIds.set(cid, email.id);
+          created[cid] = {
+            id: email.id,
+            threadId: email.threadId,
+            blobId: `blob-${email.id}`,
+            size: text.length,
+          };
+        }
         const updated: any = {};
         const notUpdated: any = {};
         for (const [id, patch] of Object.entries<any>(a.update ?? {})) {
-          if (!this.emails.has(id)) {
-            notUpdated[id] = { type: 'notFound' };
-            continue;
-          }
-          this.touchEmail(id, (e) => {
-            for (const [path, value] of Object.entries<any>(patch)) {
-              if (path === 'mailboxIds') e.mailboxIds = value;
-              else if (path.startsWith('mailboxIds/'))
-                e.mailboxIds[path.slice(11)] = value;
-              else if (path.startsWith('keywords/')) {
-                if (value === null) delete e.keywords[path.slice(9)];
-                else e.keywords[path.slice(9)] = value;
-              }
-            }
-          });
-          updated[id] = null;
+          const err = this.applyPatch(id, patch);
+          if (err) notUpdated[id] = err;
+          else updated[id] = null;
         }
         const destroyed: string[] = [];
         const notDestroyed: any = {};
@@ -435,11 +515,140 @@ export class JMAPFixture {
         }
         return {
           accountId: a.accountId,
+          oldState,
           newState: this.emailStateString,
+          created,
+          notCreated,
           updated,
           notUpdated,
           destroyed,
           notDestroyed,
+        };
+      }
+      case 'Identity/get': {
+        if (!this.submission) {
+          throw Object.assign(new Error('no submission'), {
+            jmapType: 'unknownMethod',
+          });
+        }
+        return {
+          accountId: a.accountId,
+          state: 'i1',
+          list: this.identities.map((i) => ({
+            ...i,
+            replyTo: null,
+            bcc: null,
+          })),
+          notFound: [],
+        };
+      }
+      case 'EmailSubmission/query':
+        return {
+          accountId: a.accountId,
+          queryState: 'sq',
+          canCalculateChanges: false,
+          position: 0,
+          ids: this.submissions
+            .filter((x) => a.filter.emailIds.includes(x.emailId))
+            .map((x) => x.id),
+        };
+      case 'EmailSubmission/get':
+        return {
+          accountId: a.accountId,
+          state: `s${this.submissions.length}`,
+          list: this.submissions
+            .filter((x) => a.ids.includes(x.id))
+            .map((x) => ({ id: x.id, undoStatus: 'pending' })),
+          notFound: [],
+        };
+      case 'EmailSubmission/set': {
+        if (a.ifInState && a.ifInState !== `s${this.submissions.length}`) {
+          throw Object.assign(new Error('state'), {
+            jmapType: 'stateMismatch',
+          });
+        }
+        const created: any = {};
+        const notCreated: any = {};
+        const subIds = new Map<string, string>();
+        for (const [cid, props] of Object.entries<any>(a.create ?? {})) {
+          const emailId = String(props.emailId).startsWith('#')
+            ? this.createdIds.get(props.emailId.slice(1))
+            : props.emailId;
+          const email = emailId ? this.emails.get(emailId) : undefined;
+          const identity = this.identities.find(
+            (i) => i.id === props.identityId,
+          );
+          if (this.submissionError) {
+            notCreated[cid] = { type: this.submissionError };
+          } else if (!email || !identity) {
+            notCreated[cid] = {
+              type: 'invalidProperties',
+              properties: [email ? 'identityId' : 'emailId'],
+            };
+          } else {
+            const from = email.from[0]?.email.toLowerCase() ?? '';
+            const own = identity.email.toLowerCase();
+            const owns = own.startsWith('*@')
+              ? from.endsWith(own.slice(1))
+              : from === own;
+            const rcpts = props.envelope
+              ? props.envelope.rcptTo
+              : [...email.to, ...(email.cc ?? []), ...(email.bcc ?? [])];
+            if (!owns) notCreated[cid] = { type: 'forbiddenFrom' };
+            else if (rcpts.length === 0)
+              notCreated[cid] = { type: 'noRecipients' };
+            else {
+              const id = `sub-${this.nextId++}`;
+              subIds.set(cid, emailId as string);
+              this.submissions.push({
+                id,
+                emailId: emailId as string,
+                identityId: props.identityId,
+                envelope: props.envelope ?? null,
+              });
+              created[cid] = { id, undoStatus: 'pending', sendAt: null };
+            }
+          }
+        }
+        const update: any = {};
+        for (const [ref, patch] of Object.entries<any>(
+          a.onSuccessUpdateEmail ?? {},
+        )) {
+          const id = subIds.get(ref.slice(1));
+          if (id) update[id] = patch;
+        }
+        const destroy = (a.onSuccessDestroyEmail ?? [])
+          .map((ref: string) => subIds.get(ref.slice(1)))
+          .filter(Boolean);
+        if (this.implicitUpdateError && Object.keys(update).length > 0) {
+          this.implicit.push([
+            'Email/set',
+            {
+              accountId: a.accountId,
+              notUpdated: Object.fromEntries(
+                Object.keys(update).map((id) => [
+                  id,
+                  { type: this.implicitUpdateError },
+                ]),
+              ),
+            },
+          ]);
+        } else if (Object.keys(update).length > 0 || destroy.length > 0) {
+          this.implicit.push([
+            'Email/set',
+            this.method('Email/set', {
+              accountId: a.accountId,
+              update,
+              destroy,
+            }),
+          ]);
+        }
+        return {
+          accountId: a.accountId,
+          oldState: `s${this.submissions.length - Object.keys(created).length}`,
+          newState: `s${this.submissions.length}`,
+          created,
+          notCreated,
         };
       }
       case 'Thread/get': {
@@ -462,6 +671,41 @@ export class JMAPFixture {
       default:
         throw Object.assign(new Error(name), { jmapType: 'unknownMethod' });
     }
+  }
+
+  /** Apply a JMAP patch object; returns a SetError or null. */
+  private applyPatch(id: string, patch: Record<string, any>) {
+    const email = this.emails.get(id);
+    if (!email) return { type: 'notFound' };
+    const next = {
+      ...email,
+      mailboxIds: { ...email.mailboxIds },
+      keywords: { ...email.keywords },
+    };
+    for (const [path, value] of Object.entries(patch)) {
+      if (path === 'mailboxIds') next.mailboxIds = { ...value };
+      else if (path.startsWith('mailboxIds/')) {
+        if (value === null) delete next.mailboxIds[path.slice(11)];
+        else next.mailboxIds[path.slice(11)] = value;
+      } else if (path.startsWith('keywords/')) {
+        // RFC 8620 5.3: path segments are JSON Pointer tokens.
+        const key = path.slice(9);
+        if (key.includes('/')) {
+          return { type: 'invalidPatch', properties: [path] };
+        }
+        const name = key.replace(/~1/g, '/').replace(/~0/g, '~');
+        if (value === null) delete next.keywords[name];
+        else next.keywords[name] = value;
+      }
+    }
+    if (Object.keys(next.mailboxIds).length === 0) {
+      return { type: 'invalidProperties', properties: ['mailboxIds'] };
+    }
+    this.touchEmail(id, (e) => {
+      e.mailboxIds = next.mailboxIds;
+      e.keywords = next.keywords;
+    });
+    return null;
   }
 
   private changes(
@@ -564,6 +808,7 @@ export class JMAPFixture {
       to: e.to,
       cc: null,
       bcc: null,
+      sender: e.sender ?? null,
       replyTo: null,
       subject: e.subject,
       receivedAt: e.receivedAt,

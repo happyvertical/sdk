@@ -9,10 +9,13 @@
  * strings, and `cannotCalculateChanges` becomes a typed `resync-required`
  * result. `subscribeChanges` is an optional EventSource push hint.
  *
- * Write-back beyond the existing EmailClient surface (drafts, submission,
- * archive/junk by role) is intentionally not part of this adapter yet.
+ * Triage write-back (flags/keywords, labels, archive, spam, drafts) is
+ * implemented with Email/set; sending uses EmailSubmission/set (see send()).
+ * Every request, including submission, goes through the same trusted-origin
+ * and https checks as the rest of the adapter; no extra URLs are contacted.
  */
 
+import { randomUUID } from 'node:crypto';
 import { BaseEmailClient } from '../shared/base';
 import {
   AuthenticationError,
@@ -21,6 +24,7 @@ import {
   EmailError,
   FolderNotFoundError,
   MessageNotFoundError,
+  SendError,
   TimeoutError,
 } from '../shared/errors';
 import type {
@@ -29,24 +33,33 @@ import type {
   ChangeFeedOptions,
   ChangeFeedResult,
   ChangeHintListener,
+  DraftResult,
   EmailAddress,
   EmailClientCapabilities,
+  EmailIdentity,
   EmailMessage,
   FetchOptions,
+  FlagChange,
   Folder,
   FolderInfo,
   FolderSpecialUse,
   JMAPOptions,
+  LabelChange,
   SearchCriteria,
   SendOptions,
   SendResult,
   SubscribeChangesOptions,
   Unsubscribe,
+  WriteBackFailure,
+  WriteBackOptions,
+  WriteBackResult,
 } from '../shared/types';
 
 const CAP_CORE = 'urn:ietf:params:jmap:core';
 const CAP_MAIL = 'urn:ietf:params:jmap:mail';
+const CAP_SUBMISSION = 'urn:ietf:params:jmap:submission';
 const USING = [CAP_CORE, CAP_MAIL];
+const USING_SUBMISSION = [CAP_CORE, CAP_MAIL, CAP_SUBMISSION];
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_FEED_LIMIT = 100;
@@ -107,6 +120,43 @@ const ROLE_TO_SPECIAL_USE: Record<string, FolderSpecialUse> = {
   archive: '\\Archive',
   all: '\\All',
 };
+
+/** IMAP-style flags (lower-cased) that map to a settable JMAP keyword. */
+const SETTABLE_FLAG_TO_KEYWORD: Record<string, string> = {
+  '\\seen': '$seen',
+  '\\flagged': '$flagged',
+  '\\answered': '$answered',
+};
+/** Not settable through updateFlags: drafts and deletion have their own operations. */
+const UNSETTABLE_FLAGS = new Set([
+  '\\draft',
+  '\\deleted',
+  '\\recent',
+  '$draft',
+]);
+/** RFC 8621 keyword grammar: 1-255 printable ASCII, none of ( ) { ] % * " \\. */
+const KEYWORD_PATTERN =
+  /^[\x21\x23\x24\x26\x27\x2b-\x5b\x5e-\x7a\x7c\x7e]{1,255}$/;
+/** Headers a caller cannot override through SendOptions.headers. */
+const RESERVED_HEADERS = new Set([
+  'from',
+  'to',
+  'cc',
+  'bcc',
+  'sender',
+  'reply-to',
+  'subject',
+  'date',
+  'message-id',
+  'in-reply-to',
+  'references',
+  'mime-version',
+  'return-path',
+  'received',
+  'content-type',
+  'content-transfer-encoding',
+  'content-disposition',
+]);
 
 const KEYWORD_TO_FLAG: Record<string, string> = {
   $seen: '\\Seen',
@@ -199,6 +249,11 @@ interface Cursor {
 // Adapter
 // ============================================================================
 
+/** RFC 6901 JSON Pointer reference-token escaping for PatchObject paths. */
+function escapePointer(token: string): string {
+  return token.replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
 export class JMAPAdapter extends BaseEmailClient {
   private options: JMAPOptions;
   private fetchImpl: typeof fetch;
@@ -233,8 +288,10 @@ export class JMAPAdapter extends BaseEmailClient {
   }
 
   async getCapabilities(): Promise<EmailClientCapabilities> {
+    const session = await this.ensureSession();
+    const submission = this.submissionAccountId(session) === this.accountId;
     return {
-      send: false, // submission is part of the write-back work, not this adapter yet
+      send: submission,
       receive: true,
       folders: true,
       search: true,
@@ -245,7 +302,22 @@ export class JMAPAdapter extends BaseEmailClient {
       oauth: false,
       changeFeed: true,
       push: true,
+      writeBack: {
+        flags: true,
+        keywords: true,
+        labels: true,
+        archive: true,
+        spam: true,
+        drafts: true,
+        submission,
+      },
     };
+  }
+
+  /** Account that holds submission (identities, EmailSubmission), if the server offers it. */
+  private submissionAccountId(session: JMAPSession): string | undefined {
+    if (!(CAP_SUBMISSION in (session.capabilities ?? {}))) return undefined;
+    return session.primaryAccounts?.[CAP_SUBMISSION];
   }
 
   // ========================================================================
@@ -439,7 +511,10 @@ export class JMAPAdapter extends BaseEmailClient {
   }
 
   /** POST a batch of method calls; returns responses in order. */
-  private async call(methodCalls: MethodCall[]): Promise<MethodResponse[]> {
+  private async call(
+    methodCalls: MethodCall[],
+    using: string[] = USING,
+  ): Promise<MethodResponse[]> {
     const session = await this.ensureSession();
     const response = await this.request(session.apiUrl, {
       method: 'POST',
@@ -447,7 +522,7 @@ export class JMAPAdapter extends BaseEmailClient {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({ using: USING, methodCalls }),
+      body: JSON.stringify({ using, methodCalls }),
     });
     const body = (await response.json()) as {
       methodResponses?: MethodResponse[];
@@ -772,11 +847,12 @@ export class JMAPAdapter extends BaseEmailClient {
   private async getEmails(
     ids: string[],
     includeBodies: boolean,
-  ): Promise<{ emails: JMAPEmail[]; notFound: string[] }> {
+  ): Promise<{ emails: JMAPEmail[]; notFound: string[]; state?: string }> {
     if (ids.length === 0) return { emails: [], notFound: [] };
     await this.ensureSession();
     const emails: JMAPEmail[] = [];
     const notFound: string[] = [];
+    let state: string | undefined;
     // Respect the server's maxObjectsInGet by fetching in chunks.
     const size = this.maxObjectsInGet();
     for (let i = 0; i < ids.length; i += size) {
@@ -790,11 +866,13 @@ export class JMAPAdapter extends BaseEmailClient {
       const res = this.result(responses, 'g') as {
         list: JMAPEmail[];
         notFound?: string[];
+        state?: string;
       };
       emails.push(...res.list);
       notFound.push(...(res.notFound ?? []));
+      state = res.state;
     }
-    return { emails, notFound };
+    return { emails, notFound, state };
   }
 
   /** Server's maxObjectsInGet (RFC 8620 section 2), defaulting to a safe 50. */
@@ -985,15 +1063,1009 @@ export class JMAPAdapter extends BaseEmailClient {
     }
   }
 
-  async send(
-    _message: EmailMessage,
-    _options?: SendOptions,
-  ): Promise<SendResult> {
-    throw new EmailError(
-      'Sending through JMAP is not implemented yet (EmailSubmission is part of the write-back work)',
-      'NOT_SUPPORTED',
-      'jmap',
+  // ========================================================================
+  // Triage write-back (Email/set)
+  // ========================================================================
+
+  /** Server's maxObjectsInSet (RFC 8620 section 2), defaulting to a safe 50. */
+  private maxObjectsInSet(): number {
+    const core = this.session?.capabilities?.[CAP_CORE] as
+      | { maxObjectsInSet?: number }
+      | undefined;
+    const max = core?.maxObjectsInSet;
+    return typeof max === 'number' && max > 0 ? max : 50;
+  }
+
+  /**
+   * Apply one patch per message with Email/set and report per-message
+   * outcomes. Chunked by maxObjectsInSet; `ifInState` guards the first chunk
+   * only (later chunks necessarily see the state that chunk produced).
+   * Patches are absolute (set true / remove), so re-running is harmless.
+   */
+  private async patchEmails(
+    ids: string[],
+    patch: Record<string, unknown>,
+    options: WriteBackOptions = {},
+  ): Promise<WriteBackResult> {
+    const unique = [...new Set(ids)];
+    const result: WriteBackResult = { updated: [], failed: [] };
+    if (unique.length === 0) return result;
+    await this.ensureSession();
+    const size = this.maxObjectsInSet();
+    for (let i = 0; i < unique.length; i += size) {
+      const chunk = unique.slice(i, i + size);
+      const update: Record<string, Record<string, unknown>> = {};
+      for (const id of chunk) update[id] = { ...patch };
+      const args: Record<string, unknown> = {
+        accountId: this.accountId,
+        update,
+      };
+      if (i === 0 && options.ifInState) args.ifInState = options.ifInState;
+      const responses = await this.call([['Email/set', args, 'p']]);
+      const res = this.result(responses, 'p') as {
+        oldState?: string;
+        newState?: string;
+        updated?: Record<string, unknown> | null;
+        notUpdated?: Record<string, { type: string; description?: string }>;
+      };
+      if (i === 0) result.oldState = res.oldState;
+      result.state = res.newState ?? result.state;
+      for (const id of chunk) {
+        const failure = res.notUpdated?.[id];
+        if (failure) {
+          result.failed.push({
+            id,
+            code: failure.type,
+            message: failure.description,
+          });
+        } else if (res.updated && id in res.updated) {
+          result.updated.push(id);
+        } else {
+          result.failed.push({
+            id,
+            code: 'unknown',
+            message: 'Server did not report an outcome for this message',
+          });
+        }
+      }
+    }
+    return result;
+  }
+
+  /** Map a flag or keyword to a JMAP keyword; rejects flags JMAP cannot set. */
+  private toKeyword(flag: string): string {
+    const lower = flag.toLowerCase();
+    if (lower in SETTABLE_FLAG_TO_KEYWORD)
+      return SETTABLE_FLAG_TO_KEYWORD[lower];
+    if (UNSETTABLE_FLAGS.has(lower)) {
+      throw new EmailError(
+        `Flag ${flag} cannot be set through updateFlags (use the draft/delete operations)`,
+        'INVALID_ARGUMENT',
+        'jmap',
+      );
+    }
+    if (lower.startsWith('\\') || !KEYWORD_PATTERN.test(flag)) {
+      throw new EmailError(
+        `Invalid keyword: ${JSON.stringify(flag)}`,
+        'INVALID_ARGUMENT',
+        'jmap',
+      );
+    }
+    return lower;
+  }
+
+  async updateFlags(
+    messageId: string | string[],
+    change: FlagChange,
+    options?: WriteBackOptions,
+  ): Promise<WriteBackResult> {
+    const add = [...new Set((change.add ?? []).map((f) => this.toKeyword(f)))];
+    const remove = [
+      ...new Set((change.remove ?? []).map((f) => this.toKeyword(f))),
+    ];
+    const both = add.filter((k) => remove.includes(k));
+    if (both.length > 0) {
+      throw new EmailError(
+        `Flag(s) both added and removed: ${both.join(', ')}`,
+        'INVALID_ARGUMENT',
+        'jmap',
+      );
+    }
+    const patch: Record<string, unknown> = {};
+    for (const k of add) patch[`keywords/${escapePointer(k)}`] = true;
+    for (const k of remove) patch[`keywords/${escapePointer(k)}`] = null;
+    if (Object.keys(patch).length === 0) {
+      return { updated: [], failed: [] };
+    }
+    return this.patchEmails(
+      this.normalizeMessageIds(messageId),
+      patch,
+      options,
     );
+  }
+
+  async updateLabels(
+    messageId: string | string[],
+    change: LabelChange,
+    options?: WriteBackOptions,
+  ): Promise<WriteBackResult> {
+    const resolve = async (names: string[] = []) => [
+      ...new Set(
+        (await Promise.all(names.map((n) => this.resolveMailbox(n)))).map(
+          (m) => m.id,
+        ),
+      ),
+    ];
+    const add = await resolve(change.add);
+    const remove = await resolve(change.remove);
+    if (add.some((id) => remove.includes(id))) {
+      throw new EmailError(
+        'A label cannot be both added and removed',
+        'INVALID_ARGUMENT',
+        'jmap',
+      );
+    }
+    const patch: Record<string, unknown> = {};
+    for (const id of add) patch[`mailboxIds/${id}`] = true;
+    for (const id of remove) patch[`mailboxIds/${id}`] = null;
+    if (Object.keys(patch).length === 0) return { updated: [], failed: [] };
+    return this.patchEmails(
+      this.normalizeMessageIds(messageId),
+      patch,
+      options,
+    );
+  }
+
+  private async mailboxByRole(role: string): Promise<JMAPMailbox | undefined> {
+    return (await this.mailboxList()).find((m) => m.role === role);
+  }
+
+  private async requireRole(role: string): Promise<JMAPMailbox> {
+    const mailbox = await this.mailboxByRole(role);
+    if (!mailbox) throw new FolderNotFoundError(`\\${role}`, 'jmap');
+    return mailbox;
+  }
+
+  /** Remove from the inbox and add to the Archive mailbox; other labels are kept. */
+  async archive(
+    messageId: string | string[],
+    options?: WriteBackOptions,
+  ): Promise<WriteBackResult> {
+    const archive = await this.requireRole('archive');
+    const inbox = await this.mailboxByRole('inbox');
+    const patch: Record<string, unknown> = {
+      [`mailboxIds/${archive.id}`]: true,
+    };
+    if (inbox) patch[`mailboxIds/${inbox.id}`] = null;
+    return this.patchEmails(
+      this.normalizeMessageIds(messageId),
+      patch,
+      options,
+    );
+  }
+
+  /**
+   * Move to the Junk mailbox and set `$junk` (spam = true), or move back to
+   * the inbox and set `$notjunk` (spam = false).
+   */
+  async markSpam(
+    messageId: string | string[],
+    spam = true,
+    options?: WriteBackOptions,
+  ): Promise<WriteBackResult> {
+    const target = await this.requireRole(spam ? 'junk' : 'inbox');
+    return this.patchEmails(
+      this.normalizeMessageIds(messageId),
+      {
+        mailboxIds: { [target.id]: true },
+        'keywords/$junk': spam ? true : null,
+        'keywords/$notjunk': spam ? null : true,
+      },
+      options,
+    );
+  }
+
+  // ========================================================================
+  // Drafts
+  // ========================================================================
+
+  private stripAngles(id: string): string {
+    return id.replace(/^<|>$/g, '');
+  }
+
+  private jmapAddresses(list?: EmailAddress[]) {
+    return (list ?? []).map((a) => ({
+      ...(a.name ? { name: a.name } : {}),
+      email: a.address,
+    }));
+  }
+
+  /** Build the Email/set create object for a draft or an outgoing message. */
+  private composeEmail(
+    message: EmailMessage,
+    extra: {
+      mailboxIds: Record<string, boolean>;
+      keywords: Record<string, boolean>;
+      messageId?: string;
+      date?: Date;
+      headers?: Record<string, string | string[]>;
+    },
+  ): Record<string, unknown> {
+    for (const a of message.attachments ?? []) {
+      if (!a.id) {
+        throw new EmailError(
+          'JMAP attachments must reference an uploaded blob (Attachment.id); inline content upload is not supported',
+          'NOT_SUPPORTED',
+          'jmap',
+        );
+      }
+    }
+    const bodyValues: Record<string, { value: string }> = {};
+    const parts: Record<string, unknown>[] = [];
+    if (message.text !== undefined) {
+      bodyValues.text = { value: message.text };
+      parts.push({ partId: 'text', type: 'text/plain' });
+    }
+    if (message.html !== undefined) {
+      bodyValues.html = { value: message.html };
+      parts.push({ partId: 'html', type: 'text/html' });
+    }
+    if (parts.length === 0) {
+      bodyValues.text = { value: '' };
+      parts.push({ partId: 'text', type: 'text/plain' });
+    }
+    let body: Record<string, unknown> =
+      parts.length === 1
+        ? parts[0]
+        : { type: 'multipart/alternative', subParts: parts };
+    const attachments = (message.attachments ?? []).map((a) => ({
+      blobId: a.id,
+      type: a.contentType,
+      ...(a.filename ? { name: a.filename } : {}),
+      disposition: a.contentDisposition ?? 'attachment',
+      ...(a.contentId ? { cid: a.contentId } : {}),
+    }));
+    if (attachments.length > 0) {
+      body = { type: 'multipart/mixed', subParts: [body, ...attachments] };
+    }
+
+    const email: Record<string, unknown> = {
+      mailboxIds: extra.mailboxIds,
+      keywords: extra.keywords,
+      subject: message.subject ?? '',
+      bodyStructure: body,
+      bodyValues,
+    };
+    if (message.from?.address) email.from = this.jmapAddresses([message.from]);
+    if (message.to?.length) email.to = this.jmapAddresses(message.to);
+    if (message.cc?.length) email.cc = this.jmapAddresses(message.cc);
+    if (message.bcc?.length) email.bcc = this.jmapAddresses(message.bcc);
+    if (message.replyTo) email.replyTo = this.jmapAddresses([message.replyTo]);
+    if (message.inReplyTo)
+      email.inReplyTo = [this.stripAngles(message.inReplyTo)];
+    if (message.references?.length) {
+      email.references = message.references.map((r) => this.stripAngles(r));
+    }
+    if (extra.messageId) email.messageId = [this.stripAngles(extra.messageId)];
+    if (extra.date) email.sentAt = extra.date.toISOString();
+    for (const [name, value] of Object.entries(extra.headers ?? {})) {
+      if (
+        !/^[A-Za-z0-9-]+$/.test(name) ||
+        RESERVED_HEADERS.has(name.toLowerCase())
+      ) {
+        throw new EmailError(
+          `Header ${JSON.stringify(name)} is not allowed`,
+          'INVALID_ARGUMENT',
+          'jmap',
+        );
+      }
+      const values = Array.isArray(value) ? value : [value];
+      if (values.some((v) => /[\r\n]/.test(v))) {
+        throw new EmailError(
+          `Header ${name} contains a line break`,
+          'INVALID_ARGUMENT',
+          'jmap',
+        );
+      }
+      email[
+        Array.isArray(value)
+          ? `header:${name}:asText:all`
+          : `header:${name}:asText`
+      ] = value;
+    }
+    return email;
+  }
+
+  private validateDraft(message: EmailMessage): void {
+    for (const a of [
+      ...(message.from?.address ? [message.from] : []),
+      ...(message.to ?? []),
+      ...(message.cc ?? []),
+      ...(message.bcc ?? []),
+    ]) {
+      this.validateEmail(a);
+    }
+  }
+
+  /**
+   * The message must exist and carry `$draft`: drafts APIs never touch other
+   * mail. `state` is the Email state the verdict was read at; destruction is
+   * guarded with it so a concurrent submission cannot turn the draft into
+   * sent mail between this check and the destroy.
+   */
+  private async requireDraft(
+    draftId: string,
+  ): Promise<JMAPEmail & { readonly verifiedState?: string }> {
+    const { emails, state } = await this.getEmails([draftId], false);
+    if (emails.length === 0) throw new MessageNotFoundError(draftId, 'jmap');
+    if (!emails[0].keywords?.$draft) {
+      throw new EmailError(
+        `Message ${draftId} is not a draft`,
+        'NOT_A_DRAFT',
+        'jmap',
+      );
+    }
+    return Object.assign(emails[0], { verifiedState: state });
+  }
+
+  /**
+   * Destroy a verified draft under `ifInState`. A state mismatch means
+   * something changed (possibly the draft's own submission): revalidate and
+   * retry once at the fresh state; a draft that is no longer one is refused
+   * (NOT_A_DRAFT) and left alone.
+   */
+  private async destroyDraftGuarded(
+    draftId: string,
+    state: string | undefined,
+  ): Promise<{
+    oldState?: string;
+    newState?: string;
+    notDestroyed?: Record<string, { type: string; description?: string }>;
+    gone?: boolean;
+  }> {
+    let current = state;
+    for (let attempt = 0; ; attempt++) {
+      const args: Record<string, unknown> = {
+        accountId: this.accountId,
+        destroy: [draftId],
+      };
+      if (current) args.ifInState = current;
+      try {
+        const responses = await this.call([['Email/set', args, 'x']]);
+        return this.result(responses, 'x') as {
+          oldState?: string;
+          newState?: string;
+          notDestroyed?: Record<string, { type: string; description?: string }>;
+        };
+      } catch (error) {
+        if (
+          attempt > 0 ||
+          !(error instanceof EmailError) ||
+          error.code !== 'JMAP_STATEMISMATCH'
+        ) {
+          throw error;
+        }
+        try {
+          current = (await this.requireDraft(draftId)).verifiedState;
+        } catch (revalidate) {
+          if (revalidate instanceof MessageNotFoundError) return { gone: true };
+          throw revalidate;
+        }
+        if (!current) throw error;
+      }
+    }
+  }
+
+  async createDraft(
+    message: EmailMessage,
+    options: WriteBackOptions = {},
+  ): Promise<DraftResult> {
+    await this.ensureSession();
+    this.validateDraft(message);
+    const drafts = await this.requireRole('drafts');
+    const messageId = this.newMessageId(message);
+    const args: Record<string, unknown> = {
+      accountId: this.accountId,
+      create: {
+        d: this.composeEmail(message, {
+          mailboxIds: { [drafts.id]: true },
+          keywords: { $draft: true, $seen: true },
+          messageId,
+        }),
+      },
+    };
+    if (options.ifInState) args.ifInState = options.ifInState;
+    const responses = await this.call([['Email/set', args, 'c']]);
+    const res = this.result(responses, 'c') as {
+      newState?: string;
+      created?: Record<string, { id: string; threadId?: string }>;
+      notCreated?: Record<string, { type: string; description?: string }>;
+    };
+    if (res.notCreated?.d) throw this.methodError(res.notCreated.d);
+    const created = res.created?.d;
+    if (!created) {
+      throw new EmailError(
+        'JMAP did not create the draft',
+        'JMAP_PROTOCOL_ERROR',
+        'jmap',
+      );
+    }
+    return {
+      id: created.id,
+      threadId: created.threadId,
+      messageId: this.stripAngles(messageId),
+      state: res.newState,
+    };
+  }
+
+  /**
+   * JMAP emails are immutable, so an update creates the replacement first and
+   * then destroys the old draft: a failure never loses the draft. The result
+   * carries the new id.
+   */
+  async updateDraft(
+    draftId: string,
+    message: EmailMessage,
+    options?: WriteBackOptions,
+  ): Promise<DraftResult> {
+    let verified = await this.requireDraft(draftId);
+    // Create under the verified state unless the caller pinned their own, so
+    // a submission racing the check fails the create instead of the destroy.
+    // Unrelated mail can also move the state: revalidate and retry once.
+    let replacement: DraftResult;
+    try {
+      replacement = await this.createDraft(message, {
+        ...options,
+        ifInState: options?.ifInState ?? verified.verifiedState,
+      });
+    } catch (error) {
+      if (
+        options?.ifInState ||
+        !(error instanceof EmailError) ||
+        error.code !== 'JMAP_STATEMISMATCH'
+      ) {
+        throw error;
+      }
+      verified = await this.requireDraft(draftId);
+      replacement = await this.createDraft(message, {
+        ...options,
+        ifInState: verified.verifiedState,
+      });
+    }
+    // Whatever stops the swap, the old draft stays authoritative: never leave
+    // a live duplicate of mail that may already be sent.
+    const dropReplacement = () =>
+      this.destroyDraftGuarded(replacement.id, undefined).catch(
+        () => undefined,
+      );
+    let res: {
+      newState?: string;
+      notDestroyed?: Record<string, { type: string; description?: string }>;
+      gone?: boolean;
+    };
+    try {
+      res = await this.destroyDraftGuarded(draftId, replacement.state);
+    } catch (error) {
+      await dropReplacement();
+      throw error;
+    }
+    if (res.gone) {
+      // The original vanished after the state moved (submitted and destroyed
+      // by onSuccessDestroyEmail, or deleted elsewhere): it may have been
+      // sent, so the replacement must not survive as a draft.
+      await dropReplacement();
+      throw new EmailError(
+        `Draft ${draftId} was submitted or deleted concurrently; update discarded`,
+        'NOT_A_DRAFT',
+        'jmap',
+      );
+    }
+    const failure = res.notDestroyed?.[draftId];
+    if (failure && failure.type !== 'notFound') {
+      await dropReplacement();
+      throw new EmailError(
+        `Draft ${draftId} could not be replaced (old draft not removable: ${failure.type}); update discarded`,
+        'DRAFT_REPLACE_INCOMPLETE',
+        'jmap',
+      );
+    }
+    return { ...replacement, state: res.newState ?? replacement.state };
+  }
+
+  /** Idempotent: deleting a draft that is already gone succeeds. */
+  async deleteDraft(
+    draftId: string,
+    options: WriteBackOptions = {},
+  ): Promise<WriteBackResult> {
+    let verifiedState: string | undefined;
+    try {
+      verifiedState = (await this.requireDraft(draftId)).verifiedState;
+    } catch (error) {
+      if (error instanceof MessageNotFoundError) {
+        return { updated: [draftId], failed: [] };
+      }
+      throw error;
+    }
+    // A caller-supplied state wins; otherwise guard with the verified one.
+    // A mismatch revalidates once, so a submitted draft is never destroyed.
+    const res: {
+      oldState?: string;
+      newState?: string;
+      notDestroyed?: Record<string, { type: string; description?: string }>;
+      gone?: boolean;
+    } = options.ifInState
+      ? ((await this.call([
+          [
+            'Email/set',
+            {
+              accountId: this.accountId,
+              destroy: [draftId],
+              ifInState: options.ifInState,
+            },
+            'x',
+          ],
+        ]).then((r) => this.result(r, 'x'))) as {
+          oldState?: string;
+          newState?: string;
+          notDestroyed?: Record<string, { type: string; description?: string }>;
+        })
+      : await this.destroyDraftGuarded(draftId, verifiedState);
+    if (res.gone) return { updated: [draftId], failed: [] };
+    const failure = res.notDestroyed?.[draftId];
+    if (failure && failure.type !== 'notFound') {
+      return {
+        updated: [],
+        failed: [
+          { id: draftId, code: failure.type, message: failure.description },
+        ],
+        state: res.newState,
+        oldState: res.oldState,
+      };
+    }
+    return {
+      updated: [draftId],
+      failed: [],
+      state: res.newState,
+      oldState: res.oldState,
+    };
+  }
+
+  private newMessageId(message: EmailMessage, custom?: string): string {
+    if (custom) return custom;
+    const domain = message.from?.address?.split('@')[1] || 'localhost';
+    return `<${randomUUID()}@${domain}>`;
+  }
+
+  // ========================================================================
+  // Submission (EmailSubmission/set)
+  // ========================================================================
+
+  private requireSubmission(): void {
+    const session = this.session as JMAPSession;
+    const account = this.submissionAccountId(session);
+    if (!account) {
+      throw new EmailError(
+        'JMAP server does not offer submission (urn:ietf:params:jmap:submission)',
+        'NOT_SUPPORTED',
+        'jmap',
+      );
+    }
+    if (account !== this.accountId) {
+      // Email and EmailSubmission must live in one account to be chained.
+      throw new EmailError(
+        'JMAP submission account differs from the mail account; sending is not supported for this account',
+        'NOT_SUPPORTED',
+        'jmap',
+      );
+    }
+  }
+
+  async listIdentities(): Promise<EmailIdentity[]> {
+    await this.ensureSession();
+    this.requireSubmission();
+    const responses = await this.call(
+      [['Identity/get', { accountId: this.accountId, ids: null }, 'id']],
+      USING_SUBMISSION,
+    );
+    const res = this.result(responses, 'id') as {
+      list: {
+        id: string;
+        name?: string;
+        email: string;
+        replyTo?: JMAPAddress[] | null;
+        bcc?: JMAPAddress[] | null;
+      }[];
+    };
+    return res.list.map((i) => ({
+      id: i.id,
+      name: i.name || undefined,
+      email: i.email,
+      replyTo: i.replyTo ? this.addresses(i.replyTo) : undefined,
+      bcc: i.bcc ? this.addresses(i.bcc) : undefined,
+    }));
+  }
+
+  /** Does the identity authorise this sender address? Supports `*@domain` wildcards. */
+  private identityOwns(identity: EmailIdentity, address: string): boolean {
+    const own = identity.email.trim().toLowerCase();
+    const addr = address.trim().toLowerCase();
+    if (!own || !addr) return false;
+    if (own.startsWith('*@'))
+      return addr.endsWith(own.slice(1)) && addr.length > own.length - 1;
+    return own === addr;
+  }
+
+  /**
+   * Choose the submission identity. The sender address must be owned by the
+   * account: an explicit identityId is checked against the From address, and
+   * without one exactly one identity must match. Nothing is created on the
+   * server unless this succeeds.
+   */
+  private pickIdentity(
+    identities: EmailIdentity[],
+    from: string,
+    identityId?: string,
+  ): EmailIdentity {
+    if (identityId) {
+      const chosen = identities.find((i) => i.id === identityId);
+      if (!chosen) {
+        throw new EmailError(
+          `Identity ${identityId} does not belong to this account`,
+          'IDENTITY_NOT_FOUND',
+          'jmap',
+        );
+      }
+      if (!this.identityOwns(chosen, from)) {
+        throw new EmailError(
+          `Identity ${identityId} is not authorised to send as ${from}`,
+          'IDENTITY_MISMATCH',
+          'jmap',
+        );
+      }
+      return chosen;
+    }
+    const exact = identities.filter(
+      (i) => !i.email.startsWith('*@') && this.identityOwns(i, from),
+    );
+    if (exact.length > 1) {
+      throw new EmailError(
+        `More than one identity matches ${from}; pass identityId`,
+        'IDENTITY_AMBIGUOUS',
+        'jmap',
+      );
+    }
+    const match =
+      exact[0] ?? identities.find((i) => this.identityOwns(i, from));
+    if (!match) {
+      throw new EmailError(
+        `This account has no identity for ${from}; refusing to send`,
+        'FROM_NOT_OWNED',
+        'jmap',
+      );
+    }
+    return match;
+  }
+
+  /** Addresses in the draft's `sender` header (empty when absent). */
+  private async draftSenders(draftId: string): Promise<string[]> {
+    const responses = await this.call([
+      [
+        'Email/get',
+        { accountId: this.accountId, ids: [draftId], properties: ['sender'] },
+        's',
+      ],
+    ]);
+    const res = this.result(responses, 's') as {
+      list: { sender?: JMAPAddress[] | null }[];
+    };
+    return (res.list[0]?.sender ?? []).map((a) => a.email);
+  }
+
+  /**
+   * A draft that already has a live submission must not be submitted again
+   * (a retry after a partial failure would deliver twice).
+   */
+  private async assertNotSubmitted(emailId: string): Promise<string> {
+    const responses = await this.call(
+      [
+        [
+          'EmailSubmission/query',
+          { accountId: this.accountId, filter: { emailIds: [emailId] } },
+          'sq',
+        ],
+        [
+          'EmailSubmission/get',
+          {
+            accountId: this.accountId,
+            '#ids': {
+              resultOf: 'sq',
+              name: 'EmailSubmission/query',
+              path: '/ids',
+            },
+            properties: ['id', 'undoStatus'],
+          },
+          'sg',
+        ],
+      ],
+      USING_SUBMISSION,
+    );
+    const res = this.result(responses, 'sg') as {
+      state: string;
+      list: { id: string; undoStatus?: string }[];
+    };
+    const live = res.list.find((s) => s.undoStatus !== 'canceled');
+    if (live) {
+      throw new EmailError(
+        `Draft ${emailId} was already submitted (submission ${live.id}); not sending again`,
+        'ALREADY_SUBMITTED',
+        'jmap',
+      );
+    }
+    return res.state;
+  }
+
+  /**
+   * Send through EmailSubmission/set.
+   *
+   * New message: one request creates the message (as `$draft` in Drafts) and
+   * submits it with the identity chosen for its From address; on success the
+   * server files it into Sent (`saveToSent`, default when a Sent mailbox
+   * exists) or destroys it. Draft-then-submit: pass `options.draftId` (from
+   * createDraft); the stored draft is submitted and `message` is ignored.
+   *
+   * Guards, all checked before anything is created: the From address must be
+   * owned by the account's identity (`FROM_NOT_OWNED`, `IDENTITY_MISMATCH`,
+   * `IDENTITY_NOT_FOUND`, `IDENTITY_AMBIGUOUS`), an envelope sender must
+   * belong to the same identity (`ENVELOPE_FROM_NOT_OWNED`), only genuine
+   * drafts can be submitted (`NOT_A_DRAFT`), and there must be a recipient.
+   * `accepted` lists the queued recipients: JMAP reports delivery later.
+   */
+  async send(
+    message: EmailMessage,
+    options: SendOptions = {},
+  ): Promise<SendResult> {
+    await this.ensureSession();
+    this.requireSubmission();
+
+    let draft: JMAPEmail | undefined;
+    let from: string;
+    let recipients: string[];
+    let draftSender: string[] = [];
+    if (options.draftId) {
+      draft = await this.requireDraft(options.draftId);
+      // A draft written by another client may carry several From entries or
+      // a Sender header; every sender-bearing header must be ours.
+      if ((draft.from?.length ?? 0) !== 1) {
+        throw new EmailError(
+          'Draft must have exactly one From address; refusing to send',
+          'FROM_NOT_OWNED',
+          'jmap',
+        );
+      }
+      draftSender = await this.draftSenders(options.draftId);
+      from = draft.from?.[0]?.email ?? '';
+      recipients = [
+        ...(draft.to ?? []),
+        ...(draft.cc ?? []),
+        ...(draft.bcc ?? []),
+      ].map((a) => a.email);
+      if (!from) {
+        throw new EmailError(
+          'Draft has no From address; refusing to send',
+          'FROM_NOT_OWNED',
+          'jmap',
+        );
+      }
+    } else {
+      this.validateMessage(message);
+      from = message.from.address;
+      recipients = [
+        ...message.to,
+        ...(message.cc ?? []),
+        ...(message.bcc ?? []),
+      ].map((a) => a.address);
+    }
+
+    const identity = this.pickIdentity(
+      await this.listIdentities(),
+      from,
+      options.identityId,
+    );
+
+    for (const sender of draftSender) {
+      if (!this.identityOwns(identity, sender)) {
+        throw new EmailError(
+          `Draft Sender ${sender} is not owned by identity ${identity.id}; refusing to send`,
+          'FROM_NOT_OWNED',
+          'jmap',
+        );
+      }
+    }
+    // The submission state seen here guards the submit below: a concurrent
+    // submission of the same draft changes it and ours is refused.
+    const submissionState = draft
+      ? await this.assertNotSubmitted(options.draftId as string)
+      : undefined;
+
+    let envelope: Record<string, unknown> | undefined;
+    if (options.envelope?.from || options.envelope?.to) {
+      const mailFrom = options.envelope.from ?? from;
+      if (!this.identityOwns(identity, mailFrom)) {
+        throw new EmailError(
+          `Envelope sender ${mailFrom} is not owned by identity ${identity.id}`,
+          'ENVELOPE_FROM_NOT_OWNED',
+          'jmap',
+        );
+      }
+      const to = options.envelope.to;
+      const rcpt =
+        to === undefined ? recipients : Array.isArray(to) ? to : [to];
+      for (const address of rcpt) this.validateEmail({ address });
+      envelope = {
+        mailFrom: { email: mailFrom },
+        rcptTo: rcpt.map((email) => ({ email })),
+      };
+      recipients = rcpt;
+    }
+    if (recipients.length === 0) {
+      throw new EmailError(
+        'Message has no recipients',
+        'NO_RECIPIENTS',
+        'jmap',
+      );
+    }
+
+    const drafts = await this.mailboxByRole('drafts');
+    const sent = await this.mailboxByRole('sent');
+    if (options.saveToSent === true && !sent) {
+      throw new FolderNotFoundError('\\Sent', 'jmap');
+    }
+    const saveToSent = options.saveToSent ?? sent !== undefined;
+
+    const calls: MethodCall[] = [];
+    let emailRef: string;
+    const messageId = draft
+      ? draft.messageId?.[0]
+      : this.stripAngles(this.newMessageId(message, options.messageId));
+    if (draft) {
+      emailRef = options.draftId as string;
+    } else {
+      const createIn = drafts ?? sent;
+      if (!createIn) throw new FolderNotFoundError('\\Drafts', 'jmap');
+      calls.push([
+        'Email/set',
+        {
+          accountId: this.accountId,
+          create: {
+            msg: this.composeEmail(message, {
+              mailboxIds: { [createIn.id]: true },
+              keywords: { $draft: true, $seen: true },
+              messageId,
+              date: options.date,
+              headers: options.headers,
+            }),
+          },
+        },
+        'es',
+      ]);
+      emailRef = '#msg';
+    }
+
+    const submission: Record<string, unknown> = {
+      accountId: this.accountId,
+      ...(submissionState ? { ifInState: submissionState } : {}),
+      create: {
+        sub: {
+          emailId: emailRef,
+          identityId: identity.id,
+          ...(envelope ? { envelope } : {}),
+        },
+      },
+    };
+    if (saveToSent && sent) {
+      const patch: Record<string, unknown> = {
+        'keywords/$draft': null,
+        [`mailboxIds/${sent.id}`]: true,
+      };
+      if (drafts && drafts.id !== sent.id)
+        patch[`mailboxIds/${drafts.id}`] = null;
+      submission.onSuccessUpdateEmail = { '#sub': patch };
+    } else {
+      submission.onSuccessDestroyEmail = ['#sub'];
+    }
+    calls.push(['EmailSubmission/set', submission, 'ss']);
+
+    const responses = await this.call(calls, USING_SUBMISSION);
+
+    let createdMessage: { id: string; threadId?: string } | undefined;
+    if (!draft) {
+      const es = this.result(responses, 'es') as {
+        created?: Record<string, { id: string; threadId?: string }>;
+        notCreated?: Record<string, { type: string; description?: string }>;
+      };
+      if (es.notCreated?.msg) throw this.methodError(es.notCreated.msg);
+      createdMessage = es.created?.msg;
+    }
+
+    const cleanup = async () => {
+      if (!createdMessage) return;
+      try {
+        await this.call([
+          [
+            'Email/set',
+            { accountId: this.accountId, destroy: [createdMessage.id] },
+            'cleanup',
+          ],
+        ]);
+      } catch {
+        // best effort: a leftover draft is harmless and visible to the user
+      }
+    };
+    let ss: {
+      created?: Record<string, { id: string; undoStatus?: string }>;
+      notCreated?: Record<string, { type: string; description?: string }>;
+    };
+    try {
+      ss = this.result(responses, 'ss') as typeof ss;
+    } catch (error) {
+      await cleanup();
+      if (error instanceof EmailError && error.code === 'JMAP_STATEMISMATCH') {
+        throw new EmailError(
+          'Draft was submitted concurrently by another request; not sending again',
+          'ALREADY_SUBMITTED',
+          'jmap',
+          error,
+        );
+      }
+      throw error;
+    }
+    const failure = ss.notCreated?.sub;
+    if (failure || !ss.created?.sub) {
+      await cleanup();
+      const type = failure?.type ?? 'serverFail';
+      throw new SendError(
+        `JMAP submission rejected: ${type}${failure?.description ? ` (${failure.description})` : ''}`,
+        [],
+        recipients,
+        'jmap',
+        failure,
+      );
+    }
+
+    // The server runs onSuccessUpdateEmail/DestroyEmail implicitly and reports
+    // it as a second Email/set response. The mail is already queued, so a
+    // failure there is reported, never thrown (a retry would deliver twice).
+    const implicit = responses.find(
+      (r) => r[2] === 'ss' && r[0] !== 'EmailSubmission/set',
+    );
+    let sentCopyError: string | undefined;
+    if (implicit) {
+      const body = implicit[1] as {
+        type?: string;
+        notUpdated?: Record<string, { type: string }>;
+        notDestroyed?: Record<string, { type: string }>;
+      };
+      const failed =
+        implicit[0] === 'error'
+          ? body.type
+          : Object.values({
+              ...body.notUpdated,
+              ...body.notDestroyed,
+            })[0]?.type;
+      if (failed) sentCopyError = String(failed);
+    }
+
+    return {
+      ...(sentCopyError ? { sentCopyError } : {}),
+      messageId: messageId ?? '',
+      accepted: recipients,
+      rejected: [],
+      response: `jmap:${ss.created.sub.undoStatus ?? 'pending'}`,
+      id: createdMessage?.id ?? options.draftId,
+      threadId: createdMessage?.threadId ?? draft?.threadId,
+      submissionId: ss.created.sub.id,
+      identityId: identity.id,
+    };
   }
 
   // ========================================================================

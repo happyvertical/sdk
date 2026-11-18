@@ -136,6 +136,19 @@ export interface SendOptions {
 
   // Priority
   priority?: 'high' | 'normal' | 'low';
+
+  /**
+   * Submission identity to send as (JMAP). The message's From must be an
+   * address this identity owns; the send is refused otherwise.
+   */
+  identityId?: string;
+  /**
+   * Submit an existing draft (from createDraft) instead of composing a new
+   * message. The draft's From must belong to the selected identity.
+   */
+  draftId?: string;
+  /** Keep a copy in the Sent mailbox (JMAP). Default: true when a Sent mailbox exists. */
+  saveToSent?: boolean;
 }
 
 export interface FetchOptions {
@@ -198,6 +211,18 @@ export interface SendResult {
   accepted: string[]; // Accepted recipients
   rejected: string[]; // Rejected recipients
   response: string; // Server response
+  /** Id of the stored message (JMAP: the Sent copy, or the submitted draft). */
+  id?: string;
+  threadId?: string;
+  /** Submission object id (JMAP EmailSubmission), when the protocol has one. */
+  submissionId?: string;
+  /** Identity the message was sent as. */
+  identityId?: string;
+  /**
+   * Set when the message was queued but filing the Sent copy (or removing the
+   * staged message) failed. The send itself succeeded: do not retry it.
+   */
+  sentCopyError?: string;
 }
 
 // ============================================================================
@@ -250,6 +275,42 @@ export interface EmailClient {
    */
   getThread?(threadId: string): Promise<EmailMessage[]>;
 
+  // Optional triage write-back (see EmailClientCapabilities.writeBack). Adapters
+  // that cannot do an operation leave the method undefined.
+  updateFlags?(
+    messageId: string | string[],
+    change: FlagChange,
+    options?: WriteBackOptions,
+  ): Promise<WriteBackResult>;
+  updateLabels?(
+    messageId: string | string[],
+    change: LabelChange,
+    options?: WriteBackOptions,
+  ): Promise<WriteBackResult>;
+  archive?(
+    messageId: string | string[],
+    options?: WriteBackOptions,
+  ): Promise<WriteBackResult>;
+  markSpam?(
+    messageId: string | string[],
+    spam?: boolean,
+    options?: WriteBackOptions,
+  ): Promise<WriteBackResult>;
+  createDraft?(
+    message: EmailMessage,
+    options?: WriteBackOptions,
+  ): Promise<DraftResult>;
+  updateDraft?(
+    draftId: string,
+    message: EmailMessage,
+    options?: WriteBackOptions,
+  ): Promise<DraftResult>;
+  deleteDraft?(
+    draftId: string,
+    options?: WriteBackOptions,
+  ): Promise<WriteBackResult>;
+  listIdentities?(): Promise<EmailIdentity[]>;
+
   // Optional incremental sync (see EmailClientCapabilities.changeFeed/push)
   getChanges?(options?: ChangeFeedOptions): Promise<ChangeFeedResult>;
   subscribeChanges?(
@@ -272,6 +333,91 @@ export interface EmailClientCapabilities {
   changeFeed?: boolean;
   /** Supports subscribeChanges(). Absent means false. */
   push?: boolean;
+  /** Triage write-back operations the adapter implements. Absent means none. */
+  writeBack?: WriteBackCapabilities;
+}
+
+// ============================================================================
+// Triage write-back (protocol-neutral)
+// ============================================================================
+
+/** Which optional write-back methods an adapter implements. Absent keys mean false. */
+export interface WriteBackCapabilities {
+  /** updateFlags() for the standard flags (\\Seen, \\Flagged, \\Answered). */
+  flags?: boolean;
+  /** updateFlags() also accepts custom keywords (e.g. $junk, $label). */
+  keywords?: boolean;
+  /** updateLabels() (mailbox/label membership). */
+  labels?: boolean;
+  archive?: boolean;
+  spam?: boolean;
+  /** createDraft/updateDraft/deleteDraft. */
+  drafts?: boolean;
+  /** send() works and listIdentities() is available. */
+  submission?: boolean;
+}
+
+/**
+ * Flags to add and remove. IMAP-style system flags (`\\Seen`, `\\Flagged`,
+ * `\\Answered`) and keyword names (`$junk`, `$notjunk`, `$phishing`, custom)
+ * are both accepted; adapters map them to their native form. `\\Draft`,
+ * `\\Deleted` and `\\Recent` are not settable here.
+ */
+export interface FlagChange {
+  add?: string[];
+  remove?: string[];
+}
+
+/** Labels (mailboxes) to add the messages to and remove them from. Names, paths, ids or `\\Role`. */
+export interface LabelChange {
+  add?: string[];
+  remove?: string[];
+}
+
+export interface WriteBackOptions {
+  /** Fail (state mismatch) unless the server state still equals this value. */
+  ifInState?: string;
+}
+
+export interface WriteBackFailure {
+  id: string;
+  /** `notFound`, `forbidden`, or the adapter's error type. */
+  code: string;
+  message?: string;
+}
+
+/**
+ * Outcome of a write-back call. Per-message failures are reported, not thrown,
+ * so a batch can be retried: every operation is idempotent (re-applying a flag
+ * or label that is already in place succeeds).
+ */
+export interface WriteBackResult {
+  /** Ids the operation now holds for (including ones that already were in the target state). */
+  updated: string[];
+  failed: WriteBackFailure[];
+  /** Server state after the change, when the protocol reports one. */
+  state?: string;
+  /** Server state before the change, when known. */
+  oldState?: string;
+}
+
+export interface DraftResult {
+  /** The draft's id. An update replaces the draft: this may differ from the old id. */
+  id: string;
+  threadId?: string;
+  /** RFC 822 Message-ID assigned to the draft. */
+  messageId?: string;
+  state?: string;
+}
+
+/** An address the account may send from. */
+export interface EmailIdentity {
+  id: string;
+  name?: string;
+  /** Sender address; may be a wildcard such as `*@example.com`. */
+  email: string;
+  replyTo?: EmailAddress[];
+  bcc?: EmailAddress[];
 }
 
 // ============================================================================
