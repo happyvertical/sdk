@@ -35,6 +35,7 @@ export interface EmailMessage {
 
   // Metadata
   folder?: string; // Current folder/label
+  folders?: string[]; // Every folder path holding the message (multi-mailbox servers)
   labels?: string[]; // Gmail labels
   flags?: MessageFlag[]; // IMAP flags
   headers?: Record<string, string | string[]>;
@@ -73,6 +74,8 @@ export type MessageFlag =
 // ============================================================================
 
 export interface Folder {
+  /** Provider-specific folder id (JMAP mailbox id, Gmail label id). */
+  id?: string;
   name: string;
   path: string; // Full path (e.g., 'INBOX/Archive/2024')
   delimiter: string; // Hierarchy delimiter (e.g., '/')
@@ -237,6 +240,13 @@ export interface EmailClient {
   // Adapter info
   getCapabilities(): Promise<EmailClientCapabilities>;
   getAdapter(): AdapterType;
+
+  // Optional incremental sync (see EmailClientCapabilities.changeFeed/push)
+  getChanges?(options?: ChangeFeedOptions): Promise<ChangeFeedResult>;
+  subscribeChanges?(
+    listener: ChangeHintListener,
+    options?: SubscribeChangesOptions,
+  ): Promise<Unsubscribe>;
 }
 
 export interface EmailClientCapabilities {
@@ -249,13 +259,94 @@ export interface EmailClientCapabilities {
   delete: boolean;
   threads: boolean;
   oauth: boolean;
+  /** Supports getChanges(). Absent means false. */
+  changeFeed?: boolean;
+  /** Supports subscribeChanges(). Absent means false. */
+  push?: boolean;
 }
+
+// ============================================================================
+// Incremental Change Feed (protocol-neutral)
+// ============================================================================
+
+/**
+ * Options for EmailClient.getChanges().
+ *
+ * The cursor is opaque: persist it exactly as returned and hand it back on
+ * the next call. Its encoding is adapter-specific and may change between
+ * releases; a cursor an adapter can no longer interpret yields a
+ * `resync-required` result, never an exception.
+ */
+export interface ChangeFeedOptions {
+  /** Cursor from a previous batch. Omit for the initial full pass. */
+  cursor?: string;
+  /** Maximum messages per batch (a hint; adapters may return fewer). Default 100. */
+  limit?: number;
+  /** Include bodies and attachment metadata in added/changed messages. Default false. */
+  includeBodies?: boolean;
+}
+
+/**
+ * One page of changes. Apply it, then persist `cursor`. While `hasMore` is
+ * true call getChanges() again with the returned cursor. Persisting the cursor
+ * only after the batch is applied makes the feed resumable, and applying a
+ * batch twice must be harmless (consumers key on `id`).
+ */
+export interface ChangeFeedBatch {
+  status: 'ok';
+  /** Resume point after this batch. */
+  cursor: string;
+  /** More batches are available from `cursor` right now. */
+  hasMore: boolean;
+  /** True for pages of the initial pass (no cursor was supplied or it is still in progress). */
+  initial: boolean;
+  /** Messages new to the mailbox. During the initial pass, every message. */
+  added: EmailMessage[];
+  /** Messages whose flags/keywords, folders or metadata changed. */
+  changed: EmailMessage[];
+  /** Ids (EmailMessage.id) of messages that no longer exist. */
+  removed: string[];
+  /** Full folder list, present when the folder structure changed (and on the first page). */
+  folders?: Folder[];
+}
+
+/** The cursor cannot be continued from; start again without a cursor. */
+export interface ChangeFeedResyncRequired {
+  status: 'resync-required';
+  reason: 'cursor-expired' | 'cursor-invalid' | 'account-mismatch';
+  message?: string;
+}
+
+export type ChangeFeedResult = ChangeFeedBatch | ChangeFeedResyncRequired;
+
+export function isResyncRequired(
+  result: ChangeFeedResult,
+): result is ChangeFeedResyncRequired {
+  return result.status === 'resync-required';
+}
+
+/** A push hint: something changed, call getChanges(). Carries no data. */
+export interface ChangeHint {
+  /** Kinds of data that changed when the server says (e.g. 'Email', 'Mailbox'). */
+  types?: string[];
+}
+
+export type ChangeHintListener = (hint: ChangeHint) => void;
+
+export interface SubscribeChangesOptions {
+  /** Stops the subscription. */
+  signal?: AbortSignal;
+  /** Called when the push channel fails; the adapter reconnects unless aborted. */
+  onError?: (error: Error) => void;
+}
+
+export type Unsubscribe = () => void;
 
 // ============================================================================
 // Adapter Configuration Types
 // ============================================================================
 
-export type AdapterType = 'smtp' | 'imap' | 'pop3' | 'gmail';
+export type AdapterType = 'smtp' | 'imap' | 'pop3' | 'gmail' | 'jmap';
 
 export interface SMTPOptions {
   type: 'smtp';

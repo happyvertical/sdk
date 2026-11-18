@@ -35,11 +35,16 @@ export {
   isPOP3Options,
   isSMTPOptions,
 } from './shared/factory.js';
-
 // Types
 export type {
   AdapterType,
   Attachment,
+  ChangeFeedBatch,
+  ChangeFeedOptions,
+  ChangeFeedResult,
+  ChangeFeedResyncRequired,
+  ChangeHint,
+  ChangeHintListener,
   EmailAddress,
   EmailClient,
   EmailClientCapabilities,
@@ -58,4 +63,7 @@ export type {
   SendOptions,
   SendResult,
   SMTPOptions,
+  SubscribeChangesOptions,
+  Unsubscribe,
 } from './shared/types.js';
+export { isResyncRequired } from './shared/types.js';
