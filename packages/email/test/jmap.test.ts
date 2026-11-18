@@ -505,3 +505,219 @@ describe('JMAP bodies and object limits', () => {
     expect(start.hasMore).toBe(true);
   });
 });
+
+describe('JMAP triage write-back', () => {
+  async function connected() {
+    const client = adapter();
+    await client.connect();
+    return client;
+  }
+
+  it('advertises write-back capabilities', async () => {
+    const caps = await adapter().getCapabilities();
+    expect(caps.writeBack).toMatchObject({
+      flags: true,
+      keywords: true,
+      labels: true,
+      archive: true,
+      spam: true,
+      drafts: true,
+    });
+  });
+
+  it('sets and clears flags and keywords idempotently, returning server state', async () => {
+    const m = fx.addEmail({ subject: 'triage' });
+    const client = await connected();
+    const first = await client.updateFlags(m.id, {
+      add: ['\\Seen', '\\Flagged', '$Phishing'],
+    });
+    expect(first.updated).toEqual([m.id]);
+    expect(first.failed).toEqual([]);
+    expect(first.state).toBe(fx.emailStateString);
+    expect(first.oldState).toBeDefined();
+    expect(fx.emails.get(m.id)?.keywords).toEqual({
+      $seen: true,
+      $flagged: true,
+      $phishing: true,
+    });
+    // Replaying the same call succeeds and changes nothing.
+    const again = await client.updateFlags([m.id], {
+      add: ['\\Seen', '\\Flagged', '$Phishing'],
+    });
+    expect(again.updated).toEqual([m.id]);
+    await client.updateFlags(m.id, { remove: ['\\Flagged', '$phishing'] });
+    expect(fx.emails.get(m.id)?.keywords).toEqual({ $seen: true });
+  });
+
+  it('reports per-message failures without throwing', async () => {
+    const m = fx.addEmail({ subject: 'a' });
+    const client = await connected();
+    const res = await client.updateFlags([m.id, 'ghost'], {
+      add: ['\\Flagged'],
+    });
+    expect(res.updated).toEqual([m.id]);
+    expect(res.failed).toEqual([
+      { id: 'ghost', code: 'notFound', message: undefined },
+    ]);
+  });
+
+  it('rejects flags JMAP cannot set and contradictory changes', async () => {
+    const m = fx.addEmail({ subject: 'a' });
+    const client = await connected();
+    for (const bad of [
+      '\\Draft',
+      '\\Deleted',
+      '$draft',
+      'has space',
+      '\\Weird',
+    ]) {
+      await expect(
+        client.updateFlags(m.id, { add: [bad] }),
+      ).rejects.toMatchObject({
+        code: 'INVALID_ARGUMENT',
+      });
+    }
+    await expect(
+      client.updateFlags(m.id, { add: ['\\Seen'], remove: ['$seen'] }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(
+      fx.requests.filter((r) => r.body?.methodCalls?.[0]?.[0] === 'Email/set'),
+    ).toEqual([]);
+  });
+
+  it('honours ifInState', async () => {
+    const m = fx.addEmail({ subject: 'a' });
+    const client = await connected();
+    await expect(
+      client.updateFlags(m.id, { add: ['\\Seen'] }, { ifInState: 'stale' }),
+    ).rejects.toMatchObject({ code: 'JMAP_STATEMISMATCH' });
+    expect(fx.emails.get(m.id)?.keywords).toEqual({});
+  });
+
+  it('adds and removes labels by name, path or role', async () => {
+    const m = fx.addEmail({ subject: 'a' });
+    const client = await connected();
+    const res = await client.updateLabels(m.id, {
+      add: ['Projects/X', '\\Archive'],
+      remove: ['INBOX'],
+    });
+    expect(res.updated).toEqual([m.id]);
+    expect(fx.emails.get(m.id)?.mailboxIds).toEqual({
+      'mb-proj-x': true,
+      'mb-archive': true,
+    });
+    await expect(
+      client.updateLabels(m.id, { add: ['Nope'] }),
+    ).rejects.toBeInstanceOf(FolderNotFoundError);
+    // Removing the last mailbox is a per-message failure, not a throw.
+    const last = await client.updateLabels(m.id, {
+      remove: ['Projects/X', 'Archive'],
+    });
+    expect(last.failed[0]).toMatchObject({
+      id: m.id,
+      code: 'invalidProperties',
+    });
+  });
+
+  it('archives (inbox -> Archive, keeping other labels) idempotently', async () => {
+    const m = fx.addEmail({
+      subject: 'a',
+      mailboxIds: { 'mb-inbox': true, 'mb-proj': true },
+    });
+    const client = await connected();
+    await client.archive(m.id);
+    await client.archive(m.id);
+    expect(fx.emails.get(m.id)?.mailboxIds).toEqual({
+      'mb-proj': true,
+      'mb-archive': true,
+    });
+  });
+
+  it('marks spam and not-spam with $junk/$notjunk', async () => {
+    const m = fx.addEmail({ subject: 'a' });
+    const client = await connected();
+    await client.markSpam(m.id);
+    expect(fx.emails.get(m.id)).toMatchObject({
+      mailboxIds: { 'mb-junk': true },
+      keywords: { $junk: true },
+    });
+    await client.markSpam(m.id, false);
+    expect(fx.emails.get(m.id)).toMatchObject({
+      mailboxIds: { 'mb-inbox': true },
+      keywords: { $notjunk: true },
+    });
+    expect(fx.emails.get(m.id)?.keywords.$junk).toBeUndefined();
+  });
+
+  it('write-back is visible to the change feed as a change', async () => {
+    const m = fx.addEmail({ subject: 'a' });
+    const client = await connected();
+    const first = batch(await client.getChanges());
+    await client.updateFlags(m.id, { add: ['\\Flagged'] });
+    const next = batch(await client.getChanges({ cursor: first.cursor }));
+    expect(next.changed.map((e) => e.id)).toEqual([m.id]);
+    expect(next.changed[0].flags).toContain('\\Flagged');
+  });
+
+  it('creates, updates and deletes drafts without touching non-drafts', async () => {
+    const plain = fx.addEmail({ subject: 'received' });
+    const client = await connected();
+    const draft = await client.createDraft({
+      from: { address: 'alice@example.test' },
+      to: [{ address: 'bob@example.test' }],
+      subject: 'hello',
+      text: 'v1',
+    });
+    const stored = fx.emails.get(draft.id);
+    expect(stored?.mailboxIds).toEqual({ 'mb-drafts': true });
+    expect(stored?.keywords).toMatchObject({ $draft: true });
+    expect(draft.messageId).toMatch(/@example\.test$/);
+
+    const v2 = await client.updateDraft(draft.id, {
+      from: { address: 'alice@example.test' },
+      to: [{ address: 'bob@example.test' }],
+      subject: 'hello',
+      text: 'v2',
+    });
+    expect(v2.id).not.toBe(draft.id);
+    expect(fx.emails.has(draft.id)).toBe(false);
+    expect(fx.emails.get(v2.id)?.text).toBe('v2');
+
+    await expect(
+      client.updateDraft(plain.id, {
+        from: { address: 'a@example.test' },
+        to: [],
+        subject: 'x',
+        text: 'x',
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_A_DRAFT' });
+    await expect(client.deleteDraft(plain.id)).rejects.toMatchObject({
+      code: 'NOT_A_DRAFT',
+    });
+    expect(fx.emails.has(plain.id)).toBe(true);
+
+    const del = await client.deleteDraft(v2.id);
+    expect(del.updated).toEqual([v2.id]);
+    // Replay of a delete is a success.
+    expect((await client.deleteDraft(v2.id)).updated).toEqual([v2.id]);
+  });
+
+  it('refuses inline attachment content and bad headers', async () => {
+    const client = await connected();
+    const base = {
+      from: { address: 'alice@example.test' },
+      to: [{ address: 'bob@example.test' }],
+      subject: 's',
+      text: 't',
+    };
+    await expect(
+      client.createDraft({
+        ...base,
+        attachments: [
+          { contentType: 'text/plain', size: 1, content: Buffer.from('x') },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_SUPPORTED' });
+    expect([...fx.emails.values()]).toHaveLength(0);
+  });
+});
