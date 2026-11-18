@@ -1,5 +1,7 @@
 # @happyvertical/utils
 
+## 0.114.0
+
 ## 0.113.1
 
 ### Patch Changes
