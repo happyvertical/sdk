@@ -1508,13 +1508,36 @@ export class JMAPAdapter extends BaseEmailClient {
     message: EmailMessage,
     options?: WriteBackOptions,
   ): Promise<DraftResult> {
-    const verified = await this.requireDraft(draftId);
+    let verified = await this.requireDraft(draftId);
     // Create under the verified state unless the caller pinned their own, so
     // a submission racing the check fails the create instead of the destroy.
-    const replacement = await this.createDraft(message, {
-      ...options,
-      ifInState: options?.ifInState ?? verified.verifiedState,
-    });
+    // Unrelated mail can also move the state: revalidate and retry once.
+    let replacement: DraftResult;
+    try {
+      replacement = await this.createDraft(message, {
+        ...options,
+        ifInState: options?.ifInState ?? verified.verifiedState,
+      });
+    } catch (error) {
+      if (
+        options?.ifInState ||
+        !(error instanceof EmailError) ||
+        error.code !== 'JMAP_STATEMISMATCH'
+      ) {
+        throw error;
+      }
+      verified = await this.requireDraft(draftId);
+      replacement = await this.createDraft(message, {
+        ...options,
+        ifInState: verified.verifiedState,
+      });
+    }
+    // Whatever stops the swap, the old draft stays authoritative: never leave
+    // a live duplicate of mail that may already be sent.
+    const dropReplacement = () =>
+      this.destroyDraftGuarded(replacement.id, undefined).catch(
+        () => undefined,
+      );
     let res: {
       newState?: string;
       notDestroyed?: Record<string, { type: string; description?: string }>;
@@ -1523,19 +1546,25 @@ export class JMAPAdapter extends BaseEmailClient {
     try {
       res = await this.destroyDraftGuarded(draftId, replacement.state);
     } catch (error) {
-      if (error instanceof EmailError && error.code === 'NOT_A_DRAFT') {
-        // The original was submitted meanwhile: it is sent mail now, keep it
-        // and drop the replacement we just created.
-        await this.destroyDraftGuarded(replacement.id, undefined).catch(
-          () => undefined,
-        );
-      }
+      await dropReplacement();
       throw error;
+    }
+    if (res.gone) {
+      // The original vanished after the state moved (submitted and destroyed
+      // by onSuccessDestroyEmail, or deleted elsewhere): it may have been
+      // sent, so the replacement must not survive as a draft.
+      await dropReplacement();
+      throw new EmailError(
+        `Draft ${draftId} was submitted or deleted concurrently; update discarded`,
+        'NOT_A_DRAFT',
+        'jmap',
+      );
     }
     const failure = res.notDestroyed?.[draftId];
     if (failure && failure.type !== 'notFound') {
+      await dropReplacement();
       throw new EmailError(
-        `Draft replaced by ${replacement.id} but the old draft ${draftId} could not be removed: ${failure.type}`,
+        `Draft ${draftId} could not be replaced (old draft not removable: ${failure.type}); update discarded`,
         'DRAFT_REPLACE_INCOMPLETE',
         'jmap',
       );

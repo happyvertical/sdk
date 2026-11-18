@@ -740,7 +740,7 @@ describe('JMAP triage write-back', () => {
     const before = fx.emails.size;
     fx.beforeEmailSet = [submitConcurrently(d2.id)];
     await expect(client.updateDraft(d2.id, msg)).rejects.toMatchObject({
-      code: 'JMAP_STATEMISMATCH',
+      code: 'NOT_A_DRAFT',
     });
     expect(fx.emails.has(d2.id)).toBe(true);
     expect(fx.emails.size).toBe(before);
@@ -755,6 +755,42 @@ describe('JMAP triage write-back', () => {
     });
     expect(fx.emails.has(d3.id)).toBe(true);
     expect(fx.emails.size).toBe(base);
+  });
+
+  it('discards the replacement when the original was sent and destroyed meanwhile', async () => {
+    const client = await connected();
+    const msg = {
+      from: { address: 'alice@example.test' },
+      to: [{ address: 'bob@example.test' }],
+      subject: 'onSuccessDestroyEmail race',
+      text: 'v1',
+    };
+    const d = await client.createDraft(msg);
+    const base = fx.emails.size;
+    // Replacement create proceeds; then a submission with
+    // onSuccessDestroyEmail removes the original before the guarded destroy.
+    fx.beforeEmailSet = [() => undefined, () => fx.destroyEmail(d.id)];
+    await expect(client.updateDraft(d.id, msg)).rejects.toMatchObject({
+      code: 'NOT_A_DRAFT',
+    });
+    expect(fx.emails.has(d.id)).toBe(false);
+    // No live duplicate draft of the sent mail remains.
+    expect(fx.emails.size).toBe(base - 1);
+  });
+
+  it('retries the replacement create once on an unrelated state change', async () => {
+    const client = await connected();
+    const msg = {
+      from: { address: 'alice@example.test' },
+      to: [{ address: 'bob@example.test' }],
+      subject: 'spurious',
+      text: 'v1',
+    };
+    const d = await client.createDraft(msg);
+    fx.beforeEmailSet = [() => fx.addEmail({ subject: 'delivered' })];
+    const v2 = await client.updateDraft(d.id, { ...msg, text: 'v2' });
+    expect(fx.emails.has(d.id)).toBe(false);
+    expect(fx.emails.get(v2.id)?.text).toBe('v2');
   });
 
   it('retries a draft destroy once when unrelated mail changes the state', async () => {
