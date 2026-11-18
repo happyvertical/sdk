@@ -164,6 +164,55 @@ describe('QuickBooks invoice readback', () => {
     );
   });
 
+  const je = {
+    Amount: 105,
+    LinkedTxn: [{ TxnId: 'je-1', TxnType: 'JournalEntry' }],
+  };
+
+  it('refuses a payment line linking a journal entry', async () => {
+    serve({
+      'invoice/inv-1': invoice({ Balance: 0, LinkedTxn: [link('p9')] }),
+      'payment/p9': { Id: 'p9', TotalAmt: 0, Line: [invoiceLine(105), je] },
+    });
+    await expect(provider().invoices.readback('inv-1')).rejects.toThrow(
+      'unsupported transaction',
+    );
+  });
+
+  it('refuses cash mixed with a journal-entry credit', async () => {
+    serve({
+      'invoice/inv-1': invoice({ Balance: 0, LinkedTxn: [link('p9')] }),
+      'payment/p9': { Id: 'p9', TotalAmt: 20, Line: [invoiceLine(105), je] },
+    });
+    await expect(provider().invoices.readback('inv-1')).rejects.toThrow(
+      'unsupported transaction',
+    );
+  });
+
+  it('treats a zero-total payment as a credit even without a credit memo line', async () => {
+    serve({
+      'invoice/inv-1': invoice({ Balance: 55, LinkedTxn: [link('p9')] }),
+      'payment/p9': { Id: 'p9', TotalAmt: 0, Line: [invoiceLine(50)] },
+    });
+    expect((await provider().invoices.readback('inv-1')).transactions).toEqual([
+      { id: 'p9', kind: 'credit', amountMinor: 5000 },
+    ]);
+  });
+
+  it('refuses a balance reduced by an unlinked deposit', async () => {
+    serve({
+      'invoice/inv-1': invoice({
+        TotalAmt: 100,
+        Balance: 60,
+        Deposit: 40,
+        TxnTaxDetail: {},
+      }),
+    });
+    await expect(provider().invoices.readback('inv-1')).rejects.toThrow(
+      'balance disagrees',
+    );
+  });
+
   it('skips a voided payment that applies nothing', async () => {
     serve({
       'invoice/inv-1': invoice({ LinkedTxn: [link('p1')] }),

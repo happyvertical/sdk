@@ -136,7 +136,13 @@ export async function readQuickBooksInvoice(
     let credits = false;
     for (const line of payment.Line ?? []) {
       const links = line.LinkedTxn ?? [];
-      if (links.some((l) => l.TxnType === 'CreditMemo')) credits = true;
+      for (const l of links) {
+        // Only invoices and credit memos may appear on a payment line; a
+        // journal entry or anything else cannot be attributed safely.
+        if (l.TxnType !== 'Invoice' && l.TxnType !== 'CreditMemo')
+          fail('unsupported transaction linked to payment');
+        if (l.TxnType === 'CreditMemo') credits = true;
+      }
       if (links.some((l) => l.TxnType === 'Invoice' && l.TxnId === invoiceId)) {
         applied += minor(line.Amount, currency, 'applied amount');
         if (!Number.isSafeInteger(applied)) fail('applied amount overflow');
@@ -144,19 +150,21 @@ export async function readQuickBooksInvoice(
     }
     // A voided payment keeps its link but applies nothing.
     if (applied === 0) continue;
-    if (credits) {
-      // Credit application is a zero-total payment; cash mixed with credit
-      // cannot be split per invoice from the payment alone.
-      if (payment.TotalAmt !== 0) fail('payment mixes cash and credit');
-      transactions.push({ id: linkedId, kind: 'credit', amountMinor: applied });
-    } else {
-      transactions.push({
-        id: linkedId,
-        kind: 'payment',
-        amountMinor: applied,
-      });
-    }
+    // A zero-total payment settles the invoice with a non-cash source.
+    const nonCash = payment.TotalAmt === 0;
+    if (credits && !nonCash) fail('payment mixes cash and credit');
+    transactions.push({
+      id: linkedId,
+      kind: nonCash ? 'credit' : 'payment',
+      amountMinor: applied,
+    });
   }
+
+  // Deposits and other provider-side reductions are not linked transactions;
+  // an unexplained balance must never read as complete.
+  const settled = transactions.reduce((sum, t) => sum + t.amountMinor, 0);
+  if (!voided && totalMinor - balanceMinor !== settled)
+    fail('balance disagrees with linked transactions');
 
   return {
     realmId: provider.realmId,
