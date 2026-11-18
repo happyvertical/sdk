@@ -49,6 +49,8 @@ import type {
   QuickBooksCustomerFindOrCreateResult,
   QuickBooksCustomerFindQuery,
   QuickBooksCustomerOperations as QuickBooksCustomerOperationsContract,
+  QuickBooksInvoiceOperations as QuickBooksInvoiceOperationsContract,
+  QuickBooksInvoiceReadback,
   QuickBooksInvoiceRequest,
   QuickBooksOptions,
   QuickBooksPaymentCreateResult,
@@ -62,6 +64,7 @@ import type {
   WebhookEvent,
   WebhookOperations,
 } from '../../types.js';
+import { readQuickBooksInvoice } from './invoice-readback.js';
 import {
   mapCreditMemoToQBO,
   mapInvoiceToQBO,
@@ -127,7 +130,7 @@ export class QuickBooksProvider implements AccountingProvider {
   private tokenExpiresAt: Date | null = null;
 
   readonly customers: QuickBooksCustomerOperationsContract;
-  readonly invoices: InvoiceOperations;
+  readonly invoices: QuickBooksInvoiceOperationsContract;
   readonly creditMemos: CreditMemoOperations;
   readonly vendors: VendorOperations;
   readonly bills: BillOperations;
@@ -599,8 +602,14 @@ class QuickBooksCustomerOperations
 // Invoice Operations
 // =============================================================================
 
-class QuickBooksInvoiceOperations implements InvoiceOperations {
+class QuickBooksInvoiceOperations
+  implements QuickBooksInvoiceOperationsContract
+{
   constructor(private provider: QuickBooksProvider) {}
+
+  readback(externalId: string): Promise<QuickBooksInvoiceReadback> {
+    return readQuickBooksInvoice(this.provider, externalId);
+  }
 
   async push(invoice: InvoiceInput): Promise<SyncResult> {
     if (invoice.externalId && invoice.quickbooksRequest)
