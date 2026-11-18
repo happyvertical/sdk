@@ -124,6 +124,9 @@ export class JMAPFixture {
 
   // ---- state mutation helpers (what a real server does on delivery etc.) ----
 
+  /** Hooks run at the start of successive Email/set calls (simulate a racing client). */
+  beforeEmailSet: Array<() => void> = [];
+
   get emailStateString(): string {
     return `e${this.emailState}`;
   }
@@ -455,6 +458,7 @@ export class JMAPFixture {
         };
       }
       case 'Email/set': {
+        this.beforeEmailSet.shift()?.();
         if (a.ifInState && a.ifInState !== this.emailStateString) {
           throw Object.assign(new Error('state'), {
             jmapType: 'stateMismatch',
@@ -684,8 +688,14 @@ export class JMAPFixture {
         if (value === null) delete next.mailboxIds[path.slice(11)];
         else next.mailboxIds[path.slice(11)] = value;
       } else if (path.startsWith('keywords/')) {
-        if (value === null) delete next.keywords[path.slice(9)];
-        else next.keywords[path.slice(9)] = value;
+        // RFC 8620 5.3: path segments are JSON Pointer tokens.
+        const key = path.slice(9);
+        if (key.includes('/')) {
+          return { type: 'invalidPatch', properties: [path] };
+        }
+        const name = key.replace(/~1/g, '/').replace(/~0/g, '~');
+        if (value === null) delete next.keywords[name];
+        else next.keywords[name] = value;
       }
     }
     if (Object.keys(next.mailboxIds).length === 0) {

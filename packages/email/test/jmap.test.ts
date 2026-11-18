@@ -696,6 +696,85 @@ describe('JMAP triage write-back', () => {
     expect((await client.deleteDraft(v2.id)).updated).toEqual([v2.id]);
   });
 
+  it('escapes JSON Pointer tokens in custom keyword patch paths', async () => {
+    const m = fx.addEmail({ subject: 'kw' });
+    const client = await connected();
+    const res = await client.updateFlags(m.id, {
+      add: ['project/urgent', 'x~1y'],
+    });
+    expect(res.failed).toEqual([]);
+    expect(fx.emails.get(m.id)?.keywords).toMatchObject({
+      'project/urgent': true,
+      'x~1y': true,
+    });
+    expect(fx.emails.get(m.id)?.keywords['x/y']).toBeUndefined();
+    await client.updateFlags(m.id, { remove: ['project/urgent', 'x~1y'] });
+    expect(fx.emails.get(m.id)?.keywords['project/urgent']).toBeUndefined();
+    expect(fx.emails.get(m.id)?.keywords['x~1y']).toBeUndefined();
+  });
+
+  it('never destroys a draft that was submitted concurrently', async () => {
+    const client = await connected();
+    const msg = {
+      from: { address: 'alice@example.test' },
+      to: [{ address: 'bob@example.test' }],
+      subject: 'race',
+      text: 'v1',
+    };
+    const submitConcurrently = (id: string) => () =>
+      fx.touchEmail(id, (e) => {
+        delete e.keywords.$draft;
+        e.mailboxIds = { 'mb-sent': true };
+      });
+
+    // deleteDraft: submission lands between the draft check and the destroy.
+    const d1 = await client.createDraft(msg);
+    fx.beforeEmailSet = [submitConcurrently(d1.id)];
+    await expect(client.deleteDraft(d1.id)).rejects.toMatchObject({
+      code: 'NOT_A_DRAFT',
+    });
+    expect(fx.emails.has(d1.id)).toBe(true);
+
+    // updateDraft: submission lands before the replacement is created.
+    const d2 = await client.createDraft(msg);
+    const before = fx.emails.size;
+    fx.beforeEmailSet = [submitConcurrently(d2.id)];
+    await expect(client.updateDraft(d2.id, msg)).rejects.toMatchObject({
+      code: 'JMAP_STATEMISMATCH',
+    });
+    expect(fx.emails.has(d2.id)).toBe(true);
+    expect(fx.emails.size).toBe(before);
+
+    // updateDraft: submission lands after the replacement exists (destroy
+    // phase): the sent original survives and the replacement is dropped.
+    const d3 = await client.createDraft(msg);
+    const base = fx.emails.size;
+    fx.beforeEmailSet = [() => undefined, submitConcurrently(d3.id)];
+    await expect(client.updateDraft(d3.id, msg)).rejects.toMatchObject({
+      code: 'NOT_A_DRAFT',
+    });
+    expect(fx.emails.has(d3.id)).toBe(true);
+    expect(fx.emails.size).toBe(base);
+  });
+
+  it('retries a draft destroy once when unrelated mail changes the state', async () => {
+    const client = await connected();
+    const d = await client.createDraft({
+      from: { address: 'alice@example.test' },
+      to: [{ address: 'bob@example.test' }],
+      subject: 'unrelated',
+      text: 'v1',
+    });
+    fx.beforeEmailSet = [
+      () => {
+        fx.addEmail({ subject: 'delivered meanwhile' });
+      },
+    ];
+    const res = await client.deleteDraft(d.id);
+    expect(res.updated).toEqual([d.id]);
+    expect(fx.emails.has(d.id)).toBe(false);
+  });
+
   it('refuses inline attachment content and bad headers', async () => {
     const client = await connected();
     const base = {

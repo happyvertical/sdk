@@ -249,6 +249,11 @@ interface Cursor {
 // Adapter
 // ============================================================================
 
+/** RFC 6901 JSON Pointer reference-token escaping for PatchObject paths. */
+function escapePointer(token: string): string {
+  return token.replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
 export class JMAPAdapter extends BaseEmailClient {
   private options: JMAPOptions;
   private fetchImpl: typeof fetch;
@@ -842,11 +847,12 @@ export class JMAPAdapter extends BaseEmailClient {
   private async getEmails(
     ids: string[],
     includeBodies: boolean,
-  ): Promise<{ emails: JMAPEmail[]; notFound: string[] }> {
+  ): Promise<{ emails: JMAPEmail[]; notFound: string[]; state?: string }> {
     if (ids.length === 0) return { emails: [], notFound: [] };
     await this.ensureSession();
     const emails: JMAPEmail[] = [];
     const notFound: string[] = [];
+    let state: string | undefined;
     // Respect the server's maxObjectsInGet by fetching in chunks.
     const size = this.maxObjectsInGet();
     for (let i = 0; i < ids.length; i += size) {
@@ -860,11 +866,13 @@ export class JMAPAdapter extends BaseEmailClient {
       const res = this.result(responses, 'g') as {
         list: JMAPEmail[];
         notFound?: string[];
+        state?: string;
       };
       emails.push(...res.list);
       notFound.push(...(res.notFound ?? []));
+      state = res.state;
     }
-    return { emails, notFound };
+    return { emails, notFound, state };
   }
 
   /** Server's maxObjectsInGet (RFC 8620 section 2), defaulting to a safe 50. */
@@ -1164,8 +1172,8 @@ export class JMAPAdapter extends BaseEmailClient {
       );
     }
     const patch: Record<string, unknown> = {};
-    for (const k of add) patch[`keywords/${k}`] = true;
-    for (const k of remove) patch[`keywords/${k}`] = null;
+    for (const k of add) patch[`keywords/${escapePointer(k)}`] = true;
+    for (const k of remove) patch[`keywords/${escapePointer(k)}`] = null;
     if (Object.keys(patch).length === 0) {
       return { updated: [], failed: [] };
     }
@@ -1379,9 +1387,16 @@ export class JMAPAdapter extends BaseEmailClient {
     }
   }
 
-  /** The message must exist and carry `$draft`: drafts APIs never touch other mail. */
-  private async requireDraft(draftId: string): Promise<JMAPEmail> {
-    const { emails } = await this.getEmails([draftId], false);
+  /**
+   * The message must exist and carry `$draft`: drafts APIs never touch other
+   * mail. `state` is the Email state the verdict was read at; destruction is
+   * guarded with it so a concurrent submission cannot turn the draft into
+   * sent mail between this check and the destroy.
+   */
+  private async requireDraft(
+    draftId: string,
+  ): Promise<JMAPEmail & { readonly verifiedState?: string }> {
+    const { emails, state } = await this.getEmails([draftId], false);
     if (emails.length === 0) throw new MessageNotFoundError(draftId, 'jmap');
     if (!emails[0].keywords?.$draft) {
       throw new EmailError(
@@ -1390,7 +1405,55 @@ export class JMAPAdapter extends BaseEmailClient {
         'jmap',
       );
     }
-    return emails[0];
+    return Object.assign(emails[0], { verifiedState: state });
+  }
+
+  /**
+   * Destroy a verified draft under `ifInState`. A state mismatch means
+   * something changed (possibly the draft's own submission): revalidate and
+   * retry once at the fresh state; a draft that is no longer one is refused
+   * (NOT_A_DRAFT) and left alone.
+   */
+  private async destroyDraftGuarded(
+    draftId: string,
+    state: string | undefined,
+  ): Promise<{
+    oldState?: string;
+    newState?: string;
+    notDestroyed?: Record<string, { type: string; description?: string }>;
+    gone?: boolean;
+  }> {
+    let current = state;
+    for (let attempt = 0; ; attempt++) {
+      const args: Record<string, unknown> = {
+        accountId: this.accountId,
+        destroy: [draftId],
+      };
+      if (current) args.ifInState = current;
+      try {
+        const responses = await this.call([['Email/set', args, 'x']]);
+        return this.result(responses, 'x') as {
+          oldState?: string;
+          newState?: string;
+          notDestroyed?: Record<string, { type: string; description?: string }>;
+        };
+      } catch (error) {
+        if (
+          attempt > 0 ||
+          !(error instanceof EmailError) ||
+          error.code !== 'JMAP_STATEMISMATCH'
+        ) {
+          throw error;
+        }
+        try {
+          current = (await this.requireDraft(draftId)).verifiedState;
+        } catch (revalidate) {
+          if (revalidate instanceof MessageNotFoundError) return { gone: true };
+          throw revalidate;
+        }
+        if (!current) throw error;
+      }
+    }
   }
 
   async createDraft(
@@ -1445,15 +1508,30 @@ export class JMAPAdapter extends BaseEmailClient {
     message: EmailMessage,
     options?: WriteBackOptions,
   ): Promise<DraftResult> {
-    await this.requireDraft(draftId);
-    const replacement = await this.createDraft(message, options);
-    const responses = await this.call([
-      ['Email/set', { accountId: this.accountId, destroy: [draftId] }, 'x'],
-    ]);
-    const res = this.result(responses, 'x') as {
+    const verified = await this.requireDraft(draftId);
+    // Create under the verified state unless the caller pinned their own, so
+    // a submission racing the check fails the create instead of the destroy.
+    const replacement = await this.createDraft(message, {
+      ...options,
+      ifInState: options?.ifInState ?? verified.verifiedState,
+    });
+    let res: {
       newState?: string;
       notDestroyed?: Record<string, { type: string; description?: string }>;
+      gone?: boolean;
     };
+    try {
+      res = await this.destroyDraftGuarded(draftId, replacement.state);
+    } catch (error) {
+      if (error instanceof EmailError && error.code === 'NOT_A_DRAFT') {
+        // The original was submitted meanwhile: it is sent mail now, keep it
+        // and drop the replacement we just created.
+        await this.destroyDraftGuarded(replacement.id, undefined).catch(
+          () => undefined,
+        );
+      }
+      throw error;
+    }
     const failure = res.notDestroyed?.[draftId];
     if (failure && failure.type !== 'notFound') {
       throw new EmailError(
@@ -1470,25 +1548,40 @@ export class JMAPAdapter extends BaseEmailClient {
     draftId: string,
     options: WriteBackOptions = {},
   ): Promise<WriteBackResult> {
+    let verifiedState: string | undefined;
     try {
-      await this.requireDraft(draftId);
+      verifiedState = (await this.requireDraft(draftId)).verifiedState;
     } catch (error) {
       if (error instanceof MessageNotFoundError) {
         return { updated: [draftId], failed: [] };
       }
       throw error;
     }
-    const args: Record<string, unknown> = {
-      accountId: this.accountId,
-      destroy: [draftId],
-    };
-    if (options.ifInState) args.ifInState = options.ifInState;
-    const responses = await this.call([['Email/set', args, 'x']]);
-    const res = this.result(responses, 'x') as {
+    // A caller-supplied state wins; otherwise guard with the verified one.
+    // A mismatch revalidates once, so a submitted draft is never destroyed.
+    const res: {
       oldState?: string;
       newState?: string;
       notDestroyed?: Record<string, { type: string; description?: string }>;
-    };
+      gone?: boolean;
+    } = options.ifInState
+      ? ((await this.call([
+          [
+            'Email/set',
+            {
+              accountId: this.accountId,
+              destroy: [draftId],
+              ifInState: options.ifInState,
+            },
+            'x',
+          ],
+        ]).then((r) => this.result(r, 'x'))) as {
+          oldState?: string;
+          newState?: string;
+          notDestroyed?: Record<string, { type: string; description?: string }>;
+        })
+      : await this.destroyDraftGuarded(draftId, verifiedState);
+    if (res.gone) return { updated: [draftId], failed: [] };
     const failure = res.notDestroyed?.[draftId];
     if (failure && failure.type !== 'notFound') {
       return {
