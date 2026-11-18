@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.115.1
+
+### Patch Changes
+
+- ### Features
+
+  - read a QuickBooks invoice with linked payments and credits (#1548) (accounting)
+
 ## 0.115.0
 
 ## 0.114.1
