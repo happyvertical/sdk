@@ -94,6 +94,9 @@ export class JMAPFixture {
   submissionError: string | null = null;
   /** Make the implicit onSuccessUpdateEmail fail with this SetError type. */
   implicitUpdateError: string | null = null;
+  /** Hold EmailSubmission/query responses until this many are waiting (race tests). */
+  queryBarrier = 0;
+  private barrierWaiting: (() => void)[] = [];
   private implicit: [string, any][] = [];
   private createdIds = new Map<string, string>();
 
@@ -220,6 +223,18 @@ export class JMAPFixture {
       auth,
       body,
     });
+
+    if (
+      this.queryBarrier > 0 &&
+      body?.methodCalls?.some((c: [string]) => c[0] === 'EmailSubmission/query')
+    ) {
+      await new Promise<void>((resolve) => {
+        this.barrierWaiting.push(resolve);
+        if (this.barrierWaiting.length >= this.queryBarrier) {
+          for (const r of this.barrierWaiting.splice(0)) r();
+        }
+      });
+    }
 
     if (!auth || !this.validAuth.includes(auth)) {
       res.writeHead(401).end();
@@ -536,13 +551,18 @@ export class JMAPFixture {
       case 'EmailSubmission/get':
         return {
           accountId: a.accountId,
-          state: 's1',
+          state: `s${this.submissions.length}`,
           list: this.submissions
             .filter((x) => a.ids.includes(x.id))
             .map((x) => ({ id: x.id, undoStatus: 'pending' })),
           notFound: [],
         };
       case 'EmailSubmission/set': {
+        if (a.ifInState && a.ifInState !== `s${this.submissions.length}`) {
+          throw Object.assign(new Error('state'), {
+            jmapType: 'stateMismatch',
+          });
+        }
         const created: any = {};
         const notCreated: any = {};
         const subIds = new Map<string, string>();
@@ -621,8 +641,8 @@ export class JMAPFixture {
         }
         return {
           accountId: a.accountId,
-          oldState: 's0',
-          newState: 's1',
+          oldState: `s${this.submissions.length - Object.keys(created).length}`,
+          newState: `s${this.submissions.length}`,
           created,
           notCreated,
         };

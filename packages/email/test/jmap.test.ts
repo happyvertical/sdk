@@ -972,6 +972,22 @@ describe('JMAP submission', () => {
     expect(fx.submissions).toHaveLength(1);
   });
 
+  it('delivers a draft once when two sends race', async () => {
+    const draft = await (await connected()).createDraft(message);
+    fx.queryBarrier = 2; // both pre-checks see "not submitted" before either submits
+    const [a, b] = await Promise.allSettled([
+      (await connected()).send(message, { draftId: draft.id }),
+      (await connected()).send(message, { draftId: draft.id }),
+    ]);
+    const outcomes = [a, b];
+    expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1);
+    const rejected = outcomes.find(
+      (o) => o.status === 'rejected',
+    ) as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: 'ALREADY_SUBMITTED' });
+    expect(fx.submissions).toHaveLength(1);
+  });
+
   it('refuses a submission apiUrl outside the trusted origins', async () => {
     fx.apiUrlOverride = 'https://evil.test/jmap/api';
     await expect(adapter().send(message)).rejects.toMatchObject({

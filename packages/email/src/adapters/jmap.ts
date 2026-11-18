@@ -1643,7 +1643,7 @@ export class JMAPAdapter extends BaseEmailClient {
    * A draft that already has a live submission must not be submitted again
    * (a retry after a partial failure would deliver twice).
    */
-  private async assertNotSubmitted(emailId: string): Promise<void> {
+  private async assertNotSubmitted(emailId: string): Promise<string> {
     const responses = await this.call(
       [
         [
@@ -1668,6 +1668,7 @@ export class JMAPAdapter extends BaseEmailClient {
       USING_SUBMISSION,
     );
     const res = this.result(responses, 'sg') as {
+      state: string;
       list: { id: string; undoStatus?: string }[];
     };
     const live = res.list.find((s) => s.undoStatus !== 'canceled');
@@ -1678,6 +1679,7 @@ export class JMAPAdapter extends BaseEmailClient {
         'jmap',
       );
     }
+    return res.state;
   }
 
   /**
@@ -1757,7 +1759,11 @@ export class JMAPAdapter extends BaseEmailClient {
         );
       }
     }
-    if (draft) await this.assertNotSubmitted(options.draftId as string);
+    // The submission state seen here guards the submit below: a concurrent
+    // submission of the same draft changes it and ours is refused.
+    const submissionState = draft
+      ? await this.assertNotSubmitted(options.draftId as string)
+      : undefined;
 
     let envelope: Record<string, unknown> | undefined;
     if (options.envelope?.from || options.envelope?.to) {
@@ -1825,6 +1831,7 @@ export class JMAPAdapter extends BaseEmailClient {
 
     const submission: Record<string, unknown> = {
       accountId: this.accountId,
+      ...(submissionState ? { ifInState: submissionState } : {}),
       create: {
         sub: {
           emailId: emailRef,
@@ -1880,6 +1887,14 @@ export class JMAPAdapter extends BaseEmailClient {
       ss = this.result(responses, 'ss') as typeof ss;
     } catch (error) {
       await cleanup();
+      if (error instanceof EmailError && error.code === 'JMAP_STATEMISMATCH') {
+        throw new EmailError(
+          'Draft was submitted concurrently by another request; not sending again',
+          'ALREADY_SUBMITTED',
+          'jmap',
+          error,
+        );
+      }
       throw error;
     }
     const failure = ss.notCreated?.sub;
