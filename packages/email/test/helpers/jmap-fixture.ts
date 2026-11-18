@@ -59,6 +59,15 @@ export class JMAPFixture {
   ];
   /** When set, /.well-known/jmap redirects here (like Stalwart). */
   redirectSession = true;
+  /** Redirect discovery to another origin instead of /jmap/session. */
+  redirectTo: string | null = null;
+  /** Advertise this apiUrl / eventSourceUrl instead of our own. */
+  apiUrlOverride: string | null = null;
+  eventSourceUrlOverride: string | null = null;
+  /** Cap Email/query page size like a real server (RFC 8620 5.5). */
+  maxQueryPage = Infinity;
+  /** Mailbox/changes always claims more changes. */
+  mailboxChangesNeverEnd = false;
 
   async start(): Promise<void> {
     this.server = createServer((req, res) => void this.handle(req, res));
@@ -187,7 +196,9 @@ export class JMAPFixture {
       return;
     }
     if (url.pathname === '/.well-known/jmap' && this.redirectSession) {
-      res.writeHead(307, { Location: '/jmap/session' }).end();
+      res
+        .writeHead(307, { Location: this.redirectTo ?? '/jmap/session' })
+        .end();
       return;
     }
     if (
@@ -225,8 +236,10 @@ export class JMAPFixture {
       },
       accounts: { [ACCOUNT_ID]: { name: 'alice@example.test' } },
       primaryAccounts: { 'urn:ietf:params:jmap:mail': ACCOUNT_ID },
-      apiUrl: `${this.baseUrl}/jmap/api`,
-      eventSourceUrl: `${this.baseUrl}/jmap/eventsource?types={types}&closeafter={closeafter}&ping={ping}`,
+      apiUrl: this.apiUrlOverride ?? `${this.baseUrl}/jmap/api`,
+      eventSourceUrl:
+        this.eventSourceUrlOverride ??
+        `${this.baseUrl}/jmap/eventsource?types={types}&closeafter={closeafter}&ping={ping}`,
       state: 'ss1',
     };
   }
@@ -350,12 +363,17 @@ export class JMAPFixture {
             });
           start = at + (a.anchorOffset ?? 0);
         }
-        const page = ids.slice(start, a.limit ? start + a.limit : undefined);
+        const limit = Math.min(a.limit ?? Infinity, this.maxQueryPage);
+        const page = ids.slice(
+          start,
+          Number.isFinite(limit) ? start + limit : undefined,
+        );
         return {
           accountId: a.accountId,
           queryState: 'q',
           canCalculateChanges: false,
           position: start,
+          ...(a.calculateTotal ? { total: ids.length } : {}),
           ids: page.map((e) => e.id),
         };
       }
@@ -480,6 +498,7 @@ export class JMAPFixture {
       newState = st;
     }
     if (!more) newState = current;
+    if (mailbox && this.mailboxChangesNeverEnd) more = true;
     const out: any = {
       accountId: a.accountId,
       oldState: a.sinceState,

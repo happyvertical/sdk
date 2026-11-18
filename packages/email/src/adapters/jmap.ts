@@ -51,6 +51,8 @@ const USING = [CAP_CORE, CAP_MAIL];
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_FEED_LIMIT = 100;
 const CURSOR_VERSION = 1;
+const MAX_REDIRECTS = 5;
+const MAX_MAILBOX_CHANGE_PAGES = 50;
 
 /** Mailbox properties whose change alone does not alter folder structure. */
 const MAILBOX_COUNT_PROPERTIES = new Set([
@@ -274,20 +276,81 @@ export class JMAPAdapter extends BaseEmailClient {
     return new URL('/.well-known/jmap', this.options.url).toString();
   }
 
+  /** Origin credentials may be sent to: the configured server plus any explicit allowlist. */
+  private allowedOrigins(): Set<string> {
+    const origins = new Set<string>();
+    origins.add(new URL(this.sessionUrl()).origin);
+    if (this.options.url) origins.add(new URL(this.options.url).origin);
+    for (const extra of this.options.allowedOrigins ?? []) {
+      origins.add(new URL(extra).origin);
+    }
+    return origins;
+  }
+
+  /** https only; plain http is for loopback development and tests. */
+  private assertSecure(url: URL): void {
+    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+      throw new EmailError(
+        `JMAP requires https (got ${url.protocol}//${url.host})`,
+        'INSECURE_URL',
+        'jmap',
+      );
+    }
+  }
+
+  /** Reject a server-supplied URL that points outside the allowed origins. */
+  private assertTrustedUrl(url: URL, what: string): void {
+    this.assertSecure(url);
+    if (!this.allowedOrigins().has(url.origin)) {
+      throw new EmailError(
+        `JMAP ${what} origin ${url.origin} is not the configured server; refusing to send credentials (see allowedOrigins)`,
+        'UNTRUSTED_ORIGIN',
+        'jmap',
+      );
+    }
+  }
+
   private async request(
     url: string,
     init: RequestInit & { headers?: Record<string, string> },
   ): Promise<Response> {
     const timeoutMs = this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const trusted = this.allowedOrigins();
     let response: Response;
     try {
-      response = await this.fetchImpl(url, {
-        redirect: 'follow',
-        ...init,
-        headers: { Authorization: this.authHeader(), ...init.headers },
-        signal: init.signal ?? AbortSignal.timeout(timeoutMs),
-      });
+      let target = new URL(url);
+      let method = init.method;
+      let body = init.body;
+      let withAuth = true;
+      for (let hop = 0; ; hop++) {
+        this.assertSecure(target);
+        // Credentials never leave the trusted origins.
+        withAuth = withAuth && trusted.has(target.origin);
+        response = await this.fetchImpl(target.toString(), {
+          ...init,
+          method,
+          body,
+          redirect: 'manual',
+          headers: {
+            ...(withAuth ? { Authorization: this.authHeader() } : {}),
+            ...init.headers,
+          },
+          signal: init.signal ?? AbortSignal.timeout(timeoutMs),
+        });
+        const location = response.headers.get('location');
+        if (response.status < 300 || response.status >= 400 || !location) break;
+        if (hop >= MAX_REDIRECTS) {
+          throw new ConnectionError('JMAP: too many redirects', 'jmap');
+        }
+        target = new URL(location, target);
+        if (response.status === 303) {
+          method = 'GET';
+          body = undefined;
+        }
+      }
     } catch (error) {
+      if (error instanceof EmailError) throw error;
       if (error instanceof Error && error.name === 'TimeoutError') {
         throw new TimeoutError(
           `JMAP request timed out after ${timeoutMs}ms`,
@@ -344,11 +407,13 @@ export class JMAPAdapter extends BaseEmailClient {
     }
     // apiUrl / eventSourceUrl may be relative to the session resource.
     const origin = response.url || base;
-    session.apiUrl = new URL(session.apiUrl, origin).toString();
+    const apiUrl = new URL(session.apiUrl, origin);
+    this.assertTrustedUrl(apiUrl, 'apiUrl');
+    session.apiUrl = apiUrl.toString();
     if (session.eventSourceUrl) {
-      session.eventSourceUrl = decodeURI(
-        new URL(session.eventSourceUrl, origin).toString(),
-      );
+      const eventUrl = new URL(session.eventSourceUrl, origin);
+      this.assertTrustedUrl(eventUrl, 'eventSourceUrl');
+      session.eventSourceUrl = decodeURI(eventUrl.toString());
     }
     const accountId =
       this.options.accountId ?? session.primaryAccounts?.[CAP_MAIL];
@@ -977,6 +1042,7 @@ export class JMAPAdapter extends BaseEmailClient {
       accountId: this.accountId,
       sort: [{ property: 'receivedAt', isAscending: true }],
       limit,
+      calculateTotal: true,
     };
     if (cursor?.c) {
       query.anchor = cursor.c;
@@ -1002,7 +1068,11 @@ export class JMAPAdapter extends BaseEmailClient {
         message: 'Initial pass anchor was removed; restart the pass',
       };
     }
-    const queryRes = this.result(responses, 'q') as { ids: string[] };
+    const queryRes = this.result(responses, 'q') as {
+      ids: string[];
+      position?: number;
+      total?: number;
+    };
     const getRes = this.result(responses, 'g') as { list: JMAPEmail[] };
 
     let emailState: string;
@@ -1024,7 +1094,15 @@ export class JMAPAdapter extends BaseEmailClient {
     }
 
     const ids = queryRes.ids;
-    const hasMore = ids.length >= limit;
+    // The server may cap the page below `limit` (RFC 8620 section 5.5), so
+    // compare against the total when it reports one; otherwise any non-empty
+    // page may be followed by more and an empty page ends the pass.
+    const hasMore =
+      ids.length > 0 &&
+      (typeof queryRes.total === 'number' &&
+      typeof queryRes.position === 'number'
+        ? queryRes.position + ids.length < queryRes.total
+        : true);
     const byId = new Map(getRes.list.map((e) => [e.id, e]));
     const added = ids
       .map((id) => byId.get(id))
@@ -1113,8 +1191,15 @@ export class JMAPAdapter extends BaseEmailClient {
     let mc = this.result(responses, 'mc') as unknown as MailboxChanges;
 
     // Mailboxes are few; drain any paging server-side before continuing.
-    let guard = 0;
-    while (mc.hasMoreChanges && guard++ < 50) {
+    let pages = 0;
+    while (mc.hasMoreChanges) {
+      if (pages++ >= MAX_MAILBOX_CHANGE_PAGES) {
+        return {
+          status: 'resync-required',
+          reason: 'cursor-expired',
+          message: 'Mailbox changes did not converge; resync',
+        };
+      }
       const more = await this.call([
         [
           'Mailbox/changes',

@@ -376,3 +376,92 @@ describe('JMAP threads', () => {
     );
   });
 });
+
+describe('JMAP origin and transport safety', () => {
+  let other: JMAPFixture;
+  beforeEach(async () => {
+    other = new JMAPFixture();
+    await other.start();
+  });
+  afterEach(async () => {
+    await other.stop();
+  });
+
+  it('refuses an apiUrl on another origin and sends it nothing', async () => {
+    fx.apiUrlOverride = `${other.baseUrl}/jmap/api`;
+    await expect(adapter().connect()).rejects.toMatchObject({
+      code: 'UNTRUSTED_ORIGIN',
+    });
+    expect(other.requests).toEqual([]);
+  });
+
+  it('refuses an eventSourceUrl on another origin', async () => {
+    fx.eventSourceUrlOverride = `${other.baseUrl}/jmap/eventsource`;
+    await expect(adapter().connect()).rejects.toMatchObject({
+      code: 'UNTRUSTED_ORIGIN',
+    });
+    expect(other.requests).toEqual([]);
+  });
+
+  it('accepts another origin only through allowedOrigins', async () => {
+    fx.apiUrlOverride = `${other.baseUrl}/jmap/api`;
+    await adapter({ allowedOrigins: [other.baseUrl] }).connect();
+  });
+
+  it('strips Authorization on a cross-origin discovery redirect', async () => {
+    fx.redirectTo = `${other.baseUrl}/jmap/session`;
+    await expect(adapter().connect()).rejects.toBeInstanceOf(
+      AuthenticationError,
+    );
+    expect(other.requests).toHaveLength(1);
+    expect(other.requests[0].auth).toBeUndefined();
+  });
+
+  it('refuses plain http to a non-loopback host before sending anything', async () => {
+    const calls: string[] = [];
+    const client = new JMAPAdapter({
+      type: 'jmap',
+      url: 'http://mail.example.test',
+      auth: basic,
+      fetch: (async (u: string) => {
+        calls.push(u);
+        return new Response('{}');
+      }) as unknown as typeof fetch,
+    });
+    await expect(client.connect()).rejects.toMatchObject({
+      code: 'INSECURE_URL',
+    });
+    expect(calls).toEqual([]);
+  });
+});
+
+describe('JMAP feed robustness', () => {
+  it('finishes the initial pass when the server caps the page size', async () => {
+    for (let i = 0; i < 120; i++) fx.addEmail({ subject: `m${i}` });
+    fx.maxQueryPage = 50;
+    const client = adapter();
+    const subjects: string[] = [];
+    let cursor: string | undefined;
+    let pages = 0;
+    for (;;) {
+      const page = batch(await client.getChanges({ cursor, limit: 200 }));
+      subjects.push(...page.added.map((m) => m.subject));
+      cursor = page.cursor;
+      pages++;
+      if (!page.hasMore) break;
+      expect(pages).toBeLessThan(10);
+    }
+    expect(pages).toBe(3);
+    expect(new Set(subjects).size).toBe(120);
+  });
+
+  it('returns resync-required when Mailbox/changes never converges', async () => {
+    const client = adapter();
+    const start = batch(await client.getChanges());
+    fx.addEmail({ subject: 'x' });
+    fx.mailboxChangesNeverEnd = true;
+    expect(await client.getChanges({ cursor: start.cursor })).toMatchObject({
+      status: 'resync-required',
+    });
+  });
+});

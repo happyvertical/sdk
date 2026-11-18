@@ -503,6 +503,14 @@ export interface JMAPOptions {
         token: string;
       };
 
+  /**
+   * Extra origins (e.g. 'https://api.mail.example.com') the session may point
+   * apiUrl/eventSourceUrl at and credentials may follow redirects to. By
+   * default only the origin of url/sessionUrl is trusted, and https is
+   * required except for localhost, 127.0.0.1 and [::1].
+   */
+  allowedOrigins?: string[];
+
   /** Mail account id. Defaults to the session's primary mail account. */
   accountId?: string;
 
