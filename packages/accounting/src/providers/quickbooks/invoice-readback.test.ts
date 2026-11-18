@@ -189,14 +189,56 @@ describe('QuickBooks invoice readback', () => {
     );
   });
 
-  it('treats a zero-total payment as a credit even without a credit memo line', async () => {
+  it('refuses a zero-total payment with only invoice lines (unverifiable noncash)', async () => {
     serve({
       'invoice/inv-1': invoice({ Balance: 55, LinkedTxn: [link('p9')] }),
       'payment/p9': { Id: 'p9', TotalAmt: 0, Line: [invoiceLine(50)] },
     });
-    expect((await provider().invoices.readback('inv-1')).transactions).toEqual([
-      { id: 'p9', kind: 'credit', amountMinor: 5000 },
-    ]);
+    await expect(provider().invoices.readback('inv-1')).rejects.toThrow(
+      'funding cannot be verified',
+    );
+  });
+
+  it('refuses credit lines that do not fund the invoice applications', async () => {
+    serve({
+      'invoice/inv-1': invoice({ Balance: 55, LinkedTxn: [link('p9')] }),
+      'payment/p9': {
+        Id: 'p9',
+        TotalAmt: 0,
+        Line: [
+          invoiceLine(50),
+          { Amount: 30, LinkedTxn: [{ TxnId: 'cm-1', TxnType: 'CreditMemo' }] },
+        ],
+      },
+    });
+    await expect(provider().invoices.readback('inv-1')).rejects.toThrow(
+      'credit lines disagree',
+    );
+  });
+
+  it.each([
+    ['invoice', 'invoice/inv-1'],
+    ['payment', 'payment/p1'],
+  ])('sanitizes transport failures reading the %s', async (_name, _key) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.endsWith('/payment/p1') || url.includes('/invoice/')
+          ? url.includes('/invoice/') && _name === 'payment'
+            ? new Response(
+                JSON.stringify({
+                  Invoice: invoice({ LinkedTxn: [link('p1')] }),
+                }),
+              )
+            : new Response('Bearer sk-leak customer-secret', { status: 401 })
+          : new Response('{}'),
+      ),
+    );
+    const error = (await provider()
+      .invoices.readback('inv-1')
+      .catch((e: Error) => e)) as Error;
+    expect(error.message).toContain('provider read failed (HTTP 401)');
+    expect(error.message).not.toMatch(/sk-leak|customer-secret|Bearer/);
   });
 
   it('refuses a balance reduced by an unlinked deposit', async () => {

@@ -1,3 +1,7 @@
+import {
+  AccountingReauthRequiredError,
+  QuickBooksOAuthError,
+} from '../../errors.js';
 import type {
   QuickBooksInvoiceReadback,
   QuickBooksInvoiceReadbackTransaction,
@@ -41,6 +45,29 @@ function fail(reason: string): never {
   throw new Error(`QuickBooks invoice readback failed: ${reason}`);
 }
 
+/**
+ * Wrap every provider read so a transport failure never carries a response
+ * body, header or token; only typed auth errors and the HTTP status survive.
+ */
+async function sanitized<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    if (
+      error instanceof AccountingReauthRequiredError ||
+      error instanceof QuickBooksOAuthError
+    )
+      throw error;
+    const status =
+      error instanceof Error
+        ? /^QBO API error \((\d{3})\)/.exec(error.message)?.[1]
+        : undefined;
+    return fail(
+      status ? `provider read failed (HTTP ${status})` : 'provider read failed',
+    );
+  }
+}
+
 /** Link types that carry no money against the invoice. */
 const NON_MONETARY_LINKS = new Set([
   'CreditMemo', // applied through a Payment, which is counted below
@@ -75,9 +102,11 @@ export async function readQuickBooksInvoice(
   externalId: string,
 ): Promise<QuickBooksInvoiceReadback> {
   const invoiceId = id(externalId, 'invoice id');
-  const response = await provider.request<{ Invoice?: InvoiceRecord }>(
-    'GET',
-    `invoice/${encodeURIComponent(invoiceId)}`,
+  const response = await sanitized(() =>
+    provider.request<{ Invoice?: InvoiceRecord }>(
+      'GET',
+      `invoice/${encodeURIComponent(invoiceId)}`,
+    ),
   );
   const invoice = response?.Invoice;
   if (!invoice || invoice.Id !== invoiceId) fail('invoice not returned');
@@ -87,7 +116,7 @@ export async function readQuickBooksInvoice(
   const currency =
     typeof invoice.CurrencyRef?.value === 'string' && invoice.CurrencyRef.value
       ? invoice.CurrencyRef.value
-      : await provider.homeCurrency();
+      : await sanitized(() => provider.homeCurrency());
   const totalMinor = minor(invoice.TotalAmt, currency, 'total');
   const balanceMinor = minor(invoice.Balance, currency, 'balance');
   const taxMinor = minor(invoice.TxnTaxDetail?.TotalTax ?? 0, currency, 'tax');
@@ -124,16 +153,18 @@ export async function readQuickBooksInvoice(
     if (seen.has(linkedId)) continue;
     seen.add(linkedId);
 
-    const paymentResponse = await provider.request<{ Payment?: PaymentRecord }>(
-      'GET',
-      `payment/${encodeURIComponent(linkedId)}`,
+    const paymentResponse = await sanitized(() =>
+      provider.request<{ Payment?: PaymentRecord }>(
+        'GET',
+        `payment/${encodeURIComponent(linkedId)}`,
+      ),
     );
     const payment = paymentResponse?.Payment;
     if (!payment || payment.Id !== linkedId)
       fail('linked payment not returned');
 
     let applied = 0;
-    let credits = false;
+    let creditLines = 0;
     for (const line of payment.Line ?? []) {
       const links = line.LinkedTxn ?? [];
       for (const l of links) {
@@ -141,8 +172,9 @@ export async function readQuickBooksInvoice(
         // journal entry or anything else cannot be attributed safely.
         if (l.TxnType !== 'Invoice' && l.TxnType !== 'CreditMemo')
           fail('unsupported transaction linked to payment');
-        if (l.TxnType === 'CreditMemo') credits = true;
       }
+      if (links.some((l) => l.TxnType === 'CreditMemo'))
+        creditLines += minor(line.Amount, currency, 'credit amount');
       if (links.some((l) => l.TxnType === 'Invoice' && l.TxnId === invoiceId)) {
         applied += minor(line.Amount, currency, 'applied amount');
         if (!Number.isSafeInteger(applied)) fail('applied amount overflow');
@@ -150,14 +182,30 @@ export async function readQuickBooksInvoice(
     }
     // A voided payment keeps its link but applies nothing.
     if (applied === 0) continue;
-    // A zero-total payment settles the invoice with a non-cash source.
-    const nonCash = payment.TotalAmt === 0;
-    if (credits && !nonCash) fail('payment mixes cash and credit');
-    transactions.push({
-      id: linkedId,
-      kind: nonCash ? 'credit' : 'payment',
-      amountMinor: applied,
-    });
+    const total = payment.TotalAmt;
+    if (typeof total !== 'number') fail('linked payment has no total');
+    let kind: 'payment' | 'credit';
+    if (creditLines > 0) {
+      // Credit application is a zero-total payment whose credit-memo lines
+      // fund every invoice line; cash mixed with credit cannot be split.
+      if (total !== 0) fail('payment mixes cash and credit');
+      const invoiced = (payment.Line ?? []).reduce(
+        (sum, line) =>
+          line.LinkedTxn?.some((l) => l.TxnType === 'Invoice')
+            ? sum + minor(line.Amount, currency, 'applied amount')
+            : sum,
+        0,
+      );
+      if (invoiced !== creditLines)
+        fail('credit lines disagree with applications');
+      kind = 'credit';
+    } else {
+      // A zero-total payment with no verifiable funding source (for example a
+      // journal-entry application whose link is absent) is not cash.
+      if (total <= 0) fail('payment funding cannot be verified');
+      kind = 'payment';
+    }
+    transactions.push({ id: linkedId, kind, amountMinor: applied });
   }
 
   // Deposits and other provider-side reductions are not linked transactions;
