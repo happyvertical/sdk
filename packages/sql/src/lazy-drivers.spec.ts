@@ -9,13 +9,24 @@
  */
 
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createPackageConfig } from '../../../vite.config.base';
 
 const run = promisify(execFile);
+/** The package's real build externals, so the build here matches `dist`. */
+const packageExternals =
+  createPackageConfig('sql').build?.rollupOptions?.external;
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 let buildDir: string;
@@ -46,11 +57,17 @@ beforeAll(async () => {
     logLevel: 'silent',
     root: packageRoot,
     build: {
-      ssr: join(packageRoot, 'src', 'index.ts'),
+      // Library mode, as in the published build: unlike an SSR build it
+      // bundles any dependency the externals list does not name.
+      lib: {
+        entry: join(packageRoot, 'src', 'index.ts'),
+        formats: ['es'],
+        fileName: () => 'entry.mjs',
+      },
       outDir: buildDir,
       emptyOutDir: true,
       minify: false,
-      rollupOptions: { output: { entryFileNames: 'entry.mjs' } },
+      rollupOptions: { external: packageExternals },
     },
   });
   runnerFile = join(buildDir, 'runner.mjs');
@@ -71,6 +88,10 @@ try {
   const sql = await import(entry);
   if (scenario === 'sqlite') {
     const db = await sql.getDatabase({ type: 'sqlite', url: ':memory:' });
+    await db.query('CREATE TABLE t (id INTEGER)');
+    await db.insert('t', { id: 1 });
+    const rows = await db.query('SELECT id FROM t');
+    if (rows.rows?.[0]?.id !== 1 && rows[0]?.id !== 1) throw new Error('bad rows ' + JSON.stringify(rows));
     await db.close();
   } else if (scenario === 'pglite') {
     const db = await sql.getDatabase({ type: 'pglite' });
@@ -118,6 +139,20 @@ async function loadedDrivers(scenario: string): Promise<Set<DriverName>> {
 }
 
 describe('adapter drivers load lazily', () => {
+  it('keeps driver packages external in the build output', async () => {
+    const files = (await readdir(buildDir, { recursive: true })).filter((f) =>
+      /\.m?js$/.test(f),
+    );
+    const sources = await Promise.all(
+      files.map((f) => readFile(join(buildDir, f), 'utf8')),
+    );
+    const all = sources.join('\n');
+    expect(all).toContain('@libsql/client/sqlite3');
+    // An inlined libsql client would carry its own CommonJS `require` calls.
+    expect(all).not.toMatch(/require\(["']libsql["']\)/);
+    expect(all).not.toContain('LibsqlError');
+  });
+
   it('loads no driver for the root entry alone', async () => {
     expect([...(await loadedDrivers('none'))]).toEqual([]);
   });
