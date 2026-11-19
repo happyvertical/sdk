@@ -10,7 +10,7 @@
  * package and on plain table/column names.
  *
  * **Postgres-only today.** The bundled check builders and
- * `listPublicTables` use Postgres syntax (`pg_tables`, `::int`/`::text`
+ * `listTables` use Postgres syntax (`pg_tables`, `::int`/`::text`
  * casts). The shape is portable in principle — `DoctorContext` carries a
  * generic `DatabaseInterface` so apps can add engine-aware checks — but
  * the out-of-the-box runner expects a Postgres connection. `runDoctor`
@@ -26,11 +26,23 @@ export type DoctorLevel = 'fail' | 'warn';
 export interface DoctorIssue {
   level: DoctorLevel;
   message: string;
+  /**
+   * Schema the issue was found in. Set only when `schemas` or `allSchemas` was
+   * passed to {@link runDoctor}; the message is then prefixed `[schema] `.
+   */
+  schema?: string;
 }
 
 export interface DoctorContext {
   db: DatabaseInterface;
+  /** Names of the tables in the schema being checked. */
   tables: Set<string>;
+  /**
+   * Schema being checked. Table names in checks resolve against it: when
+   * `schemas` or `allSchemas` was passed, `db` is a transaction whose
+   * `search_path` is set to this schema alone.
+   */
+  schema: string;
 }
 
 export type DoctorCheck = (ctx: DoctorContext) => Promise<DoctorIssue[]>;
@@ -38,6 +50,18 @@ export type DoctorCheck = (ctx: DoctorContext) => Promise<DoctorIssue[]>;
 export interface RunDoctorOptions {
   db: DatabaseInterface;
   checks: DoctorCheck[];
+  /**
+   * Schema, or list of schemas, to check. Every check runs once per schema,
+   * with unqualified table names resolving to that schema, so two schemas that
+   * each hold a table of the same name are checked separately. Defaults to
+   * `public`.
+   */
+  schemas?: string | readonly string[];
+  /**
+   * Check every non-system schema (everything except `information_schema` and
+   * `pg_*`) instead of `schemas`. Takes precedence over `schemas`.
+   */
+  allSchemas?: boolean;
 }
 
 export interface DoctorResult {
@@ -47,23 +71,81 @@ export interface DoctorResult {
 }
 
 /**
- * Execute every check against the public-schema tables of `db` and
- * partition the results by severity. Returns the aggregate; callers
- * format/exit as they see fit.
+ * Execute every check against the tables of `db` and partition the results by
+ * severity. Returns the aggregate; callers format/exit as they see fit.
  *
- * The current table set is enumerated once and shared across checks so
- * each check can cheaply decide whether its target tables exist.
+ * By default only the `public` schema is checked, exactly as before. Pass
+ * `schemas` or `allSchemas` to check others: each schema's table set is
+ * enumerated once and shared across that schema's checks, which run in a
+ * transaction with `search_path` set to the schema.
  */
 export async function runDoctor(
   options: RunDoctorOptions,
 ): Promise<DoctorResult> {
   assertPostgresAdapter(options.db);
-  const tables = await listPublicTables(options.db);
   const issues: DoctorIssue[] = [];
 
-  for (const check of options.checks) {
-    const checkIssues = await check({ db: options.db, tables });
-    issues.push(...checkIssues);
+  if (options.schemas === undefined && !options.allSchemas) {
+    const tables = await listTables(options.db, 'public');
+    for (const check of options.checks) {
+      issues.push(
+        ...(await check({ db: options.db, tables, schema: 'public' })),
+      );
+    }
+  } else {
+    const schemas = options.allSchemas
+      ? await listNonSystemSchemas(options.db)
+      : [
+          ...new Set(
+            typeof options.schemas === 'string'
+              ? [options.schemas]
+              : (options.schemas ?? []),
+          ),
+        ];
+    if (!options.db.transaction) {
+      throw new Error(
+        'runDoctor with schemas requires a database that supports transactions.',
+      );
+    }
+    for (const schema of schemas) {
+      const schemaIssues = await options.db.transaction(async (tx) => {
+        // When `db` is itself a transaction handle, transaction() is a
+        // savepoint, and releasing a savepoint keeps a SET LOCAL made inside
+        // it. Read the incoming path and put it back explicitly rather than
+        // relying on a transaction boundary.
+        const incoming = await tx.query(
+          "SELECT current_setting('search_path') AS search_path",
+        );
+        const previous = String(incoming.rows[0]?.search_path ?? '');
+        await tx.query(`SET LOCAL search_path TO ${quoteIdentifier(schema)}`);
+        try {
+          const tables = await listTables(tx, schema);
+          const found: DoctorIssue[] = [];
+          for (const check of options.checks) {
+            found.push(...(await check({ db: tx, tables, schema })));
+          }
+          return found;
+        } finally {
+          try {
+            await tx.query(
+              "SELECT set_config('search_path', $1, true)",
+              previous,
+            );
+          } catch {
+            // A statement error aborted the transaction; the rollback that
+            // follows (to the savepoint, or the whole transaction) undoes the
+            // SET LOCAL, so there is nothing left to restore.
+          }
+        }
+      });
+      for (const issue of schemaIssues) {
+        issues.push({
+          ...issue,
+          message: `[${schema}] ${issue.message}`,
+          schema,
+        });
+      }
+    }
   }
 
   return {
@@ -75,7 +157,7 @@ export async function runDoctor(
 
 /**
  * Throw early if the supplied database isn't Postgres. The check builders
- * and `listPublicTables` use Postgres syntax; pointing them at SQLite or
+ * and `listTables` use Postgres syntax; pointing them at SQLite or
  * DuckDB would fail mid-execution with a confusing "table pg_tables does
  * not exist" error from the adapter. Fail fast with a useful message
  * instead.
@@ -187,11 +269,24 @@ export function checkRelationship(spec: RelationshipSpec): DoctorCheck {
   };
 }
 
-async function listPublicTables(db: DatabaseInterface): Promise<Set<string>> {
+async function listTables(
+  db: DatabaseInterface,
+  schema: string,
+): Promise<Set<string>> {
   const result = await db.query(
-    "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
+    'SELECT tablename FROM pg_tables WHERE schemaname = $1 ORDER BY tablename',
+    schema,
   );
   return new Set(result.rows.map((row) => String(row.tablename ?? '')));
+}
+
+async function listNonSystemSchemas(db: DatabaseInterface): Promise<string[]> {
+  const result = await db.query(
+    `SELECT nspname FROM pg_namespace
+     WHERE nspname <> 'information_schema' AND nspname NOT LIKE 'pg\\_%'
+     ORDER BY nspname`,
+  );
+  return result.rows.map((row) => String(row.nspname));
 }
 
 function countValueFromRow(value: unknown): string {

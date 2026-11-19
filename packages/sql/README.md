@@ -1065,6 +1065,15 @@ const schema = await db.getTableSchema?.('orders');
 schema?.columns.total.generated; // true for GENERATED ALWAYS AS (...)
 ```
 
+### Doctor schemas (PostgreSQL)
+
+`runDoctor({ db, checks })` checks the `public` schema. Pass `schemas: 'app'`
+or `schemas: ['app_a', 'app_b']`, or `allSchemas: true` for every non-system
+schema (all but `information_schema` and `pg_*`). Each schema runs the checks in
+a transaction with `search_path` set to it, so same-named tables in different
+schemas are checked separately; issues carry `schema` and a `[schema]` message
+prefix. `DoctorContext` gains `schema`.
+
 ### Vector Search (PostgreSQL)
 
 PostgreSQL adapters (and PGlite with its pgvector extension) expose `db.vector` when pgvector is available:
