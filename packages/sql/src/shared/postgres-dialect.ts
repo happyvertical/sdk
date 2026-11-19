@@ -24,10 +24,10 @@ import {
 } from './alter-utils';
 import type {
   QueryResult as BaseQueryResult,
-  ColumnDefinition,
   ColumnDefinitionWithName,
   DatabaseInterface,
   IndexDefinition,
+  TableColumnInfo,
   TableInterface,
   TableSchemaInfo,
   UpsertOptions,
@@ -1395,24 +1395,24 @@ export function createPostgresDialect(host: PostgresDialectHost) {
     /**
      * Checks if a table exists in the database
      *
-     * @param tableName - Name of the table to check
+     * @param tableName - Name of the table to check; `schema.table` checks that
+     *   schema, a bare name resolves through the session's `search_path`
      * @returns Promise resolving to boolean indicating if the table exists
      */
     const tableExists = async (tableName: string): Promise<boolean> => {
+      const { literal, qualified } = parseRelationName(tableName);
       const result = await executor.query(
         `SELECT EXISTS (
           SELECT 1
-          FROM information_schema.tables
-          WHERE table_name = $1
-            AND table_schema = (
-              SELECT namespace.nspname
-              FROM pg_catalog.pg_class AS relation
-              JOIN pg_catalog.pg_namespace AS namespace
-                ON namespace.oid = relation.relnamespace
-              WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident($1))
-            )
+          FROM information_schema.tables AS listed
+          JOIN pg_catalog.pg_namespace AS namespace
+            ON namespace.nspname = listed.table_schema
+          JOIN pg_catalog.pg_class AS relation
+            ON relation.relnamespace = namespace.oid
+            AND relation.relname = listed.table_name
+          WHERE relation.oid = ${resolveRegclass('$1', '$2')}
         )`,
-        [tableName],
+        [literal, qualified],
       );
       return result.rows[0].exists;
     };
@@ -1675,6 +1675,7 @@ export function createPostgresDialect(host: PostgresDialectHost) {
       ox,
       xx,
       tableExists,
+      getTableSchema: createGetTableSchema({ many, tableExists }),
       syncSchema,
     };
   };
@@ -1770,6 +1771,35 @@ export function createPostgresDialect(host: PostgresDialectHost) {
 }
 
 /**
+ * Candidate `regclass` texts for a table name that may be schema-qualified.
+ *
+ * `literal` is the whole name as one quoted identifier, which is how a bare
+ * name has always been resolved (through the session's `search_path`) and how a
+ * table whose own name contains a dot is still found. `qualified` is set only
+ * when the name is exactly two plain identifiers joined by a dot
+ * (`schema.table`); it is tried after `literal`, so a literal dotted table wins
+ * over a same-spelled schema-qualified one.
+ */
+export function parseRelationName(name: string): {
+  literal: string;
+  qualified: string | null;
+} {
+  const quote = (identifier: string) => `"${identifier.replaceAll('"', '""')}"`;
+  const match =
+    typeof name === 'string'
+      ? /^([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)$/.exec(name)
+      : null;
+  return {
+    literal: quote(name),
+    qualified: match ? `${quote(match[1])}.${quote(match[2])}` : null,
+  };
+}
+
+/** SQL resolving the two `parseRelationName` candidates bound at `$a`/`$b`. */
+const resolveRegclass = (a: string, b: string) =>
+  `COALESCE(pg_catalog.to_regclass(${a}), pg_catalog.to_regclass(${b}))`;
+
+/**
  * Builds `getTableSchema` on top of a dialect's statement methods.
  */
 export function createGetTableSchema(methods: {
@@ -1783,21 +1813,41 @@ export function createGetTableSchema(methods: {
   /**
    * Retrieves the schema information for a table
    *
-   * @param table - Table name
+   * @param requested - Table name, optionally `schema.table` qualified
    * @returns Promise resolving to table schema info or null if table doesn't exist
    * @throws Error if the query fails
    */
   const getTableSchema = async (
-    table: string,
+    requested: string,
   ): Promise<TableSchemaInfo | null> => {
-    validateTableName(table);
+    const relation = parseRelationName(requested);
+    if (relation.qualified === null) validateTableName(requested);
 
     try {
       // Check if table exists
-      const exists = await tableExists(table);
+      const exists = await tableExists(requested);
       if (!exists) {
         return null;
       }
+
+      // Resolve the relation once; every catalog query below filters on the
+      // resolved schema and relation name, so a same-named table in another
+      // schema is never mixed in.
+      const resolved = await many`
+        SELECT namespace.nspname AS schema_name, relation.relname AS table_name
+        FROM pg_catalog.pg_class AS relation
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = relation.relnamespace
+        WHERE relation.oid = COALESCE(
+          pg_catalog.to_regclass(${relation.literal}),
+          pg_catalog.to_regclass(${relation.qualified})
+        )
+      `;
+      if (resolved.length === 0) {
+        return null;
+      }
+      const schemaName = resolved[0].schema_name as string;
+      const table = resolved[0].table_name as string;
 
       // Get column information from information_schema
       const columnRows = await many`
@@ -1808,13 +1858,7 @@ export function createGetTableSchema(methods: {
           column_default
         FROM information_schema.columns
         WHERE table_name = ${table}
-          AND table_schema = (
-            SELECT namespace.nspname
-            FROM pg_catalog.pg_class AS relation
-            JOIN pg_catalog.pg_namespace AS namespace
-              ON namespace.oid = relation.relnamespace
-            WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(${table}))
-          )
+          AND table_schema = ${schemaName}
         ORDER BY ordinal_position
       `;
 
@@ -1826,22 +1870,36 @@ export function createGetTableSchema(methods: {
           ON tc.constraint_name = kcu.constraint_name
           AND tc.table_schema = kcu.table_schema
         WHERE tc.table_name = ${table}
-          AND tc.table_schema = (
-            SELECT namespace.nspname
-            FROM pg_catalog.pg_class AS relation
-            JOIN pg_catalog.pg_namespace AS namespace
-              ON namespace.oid = relation.relnamespace
-            WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(${table}))
-          )
+          AND tc.table_schema = ${schemaName}
           AND tc.constraint_type = 'PRIMARY KEY'
       `;
 
       const pkColumns = new Set(pkRows.map((row) => row.column_name));
 
-      const columns: Record<string, ColumnDefinition> = {};
+      // `attgenerated` is '' for ordinary columns, 's' for stored generated
+      // columns and 'v' for virtual ones (PostgreSQL 18+). information_schema
+      // lists them all but does not say which they are.
+      const generatedRows = await many`
+        SELECT attribute.attname AS column_name
+        FROM pg_catalog.pg_attribute AS attribute
+        WHERE attribute.attrelid = COALESCE(
+            pg_catalog.to_regclass(${relation.literal}),
+            pg_catalog.to_regclass(${relation.qualified})
+          )
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped
+          AND attribute.attgenerated::text <> ''
+      `;
+      const generatedColumns = new Set(
+        generatedRows.map((row) => row.column_name as string),
+      );
+
+      const columns: Record<string, TableColumnInfo> = {};
       for (const row of columnRows) {
         const colName = row.column_name as string;
         columns[colName] = {
+          generated: generatedColumns.has(colName),
+          hidden: false,
           type: row.data_type as string,
           primaryKey: pkColumns.has(colName),
           notNull: row.is_nullable === 'NO',
@@ -1856,13 +1914,7 @@ export function createGetTableSchema(methods: {
           indexdef
         FROM pg_indexes
         WHERE tablename = ${table}
-          AND schemaname = (
-            SELECT namespace.nspname
-            FROM pg_catalog.pg_class AS relation
-            JOIN pg_catalog.pg_namespace AS namespace
-              ON namespace.oid = relation.relnamespace
-            WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(${table}))
-          )
+          AND schemaname = ${schemaName}
           AND indexname NOT LIKE '%_pkey'
       `;
 
@@ -1907,13 +1959,7 @@ export function createGetTableSchema(methods: {
           AND rc.constraint_schema = tc.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
           AND tc.table_name = ${table}
-          AND tc.table_schema = (
-            SELECT namespace.nspname
-            FROM pg_catalog.pg_class AS relation
-            JOIN pg_catalog.pg_namespace AS namespace
-              ON namespace.oid = relation.relnamespace
-            WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(${table}))
-          )
+          AND tc.table_schema = ${schemaName}
       `;
 
       const foreignKeys: Array<{
@@ -1935,14 +1981,14 @@ export function createGetTableSchema(methods: {
       }
 
       return {
-        tableName: table,
+        tableName: requested,
         columns,
         indexes,
         foreignKeys,
       };
     } catch (e) {
       throw new DatabaseError('Failed to retrieve table schema', {
-        table,
+        table: requested,
         originalError: formatDbError(e),
       });
     }

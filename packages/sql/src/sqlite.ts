@@ -36,7 +36,6 @@ import {
   DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS,
 } from './shared/transaction-lock';
 import type {
-  ColumnDefinition,
   ColumnDefinitionWithName,
   DatabaseInterface,
   DatabaseOptions,
@@ -44,6 +43,7 @@ import type {
   QueryResult,
   SchemaInitializationOptions,
   SqliteCapabilitiesOptions,
+  TableColumnInfo,
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
@@ -2751,6 +2751,7 @@ async function createDatabase(
       const scopedExecute = bind(execute);
       const scopedQuery = bind(query);
       const scopedTableExists = bind(tableExists);
+      const scopedGetTableSchema = bind(getTableSchema);
       const scopedSyncSchema = bind(syncSchema);
       const scopedTable = (tableName: string): TableInterface => {
         if (!accepting) {
@@ -2826,6 +2827,7 @@ async function createDatabase(
         ox: scopedPluck,
         xx: scopedExecute,
         tableExists: scopedTableExists,
+        getTableSchema: scopedGetTableSchema,
         syncSchema: scopedSyncSchema,
         transaction: scopedTransaction,
       };
@@ -3218,11 +3220,14 @@ async function createDatabase(
           return null;
         }
 
-        // Get column information from pragma_table_info
+        // pragma_table_xinfo, unlike pragma_table_info, also lists generated
+        // and hidden columns. Its `hidden` column is 0 for an ordinary
+        // column, 1 for a hidden virtual-table column, 2 for a virtual
+        // generated column and 3 for a stored generated column.
         const columnRows =
-          await many`SELECT * FROM pragma_table_info(${table})`;
+          await many`SELECT * FROM pragma_table_xinfo(${table})`;
 
-        const columns: Record<string, ColumnDefinition> = {};
+        const columns: Record<string, TableColumnInfo> = {};
         for (const row of columnRows) {
           const colName = row.name as string;
           columns[colName] = {
@@ -3230,6 +3235,8 @@ async function createDatabase(
             primaryKey: row.pk === 1,
             notNull: row.notnull === 1,
             defaultValue: row.dflt_value,
+            generated: row.hidden === 2 || row.hidden === 3,
+            hidden: row.hidden === 1,
           };
         }
 

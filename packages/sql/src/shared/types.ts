@@ -657,13 +657,38 @@ export interface SchemaInitializationOptions {
 }
 
 /**
+ * A column as reported by getTableSchema().
+ *
+ * Extends {@link ColumnDefinition} with introspection-only flags, so existing
+ * readers of the base fields are unaffected.
+ */
+export interface TableColumnInfo extends ColumnDefinition {
+  /**
+   * Whether the column is a generated (computed) column, stored or virtual.
+   * Generated columns are always included in the result.
+   *
+   * Reported on SQLite, PostgreSQL, PGlite and DuckDB. DuckDB exposes no
+   * catalog flag, so it is derived from the table's `CREATE TABLE` text.
+   */
+  generated: boolean;
+  /**
+   * Whether the column is hidden from `SELECT *`.
+   *
+   * Only SQLite has hidden columns (those of virtual tables, such as FTS5's
+   * table-named column and `rank`). Generated columns are not hidden. Always
+   * `false` on the other adapters.
+   */
+  hidden: boolean;
+}
+
+/**
  * Table schema information returned by getTableSchema()
  */
 export interface TableSchemaInfo {
   /** Table name */
   tableName: string;
-  /** Columns in the table */
-  columns: Record<string, ColumnDefinition>;
+  /** Columns in the table, including generated and hidden columns */
+  columns: Record<string, TableColumnInfo>;
   /** Indexes on the table */
   indexes: IndexDefinition[];
   /** Foreign key constraints */
@@ -1080,7 +1105,9 @@ export interface DatabaseInterface {
   /**
    * Checks if a table exists in the database
    *
-   * @param table - Table name
+   * @param table - Table name. On PostgreSQL and PGlite a `schema.table`
+   *   qualified name is accepted; an unqualified name resolves through the
+   *   session's `search_path`.
    * @returns Promise resolving to boolean indicating existence
    */
   tableExists: (table: string) => Promise<boolean>;
@@ -1332,7 +1359,12 @@ export interface DatabaseInterface {
   /**
    * Retrieves the schema information for a table
    *
-   * @param table - Table name
+   * Available on the top-level interface and on transaction handles, where it
+   * sees tables created earlier in the same transaction.
+   *
+   * @param table - Table name. On PostgreSQL and PGlite a `schema.table`
+   *   qualified name is accepted; an unqualified name resolves through the
+   *   session's `search_path`.
    * @returns Promise resolving to table schema info or null if table doesn't exist
    */
   getTableSchema?: (table: string) => Promise<TableSchemaInfo | null>;

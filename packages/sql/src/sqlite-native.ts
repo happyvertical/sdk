@@ -21,7 +21,6 @@ import {
 } from './shared/sqlite-engine.js';
 import { createTransactionLock } from './shared/transaction-lock.js';
 import type {
-  ColumnDefinition,
   ColumnDefinitionWithName,
   DatabaseInterface,
   IndexDefinition,
@@ -34,6 +33,7 @@ import type {
   SchemaProvider,
   SqliteNotificationCapabilityOptions,
   SqliteVectorCapabilityOptions,
+  TableColumnInfo,
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
@@ -1593,17 +1593,22 @@ async function createNativeSqliteDatabase(
       }
 
       const columnRows = database
-        .prepare(`PRAGMA table_info(${quoteIdentifier(tableName)})`)
+        .prepare(`PRAGMA table_xinfo(${quoteIdentifier(tableName)})`)
         .all()
         .map(toPlainRow);
 
-      const columns: Record<string, ColumnDefinition> = {};
+      // table_xinfo also lists generated and hidden columns; `hidden` is 0
+      // ordinary, 1 hidden virtual-table column, 2 virtual generated, 3 stored
+      // generated.
+      const columns: Record<string, TableColumnInfo> = {};
       for (const row of columnRows) {
         columns[row.name as string] = {
           type: row.type as string,
           primaryKey: row.pk === 1,
           notNull: row.notnull === 1,
           defaultValue: row.dflt_value,
+          generated: row.hidden === 2 || row.hidden === 3,
+          hidden: row.hidden === 1,
         };
       }
 

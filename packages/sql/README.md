@@ -1041,6 +1041,39 @@ handle with `SET LOCAL search_path` before calling `tx.tableExists()` or
 connection for session-scoped state; root metadata helpers are not part of
 that raw session handle.
 
+A qualified `schema.table` name is also accepted by `tableExists()` and
+`getTableSchema()` on PostgreSQL and PGlite. A bare name is tried as one literal
+identifier first, so a table whose own name contains a dot keeps resolving.
+
+### Table introspection
+
+`getTableSchema(table)` is available on the database and on transaction
+handles (where it sees tables created earlier in the same transaction), and
+returns `null` for a missing table. Each entry of `columns` extends the column
+definition with two flags:
+
+- `generated`: the column is computed from other columns, stored or virtual.
+  Generated columns are always listed. SQLite uses `table_xinfo`, PostgreSQL
+  and PGlite use `pg_attribute.attgenerated`, and DuckDB reads the
+  `GENERATED ALWAYS AS` clause from the table's `CREATE` statement because its
+  catalogs do not flag it.
+- `hidden`: the column is left out of `SELECT *`. Only SQLite has these (the
+  extra columns of virtual tables such as FTS5); it is `false` elsewhere.
+
+```typescript
+const schema = await db.getTableSchema?.('orders');
+schema?.columns.total.generated; // true for GENERATED ALWAYS AS (...)
+```
+
+### Doctor schemas (PostgreSQL)
+
+`runDoctor({ db, checks })` checks the `public` schema. Pass `schemas: 'app'`
+or `schemas: ['app_a', 'app_b']`, or `allSchemas: true` for every non-system
+schema (all but `information_schema` and `pg_*`). Each schema runs the checks in
+a transaction with `search_path` set to it, so same-named tables in different
+schemas are checked separately; issues carry `schema` and a `[schema]` message
+prefix. `DoctorContext` gains `schema`.
+
 ### Vector Search (PostgreSQL)
 
 PostgreSQL adapters (and PGlite with its pgvector extension) expose `db.vector` when pgvector is available:
