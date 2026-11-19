@@ -143,7 +143,7 @@ export function createPackageConfig(
           '@napi-rs/canvas',
           /^@napi-rs\//,
           'cosmiconfig',
-          '@libsql/client',
+          /^@libsql\/client(\/|$)/, // include subpaths such as @libsql/client/sqlite3
           '@sqliteai/sqlite-vector',
           /^@sqliteai\/sqlite-vector/,
           '@russellthehippo/honker-node',
