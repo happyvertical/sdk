@@ -14,7 +14,6 @@ import {
 } from './shared/connection-cache';
 import {
   createAlterTable,
-  createGetTableSchema,
   createPostgresDialect,
   createTransactionErrorTracker,
   createVectorCapabilities,
@@ -738,9 +737,9 @@ async function createDatabase(
     ox,
     xx,
     tableExists,
+    getTableSchema,
     syncSchema,
   } = createClientMethods(client, false, serializeRecord);
-  const getTableSchema = createGetTableSchema({ many, tableExists });
   const alterTable = createAlterTable(client);
 
   /**
@@ -1016,6 +1015,7 @@ async function createDatabase(
       ox,
       xx,
       tableExists,
+      getTableSchema,
       syncSchema,
       transaction,
     };

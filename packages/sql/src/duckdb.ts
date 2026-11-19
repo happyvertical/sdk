@@ -19,19 +19,22 @@ import {
   createDuckDBResourceCloser,
   throwWithDuckDBCleanup,
 } from './shared/duckdb-resources';
-import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+import {
+  convertUniqueIndexesToInlineConstraints,
+  parseGeneratedColumns,
+} from './shared/duckdb-schema-utils';
 import { serializeDuckDBStatements } from './shared/duckdb-statement-queue';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { refuseReopen } from './shared/reopen';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
-  ColumnDefinition,
   ColumnDefinitionWithName,
   DatabaseInterface,
   DuckDBOptions,
   IndexDefinition,
   QueryResult,
   SchemaInitializationOptions,
+  TableColumnInfo,
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
@@ -1260,10 +1263,20 @@ export async function getDatabase(
 
       const pkColumns = new Set(pkRows.map((row) => row.column_name));
 
-      const columns: Record<string, ColumnDefinition> = {};
+      // The catalogs do not flag generated columns; read the CREATE statement.
+      const createRows = await many`
+        SELECT sql FROM duckdb_tables() WHERE table_name = ${table}
+      `;
+      const generatedColumns = parseGeneratedColumns(
+        (createRows[0]?.sql as string | undefined) ?? '',
+      );
+
+      const columns: Record<string, TableColumnInfo> = {};
       for (const row of columnRows) {
         const colName = row.column_name as string;
         columns[colName] = {
+          generated: generatedColumns.has(colName),
+          hidden: false,
           type: row.data_type as string,
           primaryKey: pkColumns.has(colName),
           notNull: row.is_nullable === 'NO',
@@ -1495,6 +1508,7 @@ export async function getDatabase(
       ox,
       xx,
       tableExists,
+      getTableSchema,
       syncSchema,
       transaction: async () => {
         throw new NestedTransactionError(

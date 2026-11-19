@@ -202,3 +202,62 @@ export function hasUniqueIndexes(indexes?: string[]): boolean {
     return parsed?.unique === true;
   });
 }
+
+/**
+ * Returns the names of the generated columns in a DuckDB `CREATE TABLE`
+ * statement.
+ *
+ * DuckDB's catalogs (`information_schema.columns`, `duckdb_columns()`) do not
+ * say whether a column is generated, and report its expression as the column
+ * default. The statement text from `duckdb_tables().sql` does keep the
+ * `GENERATED ALWAYS AS` clause, so the definitions are split at top-level
+ * commas and each is checked for it. Quoted identifiers and string literals
+ * are skipped so neither a column named `generated` nor a default of
+ * `'generated always as'` is misread.
+ */
+export function parseGeneratedColumns(createSql: string): Set<string> {
+  const generated = new Set<string>();
+  const open = createSql.indexOf('(');
+  const close = createSql.lastIndexOf(')');
+  if (open === -1 || close <= open) return generated;
+  const body = createSql.slice(open + 1, close);
+
+  const definitions: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let start = 0;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (quote) {
+      if (ch === quote) {
+        if (body[i + 1] === quote) i++;
+        else quote = null;
+      }
+    } else if (ch === "'" || ch === '"') {
+      quote = ch;
+    } else if (ch === '(') {
+      depth++;
+    } else if (ch === ')') {
+      depth--;
+    } else if (ch === ',' && depth === 0) {
+      definitions.push(body.slice(start, i));
+      start = i + 1;
+    }
+  }
+  definitions.push(body.slice(start));
+
+  for (const definition of definitions) {
+    const trimmed = definition.trim();
+    const name = /^"((?:[^"]|"")*)"|^([A-Za-z_][A-Za-z0-9_]*)/.exec(trimmed);
+    if (!name) continue;
+    const rest = trimmed
+      .slice(name[0].length)
+      .replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"/g, "''");
+    if (/\bGENERATED\s+ALWAYS\s+AS\b/i.test(rest)) {
+      generated.add(
+        name[1] !== undefined ? name[1].replace(/""/g, '"') : name[2],
+      );
+    }
+  }
+  return generated;
+}
