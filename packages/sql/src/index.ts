@@ -170,7 +170,18 @@ export { clearConnectionCache } from './json.js';
 // `PGlitePeerMissingError` load from `@happyvertical/sql/pglite`, which keeps
 // the root entry free of the optional `@electric-sql/pglite` peer.
 export type { PGliteLike, PGliteOptions } from './pglite';
-export { clearPostgresConnectionCache } from './postgres.js';
+
+/**
+ * Clears the PostgreSQL connection cache.
+ * Useful for test isolation and reconnection scenarios.
+ *
+ * The PostgreSQL adapter (and its `pg` driver) loads on first call, so the
+ * root entry does not pull the driver in for callers that never use it.
+ */
+export async function clearPostgresConnectionCache(): Promise<void> {
+  const postgres = await import('./postgres.js');
+  await postgres.clearPostgresConnectionCache();
+}
 // Postgres CLI shell-outs and URL helpers
 export {
   assertCanExportDatabase,

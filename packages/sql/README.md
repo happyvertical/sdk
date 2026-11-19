@@ -1167,6 +1167,11 @@ shipping it beyond development or test environments.
 | DuckDB | `'duckdb'` | `@duckdb/node-api` | JSON file auto-registration, write-back strategies |
 | JSON | `'json'` | DuckDB in-memory | Queries JSON files as tables, connection caching |
 
+Each adapter loads its driver only when it is created: importing the package or
+opening SQLite never loads `pg`, and a local SQLite database never loads the
+WebSocket, hrana, or `node-fetch` clients (only remote `libsql://` and `http(s)`
+URLs do).
+
 ## API Overview
 
 **Factory**: `getDatabase(options)` — creates or returns a cached database connection.

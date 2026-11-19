@@ -1099,8 +1099,13 @@ async function createLibSQLClient(
   }
 
   try {
-    // Use explicit external import to avoid bundling
-    const libsqlClient = '@libsql/client';
+    // Use explicit external import to avoid bundling. The package root also
+    // loads its WebSocket and HTTP (hrana, `ws`, `node-fetch`) clients, so a
+    // local file or in-memory database uses the `sqlite3` subpath, which
+    // carries only the embedded engine. Remote URLs need the full client.
+    const libsqlClient = remoteUrl
+      ? '@libsql/client'
+      : '@libsql/client/sqlite3';
     const { createClient } = await import(/* @vite-ignore */ libsqlClient);
     const client = createClient({
       url: libsqlUrl,
