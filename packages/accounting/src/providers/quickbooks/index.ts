@@ -92,6 +92,9 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/** Intuit refresh tokens live at most 100 days; see `refreshAccessToken`. */
+const REFRESH_TOKEN_LIFETIME_SECONDS = 8_640_000;
+
 /**
  * Sleep for a given number of milliseconds
  */
@@ -246,9 +249,15 @@ export class QuickBooksProvider implements AccountingProvider {
       redirectUri,
     });
 
+    // intuit-oauth validates the refresh token locally against
+    // `x_refresh_token_expires_in` (default 0 = already expired) before it
+    // sends anything. We hold only the opaque refresh token, so declare the
+    // longest lifetime Intuit issues and let the token endpoint decide: an
+    // expired or revoked grant comes back as `invalid_grant` below.
     oauthClient.setToken({
       refresh_token: this.options.refreshToken,
       access_token: this.accessToken || '',
+      x_refresh_token_expires_in: REFRESH_TOKEN_LIFETIME_SECONDS,
     });
 
     let response: Awaited<ReturnType<typeof oauthClient.refresh>>;
