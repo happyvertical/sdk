@@ -1,5 +1,12 @@
 # @happyvertical/accounting
 
+## 0.116.3
+
+### Patch Changes
+
+- be5c315: Fix QuickBooks token refresh always failing with `EXCHANGE_FAILED`: declare a refresh-token lifetime to intuit-oauth so it no longer rejects the stored token as expired before contacting Intuit (#1558).
+  - @happyvertical/utils@0.116.3
+
 ## 0.116.2
 
 ### Patch Changes
