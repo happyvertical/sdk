@@ -665,20 +665,51 @@ export interface SchemaInitializationOptions {
 export interface TableColumnInfo extends ColumnDefinition {
   /**
    * Whether the column is a generated (computed) column, stored or virtual.
-   * Generated columns are always included in the result.
+   * Only reported (and, on SQLite, listed) when `includeGenerated` or
+   * `includeHidden` is passed to getTableSchema().
    *
    * Reported on SQLite, PostgreSQL, PGlite and DuckDB. DuckDB exposes no
    * catalog flag, so it is derived from the table's `CREATE TABLE` text.
+   *
+   * Optional so a value shaped like the pre-0.116 column info still
+   * type-checks; absent means `false`. Every adapter populates it.
    */
-  generated: boolean;
+  generated?: boolean;
   /**
-   * Whether the column is hidden from `SELECT *`.
+   * Whether the column is hidden from `SELECT *`. Only reported when
+   * `includeGenerated` or `includeHidden` is passed to getTableSchema().
    *
    * Only SQLite has hidden columns (those of virtual tables, such as FTS5's
    * table-named column and `rank`). Generated columns are not hidden. Always
    * `false` on the other adapters.
+   *
+   * Optional so a value shaped like the pre-0.116 column info still
+   * type-checks; absent means `false`. Every adapter populates it.
    */
-  hidden: boolean;
+  hidden?: boolean;
+}
+
+/**
+ * Options for getTableSchema().
+ *
+ * With no options the result is identical to 0.115: same columns, same order,
+ * and no `generated` / `hidden` keys on the column entries. Pass an option to
+ * opt in to the 0.116 introspection; when either option is set, every column
+ * entry carries `generated` and `hidden`.
+ */
+export interface GetTableSchemaOptions {
+  /**
+   * Also report which columns are generated (computed), stored or virtual.
+   * On SQLite this additionally lists generated columns, which 0.115 omitted;
+   * PostgreSQL, PGlite and DuckDB always listed them and only gain the flag.
+   */
+  includeGenerated?: boolean;
+  /**
+   * Also list columns hidden from `SELECT *` (SQLite virtual-table columns
+   * such as FTS5's table-named column and `rank`), flagged `hidden: true`.
+   * No effect on the other adapters, which have no hidden columns.
+   */
+  includeHidden?: boolean;
 }
 
 /**
@@ -1362,12 +1393,18 @@ export interface DatabaseInterface {
    * Available on the top-level interface and on transaction handles, where it
    * sees tables created earlier in the same transaction.
    *
-   * @param table - Table name. On PostgreSQL and PGlite a `schema.table`
+   * @param table - Table name; any legal name is accepted, including quoted,
+   *   spaced and mixed-case ones. On PostgreSQL and PGlite a `schema.table`
    *   qualified name is accepted; an unqualified name resolves through the
    *   session's `search_path`.
+   * @param options - Opt in to generated/hidden columns; see
+   *   {@link GetTableSchemaOptions}. Omitted, the result matches 0.115.
    * @returns Promise resolving to table schema info or null if table doesn't exist
    */
-  getTableSchema?: (table: string) => Promise<TableSchemaInfo | null>;
+  getTableSchema?: (
+    table: string,
+    options?: GetTableSchemaOptions,
+  ) => Promise<TableSchemaInfo | null>;
 
   /**
    * Vector operations for native similarity search

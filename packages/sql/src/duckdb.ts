@@ -4,10 +4,12 @@ import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
+  assertIntrospectionTableName,
   escapeStringLiteral,
   generateAddColumnStatement,
   generateCreateIndexStatement,
   quoteDuckDBColumnName,
+  quoteLiteralIdentifier,
   validateColumnName,
   validateColumnNames,
   validateIndexName,
@@ -31,6 +33,7 @@ import type {
   ColumnDefinitionWithName,
   DatabaseInterface,
   DuckDBOptions,
+  GetTableSchemaOptions,
   IndexDefinition,
   QueryResult,
   SchemaInitializationOptions,
@@ -882,15 +885,16 @@ export async function getDatabase(
    * @returns Promise resolving to boolean indicating if the table exists
    */
   const tableExists = async (tableName: string): Promise<boolean> => {
-    // The name is interpolated into a statement, and this engine executes every
-    // statement in the string it is given, so an unvalidated name here is a
-    // DDL/DML sink rather than a read oracle — the `catch` below swallows the
-    // error, not the execution. Validation runs outside the try for that
-    // reason: a rejected identifier must be reported, not reported as `false`.
-    validateTableName(tableName);
+    // The name is rendered as one quoted identifier (embedded quotes doubled),
+    // so any legal name is accepted and none can end the statement; only a
+    // value that cannot be a name is rejected, outside the try so it is
+    // reported rather than returned as `false`.
+    assertIntrospectionTableName(tableName);
     try {
       // Try to query the table - simpler and works for both tables and views
-      await connection.runAndReadAll(`SELECT * FROM ${tableName} LIMIT 1`);
+      await connection.runAndReadAll(
+        `SELECT * FROM ${quoteLiteralIdentifier(tableName)} LIMIT 1`,
+      );
       return true;
     } catch {
       return false;
@@ -1228,8 +1232,12 @@ export async function getDatabase(
    */
   const getTableSchema = async (
     table: string,
+    schemaOptions?: GetTableSchemaOptions,
   ): Promise<TableSchemaInfo | null> => {
-    validateTableName(table);
+    // The name is only ever a bound parameter or a quoted identifier below.
+    assertIntrospectionTableName(table);
+    const optedIn =
+      !!schemaOptions?.includeGenerated || !!schemaOptions?.includeHidden;
 
     try {
       // Check if table exists
@@ -1263,24 +1271,29 @@ export async function getDatabase(
 
       const pkColumns = new Set(pkRows.map((row) => row.column_name));
 
-      // The catalogs do not flag generated columns; read the CREATE statement.
-      const createRows = await many`
-        SELECT sql FROM duckdb_tables() WHERE table_name = ${table}
-      `;
-      const generatedColumns = parseGeneratedColumns(
-        (createRows[0]?.sql as string | undefined) ?? '',
-      );
+      // The catalogs do not flag generated columns; read the CREATE statement,
+      // but only for a caller that asked for the flags.
+      let generatedColumns = new Set<string>();
+      if (optedIn) {
+        const createRows = await many`
+          SELECT sql FROM duckdb_tables() WHERE table_name = ${table}
+        `;
+        generatedColumns = parseGeneratedColumns(
+          (createRows[0]?.sql as string | undefined) ?? '',
+        );
+      }
 
       const columns: Record<string, TableColumnInfo> = {};
       for (const row of columnRows) {
         const colName = row.column_name as string;
         columns[colName] = {
-          generated: generatedColumns.has(colName),
-          hidden: false,
           type: row.data_type as string,
           primaryKey: pkColumns.has(colName),
           notNull: row.is_nullable === 'NO',
           defaultValue: row.column_default,
+          ...(optedIn
+            ? { generated: generatedColumns.has(colName), hidden: false }
+            : {}),
         };
       }
 

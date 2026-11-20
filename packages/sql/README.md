@@ -1047,23 +1047,37 @@ identifier first, so a table whose own name contains a dot keeps resolving.
 
 ### Table introspection
 
-`getTableSchema(table)` is available on the database and on transaction
-handles (where it sees tables created earlier in the same transaction), and
-returns `null` for a missing table. Each entry of `columns` extends the column
-definition with two flags:
+`getTableSchema(table, options?)` is available on the database and on
+transaction handles (where it sees tables created earlier in the same
+transaction), and returns `null` for a missing table. `table` may be any legal
+table name, including one with quotes, spaces or mixed case, inside or outside
+a transaction; the name is only bound as a catalog parameter or quoted.
+`tableExists()` accepts the same names.
 
-- `generated`: the column is computed from other columns, stored or virtual.
-  Generated columns are always listed. SQLite uses `table_xinfo`, PostgreSQL
-  and PGlite use `pg_attribute.attgenerated`, and DuckDB reads the
-  `GENERATED ALWAYS AS` clause from the table's `CREATE` statement because its
-  catalogs do not flag it.
-- `hidden`: the column is left out of `SELECT *`. Only SQLite has these (the
-  extra columns of virtual tables such as FTS5); it is `false` elsewhere.
+With no options the result is identical to 0.115: the same columns in the same
+order, and no `generated` / `hidden` keys. Opt in per call:
 
 ```typescript
-const schema = await db.getTableSchema?.('orders');
+const schema = await db.getTableSchema?.('orders', {
+  includeGenerated: true,
+  includeHidden: true,
+});
 schema?.columns.total.generated; // true for GENERATED ALWAYS AS (...)
 ```
+
+- `includeGenerated`: report which columns are `generated` (computed, stored or
+  virtual). On SQLite this also lists generated columns, which the default omits
+  (`table_xinfo` instead of `table_info`). PostgreSQL, PGlite and DuckDB always
+  listed generated columns and only gain the flag (`pg_attribute.attgenerated`;
+  DuckDB reads the `GENERATED ALWAYS AS` clause from the `CREATE` statement
+  because its catalogs do not flag it).
+- `includeHidden`: also list columns left out of `SELECT *`, flagged
+  `hidden: true`. Only SQLite has these (extra columns of virtual tables such as
+  FTS5); no effect elsewhere.
+
+When either option is set, every column entry carries both `generated` and
+`hidden`. Both are optional on the `TableColumnInfo` type (absent means
+`false`).
 
 ### Doctor schemas (PostgreSQL)
 
@@ -1072,7 +1086,7 @@ or `schemas: ['app_a', 'app_b']`, or `allSchemas: true` for every non-system
 schema (all but `information_schema` and `pg_*`). Each schema runs the checks in
 a transaction with `search_path` set to it, so same-named tables in different
 schemas are checked separately; issues carry `schema` and a `[schema]` message
-prefix. `DoctorContext` gains `schema`.
+prefix. `DoctorContext` gains an optional `schema` (absent means `public`).
 
 ### Vector Search (PostgreSQL)
 

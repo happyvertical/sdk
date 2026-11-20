@@ -14,6 +14,7 @@ import type { DatabaseInterface } from './shared/types';
  * PostgreSQL and PGlite also accept a `schema.table` name.
  */
 
+const OPT = { includeGenerated: true, includeHidden: true } as const;
 const open: DatabaseInterface[] = [];
 const roots: string[] = [];
 
@@ -31,7 +32,7 @@ async function track(db: DatabaseInterface): Promise<DatabaseInterface> {
 }
 
 async function ordinaryColumnsUnchanged(db: DatabaseInterface, table: string) {
-  const schema = await db.getTableSchema?.(table);
+  const schema = await db.getTableSchema?.(table, OPT);
   expect(schema?.tableName).toBe(table);
   expect(schema?.columns.id).toMatchObject({
     primaryKey: true,
@@ -70,7 +71,7 @@ describe.each([
   it('lists generated columns and flags them', async () => {
     const db = await track(await create());
     await db.query(ddl);
-    const schema = await db.getTableSchema?.('items');
+    const schema = await db.getTableSchema?.('items', OPT);
     expect(Object.keys(schema?.columns ?? {})).toEqual([
       'id',
       'qty',
@@ -95,7 +96,7 @@ describe.each([
   it('flags hidden virtual-table columns', async () => {
     const db = await track(await create());
     await db.query('CREATE VIRTUAL TABLE docs USING fts5(body)');
-    const schema = await db.getTableSchema?.('docs');
+    const schema = await db.getTableSchema?.('docs', OPT);
     expect(schema?.columns.body).toMatchObject({
       generated: false,
       hidden: false,
@@ -107,7 +108,7 @@ describe.each([
     const db = await track(await create());
     await db.transaction?.(async (tx) => {
       await tx.query(ddl);
-      const schema = await tx.getTableSchema?.('items');
+      const schema = await tx.getTableSchema?.('items', OPT);
       expect(schema?.columns.stored_total.generated).toBe(true);
       expect(await tx.getTableSchema?.('missing')).toBeNull();
     });
@@ -124,7 +125,7 @@ describe('PGlite getTableSchema', () => {
   it('flags stored generated columns', async () => {
     const db = await track(await getDatabase({ type: 'pglite' }));
     await db.query(ddl());
-    const schema = await db.getTableSchema?.('items');
+    const schema = await db.getTableSchema?.('items', OPT);
     expect(schema?.columns.stored_total).toMatchObject({
       generated: true,
       hidden: false,
@@ -145,7 +146,7 @@ describe('PGlite getTableSchema', () => {
       supported = false;
     }
     if (!supported) return;
-    const schema = await db.getTableSchema?.('v');
+    const schema = await db.getTableSchema?.('v', OPT);
     expect(schema?.columns.b.generated).toBe(true);
     expect(schema?.columns.a.generated).toBe(false);
   });
@@ -166,10 +167,10 @@ describe('PGlite getTableSchema', () => {
     // Not on the search_path.
     expect(await db.tableExists('items')).toBe(false);
 
-    const a = await db.getTableSchema?.('tenant_a.items');
+    const a = await db.getTableSchema?.('tenant_a.items', OPT);
     expect(Object.keys(a?.columns ?? {})).toEqual(['a_only']);
     expect(a?.tableName).toBe('tenant_a.items');
-    const b = await db.getTableSchema?.('tenant_b.items');
+    const b = await db.getTableSchema?.('tenant_b.items', OPT);
     expect(Object.keys(b?.columns ?? {})).toEqual(['b_only', 'b_total']);
     expect(b?.columns.b_total.generated).toBe(true);
     expect(await db.getTableSchema?.('tenant_c.items')).toBeNull();
@@ -211,12 +212,10 @@ describe('PGlite getTableSchema', () => {
     expect(await db.getTableSchema?.('customers')).toBeNull();
   });
 
-  it('rejects an unsafe qualified name', async () => {
+  it('treats an unsafe qualified name as a missing table, never as SQL', async () => {
     const db = await track(await getDatabase({ type: 'pglite' }));
-    await expect(db.getTableSchema?.('a.b.c')).rejects.toThrow(/Invalid table/);
-    await expect(db.getTableSchema?.('a.b; drop')).rejects.toThrow(
-      /Invalid table/,
-    );
+    expect(await db.getTableSchema?.('a.b.c')).toBeNull();
+    expect(await db.getTableSchema?.('a.b; drop')).toBeNull();
   });
 
   it('is available on a transaction handle and sees uncommitted tables', async () => {
@@ -225,7 +224,7 @@ describe('PGlite getTableSchema', () => {
     await db.transaction?.(async (tx) => {
       await tx.query(ddl('scoped'));
       expect(await tx.tableExists('scoped.items')).toBe(true);
-      const schema = await tx.getTableSchema?.('scoped.items');
+      const schema = await tx.getTableSchema?.('scoped.items', OPT);
       expect(schema?.columns.stored_total.generated).toBe(true);
     });
   });
@@ -245,7 +244,7 @@ describe('DuckDB getTableSchema', () => {
       await getDatabase({ type: 'duckdb', url: ':memory:' }),
     );
     await db.query(ddl);
-    const schema = await db.getTableSchema?.('items');
+    const schema = await db.getTableSchema?.('items', OPT);
     expect(Object.keys(schema?.columns ?? {})).toContain('virtual_total');
     expect(schema?.columns.virtual_total).toMatchObject({
       generated: true,
@@ -262,7 +261,7 @@ describe('DuckDB getTableSchema', () => {
     );
     await db.transaction?.(async (tx) => {
       await tx.query(ddl);
-      const schema = await tx.getTableSchema?.('items');
+      const schema = await tx.getTableSchema?.('items', OPT);
       expect(schema?.columns.virtual_total.generated).toBe(true);
     });
   });

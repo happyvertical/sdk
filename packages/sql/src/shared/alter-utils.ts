@@ -263,6 +263,26 @@ export function validateTableName(tableName: string): void {
 }
 
 /**
+ * Validates a table name that is only ever bound as a catalog-query parameter
+ * or rendered with identifier quoting (introspection: `getTableSchema`,
+ * `tableExists`). Any legal name is accepted, including quoted, spaced and
+ * mixed-case ones; only values that cannot be a name are rejected.
+ *
+ * Use {@link validateTableName} instead wherever a name is interpolated raw.
+ */
+export function assertIntrospectionTableName(
+  tableName: unknown,
+): asserts tableName is string {
+  if (
+    typeof tableName !== 'string' ||
+    tableName.length === 0 ||
+    tableName.includes('\0')
+  ) {
+    throw new Error(`Invalid table name: ${String(tableName)}`);
+  }
+}
+
+/**
  * Validates a column name to prevent SQL injection
  *
  * Rejects non-strings for the same reason as {@link validateTableName}: a value
