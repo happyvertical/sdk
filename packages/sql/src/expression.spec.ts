@@ -333,6 +333,18 @@ for (const node of [
   { op: 'daysBetween', later: end, earlier: v(null) },
   { op: 'addDays', value: v(null), days: v(2) },
   { op: 'addDays', value: end, days: v(null) },
+  // Untyped NULL operands: PostgreSQL cannot resolve `NULL - NULL`.
+  { op: 'secondsBetween', later: v(null), earlier: v(null) },
+  { op: 'secondsBetween', later: end, earlier: v(null) },
+  { op: 'secondsBetween', later: v(null), earlier: end },
+  { op: 'daysBetween', later: v(null), earlier: v(null) },
+  { op: 'addDays', value: v(null), days: v(null) },
+  { op: 'add', left: v(null), right: v(null) },
+  { op: 'sub', left: v(null), right: v(null) },
+  { op: 'mul', left: v(null), right: v(null) },
+  { op: 'div', left: v(null), right: v(null) },
+  { op: 'mod', left: v(null), right: v(null) },
+  { op: 'year', value: v(null) },
 ] as AggregateOperand[]) {
   cases.push({
     name: `${'op' in node ? node.op : 'literal'} NULL ${cases.length}`,
@@ -384,6 +396,26 @@ for (const dialect of ['sqlite', 'postgres', 'duckdb'] as const) {
           expect(Number(result)).toBeCloseTo(expected, 8);
         else expect(result).toBe(expected);
       }
+    });
+    it('types bound parameters and NULL in secondsBetween', async () => {
+      // Bare bound text parameters (`$1 - $2`) are untyped on PostgreSQL too.
+      const seconds = (later: AggregateOperand, earlier: AggregateOperand) =>
+        query({ op: 'secondsBetween', later, earlier }, 'query');
+      expect(
+        Number(
+          await seconds(v('2024-01-02 00:00:00'), v('2024-01-01 00:00:00')),
+        ),
+      ).toBe(86400);
+      expect(await seconds(v('2024-01-02 00:00:00'), v(null))).toBeNull();
+      expect(await seconds(v(null), v('2024-01-01 00:00:00'))).toBeNull();
+      expect(Number(await seconds(end, start))).toBe(86400 * 2);
+      // A lone NULL beside a timestamptz Date literal keeps its inferred type.
+      expect(
+        await seconds(
+          { value: new Date('2024-01-01T00:00:00Z') } as never,
+          v(null),
+        ),
+      ).toBeNull();
     });
     it('executes every immutable new node in generated columns and indexes', async () => {
       // Use each non-NULL example, so database validators see real operand
