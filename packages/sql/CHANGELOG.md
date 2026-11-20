@@ -1,5 +1,12 @@
 # @happyvertical/sql
 
+## 0.116.5
+
+### Patch Changes
+
+- 75b5234: Add a real-PostgreSQL regression test that `pg` transaction handles omit `getTableSchema` unless opted in with `{ introspection: true }`.
+  - @happyvertical/utils@0.116.5
+
 ## 0.116.4
 
 ### Patch Changes
