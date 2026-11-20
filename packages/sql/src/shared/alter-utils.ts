@@ -263,17 +263,6 @@ export function validateTableName(tableName: string): void {
 }
 
 /**
- * Validates a column name to prevent SQL injection
- *
- * Rejects non-strings for the same reason as {@link validateTableName}: a value
- * whose `toString` differs between the validation read and the interpolation
- * read would otherwise slip a different identifier into SQL than the one
- * checked here.
- *
- * @param columnName - Column name to validate
- * @throws Error if the value is not a string or contains invalid characters
- */
-/**
  * Validates a table name that is only ever bound as a catalog-query parameter
  * or rendered with identifier quoting (introspection: `getTableSchema`,
  * `tableExists`). Any legal name is accepted, including quoted, spaced and
@@ -293,6 +282,17 @@ export function assertIntrospectionTableName(
   }
 }
 
+/**
+ * Validates a column name to prevent SQL injection
+ *
+ * Rejects non-strings for the same reason as {@link validateTableName}: a value
+ * whose `toString` differs between the validation read and the interpolation
+ * read would otherwise slip a different identifier into SQL than the one
+ * checked here.
+ *
+ * @param columnName - Column name to validate
+ * @throws Error if the value is not a string or contains invalid characters
+ */
 export function validateColumnName(columnName: string): void {
   if (typeof columnName !== 'string' || !isColumnIdentifier(columnName)) {
     throw new Error(
