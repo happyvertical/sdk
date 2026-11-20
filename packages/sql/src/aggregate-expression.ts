@@ -234,13 +234,11 @@ function literal(value: unknown, state: RenderState): string {
  * PostgreSQL cannot resolve an operator whose operands are both untyped
  * (`NULL - NULL`, `$1 - $2`: "operator is not unique: unknown - unknown"), and
  * DuckDB cannot pick an `epoch()` overload for an untyped NULL or parameter.
- * Give an operand that renders as a bare NULL or a bare bound parameter the
- * type the expression assumes; typed operands render unchanged.
+ * An operand that renders as a bare NULL or a bare bound parameter is untyped;
+ * it is cast to the type the expression assumes, typed operands render unchanged.
  */
-function typedOperand(sql: string, type: string): string {
-  return sql === 'NULL' || /^\$\d+$/.test(sql)
-    ? `CAST(${sql} AS ${type})`
-    : sql;
+function isUntyped(sql: string): boolean {
+  return sql === 'NULL' || /^\$\d+$/.test(sql);
 }
 
 function secondsBetween(
@@ -248,13 +246,18 @@ function secondsBetween(
   later: string,
   earlier: string,
 ): string {
-  if (
-    adapterType === 'postgres' ||
-    adapterType === 'duckdb' ||
-    adapterType === 'json'
-  ) {
-    later = typedOperand(later, 'TIMESTAMP');
-    earlier = typedOperand(earlier, 'TIMESTAMP');
+  const cast = (sql: string) => `CAST(${sql} AS TIMESTAMP)`;
+  if (adapterType === 'postgres') {
+    // Only when both sides are untyped: a lone untyped side takes its type
+    // from the other (timestamptz stays timestamptz), so it is left alone.
+    if (isUntyped(later) && isUntyped(earlier)) {
+      later = cast(later);
+      earlier = cast(earlier);
+    }
+  } else if (adapterType === 'duckdb' || adapterType === 'json') {
+    // epoch() is overloaded; an untyped argument is ambiguous on its own.
+    if (isUntyped(later)) later = cast(later);
+    if (isUntyped(earlier)) earlier = cast(earlier);
   }
   if (adapterType === 'postgres') {
     // A float like the other dialects: EXTRACT returns numeric, which drivers hand back as a string.

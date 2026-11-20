@@ -409,6 +409,13 @@ for (const dialect of ['sqlite', 'postgres', 'duckdb'] as const) {
       expect(await seconds(v('2024-01-02 00:00:00'), v(null))).toBeNull();
       expect(await seconds(v(null), v('2024-01-01 00:00:00'))).toBeNull();
       expect(Number(await seconds(end, start))).toBe(86400 * 2);
+      // A lone NULL beside a timestamptz Date literal keeps its inferred type.
+      expect(
+        await seconds(
+          { value: new Date('2024-01-01T00:00:00Z') } as never,
+          v(null),
+        ),
+      ).toBeNull();
     });
     it('executes every immutable new node in generated columns and indexes', async () => {
       // Use each non-NULL example, so database validators see real operand
