@@ -906,6 +906,11 @@ export function createPostgresDialect(host: PostgresDialectHost) {
     inTransaction: boolean,
     serialize: (record: Record<string, any>) => Record<string, any>,
     clearTransactionError: () => void = () => {},
+    // getTableSchema is on the root interface, as in 0.115. A transaction
+    // handle gets it only when the caller asked (TransactionOptions); 0.115
+    // handles had none, and consumers (smrt core's SchemaManager) branch on its
+    // presence.
+    introspection: boolean = !inTransaction,
   ) => {
     /**
      * Inserts one or more records into a table
@@ -1677,7 +1682,9 @@ export function createPostgresDialect(host: PostgresDialectHost) {
       ox,
       xx,
       tableExists,
-      getTableSchema: createGetTableSchema({ many, tableExists }),
+      ...(introspection
+        ? { getTableSchema: createGetTableSchema({ many, tableExists }) }
+        : {}),
       syncSchema,
     };
   };

@@ -1047,9 +1047,14 @@ identifier first, so a table whose own name contains a dot keeps resolving.
 
 ### Table introspection
 
-`getTableSchema(table, options?)` is available on the database and on
-transaction handles (where it sees tables created earlier in the same
-transaction), and returns `null` for a missing table. `table` may be any legal
+`getTableSchema(table, options?)` is available on the database, and on SQLite
+and DuckDB transaction handles, and returns `null` for a missing table. On
+PostgreSQL and PGlite a transaction handle has no `getTableSchema` (as in
+0.115; callers branch on its presence) unless the transaction opts in with
+`{ introspection: true }`, via `(db as DatabaseInterface &
+IntrospectableTransactions).transaction(cb, { introspection: true })` or
+`beginTransaction({ introspection: true })`; it then sees tables created earlier
+in the same transaction. `table` may be any legal
 table name, including one with quotes, spaces or mixed case, inside or outside
 a transaction; the name is only bound as a catalog parameter or quoted.
 `tableExists()` accepts the same names.

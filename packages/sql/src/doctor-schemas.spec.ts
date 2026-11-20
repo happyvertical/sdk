@@ -6,7 +6,10 @@ import {
   runDoctor,
 } from './doctor';
 import { getDatabase } from './index';
-import type { DatabaseInterface } from './shared/types';
+import type {
+  DatabaseInterface,
+  IntrospectableTransactions,
+} from './shared/types';
 
 /**
  * #1550: the doctor takes a schema, a list of schemas, or all non-system
@@ -118,10 +121,13 @@ describe('runDoctor schemas', () => {
       db: DatabaseInterface,
       fn: (tx: DatabaseInterface) => Promise<T>,
     ): Promise<T> {
-      return db.transaction?.(async (tx) => {
-        await tx.query('SET LOCAL search_path TO tenant_a');
-        return fn(tx);
-      }) as Promise<T>;
+      return (db as DatabaseInterface & IntrospectableTransactions).transaction(
+        async (tx) => {
+          await tx.query('SET LOCAL search_path TO tenant_a');
+          return fn(tx);
+        },
+        { introspection: true },
+      ) as Promise<T>;
     }
     const asPg = (tx: DatabaseInterface): DatabaseInterface => ({
       ...tx,

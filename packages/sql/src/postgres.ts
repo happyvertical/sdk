@@ -28,6 +28,7 @@ import type {
   SchemaInitializationOptions,
   SessionHandle,
   TransactionHandle,
+  TransactionOptions,
 } from './shared/types';
 import { wrapDatabaseError } from './shared/utils';
 
@@ -830,6 +831,7 @@ async function createDatabase(
    */
   const transaction = async <T>(
     callback: (tx: DatabaseInterface) => Promise<T>,
+    transactionOptions?: TransactionOptions,
   ): Promise<T> => {
     // Get a client from the pool for the transaction
     const txClient = await acquireTxClient();
@@ -859,6 +861,7 @@ async function createDatabase(
           true,
           serializeRecord,
           transactionState.clearError,
+          transactionOptions?.introspection === true,
         ),
         transaction: nestedTransaction,
       };
@@ -898,7 +901,9 @@ async function createDatabase(
    *
    * @returns Promise resolving to a TransactionHandle
    */
-  const beginTransaction = async (): Promise<TransactionHandle> => {
+  const beginTransaction = async (
+    transactionOptions?: TransactionOptions,
+  ): Promise<TransactionHandle> => {
     // Get a client from the pool for the transaction
     const txClient = await acquireTxClient();
     try {
@@ -970,6 +975,7 @@ async function createDatabase(
         true,
         serializeRecord,
         transactionState.clearError,
+        transactionOptions?.introspection === true,
       ),
       transaction: nestedTransaction,
       commit,
