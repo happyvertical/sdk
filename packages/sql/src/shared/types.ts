@@ -690,6 +690,42 @@ export interface TableColumnInfo extends ColumnDefinition {
 }
 
 /**
+ * Options accepted by the PostgreSQL and PGlite `transaction()` and
+ * `beginTransaction()`. They are not on {@link DatabaseInterface} because other
+ * adapters take a different second parameter; reach them through
+ * {@link IntrospectableTransactions}.
+ */
+export interface TransactionOptions {
+  /**
+   * Expose `getTableSchema` on the PostgreSQL / PGlite transaction handle.
+   *
+   * Off by default: 0.115 transaction handles on these adapters had no
+   * `getTableSchema`, and callers such as smrt core's SchemaManager branch on
+   * its presence (it changes which preflight runs first). Opt in to introspect
+   * tables created earlier in the same transaction. Other adapters ignore it.
+   */
+  introspection?: boolean;
+}
+
+/**
+ * The PostgreSQL / PGlite transaction entry points with their options.
+ *
+ * ```ts
+ * const pg = db as DatabaseInterface & IntrospectableTransactions;
+ * await pg.transaction((tx) => tx.getTableSchema?.('t'), { introspection: true });
+ * ```
+ */
+export interface IntrospectableTransactions {
+  transaction: <T>(
+    callback: (tx: DatabaseInterface) => Promise<T>,
+    options?: TransactionOptions,
+  ) => Promise<T>;
+  beginTransaction: (
+    options?: TransactionOptions,
+  ) => Promise<TransactionHandle>;
+}
+
+/**
  * Options for getTableSchema().
  *
  * With no options the result is identical to 0.115: same columns, same order,
@@ -1390,8 +1426,10 @@ export interface DatabaseInterface {
   /**
    * Retrieves the schema information for a table
    *
-   * Available on the top-level interface and on transaction handles, where it
-   * sees tables created earlier in the same transaction.
+   * Available on the top-level interface. On a transaction handle it is
+   * present on SQLite and DuckDB; on PostgreSQL and PGlite only when the
+   * transaction was opened with `{ introspection: true }`, and it then sees
+   * tables created earlier in the same transaction.
    *
    * @param table - Table name; any legal name is accepted, including quoted,
    *   spaced and mixed-case ones. On PostgreSQL and PGlite a `schema.table`

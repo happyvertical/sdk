@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
-import type { DatabaseInterface } from './shared/types';
+import type {
+  DatabaseInterface,
+  IntrospectableTransactions,
+} from './shared/types';
 
 /**
  * 0.115 compatibility: getTableSchema() with no options lists the same columns
@@ -96,15 +99,18 @@ describe('PGlite getTableSchema defaults', () => {
     await db.query(`CREATE TABLE ${q('i2537_quoted_child_"q"')} (id integer)`);
     expect(await db.tableExists(WEIRD)).toBe(true);
     expect((await db.getTableSchema?.(WEIRD))?.tableName).toBe(WEIRD);
-    await db.transaction?.(async (tx) => {
-      expect(await tx.tableExists(WEIRD)).toBe(true);
-      const schema = await tx.getTableSchema?.(WEIRD);
-      expect(Object.keys(schema?.columns ?? {})).toEqual(['id']);
-      expect(
-        (await tx.getTableSchema?.('i2537_quoted_child_"q"'))?.tableName,
-      ).toBe('i2537_quoted_child_"q"');
-      expect(await tx.getTableSchema?.('No "Such')).toBeNull();
-    });
+    await (db as DatabaseInterface & IntrospectableTransactions).transaction(
+      async (tx) => {
+        expect(await tx.tableExists(WEIRD)).toBe(true);
+        const schema = await tx.getTableSchema?.(WEIRD);
+        expect(Object.keys(schema?.columns ?? {})).toEqual(['id']);
+        expect(
+          (await tx.getTableSchema?.('i2537_quoted_child_"q"'))?.tableName,
+        ).toBe('i2537_quoted_child_"q"');
+        expect(await tx.getTableSchema?.('No "Such')).toBeNull();
+      },
+      { introspection: true },
+    );
   });
 });
 

@@ -36,6 +36,7 @@ import type {
   SchemaInitializationOptions,
   SchemasOption,
   TransactionHandle,
+  TransactionOptions,
 } from './shared/types';
 
 /** Package an install hint should name. */
@@ -398,6 +399,7 @@ async function createDatabase(
   const createScopedDatabase = (
     pgTx: PGliteTransactionLike,
     extra: (scoped: DatabaseInterface) => Record<string, unknown> = () => ({}),
+    introspection = false,
   ) => {
     const state = createTransactionState(pgTx);
     let scoped!: DatabaseInterface;
@@ -416,6 +418,7 @@ async function createDatabase(
         true,
         serializeRecord,
         state.tracker.clearError,
+        introspection,
       ),
       transaction: nested,
     } as DatabaseInterface;
@@ -429,11 +432,16 @@ async function createDatabase(
    */
   const transaction = async <T>(
     callback: (tx: DatabaseInterface) => Promise<T>,
+    transactionOptions?: TransactionOptions,
   ): Promise<T> => {
     const release = await lock.acquire();
     try {
       return await pg.transaction(async (pgTx) => {
-        const { state, nested, scoped } = createScopedDatabase(pgTx);
+        const { state, nested, scoped } = createScopedDatabase(
+          pgTx,
+          undefined,
+          transactionOptions?.introspection === true,
+        );
         try {
           const result = await callback(scoped);
           await nested.drain();
@@ -458,7 +466,9 @@ async function createDatabase(
    * PGlite only offers a callback form, so the callback is held open until the
    * handle is committed or rolled back.
    */
-  const beginTransaction = async (): Promise<TransactionHandle> => {
+  const beginTransaction = async (
+    transactionOptions?: TransactionOptions,
+  ): Promise<TransactionHandle> => {
     const release = await lock.acquire();
     try {
       let settle!: (outcome: 'commit' | 'rollback') => void;
@@ -480,11 +490,15 @@ async function createDatabase(
       const pgTx = await started;
 
       let active = true;
-      const { state, nested, scoped } = createScopedDatabase(pgTx, () => ({
-        commit: () => end('COMMIT'),
-        rollback: () => end('ROLLBACK'),
-        isActive: () => active,
-      }));
+      const { state, nested, scoped } = createScopedDatabase(
+        pgTx,
+        () => ({
+          commit: () => end('COMMIT'),
+          rollback: () => end('ROLLBACK'),
+          isActive: () => active,
+        }),
+        transactionOptions?.introspection === true,
+      );
 
       // The transaction is over however this ends, so the connection is
       // returned whether COMMIT succeeds, throws, or was never reachable.

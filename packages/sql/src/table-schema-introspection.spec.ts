@@ -6,7 +6,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 import { parseGeneratedColumns } from './shared/duckdb-schema-utils';
 import { resetSqliteFileTracking } from './shared/sqlite-engine';
-import type { DatabaseInterface } from './shared/types';
+import type {
+  DatabaseInterface,
+  IntrospectableTransactions,
+} from './shared/types';
 
 /**
  * #1549: getTableSchema reports `generated` and `hidden` per column, lists
@@ -192,20 +195,27 @@ describe('PGlite getTableSchema', () => {
     await db.query('CREATE TABLE app_one.customers (one_only integer)');
     await db.query('CREATE TABLE app_two.customers (two_only integer)');
 
-    await db.transaction?.(async (tx) => {
-      await tx.query('SET LOCAL search_path TO app_one');
-      expect(await tx.tableExists('customers')).toBe(true);
-      expect(
-        Object.keys((await tx.getTableSchema?.('customers'))?.columns ?? {}),
-      ).toEqual(['one_only']);
-    });
-    await db.transaction?.(async (tx) => {
-      await tx.query('SET LOCAL search_path TO app_two');
-      expect(await tx.tableExists('customers')).toBe(true);
-      expect(
-        Object.keys((await tx.getTableSchema?.('customers'))?.columns ?? {}),
-      ).toEqual(['two_only']);
-    });
+    const pg = db as DatabaseInterface & IntrospectableTransactions;
+    await pg.transaction(
+      async (tx) => {
+        await tx.query('SET LOCAL search_path TO app_one');
+        expect(await tx.tableExists('customers')).toBe(true);
+        expect(
+          Object.keys((await tx.getTableSchema?.('customers'))?.columns ?? {}),
+        ).toEqual(['one_only']);
+      },
+      { introspection: true },
+    );
+    await pg.transaction(
+      async (tx) => {
+        await tx.query('SET LOCAL search_path TO app_two');
+        expect(await tx.tableExists('customers')).toBe(true);
+        expect(
+          Object.keys((await tx.getTableSchema?.('customers'))?.columns ?? {}),
+        ).toEqual(['two_only']);
+      },
+      { introspection: true },
+    );
 
     // Outside the transaction the default search_path is unchanged.
     expect(await db.tableExists('customers')).toBe(false);
@@ -221,12 +231,15 @@ describe('PGlite getTableSchema', () => {
   it('is available on a transaction handle and sees uncommitted tables', async () => {
     const db = await track(await getDatabase({ type: 'pglite' }));
     await db.query('CREATE SCHEMA scoped');
-    await db.transaction?.(async (tx) => {
-      await tx.query(ddl('scoped'));
-      expect(await tx.tableExists('scoped.items')).toBe(true);
-      const schema = await tx.getTableSchema?.('scoped.items', OPT);
-      expect(schema?.columns.stored_total.generated).toBe(true);
-    });
+    await (db as DatabaseInterface & IntrospectableTransactions).transaction(
+      async (tx) => {
+        await tx.query(ddl('scoped'));
+        expect(await tx.tableExists('scoped.items')).toBe(true);
+        const schema = await tx.getTableSchema?.('scoped.items', OPT);
+        expect(schema?.columns.stored_total.generated).toBe(true);
+      },
+      { introspection: true },
+    );
   });
 });
 
@@ -309,10 +322,13 @@ describe('PostgreSQL getTableSchema', () => {
       const schema = await db.getTableSchema?.(`${schemaName}.items`);
       expect(schema?.columns.total.generated).toBe(true);
       expect(schema?.columns.qty.generated).toBe(false);
-      await db.transaction?.(async (tx) => {
-        const inTx = await tx.getTableSchema?.(`${schemaName}.items`);
-        expect(inTx?.columns.total.generated).toBe(true);
-      });
+      await (db as DatabaseInterface & IntrospectableTransactions).transaction(
+        async (tx) => {
+          const inTx = await tx.getTableSchema?.(`${schemaName}.items`, OPT);
+          expect(inTx?.columns.total.generated).toBe(true);
+        },
+        { introspection: true },
+      );
     } finally {
       await db.client.query(`DROP SCHEMA IF EXISTS ${schemaName} CASCADE`);
       await db.client.end();
