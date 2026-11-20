@@ -3,8 +3,10 @@ import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
+  assertIntrospectionTableName,
   escapeStringLiteral,
   quoteDuckDBColumnName,
+  quoteLiteralIdentifier,
   validateColumnNames,
 } from './shared/alter-utils';
 import {
@@ -1763,16 +1765,16 @@ async function createJSONDatabase(
      * @returns Promise resolving to boolean indicating if the table exists
      */
     const tableExists = async (tableName: string): Promise<boolean> => {
-      // The name is interpolated into a statement, and this engine executes
-      // every statement in the string it is given, so an unvalidated name here
-      // is a DDL/DML sink rather than a read oracle — the `catch` below
-      // swallows the error, not the execution. Validation runs outside the try
-      // for that reason: a rejected identifier must be reported, not reported
-      // as `false`.
-      validateTableName(tableName);
+      // The name is rendered as one quoted identifier (embedded quotes
+      // doubled), so any legal name is accepted and none can end the
+      // statement; only a value that cannot be a name is rejected, outside the
+      // try so it is reported rather than returned as `false`.
+      assertIntrospectionTableName(tableName);
       try {
         // Try to query the table
-        await connection.runAndReadAll(`SELECT * FROM ${tableName} LIMIT 1`);
+        await connection.runAndReadAll(
+          `SELECT * FROM ${quoteLiteralIdentifier(tableName)} LIMIT 1`,
+        );
         return true;
       } catch {
         return false;

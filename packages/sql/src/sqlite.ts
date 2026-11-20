@@ -14,6 +14,7 @@ import {
   type SecureSqliteWindowsCustody,
 } from './secure-sqlite-client';
 import {
+  assertIntrospectionTableName,
   generateAddColumnStatement,
   generateCreateIndexStatement,
   quoteSqliteColumnName,
@@ -39,6 +40,7 @@ import type {
   ColumnDefinitionWithName,
   DatabaseInterface,
   DatabaseOptions,
+  GetTableSchemaOptions,
   IndexDefinition,
   QueryResult,
   SchemaInitializationOptions,
@@ -3215,8 +3217,12 @@ async function createDatabase(
      */
     const getTableSchema = async (
       table: string,
+      schemaOptions?: GetTableSchemaOptions,
     ): Promise<TableSchemaInfo | null> => {
-      validateTableName(table);
+      // The name is only ever a bound parameter below, never interpolated.
+      assertIntrospectionTableName(table);
+      const optedIn =
+        !!schemaOptions?.includeGenerated || !!schemaOptions?.includeHidden;
 
       try {
         // Check if table exists
@@ -3234,14 +3240,25 @@ async function createDatabase(
 
         const columns: Record<string, TableColumnInfo> = {};
         for (const row of columnRows) {
+          const kind = Number(row.hidden ?? 0);
+          // Default: only ordinary columns, exactly what pragma_table_info
+          // (0.115) listed. Generated / hidden columns are opt-in.
+          if (kind === 0) {
+            // always listed
+          } else if (kind === 1) {
+            if (!schemaOptions?.includeHidden) continue;
+          } else if (!schemaOptions?.includeGenerated) {
+            continue;
+          }
           const colName = row.name as string;
           columns[colName] = {
             type: row.type as string,
             primaryKey: row.pk === 1,
             notNull: row.notnull === 1,
             defaultValue: row.dflt_value,
-            generated: row.hidden === 2 || row.hidden === 3,
-            hidden: row.hidden === 1,
+            ...(optedIn
+              ? { generated: kind === 2 || kind === 3, hidden: kind === 1 }
+              : {}),
           };
         }
 

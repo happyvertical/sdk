@@ -11,6 +11,7 @@
 
 import { DatabaseError } from '@happyvertical/utils';
 import {
+  assertIntrospectionTableName,
   generateAddColumnStatement,
   generateCreateIndexStatement,
   quoteLiteralIdentifier,
@@ -26,6 +27,7 @@ import type {
   QueryResult as BaseQueryResult,
   ColumnDefinitionWithName,
   DatabaseInterface,
+  GetTableSchemaOptions,
   IndexDefinition,
   TableColumnInfo,
   TableInterface,
@@ -1819,9 +1821,14 @@ export function createGetTableSchema(methods: {
    */
   const getTableSchema = async (
     requested: string,
+    schemaOptions?: GetTableSchemaOptions,
   ): Promise<TableSchemaInfo | null> => {
+    // The name only ever reaches the catalog as a bound parameter, resolved by
+    // to_regclass over a quoted identifier, so any legal name is accepted.
+    assertIntrospectionTableName(requested);
     const relation = parseRelationName(requested);
-    if (relation.qualified === null) validateTableName(requested);
+    const optedIn =
+      !!schemaOptions?.includeGenerated || !!schemaOptions?.includeHidden;
 
     try {
       // Check if table exists
@@ -1879,7 +1886,10 @@ export function createGetTableSchema(methods: {
       // `attgenerated` is '' for ordinary columns, 's' for stored generated
       // columns and 'v' for virtual ones (PostgreSQL 18+). information_schema
       // lists them all but does not say which they are.
-      const generatedRows = await many`
+      // Only queried for a caller that opted in (getTableSchema options), so
+      // the default result and query count match 0.115.
+      const generatedRows = optedIn
+        ? await many`
         SELECT attribute.attname AS column_name
         FROM pg_catalog.pg_attribute AS attribute
         WHERE attribute.attrelid = COALESCE(
@@ -1889,7 +1899,8 @@ export function createGetTableSchema(methods: {
           AND attribute.attnum > 0
           AND NOT attribute.attisdropped
           AND attribute.attgenerated::text <> ''
-      `;
+      `
+        : [];
       const generatedColumns = new Set(
         generatedRows.map((row) => row.column_name as string),
       );
@@ -1898,12 +1909,13 @@ export function createGetTableSchema(methods: {
       for (const row of columnRows) {
         const colName = row.column_name as string;
         columns[colName] = {
-          generated: generatedColumns.has(colName),
-          hidden: false,
           type: row.data_type as string,
           primaryKey: pkColumns.has(colName),
           notNull: row.is_nullable === 'NO',
           defaultValue: row.column_default,
+          ...(optedIn
+            ? { generated: generatedColumns.has(colName), hidden: false }
+            : {}),
         };
       }
 

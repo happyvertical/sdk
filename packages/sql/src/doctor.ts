@@ -40,9 +40,11 @@ export interface DoctorContext {
   /**
    * Schema being checked. Table names in checks resolve against it: when
    * `schemas` or `allSchemas` was passed, `db` is a transaction whose
-   * `search_path` is set to this schema alone.
+   * `search_path` is set to this schema alone. Optional so a context built
+   * without it (pre-0.116 shape) still type-checks; absent means `public`.
+   * `runDoctor` always sets it.
    */
-  schema: string;
+  schema?: string;
 }
 
 export type DoctorCheck = (ctx: DoctorContext) => Promise<DoctorIssue[]>;

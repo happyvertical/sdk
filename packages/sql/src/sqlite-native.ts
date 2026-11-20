@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager.js';
 import {
+  assertIntrospectionTableName,
   generateAddColumnStatement,
   generateCreateIndexStatement,
   quoteSqliteLiteralIdentifier as quoteIdentifier,
@@ -23,6 +24,7 @@ import { createTransactionLock } from './shared/transaction-lock.js';
 import type {
   ColumnDefinitionWithName,
   DatabaseInterface,
+  GetTableSchemaOptions,
   IndexDefinition,
   NotificationCapabilities,
   NotificationListenOptions,
@@ -1585,8 +1587,12 @@ async function createNativeSqliteDatabase(
 
     const getTableSchema = async (
       tableName: string,
+      schemaOptions?: GetTableSchemaOptions,
     ): Promise<TableSchemaInfo | null> => {
-      validateTableName(tableName);
+      // The name is only ever bound or rendered with identifier quoting.
+      assertIntrospectionTableName(tableName);
+      const optedIn =
+        !!schemaOptions?.includeGenerated || !!schemaOptions?.includeHidden;
 
       if (!(await tableExists(tableName))) {
         return null;
@@ -1602,13 +1608,20 @@ async function createNativeSqliteDatabase(
       // generated.
       const columns: Record<string, TableColumnInfo> = {};
       for (const row of columnRows) {
+        const kind = Number(row.hidden ?? 0);
+        // Default: ordinary columns only, as PRAGMA table_info (0.115) listed.
+        if (kind === 1 && !schemaOptions?.includeHidden) continue;
+        if ((kind === 2 || kind === 3) && !schemaOptions?.includeGenerated) {
+          continue;
+        }
         columns[row.name as string] = {
           type: row.type as string,
           primaryKey: row.pk === 1,
           notNull: row.notnull === 1,
           defaultValue: row.dflt_value,
-          generated: row.hidden === 2 || row.hidden === 3,
-          hidden: row.hidden === 1,
+          ...(optedIn
+            ? { generated: kind === 2 || kind === 3, hidden: kind === 1 }
+            : {}),
         };
       }
 
