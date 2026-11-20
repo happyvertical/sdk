@@ -254,11 +254,15 @@ export class QuickBooksProvider implements AccountingProvider {
     // sends anything. We hold only the opaque refresh token, so declare the
     // longest lifetime Intuit issues and let the token endpoint decide: an
     // expired or revoked grant comes back as `invalid_grant` below.
-    oauthClient.setToken({
+    // The package's typings omit the lifetime field it reads.
+    const seed: Parameters<typeof oauthClient.setToken>[0] & {
+      x_refresh_token_expires_in: number;
+    } = {
       refresh_token: this.options.refreshToken,
       access_token: this.accessToken || '',
       x_refresh_token_expires_in: REFRESH_TOKEN_LIFETIME_SECONDS,
-    });
+    };
+    oauthClient.setToken(seed);
 
     let response: Awaited<ReturnType<typeof oauthClient.refresh>>;
     try {
