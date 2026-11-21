@@ -1695,9 +1695,11 @@ export interface SessionHandle {
    *   reconnect.
    * - Statements run one at a time through the session's own queue, shared
    *   with {@link SessionHandle.query} and `release()`. A statement takes its
-   *   place when it reaches the session and keeps it until the driver has
-   *   finished with it; a client-side `query_timeout` therefore discards the
-   *   connection rather than let a later statement share it.
+   *   place when it reaches the session and keeps it until the server reports
+   *   readiness for the next statement or the connection ends, so a
+   *   statement that settles early (an error before readiness, a client-side
+   *   `query_timeout`) still holds it; the session stays usable.
+   * - Nullable upserts take the NULL-aware path; no catalog lookups run.
    * - The connection holds one transaction at a time. `transaction()` and
    *   `beginTransaction()` take turns in arrival order, and a call from
    *   outside a transaction made while one is open waits until it ends
@@ -1710,7 +1712,9 @@ export interface SessionHandle {
    * - `COMMIT` that PostgreSQL answers with a rollback (an aborted
    *   transaction) rejects, as on the root handle.
    * - `syncSchema()` and `initializeSchemas()` reject if the session is closed
-   *   when they start or closes while they run.
+   *   when they start or closes while they run, or if one of their statements
+   *   times out waiting for an open transaction; only server errors from
+   *   individual DDL statements are tolerated.
    * - There is no raw driver client: `client.query(sql, values?)` takes the
    *   same path as `query()`, and other call forms throw.
    * - {@link SessionHandle.query} shares the connection and the statement

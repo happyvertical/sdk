@@ -705,13 +705,15 @@ try {
   is released or destroyed, or its backend ends, every call on it rejects.
 - **Statements run in issue order.** `pinned.*`, `session.query()` and
   `release()` share one queue on the session. A statement takes its place when
-  it reaches the session (a raw `query()` at the call itself; a record helper
-  after any catalog lookup it needs) and keeps it until node-postgres has
-  finished with it, so statements run one at a time without relying on
-  node-postgres's deprecated internal client queue. If node-postgres's
-  client-side `query_timeout` fires, the statement may still be running on the
-  server, so the session discards the connection: the timed-out call and
-  everything after it reject.
+  it reaches the session (at the call itself) and keeps it until the server
+  reports it is ready for the next statement, or the connection ends, so
+  statements run one at a time without relying on node-postgres's deprecated
+  internal client queue. A statement whose promise settles early (an error
+  reported before readiness, or node-postgres's client-side `query_timeout`)
+  still holds its place until then: after a client-side timeout the call
+  rejects, the session stays usable, and the next statement runs once the
+  timed-out one has really finished on the server. A FATAL error from the
+  server marks the session lost at once.
 - **One transaction at a time.** As on PGlite, transactions take turns in
   arrival order, and a call from outside a transaction made while one is open
   waits until it ends (rejecting after 30 seconds of waiting). With no
@@ -722,9 +724,13 @@ try {
   Nested `tx.transaction()` calls are savepoints, as on the root handle.
 - **Commit is checked.** `COMMIT` of an aborted transaction rejects, as on the
   root handle.
-- **Schema helpers report a closed session.** `syncSchema()` and
-  `initializeSchemas()` tolerate individual DDL failures as on the root handle,
-  but reject if the session is closed when they start or closes while they run.
+- **Schema helpers report what they could not run.** `syncSchema()` and
+  `initializeSchemas()` tolerate individual DDL failures from the server as on
+  the root handle, but reject if the session is closed when they start, closes
+  while they run (including a backend terminated mid-statement), or a
+  statement of theirs times out waiting for an open transaction.
+- **No catalog lookups.** Nullable upserts use the NULL-aware path directly
+  (see [CRUD Helpers](#crud-helpers)).
 - `session.query()` shares the connection and the queue but not the
   transaction turn: issued while a pinned transaction is open, it runs inside
   that transaction.
@@ -749,11 +755,22 @@ everything when the backend is lost.
 backend exits. After a destroy, an idle backend exits as soon as the server
 sees the socket close. A backend that is still executing a statement (or
 waiting for a lock) does not read from the socket, so by default it holds its
-locks until that statement ends. To bound that time, set
-`client_connection_check_interval` (PostgreSQL 14+, for example
-`SET client_connection_check_interval = '1s'` on the session before the long
-work, or server-wide); the backend then checks the connection at that
-interval and exits once it is gone. The adapter does not set it for you.
+locks until that statement ends. The adapter does not change this; a caller
+that needs a bound sets it on the lock session itself:
+
+1. Right after `acquireSession()` and **before** taking the lock, run
+   `SET client_connection_check_interval = '1s'` (any interval you can wait)
+   on the session. The backend then checks the connection at that interval
+   while it executes, and exits once the client is gone, freeing the lock.
+   `SET` lasts for the session; there is nothing to reset, because release()
+   and destroy() both close the connection.
+2. PostgreSQL before 14 has no such setting: the `SET` fails with
+   `unrecognized configuration parameter` (SQLSTATE 42704). The same happens
+   on a platform where the server cannot support it (for example Windows),
+   which rejects a non-zero value. There is no server-side bound then; bound
+   the statements instead with `SET statement_timeout` and `SET lock_timeout`
+   on the session, and treat a destroyed session's locks as held until its
+   longest statement could have ended.
 
 #### Connection-affinity claims
 
