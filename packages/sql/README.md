@@ -707,8 +707,19 @@ try {
   reported before readiness, or node-postgres's client-side `query_timeout`)
   still holds its place until then: after a client-side timeout the call
   rejects, the session stays usable, and the next statement runs once the
-  timed-out one has really finished on the server. A FATAL error from the
-  server marks the session lost at once.
+  timed-out one has really finished on the server. `release()` closes the
+  session to new calls at once but does not open the queue early: its
+  ROLLBACK still waits for that readiness. A FATAL error from the server, or
+  a SQLSTATE in class 57P0 or 08 (checked because the severity text is
+  localised), marks the session lost at once.
+- **Client-side `query_timeout`.** A raw `session.query()` keeps the deadline
+  it had before this queue existed: it runs from the call, a call still
+  queued when it expires rejects then and is never sent, and a call sent
+  later gets only the time it has left. A `database()` statement's timeout
+  starts when it is sent. If `BEGIN` itself times out client-side, the
+  backend may or may not be inside a transaction, so the session is
+  discarded (as by `destroy()`, reported as lost) rather than let a later
+  statement land in an abandoned transaction.
 - **One transaction at a time.** As on PGlite, transactions take turns in
   arrival order, and a call from outside a transaction made while one is open
   waits until it ends (rejecting after 30 seconds of waiting). With no
@@ -722,8 +733,10 @@ try {
 - **Schema helpers report what they could not run.** `syncSchema()` and
   `initializeSchemas()` tolerate individual DDL failures from the server as on
   the root handle, but reject if the session is closed when they start, closes
-  while they run (including a backend terminated mid-statement), or a
-  statement of theirs times out waiting for an open transaction.
+  while they run (including a backend terminated mid-statement), a statement
+  of theirs times out waiting for an open transaction, or a statement fails
+  client-side with an unknown outcome (for example node-postgres's
+  `query_timeout`).
 - **No NULL-key upserts.** `upsert()` on `database()` or one of its
   transactions rejects when a conflict column is `NULL` and
   `{ nullsDistinct: true }` is not passed, because choosing between the native

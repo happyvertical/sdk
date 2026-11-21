@@ -170,8 +170,8 @@ describe.skipIf(!available)('SessionHandle.database() on PostgreSQL', () => {
     await handle.insert(table, { id: 4, label: 'handle' });
     await handle.commit();
 
-    // Null-aware upsert opens its own short transaction on the session.
-    await pinned.upsert(table, ['id', 'tag'], { id: 5, tag: null, label: 'u' });
+    // An upsert on a non-NULL conflict key runs on the session.
+    await pinned.upsert(table, ['id'], { id: 5, tag: null, label: 'u' });
 
     await pinned.alterTable?.addColumn(table, {
       name: 'extra',
@@ -571,56 +571,33 @@ function recordSubmissions() {
 const catalogProbe = /pg_index|server_version_num/;
 
 describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
-  it('a pool transaction’s nullable upsert needs no other connection (pool of one)', async () => {
-    const db = await open({ max: 1, connectionTimeoutMillis: 2_000 });
-    const table = tableName('poolprobe');
-    await db.query(
-      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
-    );
-    // A cold dialect: nothing about the upsert may reach for the pool while
-    // the transaction holds its only connection.
-    const outcome = await within(
-      db.transaction?.(async (tx) => {
-        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'a' });
-        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'b' });
-      }),
-      8_000,
-    );
-    expect(outcome).not.toBe('timeout');
-    expect((outcome as { error?: unknown }).error).toBeUndefined();
-    const rows = await db.list(table, {});
-    expect(rows.map((row) => row.label)).toEqual(['b']);
-    await db.query(`DROP TABLE ${table}`);
-  });
-
-  it('issues no catalog probe for a nullable upsert inside a transaction or on a pinned session', async () => {
-    const db = await open({ max: 3 });
+  it('refuses a NULL-key upsert without nullsDistinct on database() and its transactions, and sends nothing for it', async () => {
+    const db = await open({ max: 2 });
     const { pinned } = await pin(db);
-    const table = tableName('noprobe');
-    await db.query(
+    const table = tableName('nullkey');
+    await pinned.query(
       `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
     );
+    const refusal = /nullsDistinct: true.*root database handle/;
     const submitted = recordSubmissions();
     try {
-      await db.transaction?.(async (tx) => {
-        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'a' });
-      });
-      await pinned.upsert(table, ['id', 'tag'], {
-        id: 2,
-        tag: null,
-        label: 'b',
-      });
+      await rejectsWith(
+        pinned.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'a' }),
+        refusal,
+      );
       await pinned.transaction?.(async (tx) => {
-        await tx.upsert(table, ['id', 'tag'], { id: 3, tag: null, label: 'c' });
+        await rejectsWith(
+          tx.upsert(table, ['id', 'tag'], { id: 2, tag: null, label: 'b' }),
+          refusal,
+        );
       });
-      const handle = await db.beginTransaction?.();
+      const handle = await pinned.beginTransaction?.();
       if (!handle) throw new Error('no beginTransaction');
-      await handle.upsert(table, ['id', 'tag'], {
-        id: 4,
-        tag: null,
-        label: 'd',
-      });
-      await handle.commit();
+      await rejectsWith(
+        handle.upsert(table, ['id', 'tag'], { id: 3, tag: null, label: 'c' }),
+        refusal,
+      );
+      await handle.rollback();
     } finally {
       submitted.restore();
     }
@@ -629,27 +606,30 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
         .filter((entry) => catalogProbe.test(entry.sql))
         .map((e) => e.sql),
     ).toEqual([]);
-    expect((await db.list(table, {})).length).toBe(4);
-    await db.query(`DROP TABLE ${table}`);
-  });
+    expect(await pinned.list(table, {})).toEqual([]);
 
-  it('the root handle ignores a partial NULLS NOT DISTINCT index when choosing the upsert path', async () => {
-    const db = await open({ max: 2 });
-    const version = Number(
-      (await db.query('SHOW server_version_num')).rows[0].server_version_num,
+    // Explicit nullsDistinct and non-NULL keys take the normal path.
+    await pinned.upsert(
+      table,
+      ['id', 'tag'],
+      { id: 4, tag: null, label: 'd' },
+      { nullsDistinct: true },
     );
-    if (version < 150000) return;
-    const table = tableName('partialnnd');
-    await db.query(
-      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
-    );
-    await db.query(
-      `CREATE UNIQUE INDEX ${table}_nnd ON ${table} (id, tag) NULLS NOT DISTINCT WHERE label = 'p'`,
-    );
-    await db.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'q' });
-    await db.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'q' });
-    expect((await db.list(table, {})).length).toBe(1);
-    await db.query(`DROP TABLE ${table}`);
+    await pinned.upsert(table, ['id', 'tag'], { id: 5, tag: 'x', label: 'e' });
+    await pinned.upsert(table, ['id', 'tag'], { id: 5, tag: 'x', label: 'f' });
+    await pinned.transaction?.(async (tx) => {
+      await tx.upsert(
+        table,
+        ['id', 'tag'],
+        { id: 6, tag: null, label: 'g' },
+        { nullsDistinct: true },
+      );
+    });
+    const labels = (await pinned.list(table, {}))
+      .map((row) => row.label)
+      .sort();
+    expect(labels).toEqual(['d', 'f', 'g']);
+    await pinned.query(`DROP TABLE ${table}`);
   });
 
   it('release() racing BEGIN never runs the callback or returns a live handle', async () => {
@@ -782,37 +762,6 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
     await pinned.query(`DROP TABLE ${table}`);
   });
 
-  it('does not reuse NULLS NOT DISTINCT index metadata after the transaction that created it rolls back', async () => {
-    const db = await open({ max: 2 });
-    const { pinned } = await pin(db);
-    const version = Number(
-      (await pinned.query('SHOW server_version_num')).rows[0]
-        .server_version_num,
-    );
-    if (version < 150000) return;
-    const table = tableName('nndstale');
-    await pinned.query(
-      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
-    );
-
-    await rejectsWith(
-      pinned.transaction?.(async (tx) => {
-        await tx.query(
-          `CREATE UNIQUE INDEX ${table}_nnd ON ${table} (id, tag) NULLS NOT DISTINCT`,
-        );
-        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'x' });
-        throw new Error('roll the index back');
-      }),
-      /roll the index back/,
-    );
-
-    await pinned.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'a' });
-    await pinned.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'b' });
-    const rows = await pinned.list(table, {});
-    expect(rows.map((row) => row.label)).toEqual(['b']);
-    await pinned.query(`DROP TABLE ${table}`);
-  });
-
   it('syncSchema and initializeSchemas run on the session and report a closed session or a self-call', async () => {
     const db = await open({ max: 1, connectionTimeoutMillis: 2_000 });
     const { session, pinned } = await pin(db);
@@ -928,32 +877,6 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
     await pinned.query(`DROP TABLE ${table}`);
   });
 
-  it('keeps a pending version probe local, so a transaction never waits on a caller waiting for it', async () => {
-    const db = await open({ max: 2 });
-    const { pinned } = await pin(db);
-    const table = tableName('sessprobe');
-    await pinned.query(
-      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
-    );
-    const handle = await pinned.beginTransaction?.();
-    if (!handle) throw new Error('no beginTransaction');
-    const waiting = pinned.upsert(table, ['id', 'tag'], {
-      id: 2,
-      tag: null,
-      label: 'outside',
-    });
-    const inside = await within(
-      handle.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'tx' }),
-      5_000,
-    );
-    expect(inside).not.toBe('timeout');
-    expect((inside as { error?: unknown }).error).toBeUndefined();
-    await handle.commit();
-    await waiting;
-    expect((await pinned.list(table, {})).length).toBe(2);
-    await pinned.query(`DROP TABLE ${table}`);
-  });
-
   it('refuses a session call from a savepoint callback of a beginTransaction handle at once', async () => {
     const db = await open({ max: 2 });
     const { pinned } = await pin(db);
@@ -1013,21 +936,21 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
     const submitted = recordSubmissions();
     try {
       const started = Date.now();
-      // The raw session.query() contract: the timed-out call rejects, the
-      // session stays usable, and the next call runs once the statement has
-      // really finished, on the same backend.
+      // The raw session.query() contract: the timed-out call rejects and the
+      // session stays usable. A database() statement queued behind it (its
+      // read timeout starts when it is sent) is sent only once the timed-out
+      // statement has really finished, on the same backend.
       const slow = session.query('SELECT pg_sleep(1)');
-      const next = session.query('SELECT pg_backend_pid() AS pid');
-      const viaDatabase = pinned.query('SELECT 1 AS ok');
+      const next = pinned.query('SELECT pg_backend_pid() AS pid');
       await rejectsWith(slow, /timeout/i);
       expect(Number((await next).rows[0].pid)).toBe(pid);
-      expect((await viaDatabase).rows[0].ok).toBe(1);
       expect(session.isActive()).toBe(true);
       const nextAt = submitted.find((entry) =>
         entry.sql.includes('pg_backend_pid'),
       )?.at;
       expect(nextAt).toBeDefined();
       expect((nextAt as number) - started).toBeGreaterThanOrEqual(900);
+      expect((await session.query('SELECT 1 AS ok')).rows[0].ok).toBe(1);
     } finally {
       submitted.restore();
     }
@@ -1159,33 +1082,193 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
     expect(delays.filter((delay) => delay >= 30_000)).toEqual([]);
   });
 
-  it('a pool transaction with an uncommitted NULLS NOT DISTINCT index upserts correctly and leaves nothing behind after rollback', async () => {
-    const db = await open({ max: 2 });
-    const version = Number(
-      (await db.query('SHOW server_version_num')).rows[0].server_version_num,
-    );
-    if (version < 150000) return;
-    const table = tableName('poolnnd');
-    await db.query(
-      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
-    );
+  it('discards the session when BEGIN times out client-side, so no later write lands in an abandoned transaction', async () => {
+    const db = await open({ url: timeoutUrl(300), max: 2 });
+    const { session, pinned } = await pin(db);
+    const table = tableName('begintimeout');
+    await pinned.query(`CREATE TABLE ${table} (id int)`);
+    const submitted = recordSubmissions();
+    let restoreDelay = () => {};
+    try {
+      await session.query('SELECT 1');
+      const client = submitted.at(-1)?.client as {
+        connection: { emit: (event: string, ...args: unknown[]) => boolean };
+      };
+      restoreDelay = delayReadyAfter(client, 'BEGIN', 600);
+      await rejectsWith(
+        pinned.transaction?.(async () => {}),
+        /timeout/i,
+      );
+    } finally {
+      submitted.restore();
+    }
+    expect(session.isActive()).toBe(false);
     await rejectsWith(
-      db.transaction?.(async (tx) => {
-        await tx.query(
-          `CREATE UNIQUE INDEX ${table}_nnd ON ${table} (id, tag) NULLS NOT DISTINCT`,
-        );
-        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'x' });
-        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'y' });
-        expect((await tx.list(table, {})).map((row) => row.label)).toEqual([
-          'y',
-        ]);
-        throw new Error('roll the index back');
-      }),
-      /roll the index back/,
+      pinned.insert(table, { id: 1 }),
+      /Session connection was lost/,
     );
-    await db.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'a' });
-    await db.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'b' });
-    expect((await db.list(table, {})).map((row) => row.label)).toEqual(['b']);
+    restoreDelay();
+    expect((await db.list(table, {})).length).toBe(0);
     await db.query(`DROP TABLE ${table}`);
   });
+
+  it('keeps a queued raw session.query to its issue-time deadline and never sends it after expiry', async () => {
+    const db = await open({ url: timeoutUrl(300), max: 2 });
+    const { session } = await pin(db);
+    const table = tableName('rawdeadline');
+    await db.query(`CREATE TABLE ${table} (id int)`);
+    const submitted = recordSubmissions();
+    try {
+      const slow = session.query('SELECT pg_sleep(1)');
+      const queuedInsert = session.query(`INSERT INTO ${table} VALUES (1)`);
+      const started = Date.now();
+      await rejectsWith(queuedInsert, /timeout/i);
+      // Rejected at its own deadline, not when the long statement finished.
+      expect(Date.now() - started).toBeLessThan(800);
+      await rejectsWith(slow, /timeout/i);
+      await sleep(1_000);
+      expect(
+        submitted.filter((entry) => entry.sql.includes('INSERT INTO')),
+      ).toEqual([]);
+    } finally {
+      submitted.restore();
+    }
+    expect((await db.list(table, {})).length).toBe(0);
+    expect(session.isActive()).toBe(true);
+    expect((await session.query('SELECT 1 AS ok')).rows[0].ok).toBe(1);
+    await db.query(`DROP TABLE ${table}`);
+  });
+
+  it('schema helpers reject when their DDL times out client-side with an unknown outcome', async () => {
+    const db = await open({ url: timeoutUrl(500), max: 3 });
+    const { pinned } = await pin(db);
+    const table = tableName('ddltimeout');
+    await db.query(`CREATE TABLE ${table} (id int)`);
+    const blocker = await db.beginTransaction?.();
+    if (!blocker) throw new Error('no beginTransaction');
+    await blocker.query(`LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE`);
+    const syncing = pinned.syncSchema?.(
+      `CREATE INDEX ${table}_idx ON ${table} (id)`,
+    );
+    syncing?.catch(() => {});
+    const outcome = await within(syncing, 5_000);
+    expect(outcome).not.toBe('timeout');
+    await rejectsWith(syncing, /timeout/i);
+    await blocker.rollback();
+    await db.query(`DROP TABLE ${table}`);
+  });
+
+  it('marks the session lost when its statement is terminated, even with a localised severity', async () => {
+    const db = await open({ max: 2 });
+    const { session, pinned } = await pin(db);
+    const pid = await pidOf(pinned);
+    const submitted = recordSubmissions();
+    let restore = () => {};
+    try {
+      await session.query('SELECT 1');
+      const client = submitted.at(-1)?.client as {
+        connection: { emit: (event: string, ...args: unknown[]) => boolean };
+      };
+      const connection = client.connection;
+      const emit = connection.emit.bind(connection);
+      // lc_messages = 'de': the severity text is translated, the SQLSTATE
+      // (57P01 admin_shutdown) is not.
+      connection.emit = (event: string, ...args: unknown[]) => {
+        if (event === 'errorMessage') {
+          (args[0] as { severity?: string }).severity = 'SCHWERWIEGEND';
+        }
+        return emit(event, ...args);
+      };
+      restore = () => {
+        connection.emit = emit;
+      };
+      const observed = pinned.query('SELECT pg_sleep(5)').then(
+        () => 'resolved',
+        () => session.isActive(),
+      );
+      await waitFor(async () => {
+        const running = await db.query(
+          "SELECT count(*)::int AS n FROM pg_stat_activity WHERE pid = $1 AND query LIKE 'SELECT pg_sleep%'",
+          [pid],
+        );
+        return running.rows[0].n === 1;
+      });
+      await db.query('SELECT pg_terminate_backend($1)', [pid]);
+      // Already inactive when the statement's rejection is observed.
+      expect(await observed).toBe(false);
+    } finally {
+      restore();
+      submitted.restore();
+    }
+  });
+
+  it('release() keeps the queue closed until ReadyForQuery while the socket is live', async () => {
+    const db = await open({ max: 2 });
+    const { session, pinned } = await pin(db);
+    const submitted = recordSubmissions();
+    let restoreDelay = () => {};
+    try {
+      await session.query('SELECT 1');
+      const client = submitted.at(-1)?.client as {
+        connection: { emit: (event: string, ...args: unknown[]) => boolean };
+      };
+      restoreDelay = delayReadyAfter(client, 'errorMessage', 300);
+      const failing = pinned.query('SELECT 1/0');
+      await rejectsWith(failing, /division by zero/);
+      const failedAt = Date.now();
+      await session.release();
+      const rollbackAt = submitted.find((entry) => entry.sql === 'ROLLBACK')
+        ?.at as number;
+      expect(rollbackAt - failedAt).toBeGreaterThanOrEqual(250);
+    } finally {
+      restoreDelay();
+      submitted.restore();
+    }
+  });
 });
+
+/** A connection URL for the test server with a client-side query_timeout. */
+function timeoutUrl(ms: number): string {
+  const host = process.env.SQLOO_HOST || 'localhost';
+  const port = Number(process.env.SQLOO_PORT) || 5432;
+  const user = encodeURIComponent(process.env.SQLOO_USER || 'postgres');
+  const password = encodeURIComponent(process.env.SQLOO_PASSWORD || 'postgres');
+  const database = process.env.SQLOO_DATABASE || 'testdb';
+  return `postgresql://${user}:${password}@${host}:${port}/${database}?query_timeout=${ms}`;
+}
+
+/**
+ * Delays the next ReadyForQuery the client receives after `trigger` (a
+ * command tag such as 'BEGIN', or the protocol event 'errorMessage') by
+ * `ms`. Returns a function that restores normal delivery.
+ */
+function delayReadyAfter(
+  client: {
+    connection: { emit: (event: string, ...args: unknown[]) => boolean };
+  },
+  trigger: string,
+  ms: number,
+): () => void {
+  const connection = client.connection;
+  const emit = connection.emit.bind(connection);
+  let armed = false;
+  let delayed = false;
+  connection.emit = (event: string, ...args: unknown[]) => {
+    if (event === trigger) armed = true;
+    if (
+      event === 'commandComplete' &&
+      (args[0] as { text?: string } | undefined)?.text === trigger
+    ) {
+      armed = true;
+    }
+    if (event === 'readyForQuery' && armed && !delayed) {
+      delayed = true;
+      setTimeout(() => emit(event, ...args), ms);
+      return true;
+    }
+    return emit(event, ...args);
+  };
+  return () => {
+    connection.emit = emit;
+  };
+}

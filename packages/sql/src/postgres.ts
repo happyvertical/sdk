@@ -6,6 +6,7 @@ import {
   type QueryResult as PgQueryResult,
   Pool,
   type PoolClient,
+  type QueryConfig,
 } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
 import { claimConnectionAffinity } from './shared/connection-affinity';
@@ -778,6 +779,8 @@ async function createDatabase(
     closedError: () => DatabaseError | undefined;
     enqueue: <T>(work: () => Promise<T>) => Promise<T>;
     onClose: (listener: () => void) => void;
+    /** Ends the lease as lost and closes the connection without sending. */
+    discard: () => void;
   }): DatabaseInterface => {
     const sessionClient = session.client;
 
@@ -820,10 +823,8 @@ async function createDatabase(
       }
     };
 
-    // The scope of a running syncSchema()/initializeSchemas() call, and the
-    // errors that mean a call was never admitted to the connection.
+    // The scope of a running syncSchema()/initializeSchemas() call.
     const schemaScope = new AsyncLocalStorage<{ failure?: unknown }>();
-    const admissionFailures = new WeakSet<object>();
 
     // The transaction turn.
     type Waiter = {
@@ -868,7 +869,6 @@ async function createDatabase(
             `Timed out after ${DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS}ms waiting for the session database's open transaction to end. Usually a beginTransaction() handle that was never committed or rolled back.`,
             { timeoutMs: DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS },
           );
-          admissionFailures.add(timeout);
           reject(timeout);
         }, DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS);
         waiters.push(waiter);
@@ -928,6 +928,17 @@ async function createDatabase(
         await begun;
         assertIssuable();
       } catch (error) {
+        // A BEGIN that failed without a server answer (a client-side
+        // query_timeout, for one) may still have opened a transaction on the
+        // backend. Freeing the turn would let the next statement run inside
+        // it and vanish with a later rollback, so the lease is discarded
+        // instead. A server error means BEGIN did not happen.
+        if (
+          !(error instanceof PgDatabaseError) &&
+          session.closedError() === undefined
+        ) {
+          session.discard();
+        }
         endTurn();
         throw error;
       }
@@ -945,16 +956,17 @@ async function createDatabase(
         }
         return whenAdmitted(() => direct(sql, values)).catch(
           (error: unknown) => {
-            // Inside syncSchema()/initializeSchemas(), record failures that
-            // are not the statement's own: never admitted (the turn timeout)
-            // or the session closing (including a FATAL from the backend).
-            // The schema helpers tolerate DDL errors and would otherwise
-            // swallow these and report success.
+            // Inside syncSchema()/initializeSchemas(), record every failure
+            // that is not a server's answer to the statement: never admitted
+            // (the turn timeout), the session closing (including a FATAL from
+            // the backend), or a client-side failure whose outcome on the
+            // server is unknown (query_timeout). The schema helpers tolerate
+            // DDL errors and would otherwise swallow these and report success.
             const scope = schemaScope.getStore();
             if (
               scope &&
               scope.failure === undefined &&
-              (admissionFailures.has(error as object) ||
+              (!(error instanceof PgDatabaseError) ||
                 session.closedError() !== undefined)
             ) {
               scope.failure = session.closedError() ?? error;
@@ -1327,6 +1339,15 @@ async function createDatabase(
       for (const listener of [...closeListeners]) listener();
     };
 
+    // Readiness waiters, released only when the physical connection is gone.
+    // Closing admission (release()) is not enough: the socket is still live
+    // and may still be running a statement.
+    const endListeners = new Set<() => void>();
+    const notifyEnded = (): void => {
+      for (const listener of [...endListeners]) listener();
+      notifyClosed();
+    };
+
     // pg-pool removes its idle 'error' listener when a client is checked out.
     // A session is pinned for the process lifetime and mostly idle between
     // queries, so a backend disconnect/failover would emit 'error' on a
@@ -1334,15 +1355,14 @@ async function createDatabase(
     // session dead instead; the next query()/isActive() surfaces it.
     sessionClient.on('error', () => {
       lost = true;
-      notifyClosed();
+      notifyEnded();
     });
     // The connection ended without an error event (for example after a
     // FATAL already reported through a statement): it is lost unless the
     // session itself dropped it.
     sessionClient.on('end', () => {
-      if (dropped || lost) return;
-      lost = true;
-      notifyClosed();
+      if (!dropped) lost = true;
+      notifyEnded();
     });
 
     /** Whether a new call may be issued on the session. */
@@ -1377,12 +1397,12 @@ async function createDatabase(
         done = (): void => {
           protocol.off('readyForQuery', done);
           sessionClient.off('end', done);
-          closeListeners.delete(done);
+          endListeners.delete(done);
           resolve();
         };
         protocol.once('readyForQuery', done);
         sessionClient.once('end', done);
-        closeListeners.add(done);
+        endListeners.add(done);
       });
       return { promise, done };
     };
@@ -1397,11 +1417,16 @@ async function createDatabase(
 
     // A FATAL (or PANIC) ErrorResponse means the backend is exiting. The
     // statement's rejection can arrive before the socket closes, so the
-    // session is marked lost here, from the error's severity, rather than
-    // waiting for the client's 'error' event.
+    // session is marked lost here rather than on the client's later 'error'
+    // event. The severity text is localised with lc_messages, so the
+    // SQLSTATE is checked too: class 57P0 (operator intervention: terminated,
+    // shut down, idle session timeout) and class 08 (connection exception).
     const isTerminalServerError = (error: unknown): boolean =>
       error instanceof PgDatabaseError &&
-      (error.severity === 'FATAL' || error.severity === 'PANIC');
+      (error.severity === 'FATAL' ||
+        error.severity === 'PANIC' ||
+        error.code?.startsWith('57P0') === true ||
+        error.code?.startsWith('08') === true);
 
     // The session's own FIFO statement queue. node-postgres 8.x deprecates
     // calling client.query() while another query is running, so statements
@@ -1424,7 +1449,7 @@ async function createDatabase(
         } catch (error) {
           if (isTerminalServerError(error) && !lost) {
             lost = true;
-            notifyClosed();
+            notifyEnded();
           }
           throw error;
         } finally {
@@ -1456,7 +1481,7 @@ async function createDatabase(
         // Already closed.
       }
       sessionClient.release(true);
-      notifyClosed();
+      notifyEnded();
     }
 
     // The graceful end of release(): node-postgres sends Terminate on an idle
@@ -1465,7 +1490,21 @@ async function createDatabase(
       if (dropped) return;
       dropped = true;
       sessionClient.release(true);
-      notifyClosed();
+      notifyEnded();
+    };
+
+    // node-postgres's client-side query_timeout (from the connection options),
+    // in milliseconds; 0 when unset.
+    const clientQueryTimeout = (): number => {
+      const value = Number(
+        (
+          sessionClient as unknown as {
+            // biome-ignore lint/style/useNamingConvention: node-postgres option name
+            connectionParameters?: { query_timeout?: unknown };
+          }
+        ).connectionParameters?.query_timeout,
+      );
+      return Number.isFinite(value) && value > 0 ? value : 0;
     };
 
     return {
@@ -1475,6 +1514,10 @@ async function createDatabase(
           closedError,
           enqueue,
           onClose: (listener) => closeListeners.add(listener),
+          discard: () => {
+            lost = true;
+            hardClose();
+          },
         });
         return sessionDatabase;
       },
@@ -1486,10 +1529,56 @@ async function createDatabase(
         const closed = closedError();
         if (closed) throw closed;
         const normalized = normalizePostgresRawQuery(sql, values);
+        // A raw query's client-side query_timeout runs from the call, as it
+        // did when node-postgres queued it: work still waiting in the session
+        // queue when its deadline passes is dropped without being sent, and
+        // work sent later gets only the time it has left.
+        const timeout = clientQueryTimeout();
+        const deadline = timeout > 0 ? Date.now() + timeout : undefined;
+        let submitted = false;
+        let expired = false;
+        const readTimeout = () => new Error('Query read timeout');
+        const queued = enqueue(() => {
+          if (deadline === undefined) {
+            return sessionClient.query(normalized.sql, normalized.values);
+          }
+          const remaining = deadline - Date.now();
+          if (expired || remaining <= 0) return Promise.reject(readTimeout());
+          submitted = true;
+          // query_timeout per query is honoured by node-postgres, though its
+          // QueryConfig type does not declare it.
+          return sessionClient.query({
+            text: normalized.sql,
+            values: normalized.values,
+            // biome-ignore lint/style/useNamingConvention: node-postgres option name
+            query_timeout: remaining,
+          } as QueryConfig);
+        });
+        const outcome =
+          deadline === undefined
+            ? queued
+            : new Promise<Awaited<typeof queued>>((resolve, reject) => {
+                const timer = setTimeout(() => {
+                  // Still waiting its turn: reject now and never send it.
+                  // Once sent, node-postgres's own timer (set to the time
+                  // that was left) governs it.
+                  if (submitted) return;
+                  expired = true;
+                  reject(readTimeout());
+                }, timeout);
+                queued.then(
+                  (value) => {
+                    clearTimeout(timer);
+                    resolve(value);
+                  },
+                  (error) => {
+                    clearTimeout(timer);
+                    reject(error);
+                  },
+                );
+              });
         try {
-          const result = await enqueue(() =>
-            sessionClient.query(normalized.sql, normalized.values),
-          );
+          const result = await outcome;
           return {
             rows: result.rows,
             rowCount: result.rowCount ?? 0,

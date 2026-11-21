@@ -1715,8 +1715,11 @@ export interface SessionHandle {
    *   transaction) rejects, as on the root handle.
    * - `syncSchema()` and `initializeSchemas()` reject if the session is closed
    *   when they start or closes while they run, or if one of their statements
-   *   times out waiting for an open transaction; only server errors from
-   *   individual DDL statements are tolerated.
+   *   times out waiting for an open transaction or fails client-side with an
+   *   unknown outcome (a `query_timeout`); only server errors from individual
+   *   DDL statements are tolerated.
+   * - A client-side timeout on `BEGIN` discards the session (reported as
+   *   lost), since the backend may be left inside a transaction.
    * - There is no raw driver client: `client.query(sql, values?)` takes the
    *   same path as `query()`, and other call forms throw.
    * - {@link SessionHandle.query} shares the connection and the statement
