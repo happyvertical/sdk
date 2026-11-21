@@ -695,20 +695,12 @@ async function createDatabase(
 
   const dialect = createPostgresDialect({
     client,
-    // A probe runs on the executor it is asked about: the pool for root
-    // calls, the transaction's own connection inside a transaction. A
-    // transaction handle claims that every member uses its connection, and a
-    // probe on another connection would also miss the transaction's
-    // uncommitted DDL and SET LOCAL search_path, and wait forever on a pool
-    // whose only connection the transaction holds. The probes cannot fail for
-    // a table name the statement they precede accepts; a failure that does
-    // happen (a cancel, a lost connection) aborts the transaction and surfaces
-    // through its first error, as a failure of that statement would. No
-    // savepoint: a probe savepoint released while a sibling statement of the
-    // same handle runs inside it could roll that statement back.
-    probeExecutor: (executor) => executor,
-    // Only the pool outside a transaction reads committed catalog state.
-    cacheCatalogProbe: (executor) => executor === client,
+    // Root calls probe through the pool, as before. Inside a transaction
+    // there is no probe: a pool probe would read another connection's catalog
+    // (and wait forever on a pool whose only connection the transaction
+    // holds), contradicting the transaction handle's connection-affinity
+    // claim; the null-aware path is correct for any index.
+    probeExecutor: (executor) => (executor === client ? client : undefined),
     runInTransaction: async (work) => {
       const txClient = await acquireTxClient();
 
@@ -952,8 +944,10 @@ async function createDatabase(
 
     const sessionDialect = createPostgresDialect({
       client: outside,
-      // One connection, so a probe cannot be answered from a second one.
-      probeExecutor: (executor) => executor,
+      // No catalog discovery on a pinned session: a SET search_path or DDL
+      // queued between a probe and the upsert that relies on it could change
+      // the answer. The null-aware path is correct for any index.
+      probeExecutor: () => undefined,
       runInTransaction: async (work) => {
         refuseInsideOwnTransaction();
         const { begun, endTurn } = await startTransaction();

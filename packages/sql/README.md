@@ -548,13 +548,12 @@ the update arm. A key-only upsert therefore preserves the existing row.
 For PostgreSQL 15+, a matching `UNIQUE (...) NULLS NOT DISTINCT` index lets
 nullable upserts use one native `ON CONFLICT` statement. An ordinary `UNIQUE`
 constraint still treats `NULL` values as distinct, so the adapter retains its
-race-safe NULL-aware fallback for that schema. The index is looked up on the
-connection that runs the upsert: inside a transaction, that transaction's
-connection, so its uncommitted DDL and `search_path` count. Only a lookup made
-by the root `pg` or PGlite handle outside a transaction is remembered; inside a
-transaction, and on a pinned session's `database()`, it is repeated for every
-such upsert, so an index from a rolled-back transaction or savepoint never
-steers later upserts.
+race-safe NULL-aware fallback for that schema. The index is looked up (and
+remembered) only by the root `pg` or PGlite handle outside a transaction, and
+only a valid, non-partial index on exactly the conflict columns counts. Inside a
+transaction, and on a pinned session's `database()`, nullable upserts always use
+the NULL-aware fallback, which is correct for any index; there is no lookup
+whose answer DDL, a rollback or a `search_path` change could invalidate.
 
 ### Transactions
 
