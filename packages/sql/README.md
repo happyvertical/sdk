@@ -725,9 +725,25 @@ A backend that is still executing a statement notices the closed connection
 only when it next talks to the client, or at `client_connection_check_interval`
 (PostgreSQL 14+) when the server or session sets one.
 
-`session.database()` and `session.destroy()` were added in
-`@happyvertical/sql` 0.117.0. Both are optional on the `SessionHandle` type and
-absent on handles created by an earlier copy of the package, so a consumer that
+#### Connection-affinity claims
+
+Every handle the `pg` adapter creates — the root (pool) handle, a session's
+`database()`, and every transaction and savepoint handle opened from either —
+carries a non-enumerable property keyed by
+`Symbol.for('@happyvertical/sql/connection-affinity')` (exported as
+`CONNECTION_AFFINITY`). Its value is a frozen
+`{ kind: 'pool' | 'session' | 'transaction', handle }`, where `handle` is that
+same object: the adapter's promise about which connection every member of the
+handle uses. Accept a claim only when `claim.handle === db`;
+`getConnectionAffinity(db)` does that check. A spread copy has no claim, and a
+proxy or derived object reads one naming its target, so neither inherits it.
+Other adapters set no claim. The key is a global symbol, so a handle made by
+any copy of the package at or above 0.117.0 is recognised.
+
+`session.database()`, `session.destroy()` and the affinity claims were added in
+`@happyvertical/sql` 0.117.0. The session members are optional on the
+`SessionHandle` type, and all three are absent on handles created by an earlier
+copy of the package, so a consumer that
 needs them must require that the copy which created its `db` is at least
 0.117.0, and feature-detect them.
 

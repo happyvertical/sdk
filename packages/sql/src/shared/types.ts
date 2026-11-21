@@ -55,6 +55,65 @@ export type DatabaseEngine =
   | 'json';
 
 /**
+ * Property key of a handle's connection-affinity claim. A global symbol, so a
+ * handle made by any copy of this package is recognised by any other.
+ */
+export const CONNECTION_AFFINITY: unique symbol = Symbol.for(
+  '@happyvertical/sql/connection-affinity',
+);
+
+/**
+ * Which connection every member of a handle uses, as claimed by the adapter
+ * that made it:
+ *
+ * - `pool`: a root handle; statements may use any pool connection.
+ * - `session`: a {@link SessionHandle.database}; every member uses the
+ *   session's one pinned connection.
+ * - `transaction`: a transaction or savepoint handle; every member, nested
+ *   savepoints and the commit included, uses that transaction's connection.
+ */
+export type ConnectionAffinityKind = 'pool' | 'session' | 'transaction';
+
+/**
+ * The frozen value stored under {@link CONNECTION_AFFINITY} as a
+ * non-enumerable property of the handle.
+ *
+ * A claim is valid only for the object it names: accept it only when
+ * `claim.handle === db`. A spread copy does not carry the property, and a
+ * proxy or a prototype-derived object reads the target's claim, whose
+ * `handle` is not the copy, so neither inherits the promise.
+ *
+ * The PostgreSQL adapter (`pg`) sets it on every handle it creates, from
+ * `@happyvertical/sql` 0.117.0. Other adapters do not set it. A hand-written
+ * adapter may set it on its own handles; the claim is then its promise.
+ */
+export interface ConnectionAffinityClaim {
+  readonly kind: ConnectionAffinityKind;
+  readonly handle: object;
+}
+
+/**
+ * Reads a handle's connection-affinity claim, returning it only when it names
+ * that same object (see {@link ConnectionAffinityClaim}).
+ */
+export function getConnectionAffinity(
+  db: unknown,
+): ConnectionAffinityClaim | undefined {
+  if (db === null || (typeof db !== 'object' && typeof db !== 'function')) {
+    return undefined;
+  }
+  const claim = (db as { [CONNECTION_AFFINITY]?: unknown })[
+    CONNECTION_AFFINITY
+  ] as Partial<ConnectionAffinityClaim> | undefined;
+  return claim?.handle === db &&
+    (claim.kind === 'pool' ||
+      claim.kind === 'session' ||
+      claim.kind === 'transaction')
+    ? (claim as ConnectionAffinityClaim)
+    : undefined;
+}
+
+/**
  * Connection options returned by {@link DatabaseInterface.reopenOptions}.
  * Treat them as opaque and pass them to `getDatabase()` as they are. `type`
  * names the adapter (`'sqlite'` or `'postgres'`; the other adapters refuse to

@@ -1,8 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseError } from '@happyvertical/utils';
 import { afterEach, describe, expect, it } from 'vitest';
-import { getDatabase } from './index';
-import type { DatabaseInterface, SessionHandle } from './shared/types';
+import {
+  CONNECTION_AFFINITY,
+  type ConnectionAffinityClaim,
+  type DatabaseInterface,
+  getConnectionAffinity,
+  getDatabase,
+  type SessionHandle,
+} from './index';
 
 /**
  * `SessionHandle.database()` on a real PostgreSQL server (#1567): a
@@ -390,6 +396,76 @@ describe.skipIf(!available)('SessionHandle.database() on PostgreSQL', () => {
 
     expect(await pinned.list(table, {})).toEqual([]);
     await pinned.query(`DROP TABLE ${table}`);
+  });
+
+  it('stamps every handle with a connection-affinity claim that only that object satisfies', async () => {
+    const db = await open({ max: 3 });
+    const { pinned } = await pin(db);
+    const kinds: Array<[string, unknown]> = [];
+    const record = (label: string, handle: object) => {
+      const raw = (handle as Record<symbol, unknown>)[CONNECTION_AFFINITY] as
+        | ConnectionAffinityClaim
+        | undefined;
+      expect(raw, label).toBeDefined();
+      expect(Object.isFrozen(raw), label).toBe(true);
+      expect(raw?.handle, label).toBe(handle);
+      expect(Object.keys(handle), label).not.toContain(
+        String(CONNECTION_AFFINITY),
+      );
+      expect(
+        Object.getOwnPropertyDescriptor(handle, CONNECTION_AFFINITY)
+          ?.enumerable,
+        label,
+      ).toBe(false);
+      kinds.push([label, getConnectionAffinity(handle)?.kind]);
+    };
+
+    record('pool', db);
+    record('session', pinned);
+    await db.transaction?.(async (tx) => {
+      record('pool transaction', tx);
+      await tx.transaction?.(async (nested) => {
+        record('pool savepoint', nested);
+      });
+    });
+    const poolHandle = await db.beginTransaction?.();
+    if (!poolHandle) throw new Error('no beginTransaction');
+    record('pool beginTransaction', poolHandle);
+    await poolHandle.rollback();
+    await pinned.transaction?.(async (tx) => {
+      record('session transaction', tx);
+      await tx.transaction?.(async (nested) => {
+        record('session savepoint', nested);
+      });
+    });
+    const sessionHandle = await pinned.beginTransaction?.();
+    if (!sessionHandle) throw new Error('no beginTransaction');
+    record('session beginTransaction', sessionHandle);
+    await sessionHandle.rollback();
+
+    expect(kinds).toEqual([
+      ['pool', 'pool'],
+      ['session', 'session'],
+      ['pool transaction', 'transaction'],
+      ['pool savepoint', 'transaction'],
+      ['pool beginTransaction', 'transaction'],
+      ['session transaction', 'transaction'],
+      ['session savepoint', 'transaction'],
+      ['session beginTransaction', 'transaction'],
+    ]);
+
+    // A spread copy carries no claim; a proxy reads one naming its target.
+    const spread = { ...pinned };
+    expect(getConnectionAffinity(spread)).toBeUndefined();
+    expect(
+      (spread as Record<symbol, unknown>)[CONNECTION_AFFINITY],
+    ).toBeUndefined();
+    const proxy = new Proxy(pinned, {});
+    const proxied = (proxy as Record<symbol, unknown>)[
+      CONNECTION_AFFINITY
+    ] as ConnectionAffinityClaim;
+    expect(proxied.handle === proxy).toBe(false);
+    expect(getConnectionAffinity(proxy)).toBeUndefined();
   });
 
   it('destroy() discards the session at once, even with a statement in flight', async () => {

@@ -8,6 +8,7 @@ import {
   type PoolClient,
 } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
+import { claimConnectionAffinity } from './shared/connection-affinity';
 import {
   ConnectionCache,
   validateDatabaseCacheOptions,
@@ -918,6 +919,8 @@ async function createDatabase(
         ),
         transaction: nested,
       };
+      // Nested savepoint callbacks receive this same object.
+      claimConnectionAffinity(scoped, 'transaction');
       return { transactionState, nested, scoped };
     };
 
@@ -1018,7 +1021,7 @@ async function createDatabase(
       alterTable: createAlterTable(outside),
       vector: createVectorCapabilities(outside),
     };
-    return sessionDb;
+    return claimConnectionAffinity(sessionDb, 'session');
   };
 
   /**
@@ -1191,6 +1194,8 @@ async function createDatabase(
         ),
         transaction: nestedTransaction,
       };
+      // Nested savepoint callbacks receive this same object.
+      claimConnectionAffinity(txDb, 'transaction');
 
       const result = await callback(txDb);
       await nestedTransaction.drain();
@@ -1309,7 +1314,7 @@ async function createDatabase(
       isActive,
     };
 
-    return txHandle;
+    return claimConnectionAffinity(txHandle, 'transaction');
   };
 
   /**
@@ -1351,6 +1356,7 @@ async function createDatabase(
       syncSchema,
       transaction,
     };
+    claimConnectionAffinity(currentDb, 'pool');
 
     await schemaManager.initializeSchemas(currentDb, options);
   };
@@ -1392,5 +1398,5 @@ async function createDatabase(
     },
   };
 
-  return db;
+  return claimConnectionAffinity(db, 'pool');
 }
