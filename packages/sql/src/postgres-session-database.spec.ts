@@ -1788,9 +1788,12 @@ describe.skipIf(!available)('SessionHandle review round 8', () => {
       // The first DDL times out client-side, then finishes once A lets go;
       // the second then times out behind B, which lets go only after the
       // helper has returned.
-      setTimeout(() => {
-        void holderA.rollback();
+      // (With the schema scope failing fast, the helper may return before
+      // this fires.)
+      const releaseA = setTimeout(() => {
+        if (holderA.isActive()) holderA.rollback().catch(() => {});
       }, 900);
+      syncing?.finally(() => clearTimeout(releaseA)).catch(() => {});
       const outcome = await within(syncing, 6_000);
       expect(outcome).not.toBe('timeout');
       await rejectsWith(syncing, /timeout/i);
@@ -1800,6 +1803,41 @@ describe.skipIf(!available)('SessionHandle review round 8', () => {
     }
     await db.query(`DROP TABLE ${first}`);
     await db.query(`DROP TABLE ${second}`);
+  });
+
+  it('after an intolerable failure, a schema helper enqueues nothing more and reports that failure', async () => {
+    const db = await open({ url: timeoutUrl(500), max: 3 });
+    const { pinned } = await pin(db);
+    const table = tableName('failfast');
+    const sequence = tableName('failfastseq');
+    await db.query(`CREATE TABLE ${table} (id int)`);
+    const holder = await db.beginTransaction?.();
+    if (!holder) throw new Error('no beginTransaction');
+    await holder.query(`LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE`);
+    const submitted = recordSubmissions();
+    try {
+      // The index times out client-side and stays blocked; the holder lets
+      // go only after the helper has returned.
+      const syncing = pinned.syncSchema?.(
+        `CREATE INDEX ${table}_idx ON ${table} (id);\nCREATE SEQUENCE ${sequence}`,
+      );
+      syncing?.catch(() => {});
+      const outcome = await within(syncing, 5_000);
+      expect(outcome).not.toBe('timeout');
+      await rejectsWith(syncing, /timeout/i);
+      expect(
+        submitted.filter((entry) => entry.sql.includes('CREATE SEQUENCE')),
+      ).toEqual([]);
+    } finally {
+      submitted.restore();
+      await holder.rollback();
+    }
+    const exists = await db.query(
+      'SELECT count(*)::int AS n FROM pg_class WHERE relname = $1',
+      [sequence],
+    );
+    expect(exists.rows[0].n).toBe(0);
+    await db.query(`DROP TABLE ${table}`);
   });
 
   it('before database(), session.query() redacts against the caller’s array, as node-postgres binds from it', async () => {

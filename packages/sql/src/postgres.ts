@@ -1044,6 +1044,14 @@ async function createDatabase(
     // open transaction ends.
     const outside: PostgresQueryExecutor = {
       query: (sql, values) => {
+        // A schema helper that has recorded an intolerable failure fails
+        // fast: none of its later statements is enqueued (it could only wait
+        // behind the statement that failed), and the helper reports the
+        // original failure.
+        const failedScope = schemaScope.getStore();
+        if (failedScope?.failure !== undefined) {
+          return Promise.reject(failedScope.failure);
+        }
         let bound: unknown[] | undefined;
         try {
           refuseInsideOwnTransaction();
@@ -1385,7 +1393,14 @@ async function createDatabase(
         return;
       }
       const scope: { failure?: unknown } = {};
-      await schemaScope.run(scope, work);
+      try {
+        await schemaScope.run(scope, work);
+      } catch (error) {
+        // A step the helper does not tolerate may have failed only because
+        // the scope was already failing; report the original failure.
+        if (scope.failure !== undefined) throw scope.failure;
+        throw error;
+      }
       if (scope.failure !== undefined) throw scope.failure;
       assertIssuable();
     };
