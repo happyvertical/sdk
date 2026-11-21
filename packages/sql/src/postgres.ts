@@ -695,12 +695,9 @@ async function createDatabase(
 
   const dialect = createPostgresDialect({
     client,
-    // Root calls probe through the pool, as before. Inside a transaction
-    // there is no probe: a pool probe would read another connection's catalog
-    // (and wait forever on a pool whose only connection the transaction
-    // holds), contradicting the transaction handle's connection-affinity
-    // claim; the null-aware path is correct for any index.
-    probeExecutor: (executor) => (executor === client ? client : undefined),
+    // Pooled: a probe on its own connection cannot abort the caller's
+    // transaction.
+    probeExecutor: () => client,
     runInTransaction: async (work) => {
       const txClient = await acquireTxClient();
 
@@ -984,10 +981,9 @@ async function createDatabase(
 
     const sessionDialect = createPostgresDialect({
       client: outside,
-      // No catalog discovery on a pinned session: a SET search_path or DDL
-      // queued between a probe and the upsert that relies on it could change
-      // the answer. The null-aware path is correct for any index.
-      probeExecutor: () => undefined,
+      // Never reached: a pinned session refuses the nullable-key upserts that
+      // would need catalog discovery (see refuseNullableUpsert).
+      probeExecutor: (executor) => executor,
       runInTransaction: async (work) => {
         refuseInsideOwnTransaction();
         const { endTurn } = await openTransaction();
@@ -1006,6 +1002,33 @@ async function createDatabase(
         }
       },
     });
+
+    /**
+     * Refuses an upsert with a NULL conflict value and no explicit
+     * `nullsDistinct`. Choosing between the native ON CONFLICT path and the
+     * NULL-aware fallback needs a catalog probe, and on a pinned session that
+     * probe could not be bound to the statement it decides (a queued SET
+     * search_path or DDL can change the answer), so the choice is left to the
+     * caller.
+     */
+    const refuseNullableUpsert = <F extends DatabaseInterface['upsert']>(
+      upsert: F,
+    ): F =>
+      ((table, conflictColumns, data, options) => {
+        if (
+          options?.nullsDistinct !== true &&
+          Array.isArray(conflictColumns) &&
+          conflictColumns.some((column) => data?.[column] === null)
+        ) {
+          return Promise.reject(
+            new DatabaseError(
+              'upsert() on a pinned session database does not accept a NULL conflict value without { nullsDistinct: true }. Pass { nullsDistinct: true } for database-native NULL handling, or run this upsert on the root database handle.',
+              { table, conflictColumns },
+            ),
+          );
+        }
+        return upsert(table, conflictColumns, data, options);
+      }) as F;
 
     const sessionMethods = sessionDialect.createClientMethods(
       outside,
@@ -1064,17 +1087,19 @@ async function createDatabase(
           nested((tx) => callbackScope.run(scope, () => callback(tx))),
         { drain: nested.drain },
       );
+      const transactionMethods = sessionDialect.createClientMethods(
+        transactionState.executor,
+        true,
+        sessionDialect.serializeRecord,
+        transactionState.clearError,
+        transactionOptions?.introspection === true,
+      );
       scoped = {
         url,
         engine: 'postgres',
         client: transactionState.client,
-        ...sessionDialect.createClientMethods(
-          transactionState.executor,
-          true,
-          sessionDialect.serializeRecord,
-          transactionState.clearError,
-          transactionOptions?.introspection === true,
-        ),
+        ...transactionMethods,
+        upsert: refuseNullableUpsert(transactionMethods.upsert),
         transaction: scopedNested,
       };
       // Nested savepoint callbacks receive this same object.
@@ -1260,6 +1285,7 @@ async function createDatabase(
       engine: 'postgres',
       client: rootClient,
       ...(guardedMethods as typeof sessionMethods),
+      upsert: guarded(refuseNullableUpsert(sessionMethods.upsert)),
       table: guardedTable,
       syncSchema: (schema: string) =>
         schemaWork(() => sessionMethods.syncSchema(schema)),

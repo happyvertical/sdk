@@ -548,20 +548,13 @@ export interface PostgresDialectHost {
   ): Promise<T>;
 
   /**
-   * Executor for read-only catalog probes (server version, index flags), or
-   * `undefined` to skip discovery and use the null-aware upsert path, which is
-   * correct for any index.
+   * Executor for read-only catalog probes (server version, index flags).
    *
-   * Hosts answer only for their root executor outside a transaction. Inside a
-   * transaction, or on a pinned session, a probe either reads another
-   * connection's catalog (breaking the handle's connection affinity) or runs
-   * on the caller's connection, where a failure aborts the transaction and the
-   * answer can be invalidated by later DDL, rollback or search_path changes
-   * before the upsert that relies on it.
+   * A pooled adapter answers with the pool, so a failing probe cannot abort the
+   * caller's transaction. A single-connection adapter has no second connection
+   * and must answer with the executor it was handed.
    */
-  probeExecutor(
-    executor: PostgresQueryExecutor,
-  ): PostgresQueryExecutor | undefined;
+  probeExecutor(executor: PostgresQueryExecutor): PostgresQueryExecutor;
 }
 
 /** One level of nested-transaction queueing. */
@@ -698,11 +691,6 @@ export function createPostgresDialect(host: PostgresDialectHost) {
             WHERE i.indrelid = to_regclass($1)
               AND i.indisunique
               AND i.indnullsnotdistinct
-              -- Only an index ON CONFLICT can always use for these columns:
-              -- valid, not partial, no expression columns.
-              AND i.indisvalid
-              AND i.indpred IS NULL
-              AND i.indexprs IS NULL
               AND ARRAY(
                 SELECT a.attname::text
                 FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
@@ -817,14 +805,12 @@ export function createPostgresDialect(host: PostgresDialectHost) {
       );
     }
 
-    const probeExecutor = host.probeExecutor(executor);
     if (
-      probeExecutor &&
-      (await hasNativeNullsNotDistinctIndex(
-        probeExecutor,
+      await hasNativeNullsNotDistinctIndex(
+        host.probeExecutor(executor),
         table,
         conflictColumns,
-      ))
+      )
     ) {
       return executeStandardPostgresUpsert(
         executor,

@@ -548,12 +548,7 @@ the update arm. A key-only upsert therefore preserves the existing row.
 For PostgreSQL 15+, a matching `UNIQUE (...) NULLS NOT DISTINCT` index lets
 nullable upserts use one native `ON CONFLICT` statement. An ordinary `UNIQUE`
 constraint still treats `NULL` values as distinct, so the adapter retains its
-race-safe NULL-aware fallback for that schema. The index is looked up (and
-remembered) only by the root `pg` or PGlite handle outside a transaction, and
-only a valid, non-partial index on exactly the conflict columns counts. Inside a
-transaction, and on a pinned session's `database()`, nullable upserts always use
-the NULL-aware fallback, which is correct for any index; there is no lookup
-whose answer DDL, a rollback or a `search_path` change could invalidate.
+race-safe NULL-aware fallback for that schema.
 
 ### Transactions
 
@@ -729,8 +724,13 @@ try {
   the root handle, but reject if the session is closed when they start, closes
   while they run (including a backend terminated mid-statement), or a
   statement of theirs times out waiting for an open transaction.
-- **No catalog lookups.** Nullable upserts use the NULL-aware path directly
-  (see [CRUD Helpers](#crud-helpers)).
+- **No NULL-key upserts.** `upsert()` on `database()` or one of its
+  transactions rejects when a conflict column is `NULL` and
+  `{ nullsDistinct: true }` is not passed, because choosing between the native
+  and the NULL-aware path needs catalog discovery the pinned session does not
+  do. Pass `{ nullsDistinct: true }` for database-native `NULL` handling, or
+  run that upsert on the root handle. Upserts without `NULL` conflict values
+  are unaffected.
 - `session.query()` shares the connection and the queue but not the
   transaction turn: issued while a pinned transaction is open, it runs inside
   that transaction.

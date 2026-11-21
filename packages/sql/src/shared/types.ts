@@ -1699,7 +1699,9 @@ export interface SessionHandle {
    *   readiness for the next statement or the connection ends, so a
    *   statement that settles early (an error before readiness, a client-side
    *   `query_timeout`) still holds it; the session stays usable.
-   * - Nullable upserts take the NULL-aware path; no catalog lookups run.
+   * - `upsert()` here and on its transactions rejects a `NULL` conflict value
+   *   unless `{ nullsDistinct: true }` is passed (no catalog discovery runs
+   *   on a pinned session); use that option or the root handle.
    * - The connection holds one transaction at a time. `transaction()` and
    *   `beginTransaction()` take turns in arrival order, and a call from
    *   outside a transaction made while one is open waits until it ends

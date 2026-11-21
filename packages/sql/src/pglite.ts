@@ -349,10 +349,8 @@ async function createDatabase(
 
   const dialect = createPostgresDialect({
     client,
-    // One connection, so a probe cannot be answered from a second one. Inside
-    // a transaction there is no probe: the null-aware path is used instead
-    // (see PostgresDialectHost.probeExecutor).
-    probeExecutor: (executor) => (executor === client ? executor : undefined),
+    // One connection, so a probe cannot be answered from a second one.
+    probeExecutor: (executor) => executor,
     runInTransaction: (work) =>
       lock.run(() =>
         pg.transaction(async (pgTx) => {
