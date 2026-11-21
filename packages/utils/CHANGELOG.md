@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.116.8
+
+### Patch Changes
+
+- ### Features
+
+  - describe existing tables on the JSON adapter (#1575) (sql)
+
 ## 0.116.7
 
 ### Patch Changes

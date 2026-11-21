@@ -1,5 +1,11 @@
 # @happyvertical/spreadsheets
 
+## 0.116.8
+
+### Patch Changes
+
+- @happyvertical/files@0.116.8
+
 ## 0.116.7
 
 ### Patch Changes
