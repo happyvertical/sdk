@@ -776,10 +776,13 @@ try {
 - **Parameter encoding failures reject.** A value node-postgres cannot
   encode (a cyclic object, for one) makes the call reject, on every path
   including `client.query()`; nothing is sent.
-- **Errors are redacted with the submitted parameters.** The values a
-  failed `session.query()` or `query()` is redacted against are the ones
-  captured at the call, so overwriting the caller's array afterwards cannot
-  let an echoed value escape redaction.
+- **Errors are redacted with the submitted parameters.** On the queue, the
+  values a failed `session.query()`, `pinned.query()` or `tx.query()` is
+  redacted against are the ones captured at the call (which are what is
+  sent), so overwriting the caller's array afterwards cannot let an echoed
+  value escape redaction. Before the switch, `session.query()` redacts
+  against the caller's array as it always has, since node-postgres binds
+  from that same array.
 - **No NULL-key upserts.** `upsert()` on `database()` or one of its
   transactions rejects when a conflict column is `NULL` and
   `{ nullsDistinct: true }` is not passed, because choosing between the native

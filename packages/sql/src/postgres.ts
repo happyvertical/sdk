@@ -1060,9 +1060,13 @@ async function createDatabase(
         // or a client-side failure whose outcome on the server is unknown
         // (query_timeout). The schema helpers tolerate DDL errors and would
         // otherwise swallow these and report success.
+        // Returns whether the error is intolerable, whether or not an earlier
+        // failure was already recorded: the first failure is kept, and every
+        // intolerable one is propagated at once (a later client-side timeout
+        // must not wait on its statement's readiness behind a lock).
         const recordIfIntolerable = (error: unknown): boolean => {
           const scope = schemaScope.getStore();
-          if (!scope || scope.failure !== undefined) return false;
+          if (!scope) return false;
           if (
             !(error instanceof PgDatabaseError) ||
             session.closedError() !== undefined ||
@@ -1073,7 +1077,7 @@ async function createDatabase(
             error.severity === 'PANIC' ||
             error.code?.startsWith('57P0') === true
           ) {
-            scope.failure = session.closedError() ?? error;
+            scope.failure ??= session.closedError() ?? error;
             return true;
           }
           return false;
@@ -1849,10 +1853,12 @@ async function createDatabase(
         const closed = closedError();
         if (closed) throw closed;
         const normalized = normalizePostgresRawQuery(sql, values);
-        // The parameters as submitted, for the error's redaction and context:
-        // never the caller's array, which it may reuse or overwrite before an
-        // error (which can echo a value) arrives.
-        let submittedValues: unknown[] = [...normalized.values];
+        // The parameters the error is redacted against. On the direct path
+        // that is the caller's array, exactly as before the queue existed:
+        // node-postgres binds from that same array when it submits, so it
+        // holds what was actually sent. On the queue it is the snapshot
+        // captured at the call (set below), which is what is sent there.
+        let submittedValues: unknown[] = normalized.values;
         let outcome: Promise<PgQueryResult>;
         if (!queued) {
           // Until database() is first called the session is exactly as it
@@ -1870,6 +1876,9 @@ async function createDatabase(
           // An encoding failure (a cyclic object, say) becomes this call's
           // rejection, wrapped below like any other failure.
           const text = normalized.sql;
+          // Nothing is sent if encoding fails; redact against a copy taken
+          // now in that case.
+          submittedValues = [...normalized.values];
           let bound: unknown[] | undefined;
           let encodingError: { error: unknown } | undefined;
           try {

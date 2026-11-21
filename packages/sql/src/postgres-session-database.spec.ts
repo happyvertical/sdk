@@ -1766,3 +1766,63 @@ describe.skipIf(!available)('SessionHandle review round 7', () => {
     }
   });
 });
+
+describe.skipIf(!available)('SessionHandle review round 8', () => {
+  it('a second client-side DDL timeout propagates at once instead of waiting behind its lock', async () => {
+    const db = await open({ url: timeoutUrl(500), max: 4 });
+    const { pinned } = await pin(db);
+    const first = tableName('ddlfirst');
+    const second = tableName('ddlsecond');
+    await db.query(`CREATE TABLE ${first} (id int)`);
+    await db.query(`CREATE TABLE ${second} (id int)`);
+    const holderA = await db.beginTransaction?.();
+    const holderB = await db.beginTransaction?.();
+    if (!holderA || !holderB) throw new Error('no beginTransaction');
+    await holderA.query(`LOCK TABLE ${first} IN ACCESS EXCLUSIVE MODE`);
+    await holderB.query(`LOCK TABLE ${second} IN ACCESS EXCLUSIVE MODE`);
+    try {
+      const syncing = pinned.syncSchema?.(
+        `CREATE INDEX ${first}_idx ON ${first} (id);\nCREATE INDEX ${second}_idx ON ${second} (id)`,
+      );
+      syncing?.catch(() => {});
+      // The first DDL times out client-side, then finishes once A lets go;
+      // the second then times out behind B, which lets go only after the
+      // helper has returned.
+      setTimeout(() => {
+        void holderA.rollback();
+      }, 900);
+      const outcome = await within(syncing, 6_000);
+      expect(outcome).not.toBe('timeout');
+      await rejectsWith(syncing, /timeout/i);
+    } finally {
+      if (holderA.isActive()) await holderA.rollback();
+      if (holderB.isActive()) await holderB.rollback();
+    }
+    await db.query(`DROP TABLE ${first}`);
+    await db.query(`DROP TABLE ${second}`);
+  });
+
+  it('before database(), session.query() redacts against the caller’s array, as node-postgres binds from it', async () => {
+    const db = await open({ max: 2 });
+    const session = await rawSession(db);
+    const marker = 'redaction-marker-4c2e88';
+    // A busy raw-only client: the cast is queued inside node-postgres and
+    // bound from the array when it is submitted.
+    const slow = session.query('SELECT pg_sleep(0.3)');
+    const values: unknown[] = ['placeholder'];
+    const pending = session.query('SELECT $1::uuid AS v', values);
+    values[0] = marker;
+    await slow;
+    const error = (await pending.then(
+      () => undefined,
+      (caught: unknown) => caught,
+    )) as Error & { context?: unknown };
+    expect(error).toBeInstanceOf(Error);
+    const text = JSON.stringify({
+      message: error.message,
+      cause: (error.cause as Error | undefined)?.message,
+      context: error.context,
+    });
+    expect(text).not.toContain(marker);
+  });
+});
