@@ -768,13 +768,18 @@ try {
   client-side with an unknown outcome (for example node-postgres's
   `query_timeout`), or the server answers with a FATAL or a shutdown /
   termination SQLSTATE (57P0x), even one that leaves the session usable. A
-  server error is tolerated only once the server has reported it is ready for
-  the next statement; if the connection ends instead (a FATAL with a
+  server error is tolerated only once the server has reported it is ready
+  after that statement (its own readiness, not that of work queued behind
+  it); if the connection ends instead (a FATAL with a
   translated severity, such as `transaction_timeout`'s 25P04), the helper
   rejects with the lost session.
 - **Parameter encoding failures reject.** A value node-postgres cannot
   encode (a cyclic object, for one) makes the call reject, on every path
   including `client.query()`; nothing is sent.
+- **Errors are redacted with the submitted parameters.** The values a
+  failed `session.query()` or `query()` is redacted against are the ones
+  captured at the call, so overwriting the caller's array afterwards cannot
+  let an echoed value escape redaction.
 - **No NULL-key upserts.** `upsert()` on `database()` or one of its
   transactions rejects when a conflict column is `NULL` and
   `{ nullsDistinct: true }` is not passed, because choosing between the native

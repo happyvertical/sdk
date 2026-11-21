@@ -1708,3 +1708,61 @@ describe.skipIf(!available)('SessionHandle review round 6', () => {
     expect(() => session.database?.()).toThrow(/Session has been released/);
   });
 });
+
+describe.skipIf(!available)('SessionHandle review round 7', () => {
+  it('a schema helper settles a tolerated error on its own statement, not behind later queued work', async () => {
+    const db = await open({ max: 3 });
+    const { pinned } = await pin(db);
+    const sequence = tableName('dupseq');
+    const table = tableName('lockedlater');
+    await pinned.query(`CREATE SEQUENCE ${sequence}`);
+    await db.query(`CREATE TABLE ${table} (id int)`);
+    const blocker = await db.beginTransaction?.();
+    if (!blocker) throw new Error('no beginTransaction');
+    await blocker.query(`LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE`);
+    try {
+      // The duplicate is a tolerated server error; the query queued behind
+      // it waits on a lock released only after the helper returns.
+      const syncing = pinned.syncSchema?.(`CREATE SEQUENCE ${sequence}`);
+      const blocked = pinned.query(`SELECT count(*)::int AS n FROM ${table}`);
+      blocked.catch(() => {});
+      const outcome = await within(syncing, 5_000);
+      expect(outcome).not.toBe('timeout');
+      expect((outcome as { error?: unknown }).error).toBeUndefined();
+      await blocker.rollback();
+      expect((await blocked).rows[0].n).toBe(0);
+    } finally {
+      if (blocker.isActive()) await blocker.rollback();
+    }
+    await pinned.query(`DROP TABLE ${table}`);
+    await pinned.query(`DROP SEQUENCE ${sequence}`);
+  });
+
+  it('redacts an error with the parameters as submitted, not the caller’s overwritten array', async () => {
+    const db = await open({ max: 2 });
+    const { session, pinned } = await pin(db);
+    const marker = 'redaction-marker-7f3a91';
+    const leaked = (error: unknown): string => {
+      const e = error as Error & { context?: unknown };
+      return JSON.stringify({
+        message: e.message,
+        cause: (e.cause as Error | undefined)?.message,
+        context: e.context,
+      });
+    };
+    for (const run of [
+      (values: unknown[]) => session.query('SELECT $1::uuid AS v', values),
+      (values: unknown[]) => pinned.query('SELECT $1::uuid AS v', values),
+    ]) {
+      const values: unknown[] = [marker];
+      const pending = run(values);
+      values[0] = 'something-else';
+      const error = await pending.then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(error).toBeInstanceOf(Error);
+      expect(leaked(error)).not.toContain(marker);
+    }
+  });
+});

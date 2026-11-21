@@ -802,6 +802,11 @@ async function createDatabase(
     client: PoolClient;
     closedError: () => DatabaseError | undefined;
     enqueue: <T>(work: () => Promise<T>) => Promise<T>;
+    /** Like enqueue, plus that entry's own readiness promise. */
+    enqueueTracked: <T>(work: () => Promise<T>) => {
+      promise: Promise<T>;
+      ready: Promise<void>;
+    };
     onClose: (listener: () => void) => void;
     /** Ends the lease as lost and closes the connection without sending. */
     discard: () => void;
@@ -818,7 +823,15 @@ async function createDatabase(
     };
 
     /** One statement on the pinned connection, in the session FIFO. */
-    const direct = <R = any>(sql: string, values?: any[]): Promise<R> => {
+    /**
+     * One statement on the pinned connection, in the session FIFO, with that
+     * FIFO entry's own readiness: it settles once the statement no longer
+     * holds the connection (its ReadyForQuery, or the connection's end).
+     */
+    const directTracked = <R = any>(
+      sql: string,
+      values?: any[],
+    ): { promise: Promise<R>; ready: Promise<void> } => {
       let bound: unknown[] | undefined;
       try {
         assertIssuable();
@@ -826,12 +839,16 @@ async function createDatabase(
         // handed to the client later. An encoding failure is a rejection.
         bound = session.capture(values);
       } catch (error) {
-        return Promise.reject(error);
+        return { promise: Promise.reject(error), ready: Promise.resolve() };
       }
-      return session.enqueue(
+      return session.enqueueTracked(
         () => sessionClient.query(sql, bound) as unknown as Promise<R>,
       );
     };
+
+    /** One statement on the pinned connection, in the session FIFO. */
+    const direct = <R = any>(sql: string, values?: any[]): Promise<R> =>
+      directTracked<R>(sql, values).promise;
 
     // Raised instead of a managed BEGIN while the connection is, or may be,
     // inside a transaction it did not open: its outcome is known, nothing was
@@ -1037,43 +1054,51 @@ async function createDatabase(
         } catch (error) {
           return Promise.reject(error);
         }
-        return whenAdmitted(() => direct(sql, bound)).catch(
-          async (error: unknown) => {
-            // Inside syncSchema()/initializeSchemas(), record every failure
-            // that is not a server's answer to the statement: never admitted
-            // (the turn timeout), the session closing (including a FATAL from
-            // the backend), or a client-side failure whose outcome on the
-            // server is unknown (query_timeout). The schema helpers tolerate
-            // DDL errors and would otherwise swallow these and report success.
-            const scope = schemaScope.getStore();
-            if (!scope || scope.failure !== undefined) throw error;
-            if (
-              !(error instanceof PgDatabaseError) ||
-              session.closedError() !== undefined ||
-              // A shutdown or termination code, or a FATAL, is never a
-              // tolerable DDL outcome, even when it arrives as an
-              // ordinary ERROR that leaves this session usable.
-              error.severity === 'FATAL' ||
-              error.severity === 'PANIC' ||
-              error.code?.startsWith('57P0') === true
-            ) {
-              scope.failure = session.closedError() ?? error;
-              throw error;
-            }
-            // A server error is tolerable only if the connection survived it:
-            // wait until the server is ready for the next statement, or the
-            // connection ends (a FATAL with a translated severity, such as a
-            // transaction_timeout's 25P04, ends it only then).
-            try {
-              await session.enqueue(() => Promise.resolve());
-            } catch {
-              // The connection ended; reported below.
-            }
-            const closed = session.closedError();
-            if (closed && scope.failure === undefined) scope.failure = closed;
+        // Inside syncSchema()/initializeSchemas(), record every failure that
+        // is not a server's answer to the statement: never admitted (the turn
+        // timeout), the session closing (including a FATAL from the backend),
+        // or a client-side failure whose outcome on the server is unknown
+        // (query_timeout). The schema helpers tolerate DDL errors and would
+        // otherwise swallow these and report success.
+        const recordIfIntolerable = (error: unknown): boolean => {
+          const scope = schemaScope.getStore();
+          if (!scope || scope.failure !== undefined) return false;
+          if (
+            !(error instanceof PgDatabaseError) ||
+            session.closedError() !== undefined ||
+            // A shutdown or termination code, or a FATAL, is never a
+            // tolerable DDL outcome, even when it arrives as an ordinary
+            // ERROR that leaves this session usable.
+            error.severity === 'FATAL' ||
+            error.severity === 'PANIC' ||
+            error.code?.startsWith('57P0') === true
+          ) {
+            scope.failure = session.closedError() ?? error;
+            return true;
+          }
+          return false;
+        };
+        return whenAdmitted(() => ({ statement: directTracked(sql, bound) }))
+          .catch((error: unknown) => {
+            // Not admitted: the turn timeout or a closed session.
+            recordIfIntolerable(error);
             throw error;
-          },
-        );
+          })
+          .then(({ statement }) =>
+            statement.promise.catch(async (error: unknown) => {
+              const scope = schemaScope.getStore();
+              if (!scope || recordIfIntolerable(error)) throw error;
+              // A server error is tolerable only if the connection survived
+              // it: wait for this statement's own readiness (its
+              // ReadyForQuery, or the connection's end; a FATAL with a
+              // translated severity, such as transaction_timeout's 25P04,
+              // ends it only then), not for work queued after it.
+              await statement.ready;
+              const closed = session.closedError();
+              if (closed && scope.failure === undefined) scope.failure = closed;
+              throw error;
+            }),
+          );
       },
     };
 
@@ -1137,6 +1162,19 @@ async function createDatabase(
         context,
       );
     }
+    /**
+     * Copies array arguments of a raw `query(sql, ...values)` at the call, so
+     * the dialect binds, and redacts its error with, the values as they were
+     * submitted rather than an array the caller may reuse or overwrite before
+     * an error (which can echo a value) arrives.
+     */
+    const snapshotQuery = <F extends DatabaseInterface['query']>(query: F): F =>
+      ((sql: string, ...values: any[]) =>
+        query(
+          sql,
+          ...values.map((value) => (Array.isArray(value) ? [...value] : value)),
+        )) as F;
+
     const refuseNullableUpsert = <F extends DatabaseInterface['upsert']>(
       upsert: F,
     ): F =>
@@ -1223,6 +1261,7 @@ async function createDatabase(
         client: transactionState.client,
         ...transactionMethods,
         upsert: refuseNullableUpsert(transactionMethods.upsert),
+        query: snapshotQuery(transactionMethods.query),
         transaction: scopedNested,
       };
       // Nested savepoint callbacks receive this same object.
@@ -1409,6 +1448,7 @@ async function createDatabase(
       client: rootClient,
       ...(guardedMethods as typeof sessionMethods),
       upsert: guarded(refuseNullableUpsert(sessionMethods.upsert)),
+      query: guarded(snapshotQuery(sessionMethods.query)),
       table: guardedTable,
       syncSchema: (schema: string) =>
         schemaWork(() => sessionMethods.syncSchema(schema)),
@@ -1570,6 +1610,10 @@ async function createDatabase(
       resolve?: (value: unknown) => void;
       reject?: (error: unknown) => void;
       started: boolean;
+      // Settles once this entry no longer holds the connection: after its
+      // statement's ReadyForQuery (or the connection's end), or at once if it
+      // never ran.
+      ready: () => void;
     };
     const entries: Entry[] = [];
     let pumping = false;
@@ -1585,14 +1629,19 @@ async function createDatabase(
           if (!entry) break;
           const { run, resolve, reject } = entry;
           entry.run = entry.resolve = entry.reject = undefined;
-          if (!run || !resolve || !reject) continue;
+          if (!run || !resolve || !reject) {
+            entry.ready();
+            continue;
+          }
           entry.started = true;
           if (lost) {
             reject(lostError());
+            entry.ready();
             continue;
           }
           if (dropped) {
             reject(releasedError());
+            entry.ready();
             continue;
           }
           const readiness = untilReady();
@@ -1608,6 +1657,7 @@ async function createDatabase(
             if (clientReady()) readiness.done();
           }
           await readiness.promise;
+          entry.ready();
         }
       } finally {
         pumping = false;
@@ -1616,8 +1666,16 @@ async function createDatabase(
 
     const enqueueEntry = <T>(
       work: () => Promise<T>,
-    ): { promise: Promise<T>; cancel: (error: unknown) => boolean } => {
-      const entry: Entry = { started: false };
+    ): {
+      promise: Promise<T>;
+      ready: Promise<void>;
+      cancel: (error: unknown) => boolean;
+    } => {
+      let markReady!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        markReady = resolve;
+      });
+      const entry: Entry = { started: false, ready: markReady };
       const promise = new Promise<T>((resolve, reject) => {
         entry.run = work;
         entry.resolve = resolve as (value: unknown) => void;
@@ -1627,6 +1685,7 @@ async function createDatabase(
       void pump();
       return {
         promise,
+        ready,
         // Withdraws an entry that has not started: unlinks it and drops its
         // statement, values and callbacks. Returns false once it has started.
         cancel: (error) => {
@@ -1636,6 +1695,7 @@ async function createDatabase(
           const reject = entry.reject;
           entry.run = entry.resolve = entry.reject = undefined;
           reject?.(error);
+          markReady();
           return true;
         },
       };
@@ -1643,6 +1703,14 @@ async function createDatabase(
 
     const enqueue = <T>(work: () => Promise<T>): Promise<T> =>
       enqueueEntry(work).promise;
+
+    /** enqueue(), plus the entry's own readiness (see Entry.ready). */
+    const enqueueTracked = <T>(
+      work: () => Promise<T>,
+    ): { promise: Promise<T>; ready: Promise<void> } => {
+      const { promise, ready } = enqueueEntry(work);
+      return { promise, ready };
+    };
 
     // Set when database() is first called: from then on session.query() and
     // release() go through the FIFO too.
@@ -1759,6 +1827,7 @@ async function createDatabase(
           client: sessionClient,
           closedError,
           enqueue,
+          enqueueTracked,
           onClose: (listener) => closeListeners.add(listener),
           discard: () => {
             lost = true;
@@ -1780,6 +1849,10 @@ async function createDatabase(
         const closed = closedError();
         if (closed) throw closed;
         const normalized = normalizePostgresRawQuery(sql, values);
+        // The parameters as submitted, for the error's redaction and context:
+        // never the caller's array, which it may reuse or overwrite before an
+        // error (which can echo a value) arrives.
+        let submittedValues: unknown[] = [...normalized.values];
         let outcome: Promise<PgQueryResult>;
         if (!queued) {
           // Until database() is first called the session is exactly as it
@@ -1808,6 +1881,7 @@ async function createDatabase(
             outcome = Promise.reject(encodingError?.error);
           } else {
             const values = bound;
+            submittedValues = bound;
             outcome = enqueueWithDeadline(
               (remaining) =>
                 remaining === undefined
@@ -1833,7 +1907,7 @@ async function createDatabase(
         } catch (e) {
           throw wrapDatabaseError('Failed to execute session query', e, {
             sql: normalized.sql,
-            values: normalized.values,
+            values: submittedValues,
           });
         }
       },
