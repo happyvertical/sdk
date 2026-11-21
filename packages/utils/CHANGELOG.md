@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.116.7
+
+### Patch Changes
+
+- ### Features
+
+  - pinned session database() handle, destroy() and connection affinity claim (#1574) (sql)
+
 ## 0.116.6
 
 ## 0.116.5
