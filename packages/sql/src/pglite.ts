@@ -351,6 +351,8 @@ async function createDatabase(
     client,
     // One connection, so a probe cannot be answered from a second one.
     probeExecutor: (executor) => executor,
+    // A probe inside a transaction can see DDL that is later rolled back.
+    cacheCatalogProbe: (executor) => executor === client,
     runInTransaction: (work) =>
       lock.run(() =>
         pg.transaction(async (pgTx) => {

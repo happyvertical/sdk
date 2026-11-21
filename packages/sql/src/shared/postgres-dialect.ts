@@ -555,6 +555,14 @@ export interface PostgresDialectHost {
    * and must answer with the executor it was handed.
    */
   probeExecutor(executor: PostgresQueryExecutor): PostgresQueryExecutor;
+
+  /**
+   * Whether a catalog probe answered through `executor` may be remembered for
+   * later calls. Only an executor that reads committed state with a stable
+   * name resolution qualifies (a pooled root executor outside any
+   * transaction); omitted, nothing is cached.
+   */
+  cacheCatalogProbe?(executor: PostgresQueryExecutor): boolean;
 }
 
 /** One level of nested-transaction queueing. */
@@ -629,7 +637,10 @@ export function createPostgresDialect(host: PostgresDialectHost) {
     }
     return serialized;
   };
-  let serverVersionNumPromise: Promise<number> | undefined;
+  // Only a settled server version is shared. A pending probe is not: a caller
+  // waiting for a transaction turn would otherwise hand its pending probe to
+  // the transaction it is waiting on, which then waits on it in turn.
+  let serverVersionNum: number | undefined;
   const nullsNotDistinctIndexCache = new Map<string, Promise<boolean>>();
 
   const hasNullConflictValue = (
@@ -660,16 +671,12 @@ export function createPostgresDialect(host: PostgresDialectHost) {
   const getServerVersionNum = async (
     executor: PostgresQueryExecutor,
   ): Promise<number> => {
-    serverVersionNumPromise ??= executor
-      .query('SHOW server_version_num')
-      .then((result) => Number(result.rows[0]?.server_version_num) || 0)
-      .catch((error) => {
-        // A probe that failed because of the caller's transaction state or a
-        // lock wait says nothing about the server; do not remember it.
-        serverVersionNumPromise = undefined;
-        throw error;
-      });
-    return serverVersionNumPromise;
+    if (serverVersionNum !== undefined) return serverVersionNum;
+    // A probe that fails because of the caller's transaction state or a lock
+    // wait says nothing about the server, so only a success is remembered.
+    const result = await executor.query('SHOW server_version_num');
+    serverVersionNum = Number(result.rows[0]?.server_version_num) || 0;
+    return serverVersionNum;
   };
 
   const hasNativeNullsNotDistinctIndex = async (
@@ -680,12 +687,22 @@ export function createPostgresDialect(host: PostgresDialectHost) {
     const versionNum = await getServerVersionNum(executor);
     if (versionNum < 150000) return false;
 
+    // The answer depends on the executing connection's catalog state. Inside
+    // a transaction or savepoint it can include an index that is later rolled
+    // back, and on a pinned session a SET search_path can change which table
+    // the name resolves to; a stale positive answer would send a later upsert
+    // down the native ON CONFLICT path, where NULL keys never conflict. So
+    // only answers the host marks cacheable (committed state, read through a
+    // fixed executor) are remembered; every other probe runs each time.
+    const cacheable = host.cacheCatalogProbe?.(executor) === true;
     const cacheKey = `${table}:${conflictColumns.join(',')}`;
-    let cached = nullsNotDistinctIndexCache.get(cacheKey);
-    if (!cached) {
-      cached = executor
-        .query(
-          `
+    if (cacheable) {
+      const cached = nullsNotDistinctIndexCache.get(cacheKey);
+      if (cached) return cached;
+    }
+    const probe = executor
+      .query(
+        `
             SELECT 1
             FROM pg_index i
             WHERE i.indrelid = to_regclass($1)
@@ -701,18 +718,19 @@ export function createPostgresDialect(host: PostgresDialectHost) {
               ) = $2::text[]
             LIMIT 1
           `,
-          [table, conflictColumns],
-        )
-        .then((result) => result.rows.length > 0)
-        .catch(() => {
-          // Same reason: only a successful probe is worth remembering.
+        [table, conflictColumns],
+      )
+      .then((result) => result.rows.length > 0)
+      .catch(() => {
+        // Without an answer, take the null-aware path, which is correct for
+        // either kind of index, and remember nothing.
+        if (nullsNotDistinctIndexCache.get(cacheKey) === probe) {
           nullsNotDistinctIndexCache.delete(cacheKey);
-          return false;
-        });
-      nullsNotDistinctIndexCache.set(cacheKey, cached);
-    }
-
-    return cached;
+        }
+        return false;
+      });
+    if (cacheable) nullsNotDistinctIndexCache.set(cacheKey, probe);
+    return probe;
   };
 
   const buildPostgresUpsertParts = (
