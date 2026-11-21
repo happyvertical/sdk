@@ -1,13 +1,15 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { webcrypto } from 'node:crypto';
 import { DatabaseError } from '@happyvertical/utils';
-import {
+import pg, {
   DatabaseError as PgDatabaseError,
   type QueryResult as PgQueryResult,
   Pool,
   type PoolClient,
+  type QueryConfig,
 } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
+import { claimConnectionAffinity } from './shared/connection-affinity';
 import {
   ConnectionCache,
   validateDatabaseCacheOptions,
@@ -21,6 +23,7 @@ import {
   normalizePostgresRawQuery,
   type PostgresQueryExecutor,
 } from './shared/postgres-dialect';
+import { DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS } from './shared/transaction-lock';
 import type {
   DatabaseCacheOptions,
   DatabaseInterface,
@@ -36,6 +39,30 @@ import { wrapDatabaseError } from './shared/utils';
 const REOPEN_POOL_MAX = 5;
 
 const MAX_TIMER_DELAY_MILLIS = 2_147_483_647;
+
+/**
+ * node-postgres's own parameter encoder (`utils.prepareValue`): Dates, arrays,
+ * JSON objects and `toPostgres()` values become the text it would send, and
+ * Buffers and typed arrays become Buffers. It is applied again when the
+ * statement is sent, which leaves an already encoded value unchanged.
+ */
+const prepareValue = (
+  pg as unknown as { utils?: { prepareValue?: (value: unknown) => unknown } }
+).utils?.prepareValue;
+
+/**
+ * Encodes statement parameters at the call, for a statement that may be
+ * handed to the client later (a pinned session's queue). Afterwards nothing
+ * the caller does to its array, its Buffers or its objects reaches the
+ * statement. Buffers are copied, since the encoder returns them as they are.
+ */
+function captureValues(values: readonly unknown[] | undefined) {
+  if (values === undefined) return undefined;
+  return values.map((value) => {
+    const prepared = prepareValue ? prepareValue(value) : value;
+    return Buffer.isBuffer(prepared) ? Buffer.from(prepared) : prepared;
+  });
+}
 
 /**
  * Configuration options for PostgreSQL database connections
@@ -744,6 +771,719 @@ async function createDatabase(
   const alterTable = createAlterTable(client);
 
   /**
+   * Builds the root-shaped interface of one pinned session
+   * ({@link SessionHandle.database}).
+   *
+   * Invariant: every statement this interface issues, including catalog
+   * probes, transaction control and savepoints, runs on the session's client
+   * and nothing else. It never checks a client out of the pool, so session
+   * state such as an advisory lock held by that backend covers all of its
+   * work. Once the session is released, destroyed or its connection is lost,
+   * every call rejects; there is no reconnect.
+   *
+   * Ordering has two layers:
+   *
+   * - The session's statement FIFO (`session.enqueue`), shared with
+   *   `session.query()` and `release()`. A statement takes its place when it is
+   *   issued and keeps it until node-postgres has finished with it, so
+   *   statements reach the connection one at a time in issue order, never
+   *   through node-postgres's internal queue.
+   * - The transaction turn. While a transaction holds the connection, calls
+   *   from outside it (plain statements and further transactions) wait in
+   *   arrival order and are admitted when it ends; they reject after
+   *   {@link DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS} of waiting, or at once when
+   *   the session closes. With no transaction open a plain statement goes
+   *   straight into the FIFO and never times out, however long the statements
+   *   ahead of it take. A call made from inside one of this interface's own
+   *   transaction or savepoint callbacks would wait on the transaction its
+   *   caller holds, so it rejects at once instead.
+   */
+  const createSessionDatabase = (session: {
+    client: PoolClient;
+    closedError: () => DatabaseError | undefined;
+    enqueue: <T>(work: () => Promise<T>) => Promise<T>;
+    /** Like enqueue, plus that entry's own readiness promise. */
+    enqueueTracked: <T>(work: () => Promise<T>) => {
+      promise: Promise<T>;
+      ready: Promise<void>;
+    };
+    onClose: (listener: () => void) => void;
+    /** Ends the lease as lost and closes the connection without sending. */
+    discard: () => void;
+    /** Transaction status byte of the last ReadyForQuery ('I', 'T', 'E'). */
+    transactionStatus: () => string;
+    /** Encodes statement parameters at the call (see captureValues). */
+    capture: (values: readonly unknown[] | undefined) => unknown[] | undefined;
+  }): DatabaseInterface => {
+    const sessionClient = session.client;
+
+    const assertIssuable = (): void => {
+      const closed = session.closedError();
+      if (closed) throw closed;
+    };
+
+    /** One statement on the pinned connection, in the session FIFO. */
+    /**
+     * One statement on the pinned connection, in the session FIFO, with that
+     * FIFO entry's own readiness: it settles once the statement no longer
+     * holds the connection (its ReadyForQuery, or the connection's end).
+     */
+    const directTracked = <R = any>(
+      sql: string,
+      values?: any[],
+    ): { promise: Promise<R>; ready: Promise<void> } => {
+      let bound: unknown[] | undefined;
+      try {
+        assertIssuable();
+        // The bound values are encoded at issue time; the statement may be
+        // handed to the client later. An encoding failure is a rejection.
+        bound = session.capture(values);
+      } catch (error) {
+        return { promise: Promise.reject(error), ready: Promise.resolve() };
+      }
+      return session.enqueueTracked(
+        () => sessionClient.query(sql, bound) as unknown as Promise<R>,
+      );
+    };
+
+    /** One statement on the pinned connection, in the session FIFO. */
+    const direct = <R = any>(sql: string, values?: any[]): Promise<R> =>
+      directTracked<R>(sql, values).promise;
+
+    // Raised instead of a managed BEGIN while the connection is, or may be,
+    // inside a transaction it did not open: its outcome is known, nothing was
+    // sent, so the lease is kept.
+    const refusedBegins = new WeakSet<object>();
+
+    /**
+     * BEGIN for a managed transaction. Checked when its turn comes, against
+     * the transaction status of the last ReadyForQuery: a second BEGIN inside
+     * a transaction already open would only warn, and the managed COMMIT
+     * would then commit that transaction's earlier work too. While no status
+     * has been reported yet (a client fresh from the pool may carry a
+     * transaction a previous borrower left open), an internal `SELECT 1` is
+     * queued just ahead to obtain one.
+     */
+    const begin = (): Promise<PgQueryResult> => {
+      try {
+        assertIssuable();
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      if (session.transactionStatus() === '?') {
+        session
+          .enqueue(() => sessionClient.query('SELECT 1'))
+          .catch(() => {
+            // Its only purpose is the status byte; a failure leaves the
+            // status unconfirmed and the BEGIN below refuses.
+          });
+      }
+      return session.enqueue(() => {
+        const status = session.transactionStatus();
+        if (status !== 'I') {
+          const refusal = new DatabaseError(
+            status === '?'
+              ? 'The transaction status of this session could not be confirmed, so transaction() and beginTransaction() refuse to start.'
+              : `PostgreSQL reports a transaction already open on this session (status ${status}): for example one opened with query('BEGIN'), left open by an earlier user of the connection, or left by a COMMIT that did not complete. transaction() and beginTransaction() refuse to run inside it; COMMIT or ROLLBACK it first.`,
+            { transactionStatus: status },
+          );
+          refusedBegins.add(refusal);
+          return Promise.reject(refusal);
+        }
+        return sessionClient.query('BEGIN');
+      });
+    };
+
+    const directExecutor: PostgresQueryExecutor = {
+      query: (sql, values) => direct(sql, values),
+    };
+
+    /** Transaction control on the pinned connection, with its command tag. */
+    const control = (sql: string): Promise<PgQueryResult> => direct(sql);
+
+    // Marks the async scope of a running transaction or savepoint callback on
+    // this interface, so a call on the interface itself from inside it is
+    // refused instead of waiting on the turn its own caller holds. `open`
+    // turns false when the transaction ends, so work the callback left running
+    // afterwards waits normally.
+    const callbackScope = new AsyncLocalStorage<{ open: boolean }>();
+    const refuseInsideOwnTransaction = (): void => {
+      if (callbackScope.getStore()?.open) {
+        throw new DatabaseError(
+          'A session database call was made from inside its own transaction callback, where it would wait for that transaction to end. Use the transaction handle passed to the callback.',
+          {},
+        );
+      }
+    };
+
+    // The scope of a running syncSchema()/initializeSchemas() call.
+    const schemaScope = new AsyncLocalStorage<{ failure?: unknown }>();
+
+    // The transaction turn.
+    type Waiter = {
+      admit: () => void;
+      fail: (error: unknown) => void;
+      timer?: ReturnType<typeof setTimeout>;
+    };
+    let turnHeld = false;
+    const waiters: Waiter[] = [];
+    let current: { invalidate: (error: DatabaseError) => void } | undefined;
+
+    /**
+     * Runs `admit` synchronously when no transaction holds the connection and
+     * nobody is waiting, otherwise when the waiters ahead of it have been
+     * admitted and no transaction holds it. `admit` must take its FIFO place
+     * (or the turn) synchronously, which is what keeps issue order.
+     */
+    const whenAdmitted = <T>(admit: () => T | Promise<T>): Promise<T> => {
+      try {
+        assertIssuable();
+        if (!turnHeld && waiters.length === 0) {
+          return Promise.resolve(admit());
+        }
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      return new Promise<T>((resolve, reject) => {
+        const waiter: Waiter = {
+          admit: () => {
+            try {
+              resolve(admit());
+            } catch (error) {
+              reject(error);
+            }
+          },
+          fail: reject,
+        };
+        waiter.timer = setTimeout(() => {
+          const index = waiters.indexOf(waiter);
+          if (index !== -1) waiters.splice(index, 1);
+          const timeout = new DatabaseError(
+            `Timed out after ${DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS}ms waiting for the session database's open transaction to end. Usually a beginTransaction() handle that was never committed or rolled back.`,
+            { timeoutMs: DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS },
+          );
+          reject(timeout);
+        }, DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS);
+        waiters.push(waiter);
+      });
+    };
+
+    const admitWaiting = (): void => {
+      while (!turnHeld && waiters.length > 0) {
+        const waiter = waiters.shift() as Waiter;
+        clearTimeout(waiter.timer);
+        const closed = session.closedError();
+        if (closed) waiter.fail(closed);
+        else waiter.admit();
+      }
+    };
+
+    // A closed session admits nobody: fail the waiters now, and end the open
+    // transaction's handle so its owner gets the session error.
+    session.onClose(() => {
+      const closed =
+        session.closedError() ??
+        new DatabaseError('Session connection was lost', {});
+      for (const waiter of waiters.splice(0)) {
+        clearTimeout(waiter.timer);
+        waiter.fail(closed);
+      }
+      current?.invalidate(closed);
+    });
+
+    /**
+     * Takes the transaction turn and issues BEGIN in the same tick, so BEGIN
+     * lands in the FIFO right after the statements admitted before it.
+     */
+    const startTransaction = () =>
+      whenAdmitted(() => {
+        const begun = begin();
+        turnHeld = true;
+        let ended = false;
+        const endTurn = (): void => {
+          if (ended) return;
+          ended = true;
+          current = undefined;
+          turnHeld = false;
+          admitWaiting();
+        };
+        return { begun, endTurn };
+      });
+
+    /**
+     * Takes the turn, waits for BEGIN, and checks the session once more
+     * before any user code runs: a release() or destroy() issued while BEGIN
+     * was queued has no handle to end yet, so it is caught here.
+     */
+    const openTransaction = async (): Promise<{ endTurn: () => void }> => {
+      const { begun, endTurn } = await startTransaction();
+      try {
+        await begun;
+        assertIssuable();
+      } catch (error) {
+        // A BEGIN that failed without a server answer (a client-side
+        // query_timeout, for one) may still have opened a transaction on the
+        // backend. Freeing the turn would let the next statement run inside
+        // it and vanish with a later rollback, so the lease is discarded
+        // instead. A server error, or a refusal because the caller's own
+        // transaction is open, means BEGIN was not run.
+        if (
+          !(error instanceof PgDatabaseError) &&
+          !refusedBegins.has(error as object) &&
+          session.closedError() === undefined
+        ) {
+          session.discard();
+        }
+        endTurn();
+        throw error;
+      }
+      return { endTurn };
+    };
+
+    // Statements outside a transaction: straight into the FIFO, or after the
+    // open transaction ends.
+    const outside: PostgresQueryExecutor = {
+      query: (sql, values) => {
+        // A schema helper that has recorded an intolerable failure fails
+        // fast: none of its later statements is enqueued (it could only wait
+        // behind the statement that failed), and the helper reports the
+        // original failure.
+        const failedScope = schemaScope.getStore();
+        if (failedScope?.failure !== undefined) {
+          return Promise.reject(failedScope.failure);
+        }
+        let bound: unknown[] | undefined;
+        try {
+          refuseInsideOwnTransaction();
+          // Encoded now, at the public call, before the statement waits for
+          // a transaction turn or its FIFO place. An encoding failure is a
+          // rejection, never a synchronous throw.
+          bound = session.capture(values);
+        } catch (error) {
+          return Promise.reject(error);
+        }
+        // Inside syncSchema()/initializeSchemas(), record every failure that
+        // is not a server's answer to the statement: never admitted (the turn
+        // timeout), the session closing (including a FATAL from the backend),
+        // or a client-side failure whose outcome on the server is unknown
+        // (query_timeout). The schema helpers tolerate DDL errors and would
+        // otherwise swallow these and report success.
+        // Returns whether the error is intolerable, whether or not an earlier
+        // failure was already recorded: the first failure is kept, and every
+        // intolerable one is propagated at once (a later client-side timeout
+        // must not wait on its statement's readiness behind a lock).
+        const recordIfIntolerable = (error: unknown): boolean => {
+          const scope = schemaScope.getStore();
+          if (!scope) return false;
+          if (
+            !(error instanceof PgDatabaseError) ||
+            session.closedError() !== undefined ||
+            // A shutdown or termination code, or a FATAL, is never a
+            // tolerable DDL outcome, even when it arrives as an ordinary
+            // ERROR that leaves this session usable.
+            error.severity === 'FATAL' ||
+            error.severity === 'PANIC' ||
+            error.code?.startsWith('57P0') === true
+          ) {
+            scope.failure ??= session.closedError() ?? error;
+            return true;
+          }
+          return false;
+        };
+        return whenAdmitted(() => ({ statement: directTracked(sql, bound) }))
+          .catch((error: unknown) => {
+            // Not admitted: the turn timeout or a closed session.
+            recordIfIntolerable(error);
+            throw error;
+          })
+          .then(({ statement }) =>
+            statement.promise.catch(async (error: unknown) => {
+              const scope = schemaScope.getStore();
+              if (!scope || recordIfIntolerable(error)) throw error;
+              // A server error is tolerable only if the connection survived
+              // it: wait for this statement's own readiness (its
+              // ReadyForQuery, or the connection's end; a FATAL with a
+              // translated severity, such as transaction_timeout's 25P04,
+              // ends it only then), not for work queued after it.
+              await statement.ready;
+              const closed = session.closedError();
+              if (closed && scope.failure === undefined) scope.failure = closed;
+              throw error;
+            }),
+          );
+      },
+    };
+
+    /**
+     * Ends a failed transaction on the pinned connection. The rollback failure,
+     * if any, is returned for the caller's error `cause`; on a lost connection
+     * the server has already rolled the transaction back.
+     */
+    const rollbackPinned = async (): Promise<unknown> => {
+      try {
+        await control('ROLLBACK');
+        return undefined;
+      } catch (rollbackError) {
+        return rollbackError;
+      }
+    };
+
+    const sessionDialect = createPostgresDialect({
+      client: outside,
+      // Nullable-key discovery is refused on a pinned session (see
+      // refuseNullableUpsert). This is the enforcement point: the dialect
+      // asks for a probe executor only after deciding, from its own snapshot
+      // of the record, that discovery is needed, so a record whose values
+      // change between reads cannot slip past. Nothing is sent.
+      probeExecutor: () => ({
+        query: () => Promise.reject(nullableUpsertRefusal()),
+      }),
+      runInTransaction: async (work) => {
+        refuseInsideOwnTransaction();
+        const { endTurn } = await openTransaction();
+        try {
+          const result = await work(directExecutor);
+          assertCommitted(await control('COMMIT'));
+          return result;
+        } catch (error) {
+          const rollbackError = await rollbackPinned();
+          if (rollbackError !== undefined && error instanceof Error) {
+            error.cause ??= rollbackError;
+          }
+          throw error;
+        } finally {
+          endTurn();
+        }
+      },
+    });
+
+    /**
+     * Refuses an upsert with a NULL conflict value and no explicit
+     * `nullsDistinct`. Choosing between the native ON CONFLICT path and the
+     * NULL-aware fallback needs a catalog probe, and on a pinned session that
+     * probe could not be bound to the statement it decides (a queued SET
+     * search_path or DDL can change the answer), so the choice is left to the
+     * caller. This early check gives the clear message; the pinned
+     * `probeExecutor` enforces the same rule on the record as executed.
+     */
+    function nullableUpsertRefusal(
+      context: Record<string, unknown> = {},
+    ): DatabaseError {
+      return new DatabaseError(
+        'upsert() on a pinned session database does not accept a NULL conflict value without { nullsDistinct: true }. Pass { nullsDistinct: true } for database-native NULL handling, or write the INSERT … ON CONFLICT statement yourself with query() on this handle (or its transaction). Work that depends on this session’s lock must stay on this handle; use the root database handle only for work that does not.',
+        context,
+      );
+    }
+    /**
+     * Copies array arguments of a raw `query(sql, ...values)` at the call, so
+     * the dialect binds, and redacts its error with, the values as they were
+     * submitted rather than an array the caller may reuse or overwrite before
+     * an error (which can echo a value) arrives.
+     */
+    const snapshotQuery = <F extends DatabaseInterface['query']>(query: F): F =>
+      ((sql: string, ...values: any[]) =>
+        query(
+          sql,
+          ...values.map((value) => (Array.isArray(value) ? [...value] : value)),
+        )) as F;
+
+    const refuseNullableUpsert = <F extends DatabaseInterface['upsert']>(
+      upsert: F,
+    ): F =>
+      ((table, conflictColumns, data, options) => {
+        if (
+          options?.nullsDistinct !== true &&
+          Array.isArray(conflictColumns) &&
+          conflictColumns.some((column) => data?.[column] === null)
+        ) {
+          return Promise.reject(
+            nullableUpsertRefusal({ table, conflictColumns }),
+          );
+        }
+        return upsert(table, conflictColumns, data, options);
+      }) as F;
+
+    const sessionMethods = sessionDialect.createClientMethods(
+      outside,
+      false,
+      sessionDialect.serializeRecord,
+    );
+
+    /**
+     * The interface handed to a transaction opened on the session, and the
+     * state that ends it. Its statements go straight into the FIFO (the
+     * transaction holds the turn). Its own callbacks, and its savepoint
+     * callbacks, run inside `scope` so a call on the session database from
+     * there is refused rather than self-waiting.
+     */
+    const createSessionTransaction = (
+      transactionOptions: TransactionOptions | undefined,
+    ) => {
+      const scope = { open: true };
+      let active = true;
+      let invalidatedBy: DatabaseError | undefined;
+      // `tx.client`: promise-form query(sql, values?) only, and only while
+      // the transaction is open. There is no raw client to reach around the
+      // FIFO or the turn.
+      const transactionClient = {
+        query: (...args: any[]) => {
+          const [sql, values] = args;
+          if (
+            typeof sql !== 'string' ||
+            args.length > 2 ||
+            (values !== undefined && !Array.isArray(values))
+          ) {
+            throw new DatabaseError(
+              'A session transaction client supports only query(sql, values?) returning a promise',
+              {},
+            );
+          }
+          if (!active) {
+            return Promise.reject(
+              invalidatedBy ??
+                new DatabaseError('Transaction already ended', {}),
+            );
+          }
+          return direct(sql, values);
+        },
+      } as unknown as PoolClient;
+      const transactionState = createTransactionExecutor(transactionClient);
+      let scoped!: DatabaseInterface;
+      const nested = sessionDialect.createNestedTransaction(
+        transactionState.executor,
+        () => scoped,
+        transactionState.clearError,
+        new AsyncLocalStorage<NestedScope>(),
+      );
+      const scopedNested = Object.assign(
+        <T>(callback: (tx: DatabaseInterface) => Promise<T>): Promise<T> =>
+          nested((tx) => callbackScope.run(scope, () => callback(tx))),
+        { drain: nested.drain },
+      );
+      const transactionMethods = sessionDialect.createClientMethods(
+        transactionState.executor,
+        true,
+        sessionDialect.serializeRecord,
+        transactionState.clearError,
+        transactionOptions?.introspection === true,
+      );
+      scoped = {
+        url,
+        engine: 'postgres',
+        client: transactionState.client,
+        ...transactionMethods,
+        upsert: refuseNullableUpsert(transactionMethods.upsert),
+        query: snapshotQuery(transactionMethods.query),
+        transaction: scopedNested,
+      };
+      // Nested savepoint callbacks receive this same object.
+      claimConnectionAffinity(scoped, 'transaction');
+      current = {
+        invalidate: (error) => {
+          active = false;
+          invalidatedBy ??= error;
+        },
+      };
+      return {
+        scope,
+        transactionState,
+        nested,
+        scoped,
+        isActive: () => active,
+        /** Marks the handle ended; returns the reason it was already ended. */
+        finish: (): DatabaseError | undefined => {
+          const reason = active
+            ? undefined
+            : (invalidatedBy ??
+              new DatabaseError('Transaction already ended', {}));
+          active = false;
+          scope.open = false;
+          return reason;
+        },
+      };
+    };
+
+    const transaction = async <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+      transactionOptions?: TransactionOptions,
+    ): Promise<T> => {
+      refuseInsideOwnTransaction();
+      const { endTurn } = await openTransaction();
+      const { scope, transactionState, nested, scoped, finish } =
+        createSessionTransaction(transactionOptions);
+      try {
+        const result = await callbackScope.run(scope, () => callback(scoped));
+        await nested.drain();
+        await transactionState.drain();
+        const statementError = transactionState.getError();
+        if (statementError !== undefined) throw statementError;
+        const ended = finish();
+        if (ended) throw ended;
+        assertCommitted(await control('COMMIT'), transactionState);
+        return result;
+      } catch (error) {
+        finish();
+        await nested.drain();
+        await transactionState.drain();
+        const rollbackError = await rollbackPinned();
+        if (rollbackError !== undefined && error instanceof Error) {
+          error.cause ??= rollbackError;
+        }
+        throw error;
+      } finally {
+        endTurn();
+      }
+    };
+
+    const beginTransaction = async (
+      transactionOptions?: TransactionOptions,
+    ): Promise<TransactionHandle> => {
+      refuseInsideOwnTransaction();
+      const { endTurn } = await openTransaction();
+      const { transactionState, nested, scoped, isActive, finish } =
+        createSessionTransaction(transactionOptions);
+      let ending = false;
+
+      // The transaction is over however this ends, so the session's
+      // transaction turn is freed whether COMMIT succeeds or throws.
+      const end = async (command: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
+        if (ending) throw new DatabaseError('Transaction already ended', {});
+        ending = true;
+        try {
+          await nested.drain();
+          await transactionState.drain();
+          const ended = finish();
+          if (ended) throw ended;
+          const statementError = transactionState.getError();
+          if (command === 'COMMIT' && statementError !== undefined) {
+            throw statementError;
+          }
+          const result = await control(command);
+          if (command === 'COMMIT') assertCommitted(result, transactionState);
+        } catch (error) {
+          const rollbackError = await rollbackPinned();
+          if (rollbackError !== undefined && error instanceof Error) {
+            error.cause ??= rollbackError;
+          }
+          throw error;
+        } finally {
+          endTurn();
+        }
+      };
+
+      return Object.assign(scoped, {
+        commit: () => end('COMMIT'),
+        rollback: () => end('ROLLBACK'),
+        isActive,
+      }) as TransactionHandle;
+    };
+
+    /**
+     * Schema helpers tolerate individual DDL failures, which would also hide
+     * the session closing underneath them. Refuse at the entry point, and
+     * report a session that closed during the work instead of success.
+     */
+    const schemaWork = async (work: () => Promise<unknown>): Promise<void> => {
+      refuseInsideOwnTransaction();
+      assertIssuable();
+      if (schemaScope.getStore()) {
+        // Nested (initializeSchemas calling syncSchema): the outer call
+        // reports what the shared scope recorded.
+        await work();
+        return;
+      }
+      const scope: { failure?: unknown } = {};
+      try {
+        await schemaScope.run(scope, work);
+      } catch (error) {
+        // A step the helper does not tolerate may have failed only because
+        // the scope was already failing; report the original failure.
+        if (scope.failure !== undefined) throw scope.failure;
+        throw error;
+      }
+      if (scope.failure !== undefined) throw scope.failure;
+      assertIssuable();
+    };
+
+    // `db.client`: promise-form query(sql, values?) through the same path as
+    // `db.query`. There is no raw client to reach around the FIFO or the turn.
+    const rootClient = Object.freeze({
+      query: (...args: any[]) => {
+        const [sql, values] = args;
+        if (
+          typeof sql !== 'string' ||
+          args.length > 2 ||
+          (values !== undefined && !Array.isArray(values))
+        ) {
+          throw new DatabaseError(
+            'A session database client supports only query(sql, values?) returning a promise',
+            {},
+          );
+        }
+        return outside.query(sql, values);
+      },
+    });
+
+    // Every public method checks the session and the callback scope at its
+    // boundary, so one that can succeed without a statement (an empty insert
+    // batch) still rejects on a closed session or from inside its own
+    // transaction callback. The check is synchronous, so a raw query still
+    // takes its FIFO place at the call.
+    const guarded = <F extends (...args: any[]) => any>(fn: F): F =>
+      ((...args: any[]) => {
+        try {
+          refuseInsideOwnTransaction();
+          assertIssuable();
+        } catch (error) {
+          return Promise.reject(error);
+        }
+        return fn(...args);
+      }) as F;
+    const guardedMethods: Record<string, unknown> = {};
+    for (const [name, member] of Object.entries(sessionMethods)) {
+      guardedMethods[name] =
+        typeof member === 'function' && name !== 'table'
+          ? guarded(member as (...args: any[]) => any)
+          : member;
+    }
+    const guardedTable = (name: string) => {
+      const target = sessionMethods.table(name) as unknown as Record<
+        string,
+        unknown
+      >;
+      const wrapped: Record<string, unknown> = {};
+      for (const [key, member] of Object.entries(target)) {
+        wrapped[key] =
+          typeof member === 'function'
+            ? guarded(member as (...args: any[]) => any)
+            : member;
+      }
+      return wrapped as unknown as ReturnType<typeof sessionMethods.table>;
+    };
+
+    const sessionDb: DatabaseInterface = {
+      url,
+      engine: 'postgres',
+      client: rootClient,
+      ...(guardedMethods as typeof sessionMethods),
+      upsert: guarded(refuseNullableUpsert(sessionMethods.upsert)),
+      query: guarded(snapshotQuery(sessionMethods.query)),
+      table: guardedTable,
+      syncSchema: (schema: string) =>
+        schemaWork(() => sessionMethods.syncSchema(schema)),
+      initializeSchemas: (options: SchemaInitializationOptions) =>
+        schemaWork(() =>
+          new DatabaseSchemaManager().initializeSchemas(sessionDb, options),
+        ),
+      transaction,
+      beginTransaction,
+      alterTable: createAlterTable(outside),
+      vector: createVectorCapabilities(outside),
+    };
+    return claimConnectionAffinity(sessionDb, 'session');
+  };
+
+  /**
    * Acquire a pinned connection from the pool for session-scoped state such as
    * `pg_advisory_lock`. Every query on the returned handle runs on the same
    * client until {@link SessionHandle.release} drops the connection (which
@@ -754,6 +1494,29 @@ async function createDatabase(
     const sessionClient = await pool.connect();
     let released = false;
     let lost = false;
+    let dropped = false;
+    let sessionDatabase: DatabaseInterface | undefined;
+    const closeListeners = new Set<() => void>();
+
+    const releasedError = () =>
+      new DatabaseError('Session has been released', {});
+    const lostError = () =>
+      new DatabaseError('Session connection was lost', {});
+
+    // Tells the session database that no further call can succeed, so calls
+    // waiting for a transaction turn reject now instead of at their timeout.
+    const notifyClosed = (): void => {
+      for (const listener of [...closeListeners]) listener();
+    };
+
+    // Readiness waiters, released only when the physical connection is gone.
+    // Closing admission (release()) is not enough: the socket is still live
+    // and may still be running a statement.
+    const endListeners = new Set<() => void>();
+    const notifyEnded = (): void => {
+      for (const listener of [...endListeners]) listener();
+      notifyClosed();
+    };
 
     // pg-pool removes its idle 'error' listener when a client is checked out.
     // A session is pinned for the process lifetime and mostly idle between
@@ -762,22 +1525,405 @@ async function createDatabase(
     // session dead instead; the next query()/isActive() surfaces it.
     sessionClient.on('error', () => {
       lost = true;
+      notifyEnded();
+    });
+    // The connection ended without an error event (for example after a
+    // FATAL already reported through a statement): it is lost unless the
+    // session itself dropped it.
+    sessionClient.on('end', () => {
+      if (!dropped) lost = true;
+      notifyEnded();
     });
 
+    /** Whether a new call may be issued on the session. */
+    const closedError = (): DatabaseError | undefined =>
+      released ? releasedError() : lost || dropped ? lostError() : undefined;
+
+    // The protocol connection under the client. Its 'readyForQuery' event is
+    // the server saying the previous statement is completely finished.
+    const protocol = (
+      sessionClient as unknown as {
+        connection?: {
+          on: (event: string, listener: (message?: unknown) => void) => void;
+          once: (event: string, listener: () => void) => void;
+          off: (event: string, listener: () => void) => void;
+        };
+      }
+    ).connection;
+
+    // The transaction status byte of the last ReadyForQuery seen by this
+    // session: 'I' idle, 'T' in a transaction block, 'E' in a failed one, or
+    // '?' before the first one. A pooled client can be handed out with a
+    // transaction a previous borrower left open, so nothing is assumed: a
+    // managed BEGIN first confirms the status (see the session database).
+    let transactionStatus = '?';
+    protocol?.on('readyForQuery', (message) => {
+      const status = (message as { status?: unknown } | undefined)?.status;
+      if (typeof status === 'string') transactionStatus = status;
+    });
+
+    /**
+     * Resolves when the server reports readiness for the next statement, or
+     * when the connection ends. A statement's promise can settle before that:
+     * node-postgres rejects on an ErrorResponse that precedes ReadyForQuery,
+     * and its client-side query_timeout rejects while the statement is still
+     * running. Handing the next statement to the client before readiness would
+     * park it in node-postgres's own (deprecated) queue.
+     */
+    const untilReady = (): { promise: Promise<void>; done: () => void } => {
+      if (lost || dropped || !protocol) {
+        return { promise: Promise.resolve(), done: () => {} };
+      }
+      let done!: () => void;
+      const promise = new Promise<void>((resolve) => {
+        done = (): void => {
+          protocol.off('readyForQuery', done);
+          sessionClient.off('end', done);
+          endListeners.delete(done);
+          resolve();
+        };
+        protocol.once('readyForQuery', done);
+        sessionClient.once('end', done);
+        endListeners.add(done);
+      });
+      return { promise, done };
+    };
+
+    // node-postgres's own readiness flag. It is already true when a statement
+    // failed client-side before reaching the server (no ReadyForQuery will
+    // follow), and false while a statement is still running, including one
+    // whose client-side query_timeout has fired.
+    const clientReady = (): boolean =>
+      (sessionClient as unknown as { readyForQuery?: boolean })
+        .readyForQuery === true;
+
+    // A FATAL (or PANIC) ErrorResponse from this backend means it is
+    // exiting. The statement's rejection can arrive before the socket
+    // closes, so the session is marked lost here rather than on the client's
+    // later 'error' event. Only the local severity counts: a SQLSTATE such as
+    // 57P01 can arrive in an ordinary ERROR (forwarded from another server by
+    // dblink, or raised by a function) on a backend that stays connected. A
+    // localised FATAL, and any other real loss, still arrives as 'error' or
+    // 'end' on the connection.
+    const isTerminalServerError = (error: unknown): boolean =>
+      error instanceof PgDatabaseError &&
+      (error.severity === 'FATAL' || error.severity === 'PANIC');
+
+    // Raw session.query() calls handed straight to node-postgres (before
+    // database() is first called) that have not settled yet. database()
+    // refuses to start while any is pending.
+    let directPending = 0;
+
+    // The session's own FIFO statement queue, used once database() has been
+    // called. node-postgres 8.x deprecates calling client.query() while
+    // another query is running, so statements are handed to the client one at
+    // a time, in the order they were issued. A statement's place is taken when
+    // it is issued and held until the server is ready for the next one (or
+    // the connection ends), not merely until its promise settles. When its
+    // turn comes it runs unless the connection itself is gone (a release()
+    // issued after it queues its ROLLBACK behind it, so it still runs). An
+    // entry can be cancelled before its turn; it is then unlinked and its
+    // references dropped.
+    type Entry = {
+      run?: () => Promise<unknown>;
+      resolve?: (value: unknown) => void;
+      reject?: (error: unknown) => void;
+      started: boolean;
+      // Settles once this entry no longer holds the connection: after its
+      // statement's ReadyForQuery (or the connection's end), or at once if it
+      // never ran.
+      ready: () => void;
+    };
+    const entries: Entry[] = [];
+    let pumping = false;
+
+    const pump = async (): Promise<void> => {
+      if (pumping) return;
+      pumping = true;
+      try {
+        for (;;) {
+          // Rechecked here, after every await: entries can be withdrawn while
+          // the previous statement waits for readiness.
+          const entry = entries.shift();
+          if (!entry) break;
+          const { run, resolve, reject } = entry;
+          entry.run = entry.resolve = entry.reject = undefined;
+          if (!run || !resolve || !reject) {
+            entry.ready();
+            continue;
+          }
+          entry.started = true;
+          if (lost) {
+            reject(lostError());
+            entry.ready();
+            continue;
+          }
+          if (dropped) {
+            reject(releasedError());
+            entry.ready();
+            continue;
+          }
+          const readiness = untilReady();
+          try {
+            resolve(await run());
+          } catch (error) {
+            if (isTerminalServerError(error) && !lost) {
+              lost = true;
+              notifyEnded();
+            }
+            reject(error);
+          } finally {
+            if (clientReady()) readiness.done();
+          }
+          await readiness.promise;
+          entry.ready();
+        }
+      } finally {
+        pumping = false;
+      }
+    };
+
+    const enqueueEntry = <T>(
+      work: () => Promise<T>,
+    ): {
+      promise: Promise<T>;
+      ready: Promise<void>;
+      cancel: (error: unknown) => boolean;
+    } => {
+      let markReady!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        markReady = resolve;
+      });
+      const entry: Entry = { started: false, ready: markReady };
+      const promise = new Promise<T>((resolve, reject) => {
+        entry.run = work;
+        entry.resolve = resolve as (value: unknown) => void;
+        entry.reject = reject;
+      });
+      entries.push(entry);
+      void pump();
+      return {
+        promise,
+        ready,
+        // Withdraws an entry that has not started: unlinks it and drops its
+        // statement, values and callbacks. Returns false once it has started.
+        cancel: (error) => {
+          if (entry.started) return false;
+          const index = entries.indexOf(entry);
+          if (index !== -1) entries.splice(index, 1);
+          const reject = entry.reject;
+          entry.run = entry.resolve = entry.reject = undefined;
+          reject?.(error);
+          markReady();
+          return true;
+        },
+      };
+    };
+
+    const enqueue = <T>(work: () => Promise<T>): Promise<T> =>
+      enqueueEntry(work).promise;
+
+    /** enqueue(), plus the entry's own readiness (see Entry.ready). */
+    const enqueueTracked = <T>(
+      work: () => Promise<T>,
+    ): { promise: Promise<T>; ready: Promise<void> } => {
+      const { promise, ready } = enqueueEntry(work);
+      return { promise, ready };
+    };
+
+    // Set when database() is first called: from then on session.query() and
+    // release() go through the FIFO too.
+    let queued = false;
+
+    const readTimeout = () => new Error('Query read timeout');
+    const now = (): number => performance.now();
+
+    /**
+     * One statement through the FIFO with node-postgres's client-side
+     * query_timeout counted from the call, on a monotonic clock, as it was
+     * when node-postgres queued it: an entry still waiting at its deadline is
+     * withdrawn (never sent) and rejects then; one sent later gets only the
+     * time it has left. Without a configured timeout it simply queues.
+     */
+    const enqueueWithDeadline = <T>(
+      submit: (remaining: number | undefined) => Promise<T>,
+      // An absolute deadline on the monotonic clock, fixed at the public
+      // call; undefined when no query_timeout is configured.
+      deadline: number | undefined = deadlineFromNow(),
+    ): Promise<T> => {
+      if (deadline === undefined) return enqueue(() => submit(undefined));
+      // Encoding (or anything else) may already have used the budget.
+      if (deadline - now() <= 0) return Promise.reject(readTimeout());
+      const { promise, cancel } = enqueueEntry(() => {
+        const remaining = Math.ceil(deadline - now());
+        if (remaining <= 0) return Promise.reject(readTimeout());
+        return submit(remaining);
+      });
+      const timer = setTimeout(
+        () => {
+          cancel(readTimeout());
+        },
+        Math.max(0, deadline - now()),
+      );
+      return promise.finally(() => clearTimeout(timer));
+    };
+
+    /** The query_timeout deadline for a call made now, if one is set. */
+    function deadlineFromNow(): number | undefined {
+      const timeout = clientQueryTimeout();
+      return timeout === 0 ? undefined : now() + timeout;
+    }
+
+    // Discards the physical connection exactly once, without sending
+    // anything: the socket is destroyed first, so node-postgres's end() can
+    // no longer write its Terminate message. The client is never returned to
+    // the pool: that would not clear residual session state, which could then
+    // leak onto a connection later handed to unrelated code.
+    function hardClose(): void {
+      if (dropped) return;
+      dropped = true;
+      try {
+        (
+          sessionClient as unknown as {
+            connection?: { stream?: { destroy?: () => void } };
+          }
+        ).connection?.stream?.destroy?.();
+      } catch {
+        // Already closed.
+      }
+      sessionClient.release(true);
+      notifyEnded();
+    }
+
+    // The graceful end of release(): node-postgres sends Terminate on an idle
+    // client and destroys the socket when a statement is still active.
+    const dropConnection = (): void => {
+      if (dropped) return;
+      dropped = true;
+      sessionClient.release(true);
+      notifyEnded();
+    };
+
+    // node-postgres's client-side query_timeout (from the connection options),
+    // in milliseconds; 0 when unset.
+    function clientQueryTimeout(): number {
+      const value = Number(
+        (
+          sessionClient as unknown as {
+            // biome-ignore lint/style/useNamingConvention: node-postgres option name
+            connectionParameters?: { query_timeout?: unknown };
+          }
+        ).connectionParameters?.query_timeout,
+      );
+      return Number.isFinite(value) && value > 0 ? value : 0;
+    }
+
     return {
+      database: () => {
+        const closed = closedError();
+        if (closed) throw closed;
+        if (!queued) {
+          // The switch to the session's queue happens only on an idle
+          // session, so nothing issued on the direct path can still be
+          // running, and no transaction known to be open can be picked up by
+          // managed transactions. A status not yet reported ('?') is
+          // confirmed by the first managed BEGIN instead.
+          if (directPending > 0 || !clientReady()) {
+            throw new DatabaseError(
+              'database() needs an idle session: a session.query() call is still running. Wait for it to settle (and, after a client-side timeout, for the statement to finish) before calling database().',
+              {},
+            );
+          }
+          if (transactionStatus === 'T' || transactionStatus === 'E') {
+            throw new DatabaseError(
+              `database() needs an idle session: PostgreSQL reports a transaction open on this connection (status ${transactionStatus}). COMMIT or ROLLBACK it first.`,
+              { transactionStatus },
+            );
+          }
+        }
+        queued = true;
+        sessionDatabase ??= createSessionDatabase({
+          client: sessionClient,
+          closedError,
+          enqueue,
+          enqueueTracked,
+          onClose: (listener) => closeListeners.add(listener),
+          discard: () => {
+            lost = true;
+            hardClose();
+          },
+          transactionStatus: () => transactionStatus,
+          capture: captureValues,
+        });
+        return sessionDatabase;
+      },
+      destroy: () => {
+        released = true;
+        hardClose();
+      },
       query: async (sql: string, ...values: any[]) => {
-        if (released) {
-          throw new DatabaseError('Session has been released', {});
-        }
-        if (lost) {
-          throw new DatabaseError('Session connection was lost', {});
-        }
+        // The query_timeout budget starts here, at the public call, and
+        // covers encoding, waiting in the queue and running.
+        const deadline = queued ? deadlineFromNow() : undefined;
+        const closed = closedError();
+        if (closed) throw closed;
         const normalized = normalizePostgresRawQuery(sql, values);
+        // The parameters the error is redacted against. On the direct path
+        // that is the caller's array, exactly as before the queue existed:
+        // node-postgres binds from that same array when it submits, so it
+        // holds what was actually sent. On the queue it is the snapshot
+        // captured at the call (set below), which is what is sent there.
+        let submittedValues: unknown[] = normalized.values;
+        let outcome: Promise<PgQueryResult>;
+        if (!queued) {
+          // Until database() is first called the session is exactly as it
+          // was before the queue existed: the statement is handed to
+          // node-postgres now, with node-postgres's own timers.
+          const sent = sessionClient.query(normalized.sql, normalized.values);
+          directPending += 1;
+          outcome = sent.finally(() => {
+            directPending -= 1;
+          });
+        } else {
+          // Through the FIFO. The bound values are encoded now, so a caller
+          // that reuses its array, or mutates a Buffer or object in it,
+          // cannot change this call.
+          // An encoding failure (a cyclic object, say) becomes this call's
+          // rejection, wrapped below like any other failure.
+          const text = normalized.sql;
+          // Nothing is sent if encoding fails; redact against a copy taken
+          // now in that case.
+          submittedValues = [...normalized.values];
+          let bound: unknown[] | undefined;
+          let encodingError: { error: unknown } | undefined;
+          try {
+            bound = captureValues(normalized.values) as unknown[];
+          } catch (error) {
+            encodingError = { error };
+          }
+          if (encodingError || bound === undefined) {
+            outcome = Promise.reject(encodingError?.error);
+          } else {
+            const values = bound;
+            submittedValues = bound;
+            outcome = enqueueWithDeadline(
+              (remaining) =>
+                remaining === undefined
+                  ? sessionClient.query(text, values)
+                  : sessionClient.query({
+                      text,
+                      values,
+                      // node-postgres honours a per-query query_timeout,
+                      // though its QueryConfig type does not declare it.
+                      // biome-ignore lint/style/useNamingConvention: node-postgres option name
+                      query_timeout: remaining,
+                    } as QueryConfig),
+              deadline,
+            );
+          }
+        }
         try {
-          const result = await sessionClient.query(
-            normalized.sql,
-            normalized.values,
-          );
+          const result = await outcome;
           return {
             rows: result.rows,
             rowCount: result.rowCount ?? 0,
@@ -785,19 +1931,22 @@ async function createDatabase(
         } catch (e) {
           throw wrapDatabaseError('Failed to execute session query', e, {
             sql: normalized.sql,
-            values: normalized.values,
+            values: submittedValues,
           });
         }
       },
-      isActive: () => !released && !lost,
+      isActive: () => !released && !lost && !dropped,
       release: async () => {
         if (released) return;
         released = true;
+        // Calls still waiting for a transaction turn will never get one.
+        notifyClosed();
         // Free session advisory locks before tearing down so the contract
         // "after release() the locks are gone" holds deterministically — the
         // destroy below is async (TCP teardown) and resolves later. Skip on a
         // lost connection (nothing to talk to; backend exit frees them anyway).
-        if (!lost) {
+        if (!lost && !queued) {
+          // Never queued: exactly as before the queue existed.
           try {
             // A caller that left the connection in an aborted transaction
             // (BEGIN, a failed statement, then release) would make
@@ -813,11 +1962,42 @@ async function createDatabase(
           } catch {
             // Best-effort; the destroy below frees locks at backend exit.
           }
+        } else if (!lost) {
+          // Through the FIFO, after the statements already queued. With a
+          // client-side query_timeout configured, the cleanup statements
+          // carry its deadline: if one cannot be sent (or finish) in time,
+          // the lease is discarded without sending anything more, and the
+          // server frees its locks when the backend exits.
+          for (const statement of [
+            'ROLLBACK',
+            'SELECT pg_advisory_unlock_all()',
+          ]) {
+            try {
+              await enqueueWithDeadline((remaining) =>
+                remaining === undefined
+                  ? sessionClient.query(statement)
+                  : sessionClient.query({
+                      text: statement,
+                      // biome-ignore lint/style/useNamingConvention: node-postgres option name
+                      query_timeout: remaining,
+                    } as QueryConfig),
+              );
+            } catch (error) {
+              if (!(error instanceof PgDatabaseError) && !lost && !dropped) {
+                // A timeout (or another client-side failure): the
+                // connection's state is unknown.
+                hardClose();
+                break;
+              }
+              // A server error (for example no transaction to roll back):
+              // carry on with the next step.
+            }
+          }
         }
-        // Destroy the physical connection rather than returning it to the pool.
-        // Returning it would NOT clear residual session state, which could then
-        // leak onto a connection later handed to unrelated code.
-        sessionClient.release(true);
+        // Destroy the physical connection rather than returning it to the pool
+        // (see dropConnection). A destroy() during the statements above has
+        // already done it.
+        dropConnection();
       },
     };
   };
@@ -865,6 +2045,8 @@ async function createDatabase(
         ),
         transaction: nestedTransaction,
       };
+      // Nested savepoint callbacks receive this same object.
+      claimConnectionAffinity(txDb, 'transaction');
 
       const result = await callback(txDb);
       await nestedTransaction.drain();
@@ -983,7 +2165,7 @@ async function createDatabase(
       isActive,
     };
 
-    return txHandle;
+    return claimConnectionAffinity(txHandle, 'transaction');
   };
 
   /**
@@ -1025,6 +2207,7 @@ async function createDatabase(
       syncSchema,
       transaction,
     };
+    claimConnectionAffinity(currentDb, 'pool');
 
     await schemaManager.initializeSchemas(currentDb, options);
   };
@@ -1066,5 +2249,5 @@ async function createDatabase(
     },
   };
 
-  return db;
+  return claimConnectionAffinity(db, 'pool');
 }

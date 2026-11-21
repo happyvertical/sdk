@@ -664,6 +664,206 @@ another reason to always end a manual `beginTransaction()` handle in `finally`
 is that an abandoned handle can retain this bookkeeping as well as its database
 connection.
 
+### Pinned sessions (PostgreSQL)
+
+`db.acquireSession()` checks one connection out of the pool and keeps it for
+session-scoped state such as `pg_advisory_lock`. It exists on the `pg` adapter
+only; check for it before calling. `session.query()` runs raw SQL on that
+connection, and `session.release()` rolls back, unlocks all advisory locks and
+destroys the connection (it is never returned to the pool).
+
+`session.database()` returns a full database interface bound to that one
+connection, so a caller holding a session lock can run a whole multi-step job
+on the backend that holds it: queries and tagged templates, record helpers,
+`tableExists`, `getTableSchema`, `syncSchema`, `alterTable`, several
+`transaction()` / `beginTransaction()` transactions, and statements that
+cannot run in a transaction (`CREATE INDEX CONCURRENTLY`).
+
+```typescript
+const session = await db.acquireSession();
+try {
+  await session.query('SELECT pg_advisory_lock($1)', 42);
+  const pinned = session.database?.();
+  if (!pinned) throw new Error('this sql version cannot pin a database');
+  await pinned.transaction(async (tx) => {
+    await tx.query('ALTER TABLE users ADD COLUMN nickname text');
+  });
+  await pinned.query('CREATE INDEX CONCURRENTLY users_nick ON users (nickname)');
+} finally {
+  await session.release();
+}
+```
+
+- **One connection, no reconnect.** Every statement, catalog probe, savepoint
+  and transaction runs on the session's backend (`pg_backend_pid()` is the
+  same throughout). It never takes another pool connection. After the session
+  is released or destroyed, or its backend ends, every call on it rejects.
+- **The session switches to its own queue when `database()` is first
+  called.** Until then, `session.query()` and `release()` behave exactly as
+  before `database()` existed: each statement is handed to node-postgres
+  during the call, with node-postgres's own queue and timers. From the first
+  `database()` call on, they share the session's queue with `pinned.*`, and
+  the guarantees below apply to all three. The first `database()` call
+  requires an idle session and throws otherwise: no `session.query()` still
+  running (after a client-side timeout, until the statement has finished on
+  the server), and no transaction PostgreSQL has reported open (for example
+  one opened with `session.query('BEGIN')`). On a released, destroyed or
+  lost session, `database()` throws that session's closed error.
+- **Managed transactions never run inside another transaction.**
+  `transaction()` and `beginTransaction()` on `database()` check the
+  transaction status PostgreSQL reports with every ReadyForQuery when their
+  `BEGIN`'s turn comes, and reject (sending nothing, keeping the session)
+  while a transaction is open that they did not start: one opened with
+  `session.query('BEGIN')`, one left by a COMMIT that did not complete, or
+  one an earlier user of the pooled connection left open. Until the session
+  has seen a status, the first managed `BEGIN` sends an internal `SELECT 1`
+  ahead of itself to obtain one.
+- **Statements run in issue order.** `pinned.*`, `session.query()` and
+  `release()` share one queue on the session. A statement takes its place when
+  it reaches the session (at the call itself; its parameters are encoded
+  then with node-postgres's own encoder, so reusing the array or mutating a
+  Buffer, Date or object afterwards cannot change it) and keeps it until the
+  server
+  reports it is ready for the next statement, or the connection ends, so
+  statements run one at a time without relying on node-postgres's deprecated
+  internal client queue. A statement whose promise settles early (an error
+  reported before readiness, or node-postgres's client-side `query_timeout`)
+  still holds its place until then: after a client-side timeout the call
+  rejects, the session stays usable, and the next statement runs once the
+  timed-out one has really finished on the server. `release()` closes the
+  session to new calls at once but does not open the queue early: its
+  ROLLBACK still waits for that readiness. A FATAL (or PANIC) error from this
+  backend marks the session lost at once; other connection loss, including a
+  FATAL whose severity text is localised, is detected when the connection
+  reports an error or ends. Statement-level errors leave it usable, whatever
+  their SQLSTATE: an `08P01` parameter-count error, or a `57P01` forwarded
+  from another server (for example by `dblink`).
+- **Client-side `query_timeout`.** On the queue, a raw `session.query()`
+  keeps the deadline node-postgres gave it: it runs from the public call (on
+  a monotonic clock, so parameter encoding counts against it too), a call
+  still queued when it expires rejects then and is
+  withdrawn without being sent, and a call sent later gets only the time it
+  has left. `release()`'s two cleanup statements (ROLLBACK, then the unlock)
+  each get their own `query_timeout` window, so `release()` can wait up to
+  two windows; if either cannot be sent or finish in its window, the lease is
+  discarded (as by `destroy()`). A `database()` statement's timeout starts when it is sent. If
+  `BEGIN` itself times out client-side, the backend may or may not be inside
+  a transaction, so the session is discarded (reported as lost) rather than
+  let a later statement land in an abandoned transaction.
+- **One transaction at a time.** As on PGlite, transactions take turns in
+  arrival order, and a call from outside a transaction made while one is open
+  waits until it ends (rejecting after 30 seconds of waiting). With no
+  transaction open a plain call never times out, however long the statements
+  ahead of it take. Inside a `transaction()` callback, or a savepoint callback
+  of any pinned transaction, use the `tx` you were handed: a call on the pinned
+  database itself from there rejects at once instead of waiting on itself.
+  Nested `tx.transaction()` calls are savepoints, as on the root handle.
+- **Commit is checked.** `COMMIT` of an aborted transaction rejects, as on the
+  root handle.
+- **Schema helpers report what they could not run.** `syncSchema()` and
+  `initializeSchemas()` tolerate individual DDL failures from the server as on
+  the root handle, but reject if the session is closed when they start, closes
+  while they run (including a backend terminated mid-statement), a statement
+  of theirs times out waiting for an open transaction, a statement fails
+  client-side with an unknown outcome (for example node-postgres's
+  `query_timeout`), or the server answers with a FATAL or a shutdown /
+  termination SQLSTATE (57P0x), even one that leaves the session usable. A
+  server error is tolerated only once the server has reported it is ready
+  after that statement (its own readiness, not that of work queued behind
+  it); if the connection ends instead (a FATAL with a
+  translated severity, such as `transaction_timeout`'s 25P04), the helper
+  rejects with the lost session.
+- **Parameter encoding failures reject.** A value node-postgres cannot
+  encode (a cyclic object, for one) makes the call reject, on every path
+  including `client.query()`; nothing is sent.
+- **Errors are redacted with the submitted parameters.** On the queue, the
+  values a failed `session.query()`, `pinned.query()` or `tx.query()` is
+  redacted against are the ones captured at the call (which are what is
+  sent), so overwriting the caller's array afterwards cannot let an echoed
+  value escape redaction. Before the switch, `session.query()` redacts
+  against the caller's array as it always has, since node-postgres binds
+  from that same array.
+- **No NULL-key upserts.** `upsert()` on `database()` or one of its
+  transactions rejects when a conflict column is `NULL` and
+  `{ nullsDistinct: true }` is not passed, because choosing between the native
+  and the NULL-aware path needs catalog discovery the pinned session does not
+  do. Pass `{ nullsDistinct: true }` for database-native `NULL` handling, or
+  write the `INSERT … ON CONFLICT` (or update-then-insert) statement yourself
+  with `query()` on the pinned handle or its `tx`. Work that depends on the
+  session's lock must stay on the pinned handle; move an upsert to the root
+  handle only when it does not depend on that lock. Upserts without `NULL`
+  conflict values are unaffected. The rule is enforced on the record as the
+  upsert reads it, so a record whose values change between reads is refused
+  too.
+- `session.query()` shares the connection and the queue but not the
+  transaction turn: issued while a pinned transaction is open, it runs inside
+  that transaction.
+- It has no `acquireSession`, `reopenOptions` or `close`. There is no raw
+  driver client: `pinned.client.query(sql, values?)` and `tx.client.query(sql,
+  values?)` take the same path as `pinned.query()` / `tx.query()`, and other
+  call forms (callbacks, submittables) throw.
+
+`session.release()` runs after the statements already queued on the session,
+including ones issued in the same tick just before it, then rolls back,
+unlocks and closes. Calls still waiting for an open pinned transaction to end
+reject at once, and that transaction's handle ends (its `commit()` rejects).
+
+When the wait must be bounded (a deadline, a statement stuck behind a lock),
+`session.destroy()` discards the session without sending anything — no
+rollback, no unlock, no protocol Terminate message — and returns at once: the
+socket is destroyed, cutting off any statement in flight. Waiting calls and an
+open pinned transaction's handle reject with it, as on release; so does
+everything when the backend is lost.
+
+**When the server lets go.** The session's advisory locks are freed when its
+backend exits. After a destroy, an idle backend exits as soon as the server
+sees the socket close. A backend that is still executing a statement (or
+waiting for a lock) does not read from the socket, so by default it holds its
+locks until that statement ends. The adapter does not change this; a caller
+that needs a bound sets it on the lock session itself:
+
+1. Right after `acquireSession()` and **before** taking the lock, run
+   `SET client_connection_check_interval = '1s'` (any interval you can wait)
+   on the session. The backend then checks the connection at that interval
+   while it executes, and exits once the client is gone, freeing the lock.
+   `SET` lasts for the session; there is nothing to reset, because release()
+   and destroy() both close the connection.
+2. PostgreSQL before 14 has no such setting: the `SET` fails with
+   `unrecognized configuration parameter` (SQLSTATE 42704). The same happens
+   on a platform where the server cannot support it (for example Windows),
+   which rejects a non-zero value. There is no server-side bound then; bound
+   the statements instead with `SET statement_timeout` and `SET lock_timeout`
+   on the session, and treat a destroyed session's locks as held until its
+   longest statement could have ended.
+
+#### Connection-affinity claims
+
+Every handle the `pg` adapter creates — the root (pool) handle, a session's
+`database()`, and every transaction and savepoint handle opened from either —
+carries a non-enumerable property keyed by
+`Symbol.for('@happyvertical/sql/connection-affinity')` (exported as
+`CONNECTION_AFFINITY`). Its value is a frozen
+`{ kind: 'pool' | 'session' | 'transaction', handle }`, where `handle` is that
+same object: the adapter's promise about which connection the handle's work
+uses. For `session` and `transaction` claims, every statement that reads,
+writes or controls the transaction runs on the claimed backend, with one
+exception: on a transaction created from the pool handle (not from a pinned
+session), the catalog read a nullable-key `upsert()` makes on a cold cache to
+choose its path may run on another pool connection, as it did before claims
+existed. A pinned session's handles have no such exception. Accept a claim
+only when `claim.handle === db`;
+`getConnectionAffinity(db)` does that check. A spread copy has no claim, and a
+proxy or derived object reads one naming its target, so neither inherits it.
+Other adapters set no claim. The key is a global symbol, so a handle made by
+any copy of the package at or above 0.117.0 is recognised.
+
+`session.database()`, `session.destroy()` and the affinity claims were added in
+`@happyvertical/sql` 0.117.0. The session members are optional on the
+`SessionHandle` type, and all three are absent on handles created by an earlier
+copy of the package, so a consumer that
+needs them must require that the copy which created its `db` is at least
+0.117.0, and feature-detect them.
+
 ### Identifiers
 
 Every adapter quotes CRUD column identifiers, including insert/upsert column
@@ -1039,7 +1239,8 @@ pool connection, or keep transaction-scoped schema work on the supplied `tx`
 handle with `SET LOCAL search_path` before calling `tx.tableExists()` or
 `tx.syncSchema()`. `acquireSession()` pins raw PostgreSQL queries to one
 connection for session-scoped state; root metadata helpers are not part of
-that raw session handle.
+that raw session handle, but its `session.database()` runs them on the pinned
+connection (see [Pinned sessions](#pinned-sessions-postgresql)).
 
 A qualified `schema.table` name is also accepted by `tableExists()` and
 `getTableSchema()` on PostgreSQL and PGlite. A bare name is tried as one literal

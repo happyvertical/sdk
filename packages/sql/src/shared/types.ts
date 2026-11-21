@@ -55,6 +55,71 @@ export type DatabaseEngine =
   | 'json';
 
 /**
+ * Property key of a handle's connection-affinity claim. A global symbol, so a
+ * handle made by any copy of this package is recognised by any other.
+ */
+export const CONNECTION_AFFINITY: unique symbol = Symbol.for(
+  '@happyvertical/sql/connection-affinity',
+);
+
+/**
+ * Which connection every member of a handle uses, as claimed by the adapter
+ * that made it:
+ *
+ * - `pool`: a root handle; statements may use any pool connection.
+ * - `session`: a {@link SessionHandle.database}; every member uses the
+ *   session's one pinned connection.
+ * - `transaction`: a transaction or savepoint handle; every statement that
+ *   reads, writes or controls the transaction (nested savepoints and the
+ *   commit included) uses that transaction's connection.
+ *
+ * Scope: on a transaction created from the pool handle (not from a pinned
+ * session), the catalog read that a nullable-key `upsert()` makes on a cold
+ * cache to choose its path may use another pool connection, as it did before
+ * claims existed. A pinned session's handles make no such read.
+ */
+export type ConnectionAffinityKind = 'pool' | 'session' | 'transaction';
+
+/**
+ * The frozen value stored under {@link CONNECTION_AFFINITY} as a
+ * non-enumerable property of the handle.
+ *
+ * A claim is valid only for the object it names: accept it only when
+ * `claim.handle === db`. A spread copy does not carry the property, and a
+ * proxy or a prototype-derived object reads the target's claim, whose
+ * `handle` is not the copy, so neither inherits the promise.
+ *
+ * The PostgreSQL adapter (`pg`) sets it on every handle it creates, from
+ * `@happyvertical/sql` 0.117.0. Other adapters do not set it. A hand-written
+ * adapter may set it on its own handles; the claim is then its promise.
+ */
+export interface ConnectionAffinityClaim {
+  readonly kind: ConnectionAffinityKind;
+  readonly handle: object;
+}
+
+/**
+ * Reads a handle's connection-affinity claim, returning it only when it names
+ * that same object (see {@link ConnectionAffinityClaim}).
+ */
+export function getConnectionAffinity(
+  db: unknown,
+): ConnectionAffinityClaim | undefined {
+  if (db === null || (typeof db !== 'object' && typeof db !== 'function')) {
+    return undefined;
+  }
+  const claim = (db as { [CONNECTION_AFFINITY]?: unknown })[
+    CONNECTION_AFFINITY
+  ] as Partial<ConnectionAffinityClaim> | undefined;
+  return claim?.handle === db &&
+    (claim.kind === 'pool' ||
+      claim.kind === 'session' ||
+      claim.kind === 'transaction')
+    ? (claim as ConnectionAffinityClaim)
+    : undefined;
+}
+
+/**
  * Connection options returned by {@link DatabaseInterface.reopenOptions}.
  * Treat them as opaque and pass them to `getDatabase()` as they are. `type`
  * names the adapter (`'sqlite'` or `'postgres'`; the other adapters refuse to
@@ -1569,6 +1634,15 @@ export interface SessionHandle {
    * Execute a raw query on this session's pinned connection.
    * Same placeholder/return contract as {@link DatabaseInterface.query}.
    * Throws if the session has been released or its connection was lost.
+   *
+   * Until {@link SessionHandle.database} is first called, the statement is
+   * handed to node-postgres during the call, with node-postgres's own queue
+   * and timers, as in earlier versions. Once it has been called, raw queries
+   * and `release()` share the session's own statement queue with that
+   * database (issue order, parameters encoded at the call, a configured
+   * `query_timeout` counted from the public call (encoding included) on a
+   * monotonic clock, and a queued
+   * call withdrawn unsent when it expires).
    */
   query: (
     sql: string,
@@ -1588,8 +1662,113 @@ export interface SessionHandle {
    * connection (it is NOT returned to the pool) so the database releases any
    * remaining session state — returning it to the pool would leak that state
    * onto a later, unrelated checkout.
+   *
+   * It runs after the statements already queued on the session, including
+   * ones issued in the same tick just before it (it queues behind them). On
+   * the PostgreSQL adapter, calls on {@link SessionHandle.database} still
+   * waiting for an open transaction to end reject at once, and that
+   * transaction's handle ends. Use {@link SessionHandle.destroy} when the
+   * wait must be bounded.
    */
   release: () => Promise<void>;
+
+  /**
+   * Discard the session without sending anything: no `ROLLBACK`, no unlock,
+   * no protocol Terminate message. The socket is destroyed, so this returns at
+   * once even while a statement is in flight. Idempotent, and safe during or
+   * after {@link SessionHandle.release}.
+   *
+   * Every later call on the session and on its {@link SessionHandle.database}
+   * rejects, statements still queued reject, calls waiting for an open
+   * transaction reject, and that transaction's handle ends.
+   *
+   * The server frees the session's state (advisory locks included) when its
+   * backend exits. An idle backend exits as soon as the server sees the
+   * socket close. A backend still executing a statement, or waiting for a
+   * lock, does not read from the socket: by default it keeps its locks until
+   * that statement ends. Setting `client_connection_check_interval`
+   * (PostgreSQL 14+) on the session or the server bounds that to the
+   * interval; the adapter does not set it.
+   *
+   * Added to the PostgreSQL adapter in `@happyvertical/sql` 0.117.0. Optional
+   * so that other implementations of this interface keep compiling; check
+   * for it before calling.
+   */
+  destroy?: () => void;
+
+  /**
+   * A root-shaped database whose every statement and transaction runs on this
+   * session's one connection: `query` and the tagged templates, the record
+   * methods, `tableExists`, `getTableSchema`, `syncSchema`, `alterTable`,
+   * `vector`, `initializeSchemas`, `transaction` (nested calls on the handle
+   * it passes are savepoints, as on the root handle) and `beginTransaction`.
+   * It has no `acquireSession`, `reopenOptions` or `close`. Repeated calls
+   * return the same object; on a released, destroyed or lost session it
+   * throws the closed-session error. The first call throws unless the session
+   * is idle: no {@link SessionHandle.query} still running and no transaction
+   * PostgreSQL has reported open. Afterwards, `transaction()` and
+   * `beginTransaction()` refuse to start while a transaction they did not
+   * open is open (or, before any status has been reported, until an internal
+   * `SELECT 1` confirms none is).
+   *
+   * - It never uses another connection. After the session is released or
+   *   destroyed, or its connection is lost, every call rejects; it does not
+   *   reconnect.
+   * - Statements run one at a time through the session's own queue, shared
+   *   with {@link SessionHandle.query} and `release()`. A statement takes its
+   *   place when it reaches the session and keeps it until the server reports
+   *   readiness for the next statement or the connection ends, so a
+   *   statement that settles early (an error before readiness, a client-side
+   *   `query_timeout`) still holds it; the session stays usable.
+   * - `upsert()` here and on its transactions rejects a `NULL` conflict value
+   *   unless `{ nullsDistinct: true }` is passed (no catalog discovery runs
+   *   on a pinned session). Pass that option, or write the statement with
+   *   `query()` on this handle or its `tx`; keep lock-dependent work here and
+   *   use the root handle only for work that does not depend on the lock.
+   * - The connection holds one transaction at a time. `transaction()` and
+   *   `beginTransaction()` take turns in arrival order, and a call from
+   *   outside a transaction made while one is open waits until it ends
+   *   (rejecting after 30 seconds of waiting, like PGlite's
+   *   `transactionQueueTimeout`, or at once if the session closes). With no
+   *   transaction open, a plain call never times out. A call on this
+   *   database (not on the `tx` handle) from inside one of its own
+   *   transaction or savepoint callbacks rejects at once rather than wait on
+   *   itself.
+   * - `COMMIT` that PostgreSQL answers with a rollback (an aborted
+   *   transaction) rejects, as on the root handle.
+   * - `syncSchema()` and `initializeSchemas()` reject if the session is closed
+   *   when they start or closes while they run, or if one of their statements
+   *   times out waiting for an open transaction or fails client-side with an
+   *   unknown outcome (a `query_timeout`); only server errors from individual
+   *   DDL statements are tolerated.
+   * - A client-side timeout on `BEGIN` discards the session (reported as
+   *   lost), since the backend may be left inside a transaction.
+   * - There is no raw driver client: `client.query(sql, values?)` takes the
+   *   same path as `query()`, and other call forms throw.
+   * - {@link SessionHandle.query} shares the connection and the statement
+   *   queue but not the transaction turn: issued while a transaction of this
+   *   database is open, it runs inside that transaction.
+   *
+   * Added to the PostgreSQL adapter in `@happyvertical/sql` 0.117.0; a handle
+   * created by an earlier copy of the package has no `database`. Optional so
+   * that other implementations of this interface keep compiling; check for it
+   * before calling.
+   *
+   * @example Run a multi-transaction migration under a session advisory lock
+   * ```typescript
+   * const session = await db.acquireSession();
+   * try {
+   *   await session.query('SELECT pg_advisory_lock($1)', 42);
+   *   const pinned = session.database?.();
+   *   if (!pinned) throw new Error('adapter cannot pin a database');
+   *   await pinned.transaction(async (tx) => { await tx.query('...'); });
+   *   await pinned.query('CREATE INDEX CONCURRENTLY ...');
+   * } finally {
+   *   await session.release();
+   * }
+   * ```
+   */
+  database?: () => DatabaseInterface;
 }
 
 /**
