@@ -1260,6 +1260,14 @@ table name, including one with quotes, spaces or mixed case, inside or outside
 a transaction; the name is only bound as a catalog parameter or quoted.
 `tableExists()` accepts the same names.
 
+The JSON adapter's `getTableSchema` reads the same DuckDB catalogs as the
+DuckDB adapter and returns the same shape, so a table replayed from an existing
+`<table>.schema.sql` is described as declared there (a legacy `REAL` column
+reads back as `FLOAT`). A JSON file still waiting for its DDL is not a table
+yet and returns `null`. It is on the database only, not on JSON transaction
+handles, which carry no JSON-only marker for callers to tell them apart from
+the DuckDB adapter.
+
 With no options the result is identical to 0.115: the same columns in the same
 order, and no `generated` / `hidden` keys. Opt in per call:
 
