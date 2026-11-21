@@ -698,9 +698,16 @@ try {
   and transaction runs on the session's backend (`pg_backend_pid()` is the
   same throughout). It never takes another pool connection. After the session
   is released or destroyed, or its backend ends, every call on it rejects.
+- **The session switches to its own queue when `database()` is first
+  called.** Until then, `session.query()` and `release()` behave exactly as
+  before `database()` existed: each statement is handed to node-postgres
+  during the call, with node-postgres's own queue and timers. From the first
+  `database()` call on, they share the session's queue with `pinned.*`, and
+  the guarantees below apply to all three.
 - **Statements run in issue order.** `pinned.*`, `session.query()` and
   `release()` share one queue on the session. A statement takes its place when
-  it reaches the session (at the call itself) and keeps it until the server
+  it reaches the session (at the call itself; its bound values are copied
+  then) and keeps it until the server
   reports it is ready for the next statement, or the connection ends, so
   statements run one at a time without relying on node-postgres's deprecated
   internal client queue. A statement whose promise settles early (an error
@@ -710,16 +717,20 @@ try {
   timed-out one has really finished on the server. `release()` closes the
   session to new calls at once but does not open the queue early: its
   ROLLBACK still waits for that readiness. A FATAL error from the server, or
-  a SQLSTATE in class 57P0 or 08 (checked because the severity text is
-  localised), marks the session lost at once.
-- **Client-side `query_timeout`.** A raw `session.query()` keeps the deadline
-  it had before this queue existed: it runs from the call, a call still
-  queued when it expires rejects then and is never sent, and a call sent
-  later gets only the time it has left. A `database()` statement's timeout
-  starts when it is sent. If `BEGIN` itself times out client-side, the
-  backend may or may not be inside a transaction, so the session is
-  discarded (as by `destroy()`, reported as lost) rather than let a later
-  statement land in an abandoned transaction.
+  one of the SQLSTATEs that always end the backend (57P01, 57P02, 57P03,
+  57P05; checked because the severity text is localised), marks the session
+  lost at once. Other errors, including an `08P01` parameter-count error,
+  leave it usable.
+- **Client-side `query_timeout`.** On the queue, a raw `session.query()`
+  keeps the deadline node-postgres gave it: it runs from the call (on a
+  monotonic clock), a call still queued when it expires rejects then and is
+  withdrawn without being sent, and a call sent later gets only the time it
+  has left. `release()`'s cleanup statements carry the same deadline; if one
+  cannot be sent or finish in time, the lease is discarded (as by
+  `destroy()`). A `database()` statement's timeout starts when it is sent. If
+  `BEGIN` itself times out client-side, the backend may or may not be inside
+  a transaction, so the session is discarded (reported as lost) rather than
+  let a later statement land in an abandoned transaction.
 - **One transaction at a time.** As on PGlite, transactions take turns in
   arrival order, and a call from outside a transaction made while one is open
   waits until it ends (rejecting after 30 seconds of waiting). With no
@@ -742,8 +753,13 @@ try {
   `{ nullsDistinct: true }` is not passed, because choosing between the native
   and the NULL-aware path needs catalog discovery the pinned session does not
   do. Pass `{ nullsDistinct: true }` for database-native `NULL` handling, or
-  run that upsert on the root handle. Upserts without `NULL` conflict values
-  are unaffected.
+  write the `INSERT … ON CONFLICT` (or update-then-insert) statement yourself
+  with `query()` on the pinned handle or its `tx`. Work that depends on the
+  session's lock must stay on the pinned handle; move an upsert to the root
+  handle only when it does not depend on that lock. Upserts without `NULL`
+  conflict values are unaffected. The rule is enforced on the record as the
+  upsert reads it, so a record whose values change between reads is refused
+  too.
 - `session.query()` shares the connection and the queue but not the
   transaction turn: issued while a pinned transaction is open, it runs inside
   that transaction.
@@ -793,8 +809,14 @@ carries a non-enumerable property keyed by
 `Symbol.for('@happyvertical/sql/connection-affinity')` (exported as
 `CONNECTION_AFFINITY`). Its value is a frozen
 `{ kind: 'pool' | 'session' | 'transaction', handle }`, where `handle` is that
-same object: the adapter's promise about which connection every member of the
-handle uses. Accept a claim only when `claim.handle === db`;
+same object: the adapter's promise about which connection the handle's work
+uses. For `session` and `transaction` claims, every statement that reads,
+writes or controls the transaction runs on the claimed backend, with one
+exception: on a transaction created from the pool handle (not from a pinned
+session), the catalog read a nullable-key `upsert()` makes on a cold cache to
+choose its path may run on another pool connection, as it did before claims
+existed. A pinned session's handles have no such exception. Accept a claim
+only when `claim.handle === db`;
 `getConnectionAffinity(db)` does that check. A spread copy has no claim, and a
 proxy or derived object reads one naming its target, so neither inherits it.
 Other adapters set no claim. The key is a global symbol, so a handle made by

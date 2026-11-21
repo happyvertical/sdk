@@ -578,7 +578,9 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
     await pinned.query(
       `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
     );
-    const refusal = /nullsDistinct: true.*root database handle/;
+    // The advice keeps lock-dependent work on the pinned handle.
+    const refusal =
+      /nullsDistinct: true.*query\(\) on this handle.*depends on this session’s lock must stay on this handle/;
     const submitted = recordSubmissions();
     try {
       await rejectsWith(
@@ -1224,6 +1226,194 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
       restoreDelay();
       submitted.restore();
     }
+  });
+});
+
+/** A session that never calls database(): the raw path as on main. */
+async function rawSession(db: DatabaseInterface): Promise<SessionHandle> {
+  const session = await db.acquireSession?.();
+  if (!session) throw new Error('adapter does not expose acquireSession()');
+  sessions.push(session);
+  return session;
+}
+
+describe.skipIf(!available)('SessionHandle review round 4', () => {
+  it('a raw-only session submits synchronously, so reusing a parameter array is safe', async () => {
+    const db = await open({ max: 2 });
+    const session = await rawSession(db);
+    const table = tableName('rawreuse');
+    await db.query(`CREATE TABLE ${table} (id int)`);
+    const submitted = recordSubmissions();
+    try {
+      const values = [1];
+      const first = session.query(`INSERT INTO ${table} VALUES ($1)`, values);
+      // Handed to node-postgres during the call, as on main.
+      expect(
+        submitted.filter((entry) => entry.sql.includes('INSERT INTO')),
+      ).toHaveLength(1);
+      values[0] = 2;
+      await first;
+    } finally {
+      submitted.restore();
+    }
+    expect((await db.list(table, {})).map((row) => row.id)).toEqual([1]);
+    await db.query(`DROP TABLE ${table}`);
+  });
+
+  it('once database() is used, a raw call captures its values at issue time', async () => {
+    const db = await open({ max: 2 });
+    const { session, pinned } = await pin(db);
+    const table = tableName('fiforeuse');
+    await pinned.query(`CREATE TABLE ${table} (id int)`);
+    const values = [1];
+    const first = session.query(`INSERT INTO ${table} VALUES ($1)`, values);
+    values[0] = 2;
+    const second = session.query(`INSERT INTO ${table} VALUES ($1)`, values);
+    await Promise.all([first, second]);
+    expect((await pinned.list(table, {})).map((row) => row.id).sort()).toEqual([
+      1, 2,
+    ]);
+    await pinned.query(`DROP TABLE ${table}`);
+  });
+
+  it('a raw-only session’s release() settles after a client timeout while the blocker is held', async () => {
+    const db = await open({ url: timeoutUrl(300), max: 3 });
+    const session = await rawSession(db);
+    const table = tableName('rawcleanup');
+    await db.query(`CREATE TABLE ${table} (id int)`);
+    const blocker = await db.beginTransaction?.();
+    if (!blocker) throw new Error('no beginTransaction');
+    await blocker.query(`LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE`);
+    try {
+      await rejectsWith(
+        session.query(`SELECT count(*) FROM ${table}`),
+        /timeout/i,
+      );
+      const outcome = await within(session.release(), 3_000);
+      expect(outcome).not.toBe('timeout');
+      expect(session.isActive()).toBe(false);
+    } finally {
+      await blocker.rollback();
+    }
+    await db.query(`DROP TABLE ${table}`);
+  });
+
+  it('once database() is used, release() honours the deadline while the blocker is held, then discards the lease', async () => {
+    const db = await open({ url: timeoutUrl(300), max: 3 });
+    const { session, pinned } = await pin(db);
+    const table = tableName('fifocleanup');
+    await db.query(`CREATE TABLE ${table} (id int)`);
+    const blocker = await db.beginTransaction?.();
+    if (!blocker) throw new Error('no beginTransaction');
+    await blocker.query(`LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE`);
+    try {
+      await rejectsWith(
+        pinned.query(`SELECT count(*) FROM ${table}`),
+        /timeout/i,
+      );
+      const outcome = await within(session.release(), 3_000);
+      expect(outcome).not.toBe('timeout');
+      expect(session.isActive()).toBe(false);
+    } finally {
+      await blocker.rollback();
+    }
+    await db.query(`DROP TABLE ${table}`);
+  });
+
+  it('withdraws expired queued raw calls at their deadline without sending them', async () => {
+    const db = await open({ url: timeoutUrl(200), max: 3 });
+    const { session, pinned } = await pin(db);
+    const table = tableName('fifoexpire');
+    await db.query(`CREATE TABLE ${table} (id int)`);
+    const blocker = await db.beginTransaction?.();
+    if (!blocker) throw new Error('no beginTransaction');
+    await blocker.query(`LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE`);
+    const submitted = recordSubmissions();
+    try {
+      const blocked = pinned.query(`SELECT count(*) FROM ${table}`);
+      blocked.catch(() => {});
+      const started = performance.now();
+      const attempts = Array.from({ length: 20 }, (_, i) =>
+        session.query(`INSERT INTO ${table} VALUES ($1)`, i),
+      );
+      const outcomes = await Promise.allSettled(attempts);
+      expect(outcomes.every((o) => o.status === 'rejected')).toBe(true);
+      expect(performance.now() - started).toBeLessThan(1_500);
+      expect(
+        submitted.filter((entry) => entry.sql.includes('INSERT INTO')),
+      ).toEqual([]);
+    } finally {
+      submitted.restore();
+      await blocker.rollback();
+    }
+    expect((await db.list(table, {})).length).toBe(0);
+    await db.query(`DROP TABLE ${table}`);
+  });
+
+  it('measures a queued raw call’s deadline on a monotonic clock', async () => {
+    const db = await open({ url: timeoutUrl(2_000), max: 2 });
+    const { session, pinned } = await pin(db);
+    const slow = pinned.query('SELECT pg_sleep(0.3)');
+    const realNow = Date.now.bind(Date);
+    const clock = vi.spyOn(Date, 'now');
+    try {
+      const queued = session.query('SELECT 1 AS ok');
+      // The wall clock jumps forward an hour while the call waits its turn.
+      clock.mockImplementation(() => realNow() + 3_600_000);
+      expect((await queued).rows[0].ok).toBe(1);
+    } finally {
+      clock.mockRestore();
+    }
+    await slow;
+  });
+
+  it('a bind-parameter count error leaves the session usable on the same backend', async () => {
+    const db = await open({ max: 2 });
+    const raw = await rawSession(db);
+    const { session, pinned } = await pin(db);
+    for (const handle of [raw, session] as const) {
+      const pid = await pidOf(handle);
+      await rejectsWith(handle.query('SELECT $1::int, $2::int', 1), /.+/);
+      expect(handle.isActive()).toBe(true);
+      expect(await pidOf(handle)).toBe(pid);
+    }
+    await rejectsWith(pinned.query('SELECT $1::int, $2::int', [1]), /.+/);
+    expect(session.isActive()).toBe(true);
+    expect((await pinned.query('SELECT 1 AS ok')).rows[0].ok).toBe(1);
+  });
+
+  it('refuses a NULL-key upsert even when the record changes between reads', async () => {
+    const db = await open({ max: 2 });
+    const { pinned } = await pin(db);
+    const table = tableName('getterkey');
+    await pinned.query(
+      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
+    );
+    let reads = 0;
+    const record = {
+      id: 1,
+      label: 'a',
+      get tag() {
+        reads += 1;
+        return reads === 1 ? 'x' : null;
+      },
+    };
+    const submitted = recordSubmissions();
+    try {
+      await rejectsWith(
+        pinned.upsert(table, ['id', 'tag'], record),
+        /nullsDistinct: true/,
+      );
+    } finally {
+      submitted.restore();
+    }
+    expect(
+      submitted
+        .filter((entry) => catalogProbe.test(entry.sql))
+        .map((e) => e.sql),
+    ).toEqual([]);
+    expect(await pinned.list(table, {})).toEqual([]);
+    await pinned.query(`DROP TABLE ${table}`);
   });
 });
 

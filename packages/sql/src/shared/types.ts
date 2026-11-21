@@ -69,8 +69,14 @@ export const CONNECTION_AFFINITY: unique symbol = Symbol.for(
  * - `pool`: a root handle; statements may use any pool connection.
  * - `session`: a {@link SessionHandle.database}; every member uses the
  *   session's one pinned connection.
- * - `transaction`: a transaction or savepoint handle; every member, nested
- *   savepoints and the commit included, uses that transaction's connection.
+ * - `transaction`: a transaction or savepoint handle; every statement that
+ *   reads, writes or controls the transaction (nested savepoints and the
+ *   commit included) uses that transaction's connection.
+ *
+ * Scope: on a transaction created from the pool handle (not from a pinned
+ * session), the catalog read that a nullable-key `upsert()` makes on a cold
+ * cache to choose its path may use another pool connection, as it did before
+ * claims existed. A pinned session's handles make no such read.
  */
 export type ConnectionAffinityKind = 'pool' | 'session' | 'transaction';
 
@@ -1628,6 +1634,14 @@ export interface SessionHandle {
    * Execute a raw query on this session's pinned connection.
    * Same placeholder/return contract as {@link DatabaseInterface.query}.
    * Throws if the session has been released or its connection was lost.
+   *
+   * Until {@link SessionHandle.database} is first called, the statement is
+   * handed to node-postgres during the call, with node-postgres's own queue
+   * and timers, as in earlier versions. Once it has been called, raw queries
+   * and `release()` share the session's own statement queue with that
+   * database (issue order, bound values copied at the call, a configured
+   * `query_timeout` counted from the call on a monotonic clock, and a queued
+   * call withdrawn unsent when it expires).
    */
   query: (
     sql: string,
@@ -1701,7 +1715,9 @@ export interface SessionHandle {
    *   `query_timeout`) still holds it; the session stays usable.
    * - `upsert()` here and on its transactions rejects a `NULL` conflict value
    *   unless `{ nullsDistinct: true }` is passed (no catalog discovery runs
-   *   on a pinned session); use that option or the root handle.
+   *   on a pinned session). Pass that option, or write the statement with
+   *   `query()` on this handle or its `tx`; keep lock-dependent work here and
+   *   use the root handle only for work that does not depend on the lock.
    * - The connection holds one transaction at a time. `transaction()` and
    *   `beginTransaction()` take turns in arrival order, and a call from
    *   outside a transaction made while one is open waits until it ends
