@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { webcrypto } from 'node:crypto';
 import { DatabaseError } from '@happyvertical/utils';
-import {
+import pg, {
   DatabaseError as PgDatabaseError,
   type QueryResult as PgQueryResult,
   Pool,
@@ -39,6 +39,30 @@ import { wrapDatabaseError } from './shared/utils';
 const REOPEN_POOL_MAX = 5;
 
 const MAX_TIMER_DELAY_MILLIS = 2_147_483_647;
+
+/**
+ * node-postgres's own parameter encoder (`utils.prepareValue`): Dates, arrays,
+ * JSON objects and `toPostgres()` values become the text it would send, and
+ * Buffers and typed arrays become Buffers. It is applied again when the
+ * statement is sent, which leaves an already encoded value unchanged.
+ */
+const prepareValue = (
+  pg as unknown as { utils?: { prepareValue?: (value: unknown) => unknown } }
+).utils?.prepareValue;
+
+/**
+ * Encodes statement parameters at the call, for a statement that may be
+ * handed to the client later (a pinned session's queue). Afterwards nothing
+ * the caller does to its array, its Buffers or its objects reaches the
+ * statement. Buffers are copied, since the encoder returns them as they are.
+ */
+function captureValues(values: readonly unknown[] | undefined) {
+  if (values === undefined) return undefined;
+  return values.map((value) => {
+    const prepared = prepareValue ? prepareValue(value) : value;
+    return Buffer.isBuffer(prepared) ? Buffer.from(prepared) : prepared;
+  });
+}
 
 /**
  * Configuration options for PostgreSQL database connections
@@ -781,6 +805,10 @@ async function createDatabase(
     onClose: (listener: () => void) => void;
     /** Ends the lease as lost and closes the connection without sending. */
     discard: () => void;
+    /** Transaction status byte of the last ReadyForQuery ('I', 'T', 'E'). */
+    transactionStatus: () => string;
+    /** Encodes statement parameters at the call (see captureValues). */
+    capture: (values: readonly unknown[] | undefined) => unknown[] | undefined;
   }): DatabaseInterface => {
     const sessionClient = session.client;
 
@@ -796,12 +824,43 @@ async function createDatabase(
       } catch (error) {
         return Promise.reject(error);
       }
-      // The bound values are captured at issue time; the statement may be
+      // The bound values are encoded at issue time; the statement may be
       // handed to the client later.
-      const bound = values === undefined ? undefined : [...values];
+      const bound = session.capture(values);
       return session.enqueue(
         () => sessionClient.query(sql, bound) as unknown as Promise<R>,
       );
+    };
+
+    // Raised instead of a managed BEGIN while the caller's own transaction
+    // (session.query('BEGIN')) is open: its outcome is known, nothing was
+    // sent, so the lease is kept.
+    const refusedBegins = new WeakSet<object>();
+
+    /**
+     * BEGIN for a managed transaction. Checked when its turn comes, against
+     * the transaction status of the last ReadyForQuery: a second BEGIN inside
+     * the caller's transaction would only warn, and the managed COMMIT would
+     * then commit the caller's work too.
+     */
+    const begin = (): Promise<PgQueryResult> => {
+      try {
+        assertIssuable();
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      return session.enqueue(() => {
+        const status = session.transactionStatus();
+        if (status !== 'I') {
+          const refusal = new DatabaseError(
+            "A transaction opened with session.query('BEGIN') is still open on this session; transaction() and beginTransaction() refuse to run inside it. COMMIT or ROLLBACK it first.",
+            { transactionStatus: status },
+          );
+          refusedBegins.add(refusal);
+          return Promise.reject(refusal);
+        }
+        return sessionClient.query('BEGIN');
+      });
     };
 
     const directExecutor: PostgresQueryExecutor = {
@@ -907,7 +966,7 @@ async function createDatabase(
      */
     const startTransaction = () =>
       whenAdmitted(() => {
-        const begun = control('BEGIN');
+        const begun = begin();
         turnHeld = true;
         let ended = false;
         const endTurn = (): void => {
@@ -935,9 +994,11 @@ async function createDatabase(
         // query_timeout, for one) may still have opened a transaction on the
         // backend. Freeing the turn would let the next statement run inside
         // it and vanish with a later rollback, so the lease is discarded
-        // instead. A server error means BEGIN did not happen.
+        // instead. A server error, or a refusal because the caller's own
+        // transaction is open, means BEGIN was not run.
         if (
           !(error instanceof PgDatabaseError) &&
+          !refusedBegins.has(error as object) &&
           session.closedError() === undefined
         ) {
           session.discard();
@@ -957,7 +1018,10 @@ async function createDatabase(
         } catch (error) {
           return Promise.reject(error);
         }
-        return whenAdmitted(() => direct(sql, values)).catch(
+        // Encoded now, at the public call, before the statement waits for a
+        // transaction turn or its FIFO place.
+        const bound = session.capture(values);
+        return whenAdmitted(() => direct(sql, bound)).catch(
           (error: unknown) => {
             // Inside syncSchema()/initializeSchemas(), record every failure
             // that is not a server's answer to the statement: never admitted
@@ -970,7 +1034,13 @@ async function createDatabase(
               scope &&
               scope.failure === undefined &&
               (!(error instanceof PgDatabaseError) ||
-                session.closedError() !== undefined)
+                session.closedError() !== undefined ||
+                // A shutdown or termination code, or a FATAL, is never a
+                // tolerable DDL outcome, even when it arrives as an
+                // ordinary ERROR that leaves this session usable.
+                error.severity === 'FATAL' ||
+                error.severity === 'PANIC' ||
+                error.code?.startsWith('57P0') === true)
             ) {
               scope.failure = session.closedError() ?? error;
             }
@@ -1388,11 +1458,21 @@ async function createDatabase(
     const protocol = (
       sessionClient as unknown as {
         connection?: {
+          on: (event: string, listener: (message?: unknown) => void) => void;
           once: (event: string, listener: () => void) => void;
           off: (event: string, listener: () => void) => void;
         };
       }
     ).connection;
+
+    // The transaction status byte of the last ReadyForQuery: 'I' idle, 'T'
+    // in a transaction block, 'E' in a failed one. A pooled client is handed
+    // out idle.
+    let transactionStatus = 'I';
+    protocol?.on('readyForQuery', (message) => {
+      const status = (message as { status?: unknown } | undefined)?.status;
+      if (typeof status === 'string') transactionStatus = status;
+    });
 
     /**
      * Resolves when the server reports readiness for the next statement, or
@@ -1429,51 +1509,22 @@ async function createDatabase(
       (sessionClient as unknown as { readyForQuery?: boolean })
         .readyForQuery === true;
 
-    // A FATAL (or PANIC) ErrorResponse means the backend is exiting. The
-    // statement's rejection can arrive before the socket closes, so the
-    // session is marked lost here rather than on the client's later 'error'
-    // event. The severity text is localised with lc_messages, so the codes
-    // that always end the backend are checked too: 57P01 admin_shutdown
-    // (pg_terminate_backend), 57P02 crash_shutdown, 57P03 cannot_connect_now
-    // and 57P05 idle_session_timeout. Class 08 is not matched as a whole:
-    // 08P01 can be an ordinary ERROR (a bind-parameter count mismatch) on a
-    // live connection, and real connection loss arrives as 'error'/'end'.
-    const terminalServerCodes = new Set(['57P01', '57P02', '57P03', '57P05']);
+    // A FATAL (or PANIC) ErrorResponse from this backend means it is
+    // exiting. The statement's rejection can arrive before the socket
+    // closes, so the session is marked lost here rather than on the client's
+    // later 'error' event. Only the local severity counts: a SQLSTATE such as
+    // 57P01 can arrive in an ordinary ERROR (forwarded from another server by
+    // dblink, or raised by a function) on a backend that stays connected. A
+    // localised FATAL, and any other real loss, still arrives as 'error' or
+    // 'end' on the connection.
     const isTerminalServerError = (error: unknown): boolean =>
       error instanceof PgDatabaseError &&
-      (error.severity === 'FATAL' ||
-        error.severity === 'PANIC' ||
-        terminalServerCodes.has(error.code ?? ''));
+      (error.severity === 'FATAL' || error.severity === 'PANIC');
 
     // Raw session.query() calls handed straight to node-postgres (before
-    // database() is first called) that have not settled yet.
+    // database() is first called) that have not settled yet. database()
+    // refuses to start while any is pending.
     let directPending = 0;
-    const directSettleListeners = new Set<() => void>();
-    const directSettled = (): void => {
-      directPending -= 1;
-      for (const listener of [...directSettleListeners]) listener();
-    };
-
-    /**
-     * Resolves once node-postgres has nothing in flight: no unsettled direct
-     * call and the client ready for a statement (or the connection gone).
-     * The FIFO waits for this before each entry, so the first database()
-     * statement never joins work issued on the direct path.
-     */
-    const untilIdle = async (): Promise<void> => {
-      while (!lost && !dropped && protocol) {
-        if (directPending === 0 && clientReady()) return;
-        const readiness = untilReady();
-        let wake!: () => void;
-        const settled = new Promise<void>((resolve) => {
-          wake = resolve;
-          directSettleListeners.add(wake);
-        });
-        await Promise.race([readiness.promise, settled]);
-        directSettleListeners.delete(wake);
-        readiness.done();
-      }
-    };
 
     // The session's own FIFO statement queue, used once database() has been
     // called. node-postgres 8.x deprecates calling client.query() while
@@ -1498,9 +1549,11 @@ async function createDatabase(
       if (pumping) return;
       pumping = true;
       try {
-        while (entries.length > 0) {
-          await untilIdle();
-          const entry = entries.shift() as Entry;
+        for (;;) {
+          // Rechecked here, after every await: entries can be withdrawn while
+          // the previous statement waits for readiness.
+          const entry = entries.shift();
+          if (!entry) break;
           const { run, resolve, reject } = entry;
           entry.run = entry.resolve = entry.reject = undefined;
           if (!run || !resolve || !reject) continue;
@@ -1639,6 +1692,24 @@ async function createDatabase(
 
     return {
       database: () => {
+        if (!queued) {
+          // The switch to the session's queue happens only on an idle
+          // session, so nothing issued on the direct path can still be
+          // running, and no transaction the caller opened with
+          // session.query('BEGIN') can be picked up by managed transactions.
+          if (directPending > 0 || !clientReady()) {
+            throw new DatabaseError(
+              'database() needs an idle session: a session.query() call is still running. Wait for it to settle (and, after a client-side timeout, for the statement to finish) before calling database().',
+              {},
+            );
+          }
+          if (transactionStatus !== 'I') {
+            throw new DatabaseError(
+              "database() needs an idle session: a transaction opened with session.query('BEGIN') is still open. COMMIT or ROLLBACK it first.",
+              { transactionStatus },
+            );
+          }
+        }
         queued = true;
         sessionDatabase ??= createSessionDatabase({
           client: sessionClient,
@@ -1649,6 +1720,8 @@ async function createDatabase(
             lost = true;
             hardClose();
           },
+          transactionStatus: () => transactionStatus,
+          capture: captureValues,
         });
         return sessionDatabase;
       },
@@ -1665,15 +1738,17 @@ async function createDatabase(
           // Until database() is first called the session is exactly as it
           // was before the queue existed: the statement is handed to
           // node-postgres now, with node-postgres's own timers.
+          const sent = sessionClient.query(normalized.sql, normalized.values);
           directPending += 1;
-          outcome = sessionClient
-            .query(normalized.sql, normalized.values)
-            .finally(directSettled);
+          outcome = sent.finally(() => {
+            directPending -= 1;
+          });
         } else {
-          // Through the FIFO. The bound values are captured now, so a caller
-          // that reuses its array for the next call cannot change this one.
+          // Through the FIFO. The bound values are encoded now, so a caller
+          // that reuses its array, or mutates a Buffer or object in it,
+          // cannot change this call.
           const text = normalized.sql;
-          const bound = [...normalized.values];
+          const bound = captureValues(normalized.values) as unknown[];
           outcome = enqueueWithDeadline((remaining) =>
             remaining === undefined
               ? sessionClient.query(text, bound)

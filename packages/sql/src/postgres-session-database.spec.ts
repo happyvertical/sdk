@@ -1122,6 +1122,8 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
     const submitted = recordSubmissions();
     try {
       const slow = session.query('SELECT pg_sleep(1)');
+      // Both deadlines run from the call, so this one can reject first.
+      slow.catch(() => {});
       const queuedInsert = session.query(`INSERT INTO ${table} VALUES (1)`);
       const started = Date.now();
       await rejectsWith(queuedInsert, /timeout/i);
@@ -1160,7 +1162,7 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
     await db.query(`DROP TABLE ${table}`);
   });
 
-  it('marks the session lost when its statement is terminated, even with a localised severity', async () => {
+  it('a terminated backend with a localised severity still ends the session, through the connection events', async () => {
     const db = await open({ max: 2 });
     const { session, pinned } = await pin(db);
     const pid = await pidOf(pinned);
@@ -1186,7 +1188,7 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
       };
       const observed = pinned.query('SELECT pg_sleep(5)').then(
         () => 'resolved',
-        () => session.isActive(),
+        () => 'rejected',
       );
       await waitFor(async () => {
         const running = await db.query(
@@ -1196,8 +1198,13 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
         return running.rows[0].n === 1;
       });
       await db.query('SELECT pg_terminate_backend($1)', [pid]);
-      // Already inactive when the statement's rejection is observed.
-      expect(await observed).toBe(false);
+      expect(await observed).toBe('rejected');
+      // Not recognised from the translated severity; the socket closing is.
+      await waitFor(() => !session.isActive(), 5_000);
+      await rejectsWith(
+        pinned.query('SELECT 1'),
+        /Session connection was lost/,
+      );
     } finally {
       restore();
       submitted.restore();
@@ -1462,3 +1469,96 @@ function delayReadyAfter(
     connection.emit = emit;
   };
 }
+
+describe.skipIf(!available)('SessionHandle review round 5', () => {
+  it('database() refuses while a direct session.query() is still running', async () => {
+    const db = await open({ max: 2 });
+    const session = await rawSession(db);
+    const running = session.query('SELECT pg_sleep(0.3)');
+    expect(() => session.database?.()).toThrow(/needs an idle session/);
+    await running;
+    expect(session.database?.()).toBeDefined();
+  });
+
+  it('database() refuses while a transaction opened with session.query(BEGIN) is open', async () => {
+    const db = await open({ max: 2 });
+    const session = await rawSession(db);
+    await session.query('BEGIN');
+    expect(() => session.database?.()).toThrow(/BEGIN.*still open/);
+    await session.query('ROLLBACK');
+    expect(session.database?.()).toBeDefined();
+  });
+
+  it('a managed transaction refuses to run inside a caller-owned transaction, whose rows stay uncommitted', async () => {
+    const db = await open({ max: 3 });
+    const { session, pinned } = await pin(db);
+    const table = tableName('callertx');
+    await pinned.query(`CREATE TABLE ${table} (id int)`);
+    await session.query('BEGIN');
+    await session.query(`INSERT INTO ${table} VALUES (1)`);
+    await rejectsWith(
+      pinned.transaction?.(async () => {}),
+      /BEGIN.*still open/,
+    );
+    await rejectsWith(pinned.beginTransaction?.(), /BEGIN.*still open/);
+    // The refusal sent nothing and kept the lease.
+    expect(session.isActive()).toBe(true);
+    expect((await db.list(table, {})).length).toBe(0);
+    await session.query('ROLLBACK');
+    expect((await db.list(table, {})).length).toBe(0);
+    await pinned.transaction?.(async (tx) => {
+      await tx.insert(table, { id: 2 });
+    });
+    expect((await db.list(table, {})).map((row) => row.id)).toEqual([2]);
+    await pinned.query(`DROP TABLE ${table}`);
+  });
+
+  it('captures a queued write’s parameters at the call, including a reused array and a mutated Buffer', async () => {
+    const db = await open({ max: 2 });
+    const { pinned } = await pin(db);
+    const table = tableName('capture');
+    await pinned.query(`CREATE TABLE ${table} (id int, payload bytea)`);
+    const handle = await pinned.beginTransaction?.();
+    if (!handle) throw new Error('no beginTransaction');
+    const values: unknown[] = [1, Buffer.from([1, 2, 3])];
+    const queued = pinned.query(
+      `INSERT INTO ${table} (id, payload) VALUES ($1, $2)`,
+      values,
+    );
+    values[0] = 99;
+    (values[1] as Buffer)[0] = 9;
+    await handle.commit();
+    await queued;
+    const rows = await pinned.query(
+      `SELECT id, encode(payload, 'hex') AS hex FROM ${table}`,
+    );
+    expect(rows.rows).toEqual([{ id: 1, hex: '010203' }]);
+    await pinned.query(`DROP TABLE ${table}`);
+  });
+
+  it('a statement-level 57P01 (forwarded, not local) leaves the session usable; schema helpers still fail on it', async () => {
+    const db = await open({ max: 2 });
+    const { session, pinned } = await pin(db);
+    const pid = await pidOf(pinned);
+    const raise = tableName('raise57');
+    await pinned.query(
+      `CREATE FUNCTION ${raise}() RETURNS int LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION USING ERRCODE = '57P01', MESSAGE = 'remote server shut down'; END $$`,
+    );
+    await rejectsWith(pinned.query(`SELECT ${raise}()`), /remote server/);
+    expect(session.isActive()).toBe(true);
+    expect(await pidOf(pinned)).toBe(pid);
+    await rejectsWith(session.query(`SELECT ${raise}()`), /remote server/);
+    expect(session.isActive()).toBe(true);
+
+    // Tolerated DDL never tolerates a shutdown code.
+    await rejectsWith(
+      pinned.syncSchema?.(
+        `CREATE MATERIALIZED VIEW ${raise}_mv AS SELECT ${raise}() AS v`,
+      ),
+      /remote server/,
+    );
+    expect(session.isActive()).toBe(true);
+    expect(await pidOf(pinned)).toBe(pid);
+    await pinned.query(`DROP FUNCTION ${raise}()`);
+  });
+});

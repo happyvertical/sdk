@@ -703,11 +703,21 @@ try {
   before `database()` existed: each statement is handed to node-postgres
   during the call, with node-postgres's own queue and timers. From the first
   `database()` call on, they share the session's queue with `pinned.*`, and
-  the guarantees below apply to all three.
+  the guarantees below apply to all three. The first `database()` call
+  requires an idle session and throws otherwise: no `session.query()` still
+  running (after a client-side timeout, until the statement has finished on
+  the server), and no transaction opened with `session.query('BEGIN')`.
+- **Managed transactions never run inside the caller's.** If, after the
+  switch, `session.query('BEGIN')` opens a transaction, `transaction()` and
+  `beginTransaction()` on `database()` reject (sending nothing, keeping the
+  session) until that transaction is committed or rolled back. The check uses
+  the transaction status PostgreSQL reports with every ReadyForQuery.
 - **Statements run in issue order.** `pinned.*`, `session.query()` and
   `release()` share one queue on the session. A statement takes its place when
-  it reaches the session (at the call itself; its bound values are copied
-  then) and keeps it until the server
+  it reaches the session (at the call itself; its parameters are encoded
+  then with node-postgres's own encoder, so reusing the array or mutating a
+  Buffer, Date or object afterwards cannot change it) and keeps it until the
+  server
   reports it is ready for the next statement, or the connection ends, so
   statements run one at a time without relying on node-postgres's deprecated
   internal client queue. A statement whose promise settles early (an error
@@ -716,18 +726,20 @@ try {
   rejects, the session stays usable, and the next statement runs once the
   timed-out one has really finished on the server. `release()` closes the
   session to new calls at once but does not open the queue early: its
-  ROLLBACK still waits for that readiness. A FATAL error from the server, or
-  one of the SQLSTATEs that always end the backend (57P01, 57P02, 57P03,
-  57P05; checked because the severity text is localised), marks the session
-  lost at once. Other errors, including an `08P01` parameter-count error,
-  leave it usable.
+  ROLLBACK still waits for that readiness. A FATAL (or PANIC) error from this
+  backend marks the session lost at once; other connection loss, including a
+  FATAL whose severity text is localised, is detected when the connection
+  reports an error or ends. Statement-level errors leave it usable, whatever
+  their SQLSTATE: an `08P01` parameter-count error, or a `57P01` forwarded
+  from another server (for example by `dblink`).
 - **Client-side `query_timeout`.** On the queue, a raw `session.query()`
   keeps the deadline node-postgres gave it: it runs from the call (on a
   monotonic clock), a call still queued when it expires rejects then and is
   withdrawn without being sent, and a call sent later gets only the time it
-  has left. `release()`'s cleanup statements carry the same deadline; if one
-  cannot be sent or finish in time, the lease is discarded (as by
-  `destroy()`). A `database()` statement's timeout starts when it is sent. If
+  has left. `release()`'s two cleanup statements (ROLLBACK, then the unlock)
+  each get their own `query_timeout` window, so `release()` can wait up to
+  two windows; if either cannot be sent or finish in its window, the lease is
+  discarded (as by `destroy()`). A `database()` statement's timeout starts when it is sent. If
   `BEGIN` itself times out client-side, the backend may or may not be inside
   a transaction, so the session is discarded (reported as lost) rather than
   let a later statement land in an abandoned transaction.
@@ -745,9 +757,10 @@ try {
   `initializeSchemas()` tolerate individual DDL failures from the server as on
   the root handle, but reject if the session is closed when they start, closes
   while they run (including a backend terminated mid-statement), a statement
-  of theirs times out waiting for an open transaction, or a statement fails
+  of theirs times out waiting for an open transaction, a statement fails
   client-side with an unknown outcome (for example node-postgres's
-  `query_timeout`).
+  `query_timeout`), or the server answers with a FATAL or a shutdown /
+  termination SQLSTATE (57P0x), even one that leaves the session usable.
 - **No NULL-key upserts.** `upsert()` on `database()` or one of its
   transactions rejects when a conflict column is `NULL` and
   `{ nullsDistinct: true }` is not passed, because choosing between the native

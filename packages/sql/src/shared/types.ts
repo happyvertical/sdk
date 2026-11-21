@@ -1639,7 +1639,7 @@ export interface SessionHandle {
    * handed to node-postgres during the call, with node-postgres's own queue
    * and timers, as in earlier versions. Once it has been called, raw queries
    * and `release()` share the session's own statement queue with that
-   * database (issue order, bound values copied at the call, a configured
+   * database (issue order, parameters encoded at the call, a configured
    * `query_timeout` counted from the call on a monotonic clock, and a queued
    * call withdrawn unsent when it expires).
    */
@@ -1702,7 +1702,11 @@ export interface SessionHandle {
    * `vector`, `initializeSchemas`, `transaction` (nested calls on the handle
    * it passes are savepoints, as on the root handle) and `beginTransaction`.
    * It has no `acquireSession`, `reopenOptions` or `close`. Repeated calls
-   * return the same object.
+   * return the same object. The first call throws unless the session is
+   * idle: no {@link SessionHandle.query} still running and no transaction
+   * opened with `query('BEGIN')`. Afterwards, `transaction()` and
+   * `beginTransaction()` refuse to start while such a caller-owned
+   * transaction is open.
    *
    * - It never uses another connection. After the session is released or
    *   destroyed, or its connection is lost, every call rejects; it does not
