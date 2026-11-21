@@ -23,7 +23,7 @@ import {
 } from './shared/duckdb-resources';
 import {
   convertUniqueIndexesToInlineConstraints,
-  parseGeneratedColumns,
+  describeDuckDBTable,
 } from './shared/duckdb-schema-utils';
 import { serializeDuckDBStatements } from './shared/duckdb-statement-queue';
 import { redactDatabaseUrl } from './shared/redact-database-url';
@@ -37,7 +37,6 @@ import type {
   IndexDefinition,
   QueryResult,
   SchemaInitializationOptions,
-  TableColumnInfo,
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
@@ -1233,161 +1232,8 @@ export async function getDatabase(
   const getTableSchema = async (
     table: string,
     schemaOptions?: GetTableSchemaOptions,
-  ): Promise<TableSchemaInfo | null> => {
-    // The name is only ever a bound parameter or a quoted identifier below.
-    assertIntrospectionTableName(table);
-    const optedIn =
-      !!schemaOptions?.includeGenerated || !!schemaOptions?.includeHidden;
-
-    try {
-      // Check if table exists
-      const exists = await tableExists(table);
-      if (!exists) {
-        return null;
-      }
-
-      // Get column information from information_schema
-      const columnRows = await many`
-        SELECT
-          column_name,
-          data_type,
-          is_nullable,
-          column_default
-        FROM information_schema.columns
-        WHERE table_name = ${table}
-        ORDER BY ordinal_position
-      `;
-
-      // Get primary key columns from DuckDB system tables
-      const pkRows = await many`
-        SELECT column_name
-        FROM duckdb_constraints() con
-        JOIN duckdb_columns() cols
-          ON con.table_oid = cols.table_oid
-        WHERE con.table_name = ${table}
-          AND con.constraint_type = 'PRIMARY KEY'
-          AND cols.column_name = ANY(con.constraint_column_names)
-      `;
-
-      const pkColumns = new Set(pkRows.map((row) => row.column_name));
-
-      // The catalogs do not flag generated columns; read the CREATE statement,
-      // but only for a caller that asked for the flags.
-      let generatedColumns = new Set<string>();
-      if (optedIn) {
-        const createRows = await many`
-          SELECT sql FROM duckdb_tables() WHERE table_name = ${table}
-        `;
-        generatedColumns = parseGeneratedColumns(
-          (createRows[0]?.sql as string | undefined) ?? '',
-        );
-      }
-
-      const columns: Record<string, TableColumnInfo> = {};
-      for (const row of columnRows) {
-        const colName = row.column_name as string;
-        columns[colName] = {
-          type: row.data_type as string,
-          primaryKey: pkColumns.has(colName),
-          notNull: row.is_nullable === 'NO',
-          defaultValue: row.column_default,
-          ...(optedIn
-            ? { generated: generatedColumns.has(colName), hidden: false }
-            : {}),
-        };
-      }
-
-      // Get index information from duckdb_indexes()
-      const indexRows = await many`
-        SELECT
-          index_name,
-          sql
-        FROM duckdb_indexes()
-        WHERE table_name = ${table}
-          AND NOT is_primary
-      `;
-
-      const indexes: IndexDefinition[] = [];
-      for (const row of indexRows) {
-        const indexName = row.index_name as string;
-        const indexDef = (row.sql as string) || '';
-
-        // Parse column names from index definition
-        const colMatch = indexDef.match(/\(([^)]+)\)/);
-        const indexColumns = colMatch
-          ? colMatch[1].split(',').map((col) => col.trim())
-          : [];
-
-        const isUnique = indexDef.toUpperCase().includes('UNIQUE');
-
-        indexes.push({
-          name: indexName,
-          columns: indexColumns,
-          unique: isUnique,
-        });
-      }
-
-      // Get foreign key information
-      const fkRows = await many`
-        SELECT
-          constraint_column_names,
-          constraint_column_indexes,
-          constraint_text
-        FROM duckdb_constraints()
-        WHERE table_name = ${table}
-          AND constraint_type = 'FOREIGN KEY'
-      `;
-
-      const foreignKeys: Array<{
-        column: string;
-        referencesTable: string;
-        referencesColumn: string;
-        onDelete?: string;
-        onUpdate?: string;
-      }> = [];
-
-      for (const fkRow of fkRows) {
-        // Parse foreign key constraint text to extract referenced table and column
-        const fkText = (fkRow.constraint_text as string) || '';
-        const referencesMatch = fkText.match(
-          /REFERENCES\s+(\w+)\s*\(([^)]+)\)/i,
-        );
-
-        if (
-          referencesMatch &&
-          Array.isArray(fkRow.constraint_column_names) &&
-          fkRow.constraint_column_names.length > 0
-        ) {
-          const columnName = fkRow.constraint_column_names[0];
-          const referencedTable = referencesMatch[1];
-          const referencedColumn = referencesMatch[2].trim();
-
-          const onDeleteMatch = fkText.match(/ON DELETE\s+(\w+)/i);
-          const onUpdateMatch = fkText.match(/ON UPDATE\s+(\w+)/i);
-
-          foreignKeys.push({
-            column: columnName,
-            referencesTable: referencedTable,
-            referencesColumn: referencedColumn,
-            onDelete: onDeleteMatch ? onDeleteMatch[1] : undefined,
-            onUpdate: onUpdateMatch ? onUpdateMatch[1] : undefined,
-          });
-        }
-      }
-
-      return {
-        tableName: table,
-        columns,
-        indexes,
-        foreignKeys,
-      };
-    } catch (e) {
-      throw new DatabaseError('Failed to retrieve table schema', {
-        table,
-        originalError: formatDbError(e),
-      });
-    }
-  };
+  ): Promise<TableSchemaInfo | null> =>
+    describeDuckDBTable({ tableExists, many }, table, schemaOptions);
 
   /**
    * ALTER TABLE operations for schema evolution
