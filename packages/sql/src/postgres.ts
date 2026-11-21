@@ -21,6 +21,7 @@ import {
   normalizePostgresRawQuery,
   type PostgresQueryExecutor,
 } from './shared/postgres-dialect';
+import { createTransactionLock } from './shared/transaction-lock';
 import type {
   DatabaseCacheOptions,
   DatabaseInterface,
@@ -744,6 +745,283 @@ async function createDatabase(
   const alterTable = createAlterTable(client);
 
   /**
+   * Builds the root-shaped interface of one pinned session
+   * ({@link SessionHandle.database}).
+   *
+   * Invariant: every statement this interface issues, including catalog
+   * probes, transaction control and savepoints, runs on `sessionClient` and
+   * nothing else. It never checks a client out of the pool, so session state
+   * such as an advisory lock held by that backend covers all of its work. Once
+   * the session is released or its connection is lost, `assertUsable` throws
+   * and every statement rejects; there is no reconnect.
+   *
+   * Statements reach the connection one at a time through the session's own
+   * FIFO queue (`enqueue`), never through node-postgres's internal queue, so
+   * concurrent calls run in the order they were made.
+   *
+   * The connection holds one transaction at a time, as on PGlite: transactions
+   * take turns in arrival order, and a statement issued outside a transaction
+   * while one is open waits for it to end (both reject after the default
+   * transaction queue timeout rather than hang). A call on this interface made
+   * from inside one of its own `transaction()` callbacks would wait on the
+   * transaction its caller holds, so it rejects at once instead.
+   */
+  const createSessionDatabase = (
+    sessionClient: PoolClient,
+    assertUsable: () => void,
+    enqueue: <T>(work: () => Promise<T>) => Promise<T>,
+  ): DatabaseInterface => {
+    // Runs one promise-form statement through the session queue, checking the
+    // session again when its turn comes: a statement queued before a release
+    // or a lost connection must not run after it.
+    const runPinned = async <T>(work: () => Promise<T>): Promise<T> => {
+      assertUsable();
+      return enqueue(async () => {
+        assertUsable();
+        return work();
+      });
+    };
+
+    // The session client itself, with every query guarded and queued.
+    // `release` and `end` are refused: returning or closing the pinned
+    // connection behind the session's back would let its session state reach
+    // unrelated code.
+    const guardedClient = new Proxy(sessionClient, {
+      get(target, property) {
+        if (property === 'query') {
+          return (...args: any[]) => {
+            const first = args[0];
+            const submittable =
+              typeof first === 'object' &&
+              first !== null &&
+              typeof first.submit === 'function';
+            if (submittable || typeof args.at(-1) === 'function') {
+              // Callback and submittable forms bypass the queue, as raw client
+              // use does on the pooled adapter; they are still refused on a
+              // released or lost session.
+              assertUsable();
+              return Reflect.apply(target.query, target, args);
+            }
+            return runPinned(() => Reflect.apply(target.query, target, args));
+          };
+        }
+        if (property === 'release' || property === 'end') {
+          return () => {
+            throw new DatabaseError(
+              'Release the session instead of its pinned client',
+              {},
+            );
+          };
+        }
+        return Reflect.get(target, property, target);
+      },
+    }) as PoolClient;
+
+    const lock = createTransactionLock('postgres session');
+
+    // Marks the async scope of a running `transaction()` callback, so a call
+    // on this interface from inside it is refused instead of waiting on the
+    // lock its own caller holds. `open` turns false when the transaction ends,
+    // so work the callback left running afterwards queues normally.
+    const callbackScope = new AsyncLocalStorage<{ open: boolean }>();
+    const refuseInsideOwnTransaction = (): void => {
+      if (callbackScope.getStore()?.open) {
+        throw new DatabaseError(
+          'A session database call was made from inside its own transaction callback, where it would wait for that transaction to end. Use the transaction handle passed to the callback.',
+          {},
+        );
+      }
+    };
+
+    const pinned: PostgresQueryExecutor = {
+      query: (sql, values) => runPinned(() => sessionClient.query(sql, values)),
+    };
+
+    /** Transaction control on the pinned connection, with its command tag. */
+    const control = (sql: string): Promise<PgQueryResult> =>
+      runPinned(() => sessionClient.query(sql));
+
+    // Statements outside a transaction wait for an open one to end, so they
+    // never land inside a transaction they do not belong to.
+    const outside: PostgresQueryExecutor = {
+      query: async (sql, values) => {
+        refuseInsideOwnTransaction();
+        return lock.run(() => pinned.query(sql, values));
+      },
+    };
+
+    /**
+     * Ends a failed transaction on the pinned connection. The rollback failure,
+     * if any, is returned for the caller's error `cause`; on a lost connection
+     * the server has already rolled the transaction back.
+     */
+    const rollbackPinned = async (): Promise<unknown> => {
+      try {
+        await control('ROLLBACK');
+        return undefined;
+      } catch (rollbackError) {
+        return rollbackError;
+      }
+    };
+
+    const sessionDialect = createPostgresDialect({
+      client: outside,
+      // One connection, so a probe cannot be answered from a second one.
+      probeExecutor: (executor) => executor,
+      runInTransaction: async (work) => {
+        refuseInsideOwnTransaction();
+        return lock.run(async () => {
+          try {
+            await control('BEGIN');
+            const result = await work(pinned);
+            assertCommitted(await control('COMMIT'));
+            return result;
+          } catch (error) {
+            const rollbackError = await rollbackPinned();
+            if (rollbackError !== undefined && error instanceof Error) {
+              error.cause ??= rollbackError;
+            }
+            throw error;
+          }
+        });
+      },
+    });
+
+    const sessionMethods = sessionDialect.createClientMethods(
+      outside,
+      false,
+      sessionDialect.serializeRecord,
+    );
+
+    /** The interface handed to a transaction opened on the session. */
+    const createSessionTransaction = (
+      transactionOptions: TransactionOptions | undefined,
+    ) => {
+      const transactionState = createTransactionExecutor(guardedClient);
+      let scoped!: DatabaseInterface;
+      const nested = sessionDialect.createNestedTransaction(
+        transactionState.executor,
+        () => scoped,
+        transactionState.clearError,
+        new AsyncLocalStorage<NestedScope>(),
+      );
+      scoped = {
+        url,
+        engine: 'postgres',
+        client: transactionState.client,
+        ...sessionDialect.createClientMethods(
+          transactionState.executor,
+          true,
+          sessionDialect.serializeRecord,
+          transactionState.clearError,
+          transactionOptions?.introspection === true,
+        ),
+        transaction: nested,
+      };
+      return { transactionState, nested, scoped };
+    };
+
+    const transaction = async <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+      transactionOptions?: TransactionOptions,
+    ): Promise<T> => {
+      refuseInsideOwnTransaction();
+      const releaseLock = await lock.acquire();
+      const scope = { open: true };
+      try {
+        await control('BEGIN');
+        const { transactionState, nested, scoped } =
+          createSessionTransaction(transactionOptions);
+        try {
+          const result = await callbackScope.run(scope, () => callback(scoped));
+          await nested.drain();
+          await transactionState.drain();
+          const statementError = transactionState.getError();
+          if (statementError !== undefined) throw statementError;
+          assertCommitted(await control('COMMIT'), transactionState);
+          return result;
+        } catch (error) {
+          await nested.drain();
+          await transactionState.drain();
+          const rollbackError = await rollbackPinned();
+          if (rollbackError !== undefined && error instanceof Error) {
+            error.cause ??= rollbackError;
+          }
+          throw error;
+        }
+      } finally {
+        scope.open = false;
+        releaseLock();
+      }
+    };
+
+    const beginTransaction = async (
+      transactionOptions?: TransactionOptions,
+    ): Promise<TransactionHandle> => {
+      refuseInsideOwnTransaction();
+      const releaseLock = await lock.acquire();
+      try {
+        await control('BEGIN');
+      } catch (error) {
+        releaseLock();
+        throw error;
+      }
+
+      let active = true;
+      const { transactionState, nested, scoped } =
+        createSessionTransaction(transactionOptions);
+
+      // The transaction is over however this ends, so the session's
+      // transaction slot is freed whether COMMIT succeeds or throws.
+      const end = async (command: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
+        if (!active) {
+          throw new DatabaseError('Transaction already ended', {});
+        }
+        active = false;
+        try {
+          await nested.drain();
+          await transactionState.drain();
+          const statementError = transactionState.getError();
+          if (command === 'COMMIT' && statementError !== undefined) {
+            throw statementError;
+          }
+          const result = await control(command);
+          if (command === 'COMMIT') assertCommitted(result, transactionState);
+        } catch (error) {
+          const rollbackError = await rollbackPinned();
+          if (rollbackError !== undefined && error instanceof Error) {
+            error.cause ??= rollbackError;
+          }
+          throw error;
+        } finally {
+          releaseLock();
+        }
+      };
+
+      return Object.assign(scoped, {
+        commit: () => end('COMMIT'),
+        rollback: () => end('ROLLBACK'),
+        isActive: () => active,
+      }) as TransactionHandle;
+    };
+
+    const sessionDb: DatabaseInterface = {
+      url,
+      engine: 'postgres',
+      client: guardedClient,
+      ...sessionMethods,
+      initializeSchemas: async (options: SchemaInitializationOptions) => {
+        await new DatabaseSchemaManager().initializeSchemas(sessionDb, options);
+      },
+      transaction,
+      beginTransaction,
+      alterTable: createAlterTable(outside),
+      vector: createVectorCapabilities(outside),
+    };
+    return sessionDb;
+  };
+
+  /**
    * Acquire a pinned connection from the pool for session-scoped state such as
    * `pg_advisory_lock`. Every query on the returned handle runs on the same
    * client until {@link SessionHandle.release} drops the connection (which
@@ -754,6 +1032,7 @@ async function createDatabase(
     const sessionClient = await pool.connect();
     let released = false;
     let lost = false;
+    let sessionDatabase: DatabaseInterface | undefined;
 
     // pg-pool removes its idle 'error' listener when a client is checked out.
     // A session is pinned for the process lifetime and mostly idle between
@@ -764,7 +1043,53 @@ async function createDatabase(
       lost = true;
     });
 
+    const assertSessionUsable = (): void => {
+      if (released) {
+        throw new DatabaseError('Session has been released', {});
+      }
+      if (lost) {
+        throw new DatabaseError('Session connection was lost', {});
+      }
+    };
+
+    // The session's own FIFO statement queue. node-postgres 8.x deprecates
+    // calling client.query() while another query is running, so statements
+    // are handed to the client one at a time, in the order they were issued.
+    let statementTail: Promise<void> = Promise.resolve();
+    const enqueue = <T>(work: () => Promise<T>): Promise<T> => {
+      const turn = statementTail.then(work);
+      statementTail = turn.then(
+        () => undefined,
+        () => undefined,
+      );
+      return turn;
+    };
+
+    // Destroys the physical connection exactly once. It is never returned to
+    // the pool: that would not clear residual session state, which could then
+    // leak onto a connection later handed to unrelated code. With a statement
+    // in flight, node-postgres destroys the socket instead of sending
+    // Terminate, so this never waits on the server.
+    let dropped = false;
+    const dropConnection = (): void => {
+      if (dropped) return;
+      dropped = true;
+      sessionClient.release(true);
+    };
+
     return {
+      database: () => {
+        sessionDatabase ??= createSessionDatabase(
+          sessionClient,
+          assertSessionUsable,
+          enqueue,
+        );
+        return sessionDatabase;
+      },
+      destroy: () => {
+        released = true;
+        dropConnection();
+      },
       query: async (sql: string, ...values: any[]) => {
         if (released) {
           throw new DatabaseError('Session has been released', {});
@@ -774,9 +1099,8 @@ async function createDatabase(
         }
         const normalized = normalizePostgresRawQuery(sql, values);
         try {
-          const result = await sessionClient.query(
-            normalized.sql,
-            normalized.values,
+          const result = await enqueue(() =>
+            sessionClient.query(normalized.sql, normalized.values),
           );
           return {
             rows: result.rows,
@@ -804,20 +1128,22 @@ async function createDatabase(
             // pg_advisory_unlock_all() error with "current transaction is
             // aborted". Roll back first (a no-op when no transaction is open)
             // so the unlock runs and the deterministic-release contract holds.
-            await sessionClient.query('ROLLBACK');
+            await enqueue(() => sessionClient.query('ROLLBACK'));
           } catch {
             // No open transaction, or already gone — proceed to unlock.
           }
           try {
-            await sessionClient.query('SELECT pg_advisory_unlock_all()');
+            await enqueue(() =>
+              sessionClient.query('SELECT pg_advisory_unlock_all()'),
+            );
           } catch {
             // Best-effort; the destroy below frees locks at backend exit.
           }
         }
-        // Destroy the physical connection rather than returning it to the pool.
-        // Returning it would NOT clear residual session state, which could then
-        // leak onto a connection later handed to unrelated code.
-        sessionClient.release(true);
+        // Destroy the physical connection rather than returning it to the pool
+        // (see dropConnection). A destroy() during the statements above has
+        // already done it.
+        dropConnection();
       },
     };
   };

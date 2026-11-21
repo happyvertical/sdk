@@ -664,6 +664,73 @@ another reason to always end a manual `beginTransaction()` handle in `finally`
 is that an abandoned handle can retain this bookkeeping as well as its database
 connection.
 
+### Pinned sessions (PostgreSQL)
+
+`db.acquireSession()` checks one connection out of the pool and keeps it for
+session-scoped state such as `pg_advisory_lock`. It exists on the `pg` adapter
+only; check for it before calling. `session.query()` runs raw SQL on that
+connection, and `session.release()` rolls back, unlocks all advisory locks and
+destroys the connection (it is never returned to the pool).
+
+`session.database()` returns a full database interface bound to that one
+connection, so a caller holding a session lock can run a whole multi-step job
+on the backend that holds it: queries and tagged templates, record helpers,
+`tableExists`, `getTableSchema`, `syncSchema`, `alterTable`, several
+`transaction()` / `beginTransaction()` transactions, and statements that
+cannot run in a transaction (`CREATE INDEX CONCURRENTLY`).
+
+```typescript
+const session = await db.acquireSession();
+try {
+  await session.query('SELECT pg_advisory_lock($1)', 42);
+  const pinned = session.database?.();
+  if (!pinned) throw new Error('this sql version cannot pin a database');
+  await pinned.transaction(async (tx) => {
+    await tx.query('ALTER TABLE users ADD COLUMN nickname text');
+  });
+  await pinned.query('CREATE INDEX CONCURRENTLY users_nick ON users (nickname)');
+} finally {
+  await session.release();
+}
+```
+
+- **One connection, no reconnect.** Every statement, catalog probe, savepoint
+  and transaction runs on the session's backend (`pg_backend_pid()` is the
+  same throughout). It never takes another pool connection. After the session
+  is released or destroyed, or its backend ends, every call on it rejects.
+- **Statements run in issue order.** Concurrent calls queue on the session
+  itself, one at a time, without relying on node-postgres's deprecated
+  internal client queue.
+- **One transaction at a time.** As on PGlite, transactions take turns in
+  arrival order, and a call outside a transaction made while one is open waits
+  until it ends (rejecting after 30 seconds of waiting). Inside a
+  `transaction()` callback use the `tx` you were handed: a call on the pinned
+  database itself from inside its own callback rejects at once instead of
+  waiting on itself. Nested `tx.transaction()` calls are savepoints, as on the
+  root handle.
+- **Commit is checked.** `COMMIT` of an aborted transaction rejects, as on the
+  root handle.
+- `session.query()` shares the connection but not the transaction turn: issued
+  while a pinned transaction is open, it runs inside that transaction.
+- It has no `acquireSession`, `reopenOptions` or `close`. `pinned.client` is
+  the session's connection with queries guarded; its `release()` and `end()`
+  throw, since only the session may drop the connection.
+
+`session.release()` waits for statements already issued on the session. When
+that wait must be bounded (a deadline, a statement stuck behind a lock),
+`session.destroy()` discards the session without sending anything — no
+rollback, no unlock — and returns at once; a statement in flight is cut off by
+destroying the socket. The server then ends the backend, which frees its locks.
+A backend that is still executing a statement notices the closed connection
+only when it next talks to the client, or at `client_connection_check_interval`
+(PostgreSQL 14+) when the server or session sets one.
+
+`session.database()` and `session.destroy()` were added in
+`@happyvertical/sql` 0.117.0. Both are optional on the `SessionHandle` type and
+absent on handles created by an earlier copy of the package, so a consumer that
+needs them must require that the copy which created its `db` is at least
+0.117.0, and feature-detect them.
+
 ### Identifiers
 
 Every adapter quotes CRUD column identifiers, including insert/upsert column
@@ -1039,7 +1106,8 @@ pool connection, or keep transaction-scoped schema work on the supplied `tx`
 handle with `SET LOCAL search_path` before calling `tx.tableExists()` or
 `tx.syncSchema()`. `acquireSession()` pins raw PostgreSQL queries to one
 connection for session-scoped state; root metadata helpers are not part of
-that raw session handle.
+that raw session handle, but its `session.database()` runs them on the pinned
+connection (see [Pinned sessions](#pinned-sessions-postgresql)).
 
 A qualified `schema.table` name is also accepted by `tableExists()` and
 `getTableSchema()` on PostgreSQL and PGlite. A bare name is tried as one literal

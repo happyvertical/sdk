@@ -1588,8 +1588,78 @@ export interface SessionHandle {
    * connection (it is NOT returned to the pool) so the database releases any
    * remaining session state — returning it to the pool would leak that state
    * onto a later, unrelated checkout.
+   *
+   * It waits for statements already issued on the session (it queues behind
+   * them); use {@link SessionHandle.destroy} when that wait must be bounded.
    */
   release: () => Promise<void>;
+
+  /**
+   * Discard the session without sending anything: no `ROLLBACK`, no unlock.
+   * Returns at once, even while a statement is in flight (the socket is then
+   * destroyed rather than closed with a Terminate message). Idempotent, and
+   * safe during or after {@link SessionHandle.release}.
+   *
+   * Every later call on the session and on its {@link SessionHandle.database}
+   * rejects, and statements still waiting their turn reject. The server frees
+   * the session's state (advisory locks included) when its backend exits. An
+   * idle backend exits as soon as it sees the connection close; a backend
+   * still running a statement notices only when it next reads from or writes
+   * to the client, or at the server's `client_connection_check_interval`
+   * (PostgreSQL 14+) if one is set.
+   *
+   * Added to the PostgreSQL adapter in `@happyvertical/sql` 0.117.0. Optional
+   * so that other implementations of this interface keep compiling; check
+   * for it before calling.
+   */
+  destroy?: () => void;
+
+  /**
+   * A root-shaped database whose every statement and transaction runs on this
+   * session's one connection: `query` and the tagged templates, the record
+   * methods, `tableExists`, `getTableSchema`, `syncSchema`, `alterTable`,
+   * `vector`, `initializeSchemas`, `transaction` (nested calls on the handle
+   * it passes are savepoints, as on the root handle) and `beginTransaction`.
+   * It has no `acquireSession`, `reopenOptions` or `close`. Repeated calls
+   * return the same object.
+   *
+   * - It never uses another connection. After the session is released or
+   *   destroyed, or its connection is lost, every call rejects; it does not
+   *   reconnect.
+   * - Statements run one at a time in the order they were issued, through the
+   *   session's own queue.
+   * - The connection holds one transaction at a time. `transaction()` and
+   *   `beginTransaction()` take turns in arrival order, and a call outside a
+   *   transaction made while one is open waits until it ends (rejecting after
+   *   30 seconds of waiting, like PGlite's `transactionQueueTimeout`). A call
+   *   on this database (not on the `tx` handle) from inside its own
+   *   `transaction()` callback rejects at once rather than wait on itself.
+   * - `COMMIT` that PostgreSQL answers with a rollback (an aborted
+   *   transaction) rejects, as on the root handle.
+   * - {@link SessionHandle.query} shares the connection and the statement
+   *   queue but not the transaction turn: issued while a transaction of this
+   *   database is open, it runs inside that transaction.
+   *
+   * Added to the PostgreSQL adapter in `@happyvertical/sql` 0.117.0; a handle
+   * created by an earlier copy of the package has no `database`. Optional so
+   * that other implementations of this interface keep compiling; check for it
+   * before calling.
+   *
+   * @example Run a multi-transaction migration under a session advisory lock
+   * ```typescript
+   * const session = await db.acquireSession();
+   * try {
+   *   await session.query('SELECT pg_advisory_lock($1)', 42);
+   *   const pinned = session.database?.();
+   *   if (!pinned) throw new Error('adapter cannot pin a database');
+   *   await pinned.transaction(async (tx) => { await tx.query('...'); });
+   *   await pinned.query('CREATE INDEX CONCURRENTLY ...');
+   * } finally {
+   *   await session.release();
+   * }
+   * ```
+   */
+  database?: () => DatabaseInterface;
 }
 
 /**
