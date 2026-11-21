@@ -1648,24 +1648,32 @@ export interface SessionHandle {
    * remaining session state — returning it to the pool would leak that state
    * onto a later, unrelated checkout.
    *
-   * It waits for statements already issued on the session (it queues behind
-   * them); use {@link SessionHandle.destroy} when that wait must be bounded.
+   * It runs after the statements already queued on the session, including
+   * ones issued in the same tick just before it (it queues behind them). On
+   * the PostgreSQL adapter, calls on {@link SessionHandle.database} still
+   * waiting for an open transaction to end reject at once, and that
+   * transaction's handle ends. Use {@link SessionHandle.destroy} when the
+   * wait must be bounded.
    */
   release: () => Promise<void>;
 
   /**
-   * Discard the session without sending anything: no `ROLLBACK`, no unlock.
-   * Returns at once, even while a statement is in flight (the socket is then
-   * destroyed rather than closed with a Terminate message). Idempotent, and
-   * safe during or after {@link SessionHandle.release}.
+   * Discard the session without sending anything: no `ROLLBACK`, no unlock,
+   * no protocol Terminate message. The socket is destroyed, so this returns at
+   * once even while a statement is in flight. Idempotent, and safe during or
+   * after {@link SessionHandle.release}.
    *
    * Every later call on the session and on its {@link SessionHandle.database}
-   * rejects, and statements still waiting their turn reject. The server frees
-   * the session's state (advisory locks included) when its backend exits. An
-   * idle backend exits as soon as it sees the connection close; a backend
-   * still running a statement notices only when it next reads from or writes
-   * to the client, or at the server's `client_connection_check_interval`
-   * (PostgreSQL 14+) if one is set.
+   * rejects, statements still queued reject, calls waiting for an open
+   * transaction reject, and that transaction's handle ends.
+   *
+   * The server frees the session's state (advisory locks included) when its
+   * backend exits. An idle backend exits as soon as the server sees the
+   * socket close. A backend still executing a statement, or waiting for a
+   * lock, does not read from the socket: by default it keeps its locks until
+   * that statement ends. Setting `client_connection_check_interval`
+   * (PostgreSQL 14+) on the session or the server bounds that to the
+   * interval; the adapter does not set it.
    *
    * Added to the PostgreSQL adapter in `@happyvertical/sql` 0.117.0. Optional
    * so that other implementations of this interface keep compiling; check
@@ -1685,16 +1693,26 @@ export interface SessionHandle {
    * - It never uses another connection. After the session is released or
    *   destroyed, or its connection is lost, every call rejects; it does not
    *   reconnect.
-   * - Statements run one at a time in the order they were issued, through the
-   *   session's own queue.
+   * - Statements run one at a time through the session's own queue, shared
+   *   with {@link SessionHandle.query} and `release()`. A statement takes its
+   *   place when it reaches the session and keeps it until the driver has
+   *   finished with it; a client-side `query_timeout` therefore discards the
+   *   connection rather than let a later statement share it.
    * - The connection holds one transaction at a time. `transaction()` and
-   *   `beginTransaction()` take turns in arrival order, and a call outside a
-   *   transaction made while one is open waits until it ends (rejecting after
-   *   30 seconds of waiting, like PGlite's `transactionQueueTimeout`). A call
-   *   on this database (not on the `tx` handle) from inside its own
-   *   `transaction()` callback rejects at once rather than wait on itself.
+   *   `beginTransaction()` take turns in arrival order, and a call from
+   *   outside a transaction made while one is open waits until it ends
+   *   (rejecting after 30 seconds of waiting, like PGlite's
+   *   `transactionQueueTimeout`, or at once if the session closes). With no
+   *   transaction open, a plain call never times out. A call on this
+   *   database (not on the `tx` handle) from inside one of its own
+   *   transaction or savepoint callbacks rejects at once rather than wait on
+   *   itself.
    * - `COMMIT` that PostgreSQL answers with a rollback (an aborted
    *   transaction) rejects, as on the root handle.
+   * - `syncSchema()` and `initializeSchemas()` reject if the session is closed
+   *   when they start or closes while they run.
+   * - There is no raw driver client: `client.query(sql, values?)` takes the
+   *   same path as `query()`, and other call forms throw.
    * - {@link SessionHandle.query} shares the connection and the statement
    *   queue but not the transaction turn: issued while a transaction of this
    *   database is open, it runs inside that transaction.

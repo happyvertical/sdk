@@ -518,3 +518,424 @@ describe.skipIf(!available)('SessionHandle.database() on PostgreSQL', () => {
     expect((await db.query('SELECT 1 AS ok')).rows[0].ok).toBe(1);
   });
 });
+
+/** Settles to the promise's outcome, or to 'timeout' after `ms`. */
+async function within<T>(
+  promise: Promise<T> | undefined,
+  ms: number,
+): Promise<{ value?: T; error?: unknown } | 'timeout'> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const outcome = Promise.resolve(promise).then(
+    (value) => ({ value }),
+    (error: unknown) => ({ error }),
+  );
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), ms);
+  });
+  try {
+    return await Promise.race([outcome, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const ownCallback = /inside its own transaction callback/;
+
+describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
+  it('runs a pool transaction’s catalog probes on that transaction’s connection (pool of one)', async () => {
+    const db = await open({ max: 1, connectionTimeoutMillis: 2_000 });
+    const table = tableName('poolprobe');
+    await db.query(
+      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
+    );
+    // A cold dialect: the first null-aware upsert probes the server version
+    // and the index catalog. Both must run on the transaction's connection.
+    const outcome = await within(
+      db.transaction?.(async (tx) => {
+        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'a' });
+        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'b' });
+      }),
+      8_000,
+    );
+    expect(outcome).not.toBe('timeout');
+    expect((outcome as { error?: unknown }).error).toBeUndefined();
+    const rows = await db.list(table, {});
+    expect(rows.map((row) => row.label)).toEqual(['b']);
+    await db.query(`DROP TABLE ${table}`);
+  });
+
+  it('db.client on database() waits for an open transaction instead of joining it, and has only the promise form', async () => {
+    const db = await open({ max: 2 });
+    const { pinned } = await pin(db);
+    const table = tableName('rootclient');
+    await pinned.query(`CREATE TABLE ${table} (id int)`);
+
+    const handle = await pinned.beginTransaction?.();
+    if (!handle) throw new Error('no beginTransaction');
+    await handle.insert(table, { id: 1 });
+    let settled = false;
+    const outsideInsert = pinned.client
+      .query(`INSERT INTO ${table} (id) VALUES (2)`)
+      .finally(() => {
+        settled = true;
+      });
+    await sleep(200);
+    expect(settled).toBe(false);
+    await handle.rollback();
+    await outsideInsert;
+    // The owner's rollback discarded only its own row.
+    expect((await pinned.list(table, {})).map((row) => row.id)).toEqual([2]);
+
+    expect(() =>
+      pinned.client.query('SELECT 1', () => {
+        /* callback form */
+      }),
+    ).toThrow(/promise/);
+    await pinned.transaction?.(async (tx) => {
+      await rejectsWith(pinned.client.query('SELECT 1'), ownCallback);
+      expect(() => tx.client.query('SELECT 1', [], () => {})).toThrow(
+        /promise/,
+      );
+    });
+    await pinned.query(`DROP TABLE ${table}`);
+  });
+
+  it('does not reuse NULLS NOT DISTINCT index metadata after the transaction that created it rolls back', async () => {
+    const db = await open({ max: 2 });
+    const { pinned } = await pin(db);
+    const version = Number(
+      (await pinned.query('SHOW server_version_num')).rows[0]
+        .server_version_num,
+    );
+    if (version < 150000) return;
+    const table = tableName('nndstale');
+    await pinned.query(
+      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
+    );
+
+    await rejectsWith(
+      pinned.transaction?.(async (tx) => {
+        await tx.query(
+          `CREATE UNIQUE INDEX ${table}_nnd ON ${table} (id, tag) NULLS NOT DISTINCT`,
+        );
+        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'x' });
+        throw new Error('roll the index back');
+      }),
+      /roll the index back/,
+    );
+
+    await pinned.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'a' });
+    await pinned.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'b' });
+    const rows = await pinned.list(table, {});
+    expect(rows.map((row) => row.label)).toEqual(['b']);
+    await pinned.query(`DROP TABLE ${table}`);
+  });
+
+  it('syncSchema and initializeSchemas run on the session and report a closed session or a self-call', async () => {
+    const db = await open({ max: 1, connectionTimeoutMillis: 2_000 });
+    const { session, pinned } = await pin(db);
+    const table = tableName('sesssync');
+    const sequence = tableName('sessseq');
+
+    await pinned.syncSchema?.(
+      `CREATE TABLE ${table} (\n  id int PRIMARY KEY\n)`,
+    );
+    await pinned.syncSchema?.(
+      `CREATE TABLE ${table} (\n  id int PRIMARY KEY,\n  label text\n)`,
+    );
+    await pinned.initializeSchemas?.({
+      schema: `CREATE SEQUENCE ${sequence}`,
+    });
+    expect(
+      Object.keys((await pinned.getTableSchema?.(table))?.columns ?? {}),
+    ).toEqual(expect.arrayContaining(['id', 'label']));
+    const seq = await pinned.query(
+      'SELECT count(*)::int AS n FROM pg_class WHERE relname = $1',
+      [sequence],
+    );
+    expect(seq.rows[0].n).toBe(1);
+
+    await pinned.transaction?.(async () => {
+      await rejectsWith(
+        pinned.syncSchema?.(`CREATE SEQUENCE ${sequence}_inner`),
+        ownCallback,
+      );
+      await rejectsWith(
+        pinned.initializeSchemas?.({
+          schema: `CREATE SEQUENCE ${sequence}_inner`,
+        }),
+        ownCallback,
+      );
+    });
+
+    await pinned.query(`DROP TABLE ${table}`);
+    await pinned.query(`DROP SEQUENCE ${sequence}`);
+    await session.release();
+    await rejectsWith(
+      pinned.syncSchema?.(`CREATE SEQUENCE ${sequence}_late`),
+      /Session has been released/,
+    );
+    await rejectsWith(
+      pinned.initializeSchemas?.({
+        schema: `CREATE SEQUENCE ${sequence}_late`,
+      }),
+      /Session has been released/,
+    );
+  });
+
+  it('initializeSchemas rejects when the backend is lost', async () => {
+    const db = await open({ max: 2 });
+    const { session, pinned } = await pin(db);
+    const pid = await pidOf(pinned);
+    await db.query('SELECT pg_terminate_backend($1)', [pid]);
+    await waitFor(() => !session.isActive());
+    await rejectsWith(
+      pinned.initializeSchemas?.({
+        schema: `CREATE SEQUENCE ${tableName('lostseq')}`,
+      }),
+      /Session connection was lost/,
+    );
+  });
+
+  it('vector capabilities run on the session connection', async () => {
+    const db = await open({ max: 1, connectionTimeoutMillis: 2_000 });
+    const { pinned } = await pin(db);
+    const table = tableName('sessvec');
+    await pinned.query(`CREATE TABLE ${table} (id int PRIMARY KEY)`);
+    const hasVector = (
+      await pinned.query(
+        "SELECT count(*)::int AS n FROM pg_available_extensions WHERE name = 'vector'",
+      )
+    ).rows[0].n;
+    const ensured = within(
+      pinned.vector?.ensureColumn(table, 'embedding', 3),
+      8_000,
+    );
+    const outcome = await ensured;
+    expect(outcome).not.toBe('timeout');
+    if (hasVector) {
+      expect((outcome as { error?: unknown }).error).toBeUndefined();
+      await pinned.query(
+        `INSERT INTO ${table} (id, embedding) VALUES (1, '[1,0,0]')`,
+      );
+      const found = await pinned.vector?.search(table, 'embedding', [1, 0, 0], {
+        limit: 1,
+      });
+      expect(found?.length).toBe(1);
+    } else {
+      // No pgvector on this server: the failure came from the session's own
+      // connection (a pool checkout would have timed out instead).
+      await rejectsWith(
+        Promise.reject((outcome as { error?: unknown }).error),
+        /vector/i,
+      );
+    }
+    expect(await pidOf(pinned)).toBeGreaterThan(0);
+    await pinned.query(`DROP TABLE ${table}`);
+  });
+
+  it('keeps a pending version probe local, so a transaction never waits on a caller waiting for it', async () => {
+    const db = await open({ max: 2 });
+    const { pinned } = await pin(db);
+    const table = tableName('sessprobe');
+    await pinned.query(
+      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
+    );
+    const handle = await pinned.beginTransaction?.();
+    if (!handle) throw new Error('no beginTransaction');
+    const waiting = pinned.upsert(table, ['id', 'tag'], {
+      id: 2,
+      tag: null,
+      label: 'outside',
+    });
+    const inside = await within(
+      handle.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'tx' }),
+      5_000,
+    );
+    expect(inside).not.toBe('timeout');
+    expect((inside as { error?: unknown }).error).toBeUndefined();
+    await handle.commit();
+    await waiting;
+    expect((await pinned.list(table, {})).length).toBe(2);
+    await pinned.query(`DROP TABLE ${table}`);
+  });
+
+  it('refuses a session call from a savepoint callback of a beginTransaction handle at once', async () => {
+    const db = await open({ max: 2 });
+    const { pinned } = await pin(db);
+    const handle = await pinned.beginTransaction?.();
+    if (!handle) throw new Error('no beginTransaction');
+    const outcome = await within(
+      handle.transaction?.(async (nested) => {
+        await rejectsWith(pinned.query('SELECT 1'), ownCallback);
+        await nested.query('SELECT 1');
+      }),
+      3_000,
+    );
+    expect(outcome).not.toBe('timeout');
+    expect((outcome as { error?: unknown }).error).toBeUndefined();
+    await handle.commit();
+  });
+
+  it('orders statements across database() and session.query by issue time, and release() waits for both', async () => {
+    const db = await open({ max: 2 });
+    const { session, pinned } = await pin(db);
+    const table = tableName('sessorder');
+    await pinned.query(`CREATE TABLE ${table} (id int PRIMARY KEY, v int)`);
+    await pinned.query(`INSERT INTO ${table} VALUES (1, 1)`);
+
+    const write = pinned.query(`UPDATE ${table} SET v = 2 WHERE id = 1`);
+    const read = session.query(`SELECT v FROM ${table} WHERE id = 1`);
+    await write;
+    expect((await read).rows[0].v).toBe(2);
+
+    // Issued before release() in the same tick: both run, then release.
+    const lastWrite = pinned.query(`UPDATE ${table} SET v = 3 WHERE id = 1`);
+    const lastRaw = session.query(`UPDATE ${table} SET v = v + 1 WHERE id = 1`);
+    const releasing = session.release();
+    await lastWrite;
+    await lastRaw;
+    await releasing;
+    expect(
+      (await db.query(`SELECT v FROM ${table} WHERE id = 1`)).rows[0].v,
+    ).toBe(4);
+    await db.query(`DROP TABLE ${table}`);
+  });
+
+  it('discards the connection when a client-side query timeout fires, so no later statement shares it', async () => {
+    const host = process.env.SQLOO_HOST || 'localhost';
+    const port = Number(process.env.SQLOO_PORT) || 5432;
+    const user = encodeURIComponent(process.env.SQLOO_USER || 'postgres');
+    const password = encodeURIComponent(
+      process.env.SQLOO_PASSWORD || 'postgres',
+    );
+    const database = process.env.SQLOO_DATABASE || 'testdb';
+    const db = await open({
+      url: `postgresql://${user}:${password}@${host}:${port}/${database}?query_timeout=300`,
+      max: 2,
+    });
+    const { session, pinned } = await pin(db);
+    const slow = pinned.query('SELECT pg_sleep(2)');
+    const next = pinned.query('SELECT 1 AS ok');
+    await rejectsWith(slow, /Query read timeout/);
+    await rejectsWith(next, /Session connection was lost|released/);
+    expect(session.isActive()).toBe(false);
+    await rejectsWith(pinned.query('SELECT 1'), /Session connection was lost/);
+  });
+
+  it('rejects calls waiting behind an idle open transaction at once when the session is destroyed, released or lost', async () => {
+    for (const close of ['destroy', 'release', 'terminate'] as const) {
+      const db = await open({ max: 2 });
+      const { session, pinned } = await pin(db);
+      const pid = await pidOf(pinned);
+      const handle = await pinned.beginTransaction?.();
+      if (!handle) throw new Error('no beginTransaction');
+      const queued = pinned.query('SELECT 1');
+      const queuedTx = pinned.transaction?.(async () => 1);
+      await sleep(50);
+
+      const started = Date.now();
+      if (close === 'destroy') session.destroy?.();
+      else if (close === 'release') void session.release();
+      else {
+        await db.query('SELECT pg_terminate_backend($1)', [pid]);
+      }
+      const expected =
+        close === 'terminate'
+          ? /Session connection was lost/
+          : /Session has been released/;
+      const outcome = await within(queued, 3_000);
+      expect(outcome, close).not.toBe('timeout');
+      await rejectsWith(queued, expected);
+      await rejectsWith(queuedTx, expected);
+      await rejectsWith(pinned.query('SELECT 1'), expected);
+      expect(handle.isActive(), close).toBe(false);
+      await rejectsWith(handle.commit(), expected);
+      expect(Date.now() - started, close).toBeLessThan(5_000);
+    }
+  });
+
+  it('destroy() of an idle session writes nothing to the socket', async () => {
+    const net = await import('node:net');
+    const db = await open({ max: 2 });
+    const { session, pinned } = await pin(db);
+    await pinned.query('SELECT 1');
+    const writes: number[] = [];
+    const original = net.Socket.prototype.write;
+    net.Socket.prototype.write = function (this: unknown, ...args: unknown[]) {
+      const chunk = args[0];
+      if (chunk instanceof Uint8Array) writes.push(chunk[0]);
+      return Reflect.apply(original, this, args);
+    } as typeof original;
+    try {
+      session.destroy?.();
+      await sleep(50);
+    } finally {
+      net.Socket.prototype.write = original;
+    }
+    // 0x58 ('X') is the protocol's Terminate message.
+    expect(writes).not.toContain(0x58);
+    expect(session.isActive()).toBe(false);
+  });
+
+  it('a plain statement queued behind another plain statement takes no transaction-turn timeout', async () => {
+    const db = await open({ max: 2 });
+    const { pinned } = await pin(db);
+    await pinned.query('SELECT 1');
+    const delays: number[] = [];
+    const original = globalThis.setTimeout;
+    globalThis.setTimeout = ((
+      handler: never,
+      delay?: number,
+      ...rest: never[]
+    ) => {
+      delays.push(Number(delay));
+      return original(handler, delay, ...rest);
+    }) as typeof setTimeout;
+    let slow: Promise<unknown>;
+    let queued: Promise<unknown>;
+    try {
+      slow = pinned.query('SELECT pg_sleep(0.3)');
+      queued = Promise.all([
+        pinned.query('SELECT 1'),
+        pinned.list('pg_namespace', {}),
+        pinned.tableExists('pg_class'),
+      ]);
+    } finally {
+      globalThis.setTimeout = original;
+    }
+    await slow;
+    await queued;
+    expect(delays.filter((delay) => delay >= 30_000)).toEqual([]);
+  });
+
+  it('a pool transaction sees its own uncommitted NULLS NOT DISTINCT index and forgets it after rollback', async () => {
+    const db = await open({ max: 2 });
+    const version = Number(
+      (await db.query('SHOW server_version_num')).rows[0].server_version_num,
+    );
+    if (version < 150000) return;
+    const table = tableName('poolnnd');
+    await db.query(
+      `CREATE TABLE ${table} (id int, tag text, label text, UNIQUE (id, tag))`,
+    );
+    await rejectsWith(
+      db.transaction?.(async (tx) => {
+        await tx.query(
+          `CREATE UNIQUE INDEX ${table}_nnd ON ${table} (id, tag) NULLS NOT DISTINCT`,
+        );
+        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'x' });
+        await tx.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'y' });
+        expect((await tx.list(table, {})).map((row) => row.label)).toEqual([
+          'y',
+        ]);
+        throw new Error('roll the index back');
+      }),
+      /roll the index back/,
+    );
+    await db.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'a' });
+    await db.upsert(table, ['id', 'tag'], { id: 1, tag: null, label: 'b' });
+    expect((await db.list(table, {})).map((row) => row.label)).toEqual(['b']);
+    await db.query(`DROP TABLE ${table}`);
+  });
+});

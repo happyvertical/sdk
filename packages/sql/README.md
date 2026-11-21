@@ -704,32 +704,57 @@ try {
   and transaction runs on the session's backend (`pg_backend_pid()` is the
   same throughout). It never takes another pool connection. After the session
   is released or destroyed, or its backend ends, every call on it rejects.
-- **Statements run in issue order.** Concurrent calls queue on the session
-  itself, one at a time, without relying on node-postgres's deprecated
-  internal client queue.
+- **Statements run in issue order.** `pinned.*`, `session.query()` and
+  `release()` share one queue on the session. A statement takes its place when
+  it reaches the session (a raw `query()` at the call itself; a record helper
+  after any catalog lookup it needs) and keeps it until node-postgres has
+  finished with it, so statements run one at a time without relying on
+  node-postgres's deprecated internal client queue. If node-postgres's
+  client-side `query_timeout` fires, the statement may still be running on the
+  server, so the session discards the connection: the timed-out call and
+  everything after it reject.
 - **One transaction at a time.** As on PGlite, transactions take turns in
-  arrival order, and a call outside a transaction made while one is open waits
-  until it ends (rejecting after 30 seconds of waiting). Inside a
-  `transaction()` callback use the `tx` you were handed: a call on the pinned
-  database itself from inside its own callback rejects at once instead of
-  waiting on itself. Nested `tx.transaction()` calls are savepoints, as on the
-  root handle.
+  arrival order, and a call from outside a transaction made while one is open
+  waits until it ends (rejecting after 30 seconds of waiting). With no
+  transaction open a plain call never times out, however long the statements
+  ahead of it take. Inside a `transaction()` callback, or a savepoint callback
+  of any pinned transaction, use the `tx` you were handed: a call on the pinned
+  database itself from there rejects at once instead of waiting on itself.
+  Nested `tx.transaction()` calls are savepoints, as on the root handle.
 - **Commit is checked.** `COMMIT` of an aborted transaction rejects, as on the
   root handle.
-- `session.query()` shares the connection but not the transaction turn: issued
-  while a pinned transaction is open, it runs inside that transaction.
-- It has no `acquireSession`, `reopenOptions` or `close`. `pinned.client` is
-  the session's connection with queries guarded; its `release()` and `end()`
-  throw, since only the session may drop the connection.
+- **Schema helpers report a closed session.** `syncSchema()` and
+  `initializeSchemas()` tolerate individual DDL failures as on the root handle,
+  but reject if the session is closed when they start or closes while they run.
+- `session.query()` shares the connection and the queue but not the
+  transaction turn: issued while a pinned transaction is open, it runs inside
+  that transaction.
+- It has no `acquireSession`, `reopenOptions` or `close`. There is no raw
+  driver client: `pinned.client.query(sql, values?)` and `tx.client.query(sql,
+  values?)` take the same path as `pinned.query()` / `tx.query()`, and other
+  call forms (callbacks, submittables) throw.
 
-`session.release()` waits for statements already issued on the session. When
-that wait must be bounded (a deadline, a statement stuck behind a lock),
+`session.release()` runs after the statements already queued on the session,
+including ones issued in the same tick just before it, then rolls back,
+unlocks and closes. Calls still waiting for an open pinned transaction to end
+reject at once, and that transaction's handle ends (its `commit()` rejects).
+
+When the wait must be bounded (a deadline, a statement stuck behind a lock),
 `session.destroy()` discards the session without sending anything — no
-rollback, no unlock — and returns at once; a statement in flight is cut off by
-destroying the socket. The server then ends the backend, which frees its locks.
-A backend that is still executing a statement notices the closed connection
-only when it next talks to the client, or at `client_connection_check_interval`
-(PostgreSQL 14+) when the server or session sets one.
+rollback, no unlock, no protocol Terminate message — and returns at once: the
+socket is destroyed, cutting off any statement in flight. Waiting calls and an
+open pinned transaction's handle reject with it, as on release; so does
+everything when the backend is lost.
+
+**When the server lets go.** The session's advisory locks are freed when its
+backend exits. After a destroy, an idle backend exits as soon as the server
+sees the socket close. A backend that is still executing a statement (or
+waiting for a lock) does not read from the socket, so by default it holds its
+locks until that statement ends. To bound that time, set
+`client_connection_check_interval` (PostgreSQL 14+, for example
+`SET client_connection_check_interval = '1s'` on the session before the long
+work, or server-wide); the backend then checks the connection at that
+interval and exits once it is gone. The adapter does not set it for you.
 
 #### Connection-affinity claims
 
