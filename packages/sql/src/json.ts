@@ -17,18 +17,23 @@ import {
   createDuckDBResourceCloser,
   throwWithDuckDBCleanup,
 } from './shared/duckdb-resources';
-import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+import {
+  convertUniqueIndexesToInlineConstraints,
+  describeDuckDBTable,
+} from './shared/duckdb-schema-utils';
 import { serializeDuckDBStatements } from './shared/duckdb-statement-queue';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { refuseReopen } from './shared/reopen';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
   DatabaseInterface,
+  GetTableSchemaOptions,
   JSONOptions,
   JSONTableLoadError,
   QueryResult,
   SchemaInitializationOptions,
   TableInterface,
+  TableSchemaInfo,
   TransactionHandle,
   UpsertOptions,
 } from './shared/types';
@@ -2208,6 +2213,28 @@ async function createJSONDatabase(
       }
     };
 
+    /**
+     * Retrieves the schema information for a table, read from the DuckDB
+     * catalogs the same way the DuckDB adapter does, so both report the same
+     * shape. A table replayed from `<table>.schema.sql` on open is described
+     * as declared there; a JSON file still waiting for its DDL is not a table
+     * yet and returns null, as `tableExists` reports.
+     *
+     * Exposed on the root handle only. A transaction handle has no JSON-only
+     * marker, and callers such as smrt core treat a handle with
+     * `getTableSchema` and no such marker as the native DuckDB adapter.
+     *
+     * @param table - Table name
+     * @param schemaOptions - Opt-in introspection flags
+     * @returns Promise resolving to table schema info or null if table doesn't exist
+     * @throws Error if the query fails
+     */
+    const getTableSchema = (
+      table: string,
+      schemaOptions?: GetTableSchemaOptions,
+    ): Promise<TableSchemaInfo | null> =>
+      describeDuckDBTable({ tableExists, many }, table, schemaOptions);
+
     // Shorthand aliases for query methods
     const oo = many; // (o)bjective-(o)bjects: returns multiple rows
     const oO = single; // (o)bjective-(O)bject: returns a single row
@@ -2577,6 +2604,7 @@ async function createJSONDatabase(
       initializeSchemas,
       transaction,
       beginTransaction,
+      getTableSchema,
       // JSON-specific methods
       exportTable,
       inferSchemaFromJSON,
