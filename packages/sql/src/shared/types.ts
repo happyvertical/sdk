@@ -1640,7 +1640,8 @@ export interface SessionHandle {
    * and timers, as in earlier versions. Once it has been called, raw queries
    * and `release()` share the session's own statement queue with that
    * database (issue order, parameters encoded at the call, a configured
-   * `query_timeout` counted from the call on a monotonic clock, and a queued
+   * `query_timeout` counted from the public call (encoding included) on a
+   * monotonic clock, and a queued
    * call withdrawn unsent when it expires).
    */
   query: (
@@ -1702,11 +1703,13 @@ export interface SessionHandle {
    * `vector`, `initializeSchemas`, `transaction` (nested calls on the handle
    * it passes are savepoints, as on the root handle) and `beginTransaction`.
    * It has no `acquireSession`, `reopenOptions` or `close`. Repeated calls
-   * return the same object. The first call throws unless the session is
-   * idle: no {@link SessionHandle.query} still running and no transaction
-   * opened with `query('BEGIN')`. Afterwards, `transaction()` and
-   * `beginTransaction()` refuse to start while such a caller-owned
-   * transaction is open.
+   * return the same object; on a released, destroyed or lost session it
+   * throws the closed-session error. The first call throws unless the session
+   * is idle: no {@link SessionHandle.query} still running and no transaction
+   * PostgreSQL has reported open. Afterwards, `transaction()` and
+   * `beginTransaction()` refuse to start while a transaction they did not
+   * open is open (or, before any status has been reported, until an internal
+   * `SELECT 1` confirms none is).
    *
    * - It never uses another connection. After the session is released or
    *   destroyed, or its connection is lost, every call rejects; it does not

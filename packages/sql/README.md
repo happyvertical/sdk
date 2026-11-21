@@ -706,12 +706,18 @@ try {
   the guarantees below apply to all three. The first `database()` call
   requires an idle session and throws otherwise: no `session.query()` still
   running (after a client-side timeout, until the statement has finished on
-  the server), and no transaction opened with `session.query('BEGIN')`.
-- **Managed transactions never run inside the caller's.** If, after the
-  switch, `session.query('BEGIN')` opens a transaction, `transaction()` and
-  `beginTransaction()` on `database()` reject (sending nothing, keeping the
-  session) until that transaction is committed or rolled back. The check uses
-  the transaction status PostgreSQL reports with every ReadyForQuery.
+  the server), and no transaction PostgreSQL has reported open (for example
+  one opened with `session.query('BEGIN')`). On a released, destroyed or
+  lost session, `database()` throws that session's closed error.
+- **Managed transactions never run inside another transaction.**
+  `transaction()` and `beginTransaction()` on `database()` check the
+  transaction status PostgreSQL reports with every ReadyForQuery when their
+  `BEGIN`'s turn comes, and reject (sending nothing, keeping the session)
+  while a transaction is open that they did not start: one opened with
+  `session.query('BEGIN')`, one left by a COMMIT that did not complete, or
+  one an earlier user of the pooled connection left open. Until the session
+  has seen a status, the first managed `BEGIN` sends an internal `SELECT 1`
+  ahead of itself to obtain one.
 - **Statements run in issue order.** `pinned.*`, `session.query()` and
   `release()` share one queue on the session. A statement takes its place when
   it reaches the session (at the call itself; its parameters are encoded
@@ -733,8 +739,9 @@ try {
   their SQLSTATE: an `08P01` parameter-count error, or a `57P01` forwarded
   from another server (for example by `dblink`).
 - **Client-side `query_timeout`.** On the queue, a raw `session.query()`
-  keeps the deadline node-postgres gave it: it runs from the call (on a
-  monotonic clock), a call still queued when it expires rejects then and is
+  keeps the deadline node-postgres gave it: it runs from the public call (on
+  a monotonic clock, so parameter encoding counts against it too), a call
+  still queued when it expires rejects then and is
   withdrawn without being sent, and a call sent later gets only the time it
   has left. `release()`'s two cleanup statements (ROLLBACK, then the unlock)
   each get their own `query_timeout` window, so `release()` can wait up to
@@ -760,7 +767,14 @@ try {
   of theirs times out waiting for an open transaction, a statement fails
   client-side with an unknown outcome (for example node-postgres's
   `query_timeout`), or the server answers with a FATAL or a shutdown /
-  termination SQLSTATE (57P0x), even one that leaves the session usable.
+  termination SQLSTATE (57P0x), even one that leaves the session usable. A
+  server error is tolerated only once the server has reported it is ready for
+  the next statement; if the connection ends instead (a FATAL with a
+  translated severity, such as `transaction_timeout`'s 25P04), the helper
+  rejects with the lost session.
+- **Parameter encoding failures reject.** A value node-postgres cannot
+  encode (a cyclic object, for one) makes the call reject, on every path
+  including `client.query()`; nothing is sent.
 - **No NULL-key upserts.** `upsert()` on `database()` or one of its
   transactions rejects when a conflict column is `NULL` and
   `{ nullsDistinct: true }` is not passed, because choosing between the native

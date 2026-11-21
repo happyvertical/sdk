@@ -1484,7 +1484,9 @@ describe.skipIf(!available)('SessionHandle review round 5', () => {
     const db = await open({ max: 2 });
     const session = await rawSession(db);
     await session.query('BEGIN');
-    expect(() => session.database?.()).toThrow(/BEGIN.*still open/);
+    expect(() => session.database?.()).toThrow(
+      /reports a transaction open.*status T/,
+    );
     await session.query('ROLLBACK');
     expect(session.database?.()).toBeDefined();
   });
@@ -1498,9 +1500,12 @@ describe.skipIf(!available)('SessionHandle review round 5', () => {
     await session.query(`INSERT INTO ${table} VALUES (1)`);
     await rejectsWith(
       pinned.transaction?.(async () => {}),
-      /BEGIN.*still open/,
+      /transaction already open.*status T/,
     );
-    await rejectsWith(pinned.beginTransaction?.(), /BEGIN.*still open/);
+    await rejectsWith(
+      pinned.beginTransaction?.(),
+      /transaction already open.*status T/,
+    );
     // The refusal sent nothing and kept the lease.
     expect(session.isActive()).toBe(true);
     expect((await db.list(table, {})).length).toBe(0);
@@ -1517,22 +1522,30 @@ describe.skipIf(!available)('SessionHandle review round 5', () => {
     const db = await open({ max: 2 });
     const { pinned } = await pin(db);
     const table = tableName('capture');
-    await pinned.query(`CREATE TABLE ${table} (id int, payload bytea)`);
+    await pinned.query(
+      `CREATE TABLE ${table} (id int, payload bytea, at timestamptz, doc jsonb)`,
+    );
     const handle = await pinned.beginTransaction?.();
     if (!handle) throw new Error('no beginTransaction');
-    const values: unknown[] = [1, Buffer.from([1, 2, 3])];
+    const at = new Date('2020-01-02T03:04:05.000Z');
+    const doc = { tenant: 'a' };
+    const values: unknown[] = [1, Buffer.from([1, 2, 3]), at, doc];
     const queued = pinned.query(
-      `INSERT INTO ${table} (id, payload) VALUES ($1, $2)`,
+      `INSERT INTO ${table} (id, payload, at, doc) VALUES ($1, $2, $3, $4)`,
       values,
     );
     values[0] = 99;
     (values[1] as Buffer)[0] = 9;
+    at.setUTCFullYear(1999);
+    doc.tenant = 'b';
     await handle.commit();
     await queued;
     const rows = await pinned.query(
-      `SELECT id, encode(payload, 'hex') AS hex FROM ${table}`,
+      `SELECT id, encode(payload, 'hex') AS hex, at = '2020-01-02T03:04:05Z'::timestamptz AS at_kept, doc->>'tenant' AS tenant FROM ${table}`,
     );
-    expect(rows.rows).toEqual([{ id: 1, hex: '010203' }]);
+    expect(rows.rows).toEqual([
+      { id: 1, hex: '010203', at_kept: true, tenant: 'a' },
+    ]);
     await pinned.query(`DROP TABLE ${table}`);
   });
 
@@ -1560,5 +1573,138 @@ describe.skipIf(!available)('SessionHandle review round 5', () => {
     expect(session.isActive()).toBe(true);
     expect(await pidOf(pinned)).toBe(pid);
     await pinned.query(`DROP FUNCTION ${raise}()`);
+  });
+});
+
+describe.skipIf(!available)('SessionHandle review round 6', () => {
+  it('refuses a managed transaction on a pooled client whose previous borrower left a transaction open', async () => {
+    const db = await open({ max: 1 });
+    const observer = await open({ max: 1 });
+    const table = tableName('leaked');
+    await observer.query(`CREATE TABLE ${table} (id int)`);
+    // A raw root query leaves BEGIN; INSERT open and returns the client.
+    await db.query(`BEGIN; INSERT INTO ${table} VALUES (1)`);
+    const session = await rawSession(db);
+    const pinned = session.database?.();
+    if (!pinned) throw new Error('no database()');
+    await rejectsWith(
+      pinned.transaction?.(async () => {}),
+      /transaction already open.*status T/,
+    );
+    expect(session.isActive()).toBe(true);
+    expect((await observer.list(table, {})).length).toBe(0);
+    await session.query('ROLLBACK');
+    expect((await observer.list(table, {})).length).toBe(0);
+    await observer.query(`DROP TABLE ${table}`);
+  });
+
+  it('a schema helper rejects when a translated FATAL (transaction_timeout) ends the backend during blocked DDL', async () => {
+    const db = await open({ max: 3 });
+    const { session, pinned } = await pin(db);
+    const version = Number(
+      (await pinned.query('SHOW server_version_num')).rows[0]
+        .server_version_num,
+    );
+    if (version < 170000) return;
+    const table = tableName('txtimeout');
+    await db.query(`CREATE TABLE ${table} (id int)`);
+    const blocker = await db.beginTransaction?.();
+    if (!blocker) throw new Error('no beginTransaction');
+    await blocker.query(`LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE`);
+    const submitted = recordSubmissions();
+    let restore = () => {};
+    try {
+      await session.query("SET transaction_timeout = '400ms'");
+      const client = submitted.at(-1)?.client as {
+        connection: { emit: (event: string, ...args: unknown[]) => boolean };
+      };
+      const connection = client.connection;
+      const emit = connection.emit.bind(connection);
+      connection.emit = (event: string, ...args: unknown[]) => {
+        if (event === 'errorMessage') {
+          (args[0] as { severity?: string }).severity = 'SCHWERWIEGEND';
+        }
+        return emit(event, ...args);
+      };
+      restore = () => {
+        connection.emit = emit;
+      };
+      await rejectsWith(
+        pinned.syncSchema?.(`CREATE INDEX ${table}_idx ON ${table} (id)`),
+        /Session connection was lost/,
+      );
+    } finally {
+      restore();
+      submitted.restore();
+      await blocker.rollback();
+    }
+    await db.query(`DROP TABLE ${table}`);
+  });
+
+  it('counts a queued raw call’s query_timeout from the public call, including parameter encoding', async () => {
+    const db = await open({ url: timeoutUrl(100), max: 2 });
+    const { session, pinned } = await pin(db);
+    const table = tableName('slowencode');
+    await pinned.query(`CREATE TABLE ${table} (v text)`);
+    const slowValue = {
+      toPostgres() {
+        const started = Date.now();
+        while (Date.now() - started < 150) {
+          // Busy: encoding uses the whole budget.
+        }
+        return 'x';
+      },
+    };
+    const submitted = recordSubmissions();
+    try {
+      await rejectsWith(
+        session.query(`INSERT INTO ${table} VALUES ($1)`, slowValue),
+        /timeout/i,
+      );
+    } finally {
+      submitted.restore();
+    }
+    expect(
+      submitted.filter((entry) => entry.sql.includes('INSERT INTO')),
+    ).toEqual([]);
+    expect((await pinned.list(table, {})).length).toBe(0);
+    await pinned.query(`DROP TABLE ${table}`);
+  });
+
+  it('returns a parameter encoding failure as a rejection on every public path', async () => {
+    const db = await open({ max: 2 });
+    const { session, pinned } = await pin(db);
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    const circular = /circular/i;
+
+    let viaClient: Promise<unknown> | undefined;
+    expect(() => {
+      viaClient = pinned.client.query('SELECT $1::text', [cyclic]);
+    }).not.toThrow();
+    await rejectsWith(viaClient, circular);
+    await rejectsWith(pinned.query('SELECT $1::text', [cyclic]), circular);
+    await rejectsWith(
+      session.query('SELECT $1::text', cyclic),
+      /Failed to execute session query/,
+    );
+    await pinned.transaction?.(async (tx) => {
+      let viaTx: Promise<unknown> | undefined;
+      expect(() => {
+        viaTx = tx.client.query('SELECT $1::text', [cyclic]);
+      }).not.toThrow();
+      await rejectsWith(viaTx, circular);
+      // Nothing was sent, so the transaction is unharmed.
+      expect((await tx.query('SELECT 1 AS ok')).rows[0].ok).toBe(1);
+    });
+    expect(session.isActive()).toBe(true);
+    expect((await pinned.query('SELECT 1 AS ok')).rows[0].ok).toBe(1);
+  });
+
+  it('database() on a destroyed session throws the closed-session error', async () => {
+    const db = await open({ max: 2 });
+    const session = await rawSession(db);
+    session.destroy?.();
+    expect(() => session.database?.()).toThrow(/Session has been released/);
   });
 });

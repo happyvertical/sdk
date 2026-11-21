@@ -819,29 +819,33 @@ async function createDatabase(
 
     /** One statement on the pinned connection, in the session FIFO. */
     const direct = <R = any>(sql: string, values?: any[]): Promise<R> => {
+      let bound: unknown[] | undefined;
       try {
         assertIssuable();
+        // The bound values are encoded at issue time; the statement may be
+        // handed to the client later. An encoding failure is a rejection.
+        bound = session.capture(values);
       } catch (error) {
         return Promise.reject(error);
       }
-      // The bound values are encoded at issue time; the statement may be
-      // handed to the client later.
-      const bound = session.capture(values);
       return session.enqueue(
         () => sessionClient.query(sql, bound) as unknown as Promise<R>,
       );
     };
 
-    // Raised instead of a managed BEGIN while the caller's own transaction
-    // (session.query('BEGIN')) is open: its outcome is known, nothing was
+    // Raised instead of a managed BEGIN while the connection is, or may be,
+    // inside a transaction it did not open: its outcome is known, nothing was
     // sent, so the lease is kept.
     const refusedBegins = new WeakSet<object>();
 
     /**
      * BEGIN for a managed transaction. Checked when its turn comes, against
      * the transaction status of the last ReadyForQuery: a second BEGIN inside
-     * the caller's transaction would only warn, and the managed COMMIT would
-     * then commit the caller's work too.
+     * a transaction already open would only warn, and the managed COMMIT
+     * would then commit that transaction's earlier work too. While no status
+     * has been reported yet (a client fresh from the pool may carry a
+     * transaction a previous borrower left open), an internal `SELECT 1` is
+     * queued just ahead to obtain one.
      */
     const begin = (): Promise<PgQueryResult> => {
       try {
@@ -849,11 +853,21 @@ async function createDatabase(
       } catch (error) {
         return Promise.reject(error);
       }
+      if (session.transactionStatus() === '?') {
+        session
+          .enqueue(() => sessionClient.query('SELECT 1'))
+          .catch(() => {
+            // Its only purpose is the status byte; a failure leaves the
+            // status unconfirmed and the BEGIN below refuses.
+          });
+      }
       return session.enqueue(() => {
         const status = session.transactionStatus();
         if (status !== 'I') {
           const refusal = new DatabaseError(
-            "A transaction opened with session.query('BEGIN') is still open on this session; transaction() and beginTransaction() refuse to run inside it. COMMIT or ROLLBACK it first.",
+            status === '?'
+              ? 'The transaction status of this session could not be confirmed, so transaction() and beginTransaction() refuse to start.'
+              : `PostgreSQL reports a transaction already open on this session (status ${status}): for example one opened with query('BEGIN'), left open by an earlier user of the connection, or left by a COMMIT that did not complete. transaction() and beginTransaction() refuse to run inside it; COMMIT or ROLLBACK it first.`,
             { transactionStatus: status },
           );
           refusedBegins.add(refusal);
@@ -1013,16 +1027,18 @@ async function createDatabase(
     // open transaction ends.
     const outside: PostgresQueryExecutor = {
       query: (sql, values) => {
+        let bound: unknown[] | undefined;
         try {
           refuseInsideOwnTransaction();
+          // Encoded now, at the public call, before the statement waits for
+          // a transaction turn or its FIFO place. An encoding failure is a
+          // rejection, never a synchronous throw.
+          bound = session.capture(values);
         } catch (error) {
           return Promise.reject(error);
         }
-        // Encoded now, at the public call, before the statement waits for a
-        // transaction turn or its FIFO place.
-        const bound = session.capture(values);
         return whenAdmitted(() => direct(sql, bound)).catch(
-          (error: unknown) => {
+          async (error: unknown) => {
             // Inside syncSchema()/initializeSchemas(), record every failure
             // that is not a server's answer to the statement: never admitted
             // (the turn timeout), the session closing (including a FATAL from
@@ -1030,20 +1046,31 @@ async function createDatabase(
             // server is unknown (query_timeout). The schema helpers tolerate
             // DDL errors and would otherwise swallow these and report success.
             const scope = schemaScope.getStore();
+            if (!scope || scope.failure !== undefined) throw error;
             if (
-              scope &&
-              scope.failure === undefined &&
-              (!(error instanceof PgDatabaseError) ||
-                session.closedError() !== undefined ||
-                // A shutdown or termination code, or a FATAL, is never a
-                // tolerable DDL outcome, even when it arrives as an
-                // ordinary ERROR that leaves this session usable.
-                error.severity === 'FATAL' ||
-                error.severity === 'PANIC' ||
-                error.code?.startsWith('57P0') === true)
+              !(error instanceof PgDatabaseError) ||
+              session.closedError() !== undefined ||
+              // A shutdown or termination code, or a FATAL, is never a
+              // tolerable DDL outcome, even when it arrives as an
+              // ordinary ERROR that leaves this session usable.
+              error.severity === 'FATAL' ||
+              error.severity === 'PANIC' ||
+              error.code?.startsWith('57P0') === true
             ) {
               scope.failure = session.closedError() ?? error;
+              throw error;
             }
+            // A server error is tolerable only if the connection survived it:
+            // wait until the server is ready for the next statement, or the
+            // connection ends (a FATAL with a translated severity, such as a
+            // transaction_timeout's 25P04, ends it only then).
+            try {
+              await session.enqueue(() => Promise.resolve());
+            } catch {
+              // The connection ended; reported below.
+            }
+            const closed = session.closedError();
+            if (closed && scope.failure === undefined) scope.failure = closed;
             throw error;
           },
         );
@@ -1465,10 +1492,12 @@ async function createDatabase(
       }
     ).connection;
 
-    // The transaction status byte of the last ReadyForQuery: 'I' idle, 'T'
-    // in a transaction block, 'E' in a failed one. A pooled client is handed
-    // out idle.
-    let transactionStatus = 'I';
+    // The transaction status byte of the last ReadyForQuery seen by this
+    // session: 'I' idle, 'T' in a transaction block, 'E' in a failed one, or
+    // '?' before the first one. A pooled client can be handed out with a
+    // transaction a previous borrower left open, so nothing is assumed: a
+    // managed BEGIN first confirms the status (see the session database).
+    let transactionStatus = '?';
     protocol?.on('readyForQuery', (message) => {
       const status = (message as { status?: unknown } | undefined)?.status;
       if (typeof status === 'string') transactionStatus = status;
@@ -1631,20 +1660,32 @@ async function createDatabase(
      */
     const enqueueWithDeadline = <T>(
       submit: (remaining: number | undefined) => Promise<T>,
+      // An absolute deadline on the monotonic clock, fixed at the public
+      // call; undefined when no query_timeout is configured.
+      deadline: number | undefined = deadlineFromNow(),
     ): Promise<T> => {
-      const timeout = clientQueryTimeout();
-      if (timeout === 0) return enqueue(() => submit(undefined));
-      const deadline = now() + timeout;
+      if (deadline === undefined) return enqueue(() => submit(undefined));
+      // Encoding (or anything else) may already have used the budget.
+      if (deadline - now() <= 0) return Promise.reject(readTimeout());
       const { promise, cancel } = enqueueEntry(() => {
         const remaining = Math.ceil(deadline - now());
         if (remaining <= 0) return Promise.reject(readTimeout());
         return submit(remaining);
       });
-      const timer = setTimeout(() => {
-        cancel(readTimeout());
-      }, timeout);
+      const timer = setTimeout(
+        () => {
+          cancel(readTimeout());
+        },
+        Math.max(0, deadline - now()),
+      );
       return promise.finally(() => clearTimeout(timer));
     };
+
+    /** The query_timeout deadline for a call made now, if one is set. */
+    function deadlineFromNow(): number | undefined {
+      const timeout = clientQueryTimeout();
+      return timeout === 0 ? undefined : now() + timeout;
+    }
 
     // Discards the physical connection exactly once, without sending
     // anything: the socket is destroyed first, so node-postgres's end() can
@@ -1678,7 +1719,7 @@ async function createDatabase(
 
     // node-postgres's client-side query_timeout (from the connection options),
     // in milliseconds; 0 when unset.
-    const clientQueryTimeout = (): number => {
+    function clientQueryTimeout(): number {
       const value = Number(
         (
           sessionClient as unknown as {
@@ -1688,24 +1729,27 @@ async function createDatabase(
         ).connectionParameters?.query_timeout,
       );
       return Number.isFinite(value) && value > 0 ? value : 0;
-    };
+    }
 
     return {
       database: () => {
+        const closed = closedError();
+        if (closed) throw closed;
         if (!queued) {
           // The switch to the session's queue happens only on an idle
           // session, so nothing issued on the direct path can still be
-          // running, and no transaction the caller opened with
-          // session.query('BEGIN') can be picked up by managed transactions.
+          // running, and no transaction known to be open can be picked up by
+          // managed transactions. A status not yet reported ('?') is
+          // confirmed by the first managed BEGIN instead.
           if (directPending > 0 || !clientReady()) {
             throw new DatabaseError(
               'database() needs an idle session: a session.query() call is still running. Wait for it to settle (and, after a client-side timeout, for the statement to finish) before calling database().',
               {},
             );
           }
-          if (transactionStatus !== 'I') {
+          if (transactionStatus === 'T' || transactionStatus === 'E') {
             throw new DatabaseError(
-              "database() needs an idle session: a transaction opened with session.query('BEGIN') is still open. COMMIT or ROLLBACK it first.",
+              `database() needs an idle session: PostgreSQL reports a transaction open on this connection (status ${transactionStatus}). COMMIT or ROLLBACK it first.`,
               { transactionStatus },
             );
           }
@@ -1730,6 +1774,9 @@ async function createDatabase(
         hardClose();
       },
       query: async (sql: string, ...values: any[]) => {
+        // The query_timeout budget starts here, at the public call, and
+        // covers encoding, waiting in the queue and running.
+        const deadline = queued ? deadlineFromNow() : undefined;
         const closed = closedError();
         if (closed) throw closed;
         const normalized = normalizePostgresRawQuery(sql, values);
@@ -1747,20 +1794,35 @@ async function createDatabase(
           // Through the FIFO. The bound values are encoded now, so a caller
           // that reuses its array, or mutates a Buffer or object in it,
           // cannot change this call.
+          // An encoding failure (a cyclic object, say) becomes this call's
+          // rejection, wrapped below like any other failure.
           const text = normalized.sql;
-          const bound = captureValues(normalized.values) as unknown[];
-          outcome = enqueueWithDeadline((remaining) =>
-            remaining === undefined
-              ? sessionClient.query(text, bound)
-              : sessionClient.query({
-                  text,
-                  values: bound,
-                  // node-postgres honours a per-query query_timeout, though
-                  // its QueryConfig type does not declare it.
-                  // biome-ignore lint/style/useNamingConvention: node-postgres option name
-                  query_timeout: remaining,
-                } as QueryConfig),
-          );
+          let bound: unknown[] | undefined;
+          let encodingError: { error: unknown } | undefined;
+          try {
+            bound = captureValues(normalized.values) as unknown[];
+          } catch (error) {
+            encodingError = { error };
+          }
+          if (encodingError || bound === undefined) {
+            outcome = Promise.reject(encodingError?.error);
+          } else {
+            const values = bound;
+            outcome = enqueueWithDeadline(
+              (remaining) =>
+                remaining === undefined
+                  ? sessionClient.query(text, values)
+                  : sessionClient.query({
+                      text,
+                      values,
+                      // node-postgres honours a per-query query_timeout,
+                      // though its QueryConfig type does not declare it.
+                      // biome-ignore lint/style/useNamingConvention: node-postgres option name
+                      query_timeout: remaining,
+                    } as QueryConfig),
+              deadline,
+            );
+          }
         }
         try {
           const result = await outcome;
