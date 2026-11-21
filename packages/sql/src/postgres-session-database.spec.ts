@@ -1007,6 +1007,11 @@ describe.skipIf(!available)('SessionHandle.database() review round 1', () => {
       if (!handle) throw new Error('no beginTransaction');
       const queued = pinned.query('SELECT 1');
       const queuedTx = pinned.transaction?.(async () => 1);
+      // Observed at once: on backend termination the connection's error
+      // event can reject both while the test is still awaiting its own
+      // pg_terminate_backend query, before the assertions below attach.
+      queued.catch(() => {});
+      queuedTx?.catch(() => {});
       await sleep(50);
 
       const started = Date.now();
