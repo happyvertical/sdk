@@ -944,8 +944,8 @@ describeHandle(db);
 - `clientSource` is `'caller'` for a root built over an injected client
   (PGlite `client`). `isDatabaseRoot(db)` is true only for `role: 'root'` with
   `clientSource: 'adapter'`. The other adapters refuse a `client` option (see
-  below), so an open that supplies one never returns a root that reports
-  `'adapter'`.
+  [Connection caching and cleanup](#connection-caching-and-cleanup)), so an
+  open that supplies one never returns a root that reports `'adapter'`.
 - `rootReads` says what a root statement sees while one of the root's own
   `transaction()` or `beginTransaction()` transactions is open:
   - `isolated`: it runs on another connection and sees committed rows only
