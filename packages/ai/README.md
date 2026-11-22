@@ -1018,7 +1018,9 @@ result.truncated; // true if the reply still ended on the limit
   continuous stream (the first characters of each continuation are held briefly
   so a repeated seam can be trimmed). `onProgress` receives only the stitched text.
 - `usage` on the result is the sum across parts. Provider `onUsage` hooks still
-  fire once per upstream request, so their sum equals the total.
+  fire once per upstream request, so their sum equals the total. Each event's
+  `part` names the request (see [Usage parts](#usage-parts)); `usageParts` on
+  the result lists them and says whether every part reported counts.
 - Tool calls and `responseFormat: { type: 'json_object' }` are never continued
   (stitching them is unsafe); the reply is returned as-is with `truncated: true`.
 - With `rateLimit` pacing, every part is its own paced request: a rate-limit
@@ -1313,10 +1315,79 @@ The `UsageEvent` payload:
 | `duration` | `number` | Wall-clock time in milliseconds |
 | `timestamp` | `Date` | When the call completed |
 | `tags?` | `Record<string, string>` | Merged from global + per-call `usageTags` |
+| `part?` | `UsagePart` | `{ call, index, last? }`: which request of which call (see below). Always set by the SDK; optional so events built elsewhere still type-check |
 
-- Works with all providers and methods (`chat`, `complete`, `message`, `embed`, `stream`)
-- `complete()` and `message()` report through their underlying `chat()` call
+- One event per completed provider request, with or without counts. A failed
+  request, or one the SDK resent transparently, emits none. See the
+  [per-provider table](#what-each-provider-reports) for which operations report.
+- `complete()`, `message()` and `describeImage()` report through their
+  underlying `chat()` call (operation `'chat'`), except Ollama's `complete()`
+  without continuation, which reports its own `'complete'` request.
 - Errors thrown inside `onUsage` are silently caught and will not affect API results
+- Tags are attached to events only; they are never sent to a provider.
+
+### Usage parts
+
+Every public method invocation on a client built by `getAI()` gets a call id,
+minted before its first provider request. Each usage event of that invocation
+carries `part`:
+
+| Field | Meaning |
+|-------|---------|
+| `call` | The invocation's id; the same on all of its events. |
+| `index` | 0 for its first event, then 1, 2, ... |
+| `last` | `true` when the SDK knew no further request would follow: always for a call that cannot continue. Never set on the events of a call with `continueOnLength` on. |
+
+`part` is plain JSON, so every copy of an event carries an equal one, and two
+requests with identical counts in the same millisecond still differ by `index`.
+A consumer that needs identity can narrow to `PartedUsageEvent`.
+
+`chat()` and `complete()` responses carry `usageParts`:
+
+```typescript
+const result = await ai.chat(messages, { continueOnLength: true });
+result.usageParts;
+// { call: '…', parts: [{ index: 0, usage: {…} }, { index: 1, last: true, usage: {…} }], complete: true }
+```
+
+- The final part is marked `last` (the call has returned).
+- `complete` is `true` only when the list ends with `last` and every part has
+  `usage`. When it is `false`, `result.usage` (the sum of the parts that
+  reported) understates or omits what was used.
+- Parts are recorded even without an `onUsage` callback.
+- A continued `stream()` has no response, so its last part is never marked;
+  treat its total as open-ended.
+
+Clients built by `getAI()` declare this with
+`usageFeatures: { parts: true }`. An older client has no `usageFeatures`.
+Provider classes constructed directly (without `getAI()`) still set `part` on
+their events, each event being its own call (`index: 0, last: true`), and do
+not add `usageParts`.
+
+### What each provider reports
+
+No adapter reports running totals: each event's `usage` is that one request's
+counts. "Count-less" means the event arrives with `usage: undefined`.
+
+| Provider | Operations that emit an event | Count-less when |
+|----------|-------------------------------|-----------------|
+| OpenAI, LiteLLM, Bifrost | `chat` (also `complete`, `message`, `describeImage`), `embed`, `stream` | `stream` always; `chat`/`embed` when the server sends no `usage` |
+| Anthropic | `chat` (also `complete`, `message`), `stream` | `stream` when no usage arrives in the stream. `chat` always reports counts (zeros if the response had no `usage`) |
+| Gemini | `chat` (also `complete`, `message`), `stream`, `embed`, `submitVideoGenerationJob` | `stream` without `usageMetadata`; `embed` when no token count is returned; video submit always. `chat` reports zeros when the response has no `usageMetadata`. `embed` sends one request per input and reports them as one event |
+| Ollama | `chat` (also `message`, `describeImage`), `complete`, `embed`, `stream` | when the server omits `prompt_eval_count`/`eval_count` |
+| Bedrock | `chat` (also `complete`, `message`, `describeImage`), `stream`, `embed`, `embedImage` | `embedImage` always; `chat`/`stream` without `usage`; `embed` without token counts. `embed` sends one request per input and reports them as one event |
+| Hugging Face | `chat` (also `complete`, `message`), `stream`, `embed` | always |
+| Claude CLI | `chat` (also `complete`, `message`), `stream` | `stream` always; `chat` when the CLI result has no usage |
+| ChatGPT plan | `chat` (also `complete`, `message`), `stream` | when the completed event has no usage |
+| WebLLM | `chat` (also `complete`, `message`), `stream` | when the engine reports no usage |
+| TypeSafe, Laya | `decide` | when the server returns no `usage` |
+| Seevio, BytePlus ModelArk, OpenAI-compatible video | `submitVideoGenerationJob` | always |
+| Qwen3-TTS | none | — |
+
+Operations not listed (image generation, OpenAI and Gemini image embedding,
+Gemini image description, job polling, speech, token counting) emit no usage
+event. With `continueOnLength`, every continuation request is its own part;
+a continued stream never marks its last part.
 
 ### Tagging Usage Events
 
