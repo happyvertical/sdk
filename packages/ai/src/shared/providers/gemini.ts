@@ -55,6 +55,7 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
+import { forwardUsageParts } from '../usage-parts';
 import { emitUsage } from './usage';
 
 // Note: This implementation uses the new @google/genai package
@@ -251,6 +252,7 @@ export class GeminiProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
 
       return {
@@ -301,6 +303,7 @@ export class GeminiProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -351,6 +354,7 @@ export class GeminiProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -418,6 +422,7 @@ export class GeminiProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
 
       return {
@@ -823,6 +828,7 @@ export class GeminiProvider implements AIInterface {
           ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
           ...options.usageTags,
         },
+        options,
       );
 
       return {
@@ -1166,6 +1172,7 @@ export class GeminiProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
     } catch (error) {
       if (controls?.didTimeout()) {

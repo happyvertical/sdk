@@ -66,6 +66,7 @@ import {
   ContextLengthError,
   ModelNotFoundError,
 } from '../types';
+import { forwardUsageParts } from '../usage-parts';
 import { attemptRecorderFrom, shouldRetryConnection } from './connection-retry';
 import { loadedOpenAISdk, loadOpenAISdk } from './openai-sdk';
 import { cacheUsageFields, emitUsage } from './usage';
@@ -448,6 +449,7 @@ export class OpenAIProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
 
       const toolCalls = choice.message.tool_calls
@@ -543,6 +545,7 @@ export class OpenAIProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -599,6 +602,7 @@ export class OpenAIProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -647,6 +651,7 @@ export class OpenAIProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
 
       return {
@@ -741,6 +746,7 @@ export class OpenAIProvider implements AIInterface {
           timeout: controls.timeout,
           reasoning: options.reasoning,
           usageTags: options.usageTags,
+          ...forwardUsageParts(options),
         },
       );
 
@@ -1088,6 +1094,7 @@ export class OpenAIProvider implements AIInterface {
         undefined,
         startTime,
         options.usageTags,
+        options,
       );
     } catch (error) {
       if (controls?.didTimeout()) {

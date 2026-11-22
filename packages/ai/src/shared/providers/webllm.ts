@@ -58,6 +58,7 @@ import {
   WebGPUUnavailableError,
   WebLLMPeerMissingError,
 } from '../types';
+import { forwardUsageParts } from '../usage-parts';
 import { emitUsage } from './usage';
 
 const PROVIDER = 'webllm';
@@ -585,6 +586,7 @@ export class WebLLMProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
       const toolCalls: AIToolCall[] | undefined =
         choice.message?.tool_calls?.map(
@@ -636,6 +638,7 @@ export class WebLLMProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -664,6 +667,7 @@ export class WebLLMProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
     return response.content;
   }
@@ -754,6 +758,7 @@ export class WebLLMProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
     } catch (error) {
       throw (

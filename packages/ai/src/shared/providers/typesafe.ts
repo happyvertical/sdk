@@ -488,6 +488,7 @@ export class TypeSafeProvider implements AIInterface {
         usage,
         startedAt,
         options.usageTags,
+        options,
       );
       return {
         model: body.model,

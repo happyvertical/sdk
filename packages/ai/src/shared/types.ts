@@ -1622,7 +1622,84 @@ export interface UsageEvent {
 
   /** Custom tags from global `usageTags` and per-call `usageTags`, merged */
   tags?: Record<string, string>;
+
+  /**
+   * Which completed provider request of which public call this event
+   * reports. The SDK's own emitter always sets it (see
+   * {@link PartedUsageEvent}); it is optional so events built by other
+   * producers still type-check.
+   */
+  part?: UsagePart;
 }
+
+/**
+ * Identity of one usage event within a public method invocation.
+ *
+ * Plain JSON: every copy of an event carries an equal `part`.
+ */
+export interface UsagePart {
+  /**
+   * Opaque id minted once per public method invocation (one `chat()`,
+   * `complete()`, `stream()`, ... call), before its first provider request.
+   * Every event of that invocation carries the same id.
+   */
+  call: string;
+  /**
+   * 0 for the invocation's first usage event, then increasing by one. One
+   * completed provider request emits exactly one event; a failed request,
+   * or one the SDK transparently resent, emits none.
+   */
+  index: number;
+  /**
+   * Present (and true) when the SDK knew at emission that no further
+   * request of this invocation follows: always for an invocation that cannot
+   * continue. A continued reply's events never carry it; the response's
+   * {@link AIResponse.usageParts} marks the last part instead, and a
+   * continued stream has no response, so its last part is never marked.
+   */
+  last?: true;
+}
+
+/** A {@link UsageEvent} with its {@link UsagePart}, as the SDK emits it. */
+export type PartedUsageEvent = UsageEvent & { part: UsagePart };
+
+/** One part in {@link AIUsageParts}. */
+export interface AIUsagePart {
+  /** The part's {@link UsagePart.index}. */
+  index: number;
+  /** Set on the invocation's final part. */
+  last?: true;
+  /** The part's counts; absent when the provider reported none. */
+  usage?: TokenUsage;
+}
+
+/**
+ * Every usage part of the invocation that produced a response, in index
+ * order. Matches the parts emitted to `onUsage` for the same `call`.
+ */
+export interface AIUsageParts {
+  /** The invocation's {@link UsagePart.call}. */
+  call: string;
+  parts: AIUsagePart[];
+  /**
+   * True only when the list ends with a `last` part and every part has
+   * `usage`. When false, the response's `usage` (the sum of the parts that
+   * reported counts) understates or omits what was used.
+   */
+  complete: boolean;
+}
+
+/**
+ * Usage capabilities a client declares. Clients built by `getAI()` from this
+ * version on expose `usageFeatures` with `parts: true`; an older client has
+ * no `usageFeatures`.
+ */
+export type AIUsageFeatures = Readonly<{
+  /** Events carry `part`; chat/complete responses carry `usageParts`. */
+  parts: true;
+  /** Method options accept a per-call `onUsage` sink. */
+  callSink?: true;
+}>;
 
 /**
  * AI response structure
@@ -1688,6 +1765,13 @@ export interface AIResponse {
    * continuation ran.
    */
   parts?: number;
+
+  /**
+   * The usage parts of the invocation that produced this response, set on
+   * `chat()` and `complete()` responses from clients built by `getAI()`
+   * (and by `createContinuingAI()`). See {@link AIUsageParts}.
+   */
+  usageParts?: AIUsageParts;
 }
 
 /**
@@ -1718,6 +1802,12 @@ export interface AIInterface {
    * Optional admin surface for gateway providers that support provisioning.
    */
   admin?: AIAdminInterface;
+
+  /**
+   * Usage capabilities of this client. Set on clients built by `getAI()`;
+   * absent on older clients and on directly constructed provider classes.
+   */
+  readonly usageFeatures?: AIUsageFeatures;
 
   /**
    * Evaluate provider-neutral, typed questions without using text generation.

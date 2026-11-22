@@ -6,9 +6,11 @@
  */
 
 import type { BaseAIOptions, TokenUsage, UsageEvent } from '../types';
+import { nextUsagePart } from '../usage-parts';
 
 /**
  * Emit a usage event to the `onUsage` callback configured on provider options.
+ * Call it once per completed provider request, with or without counts.
  *
  * @param providerOptions  - The provider's stored options (for `onUsage` and global `usageTags`).
  * @param providerName     - Provider identifier (e.g. `'openai'`).
@@ -17,6 +19,9 @@ import type { BaseAIOptions, TokenUsage, UsageEvent } from '../types';
  * @param usage            - Token usage breakdown, if available.
  * @param startTime        - `Date.now()` captured before the API call.
  * @param callTags         - Per-call `usageTags` from the method's options.
+ * @param callOptions      - The method's call options, which carry the
+ *   invocation's usage-part recorder. The part is recorded even when no
+ *   `onUsage` is configured, so the response's `usageParts` stays complete.
  */
 export function emitUsage(
   providerOptions: BaseAIOptions,
@@ -26,7 +31,9 @@ export function emitUsage(
   usage: TokenUsage | undefined,
   startTime: number,
   callTags?: Record<string, string>,
+  callOptions?: unknown,
 ): void {
+  const part = nextUsagePart(callOptions, usage);
   if (!providerOptions.onUsage) return;
 
   const globalTags = providerOptions.usageTags;
@@ -42,6 +49,7 @@ export function emitUsage(
       duration: Date.now() - startTime,
       timestamp: new Date(),
       tags,
+      part,
     });
   } catch {
     // Silently swallow consumer errors

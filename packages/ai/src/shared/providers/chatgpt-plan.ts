@@ -857,6 +857,7 @@ export class ChatGPTPlanProvider implements AIInterface {
       completed?.usage,
       startedAt,
       options.usageTags,
+      options,
     );
     return {
       content,
@@ -909,6 +910,7 @@ export class ChatGPTPlanProvider implements AIInterface {
       completed?.usage,
       startedAt,
       options.usageTags,
+      options,
     );
   }
 

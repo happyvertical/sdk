@@ -50,6 +50,7 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
+import { forwardUsageParts } from '../usage-parts';
 import { cacheUsageFields, emitUsage } from './usage';
 
 const BEDROCK_DEFAULT_CHAT_MODEL = 'anthropic.claude-3-5-sonnet-20241022-v2:0';
@@ -153,6 +154,7 @@ export class BedrockProvider implements AIInterface {
         response.usage,
         startTime,
         options.usageTags,
+        options,
       );
       return response;
     } catch (error) {
@@ -196,6 +198,7 @@ export class BedrockProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -232,6 +235,7 @@ export class BedrockProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -292,6 +296,7 @@ export class BedrockProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
 
       return {
@@ -337,6 +342,8 @@ export class BedrockProvider implements AIInterface {
         model,
         undefined,
         startTime,
+        undefined,
+        options,
       );
 
       return {
@@ -379,6 +386,7 @@ export class BedrockProvider implements AIInterface {
         timeout: options.timeout,
         reasoning: options.reasoning,
         usageTags: options.usageTags,
+        ...forwardUsageParts(options),
       },
     );
 
@@ -532,6 +540,7 @@ export class BedrockProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
     } catch (error) {
       if (controls?.didTimeout()) {

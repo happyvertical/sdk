@@ -54,6 +54,7 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
+import { forwardUsageParts } from '../usage-parts';
 import { emitUsage } from './usage';
 
 const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
@@ -865,6 +866,7 @@ export class OllamaProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
 
       const toolCalls =
@@ -934,6 +936,7 @@ export class OllamaProvider implements AIInterface {
         reasoning: options.reasoning,
         usageTags: options.usageTags,
         continueOnLength: options.continueOnLength,
+        ...forwardUsageParts(options),
       });
     }
     const startTime = Date.now();
@@ -969,6 +972,7 @@ export class OllamaProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
 
       return {
@@ -1026,6 +1030,7 @@ export class OllamaProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -1066,6 +1071,7 @@ export class OllamaProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
 
       return {
@@ -1129,6 +1135,7 @@ export class OllamaProvider implements AIInterface {
         signal: options.signal,
         timeout: options.timeout,
         usageTags: options.usageTags,
+        ...forwardUsageParts(options),
       },
     );
 
@@ -1297,6 +1304,7 @@ export class OllamaProvider implements AIInterface {
         finalUsage,
         startTime,
         options.usageTags,
+        options,
       );
     } catch (error) {
       if (controls?.didTimeout()) {

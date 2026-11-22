@@ -10,6 +10,12 @@ import type {
   TokenUsage,
 } from './types';
 import { AIError } from './types';
+import {
+  adoptUsagePartRecorder,
+  padUsagePart,
+  usagePartsOf,
+  withUsagePartRecorder,
+} from './usage-parts';
 
 /** Default number of extra requests allowed after the first one. */
 export const DEFAULT_MAX_CONTINUATIONS = 3;
@@ -154,16 +160,32 @@ export async function chatWithContinuation(
   options: ChatOptions & { continueOnLength?: ContinueOnLengthOption } = {},
 ): Promise<AIResponse> {
   const config = resolveContinuation(providerOptions, options);
-  const first = await chat(messages, options);
+  // One recorder names every part of this invocation. While continuation is
+  // on, no event can know it is the last; the response marks it instead.
+  const recorder = adoptUsagePartRecorder(options);
+  recorder.mayContinue = config !== undefined;
+  options = withUsagePartRecorder(options, recorder);
+  const request = async (m: AIMessage[], o: ChatOptions) => {
+    const recorded = recorder.parts.length;
+    const response = await chat(m, o);
+    // A completed request whose provider path emitted nothing still counts
+    // as a (count-less) part, so `usageParts.complete` stays honest.
+    if (recorder.parts.length === recorded) padUsagePart(recorder);
+    return response;
+  };
+
+  const first = await request(messages, options);
   const hitLimit = (response: AIResponse) =>
     response.finishReason === 'length' && !response.toolCalls?.length;
 
   // A first part with no text (reasoning used the whole budget) has nothing to
   // continue from, and providers reject an empty assistant turn.
   if (!config || !hitLimit(first) || !first.content.trim()) {
-    return first.finishReason === 'length'
-      ? { ...first, truncated: true }
-      : first;
+    return {
+      ...first,
+      ...(first.finishReason === 'length' ? { truncated: true } : {}),
+      usageParts: usagePartsOf(recorder),
+    };
   }
 
   // Parts after the first are deduplicated, so progress is reported once with
@@ -177,7 +199,7 @@ export async function chatWithContinuation(
 
   while (parts <= config.maxContinuations && hitLimit(last)) {
     throwIfAborted(options.signal);
-    const next = await chat(continuationMessages(messages, content), {
+    const next = await request(continuationMessages(messages, content), {
       ...partOptions,
       stream: false,
     });
@@ -200,6 +222,7 @@ export async function chatWithContinuation(
     model: last.model ?? first.model,
     parts,
     truncated: hitLimit(last),
+    usageParts: usagePartsOf(recorder),
   };
 }
 
@@ -218,6 +241,11 @@ export async function* streamWithContinuation(
   options: ChatOptions & { continueOnLength?: ContinueOnLengthOption } = {},
 ): AsyncIterable<string> {
   const config = resolveContinuation(providerOptions, options);
+  // A stream has no response to mark its last part on, so a continued
+  // stream's events never carry `last`.
+  const recorder = adoptUsagePartRecorder(options);
+  recorder.mayContinue = config !== undefined;
+  options = withUsagePartRecorder(options, recorder);
   if (!config) {
     yield* stream(messages, options);
     return;

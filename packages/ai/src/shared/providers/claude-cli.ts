@@ -50,6 +50,7 @@ import {
   extractTextContent,
   RateLimitError,
 } from '../types';
+import { forwardUsageParts } from '../usage-parts';
 import { emitUsage } from './usage';
 
 const execAsync = promisify(exec);
@@ -506,6 +507,7 @@ export class ClaudeCliProvider implements AIInterface {
       usage,
       startTime,
       options.usageTags,
+      options,
     );
 
     // Parse Claude CLI JSON output
@@ -545,6 +547,7 @@ export class ClaudeCliProvider implements AIInterface {
       onProgress: options.onProgress,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -598,6 +601,7 @@ export class ClaudeCliProvider implements AIInterface {
       onProgress: options.onProgress,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -703,6 +707,7 @@ export class ClaudeCliProvider implements AIInterface {
       undefined,
       startTime,
       options.usageTags,
+      options,
     );
   }
 

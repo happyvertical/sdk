@@ -64,6 +64,7 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
+import { forwardUsageParts } from '../usage-parts';
 import { cacheUsageFields, emitUsage } from './usage';
 
 type AnthropicCacheControl = { cache_control?: CacheControlWire };
@@ -297,6 +298,7 @@ export class AnthropicProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
       );
 
       const finishReason = this.mapFinishReason(response.stop_reason);
@@ -351,6 +353,7 @@ export class AnthropicProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -401,6 +404,7 @@ export class AnthropicProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -549,6 +553,7 @@ export class AnthropicProvider implements AIInterface {
         streamUsage ? mapAnthropicUsage(streamUsage) : undefined,
         startTime,
         options.usageTags,
+        options,
       );
     } catch (error) {
       if (controls?.didTimeout()) {

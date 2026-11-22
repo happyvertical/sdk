@@ -548,6 +548,7 @@ export class ByteplusModelArkProvider implements AIInterface {
           ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
           ...options.usageTags,
         },
+        options,
       );
 
       return {

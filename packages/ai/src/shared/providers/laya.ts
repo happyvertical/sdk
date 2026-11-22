@@ -642,6 +642,7 @@ export class LayaProvider implements AIInterface {
       usage,
       startedAt,
       options.usageTags,
+      options,
     );
     return {
       model,

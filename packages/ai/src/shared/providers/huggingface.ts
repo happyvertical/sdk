@@ -44,6 +44,7 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
+import { forwardUsageParts } from '../usage-parts';
 import { emitUsage } from './usage';
 
 export class HuggingFaceProvider implements AIInterface {
@@ -118,6 +119,7 @@ export class HuggingFaceProvider implements AIInterface {
           undefined,
           startTime,
           options.usageTags,
+          options,
         );
 
         return {
@@ -173,6 +175,7 @@ export class HuggingFaceProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -209,6 +212,7 @@ export class HuggingFaceProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -259,6 +263,7 @@ export class HuggingFaceProvider implements AIInterface {
         undefined,
         startTime,
         options.usageTags,
+        options,
       );
 
       return {
@@ -349,6 +354,7 @@ export class HuggingFaceProvider implements AIInterface {
       undefined,
       startTime,
       options.usageTags,
+      options,
     );
   }
 

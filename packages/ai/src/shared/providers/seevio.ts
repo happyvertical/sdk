@@ -663,6 +663,7 @@ export class SeevioProvider implements AIInterface {
         aspectRatio,
         ...options.usageTags,
       },
+      options,
     );
     return {
       jobId: created.taskId,

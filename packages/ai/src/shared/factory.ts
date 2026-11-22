@@ -32,6 +32,7 @@ import type {
   WebLLMOptions,
 } from './types';
 import { AI_PROVIDER_TYPES } from './types';
+import { createUsagePartsAI } from './usage-parts';
 
 /**
  * Type guards for provider options
@@ -353,8 +354,12 @@ export async function getAI(
 
   // Continuation sits outside the rate limiter so each continuation part is
   // paced and retried on its own (a 429 on part N never re-bills parts 1..N-1).
+  // Usage parts sit outside continuation so every part of one public call
+  // shares the call id minted at that call.
   return createObservedAI(
-    createContinuingAI(createRateLimitedAI(client, options), options, client),
+    createUsagePartsAI(
+      createContinuingAI(createRateLimitedAI(client, options), options, client),
+    ),
     options,
   );
 }
