@@ -1392,11 +1392,9 @@ function bedrockUncounted(usage: any): boolean {
   return !usageCounted({
     prompt: usage?.inputTokens,
     completion: usage?.outputTokens,
-    supplemental: [
-      usage?.totalTokens,
-      usage?.cacheReadInputTokens,
-      usage?.cacheWriteInputTokens,
-    ],
+    supplemental: [usage?.cacheReadInputTokens, usage?.cacheWriteInputTokens],
+    // A reported total covers at least input and output.
+    total: usage?.totalTokens,
   });
 }
 

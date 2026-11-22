@@ -401,7 +401,7 @@ export class WebLLMProvider implements AIInterface {
       uncounted: !usageCounted({
         prompt: counters.prompt_tokens,
         completion: counters.completion_tokens,
-        supplemental: [counters.total_tokens],
+        total: counters.total_tokens,
       }),
     };
   }

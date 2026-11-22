@@ -29,6 +29,12 @@ export function countOf(value: unknown): number | undefined {
  *   thoughts, tool-use prompt, a total) is valid too. An absent one is fine;
  *   a present but malformed one is not.
  *
+ * - the counters are consistent: where the provider's prompt count includes
+ *   other counters (`promptIncludes`, such as cache reads), their sum is not
+ *   above the prompt; and a reported `total` is not below the sum of the
+ *   counters it must include (`totalIncludes`, by default prompt and
+ *   completion).
+ *
  * Anything else that still carries a valid figure is reported `uncounted`,
  * keeping every valid figure.
  */
@@ -36,14 +42,26 @@ export function usageCounted(split: {
   prompt: unknown;
   completion: unknown;
   supplemental?: unknown[];
+  promptIncludes?: unknown[];
+  total?: unknown;
+  totalIncludes?: unknown[];
 }): boolean {
+  const prompt = countOf(split.prompt);
+  const completion = countOf(split.completion);
+  if (prompt === undefined || completion === undefined) return false;
+  const valid = (value: unknown) =>
+    value === undefined || value === null || countOf(value) !== undefined;
+  if (!(split.supplemental ?? []).every(valid)) return false;
+  if (![split.total, ...(split.promptIncludes ?? [])].every(valid)) {
+    return false;
+  }
+  const sum = (values: unknown[]) =>
+    values.reduce<number>((acc, value) => acc + (countOf(value) ?? 0), 0);
+  if (sum(split.promptIncludes ?? []) > prompt) return false;
+  const total = countOf(split.total);
   return (
-    countOf(split.prompt) !== undefined &&
-    countOf(split.completion) !== undefined &&
-    (split.supplemental ?? []).every(
-      (value) =>
-        value === undefined || value === null || countOf(value) !== undefined,
-    )
+    total === undefined ||
+    total >= sum(split.totalIncludes ?? [split.prompt, split.completion])
   );
 }
 

@@ -51,7 +51,13 @@ import {
   RateLimitError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { countOf, emitUsage, usageCounted, usageReported } from './usage';
+import {
+  cacheUsageFields,
+  countOf,
+  emitUsage,
+  usageCounted,
+  usageReported,
+} from './usage';
 
 const execAsync = promisify(exec);
 
@@ -490,13 +496,24 @@ export class ClaudeCliProvider implements AIInterface {
 
     const model = options.model || this.options.defaultModel;
     // A malformed counter (for example a string) is treated as not reported.
-    const inputTokens = countOf(result.usage?.input_tokens) ?? 0;
-    const outputTokens = countOf(result.usage?.output_tokens) ?? 0;
-    const usage: TokenUsage | undefined = result.usage
+    // As with the Anthropic API, `input_tokens` excludes cache reads and
+    // writes, and `promptTokens` includes them.
+    const raw = result.usage;
+    const cache = cacheUsageFields(
+      raw?.cache_read_input_tokens,
+      raw?.cache_creation_input_tokens,
+    );
+    const inputTokens =
+      (countOf(raw?.input_tokens) ?? 0) +
+      (cache.cacheReadInputTokens || 0) +
+      (cache.cacheCreationInputTokens || 0);
+    const outputTokens = countOf(raw?.output_tokens) ?? 0;
+    const usage: TokenUsage | undefined = raw
       ? {
           promptTokens: inputTokens,
           completionTokens: outputTokens,
           totalTokens: inputTokens + outputTokens,
+          ...cache,
         }
       : undefined;
 
@@ -505,7 +522,12 @@ export class ClaudeCliProvider implements AIInterface {
       'claude-cli',
       'chat',
       model!,
-      usageReported(result.usage?.input_tokens, result.usage?.output_tokens)
+      usageReported(
+        raw?.input_tokens,
+        raw?.output_tokens,
+        raw?.cache_read_input_tokens,
+        raw?.cache_creation_input_tokens,
+      )
         ? usage
         : undefined,
       startTime,
@@ -514,8 +536,12 @@ export class ClaudeCliProvider implements AIInterface {
       {
         finishReason: 'stop',
         uncounted: !usageCounted({
-          prompt: result.usage?.input_tokens,
-          completion: result.usage?.output_tokens,
+          prompt: raw?.input_tokens,
+          completion: raw?.output_tokens,
+          supplemental: [
+            raw?.cache_read_input_tokens,
+            raw?.cache_creation_input_tokens,
+          ],
         }),
       },
     );

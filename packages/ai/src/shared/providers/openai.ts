@@ -292,6 +292,16 @@ function openAIUsageExtras(raw: Record<string, any>): {
 }
 
 /**
+ * Embedding usage: no output, so completion 0 and total = prompt, whatever
+ * a gateway put in those fields.
+ */
+function embeddingUsage(usage: TokenUsage | undefined): TokenUsage | undefined {
+  return usage
+    ? { ...usage, completionTokens: 0, totalTokens: usage.promptTokens }
+    : undefined;
+}
+
+/**
  * OpenAI provider implementation that handles all interactions with OpenAI's API.
  * Supports GPT models, embeddings, function calling, streaming, and vision capabilities.
  */
@@ -680,8 +690,9 @@ export class OpenAIProvider implements AIInterface {
         user: options.user,
       });
 
-      const usage = this.mapUsage(response.usage);
-      // An embedding has no output tokens.
+      // An embedding has no output tokens: its usage is normalized to
+      // completion 0 and total = prompt, the figures the rule validates.
+      const usage = embeddingUsage(this.mapUsage(response.usage));
       const reported = this.reportedUsage(response.usage, usage, true);
       emitUsage(
         this.options,
@@ -942,7 +953,7 @@ export class OpenAIProvider implements AIInterface {
             !usageCounted({
               prompt: imageUsage.input_tokens,
               completion: imageUsage.output_tokens,
-              supplemental: [imageUsage.total_tokens],
+              total: imageUsage.total_tokens,
             }),
         },
       );
@@ -1577,13 +1588,31 @@ export class OpenAIProvider implements AIInterface {
     ) {
       return { uncounted: false };
     }
+    // For an embedding (`noOutput`, `mapped` already normalized to
+    // completion 0 and total = prompt), a server report that contradicts
+    // those figures (output tokens, or a total other than the prompt) leaves
+    // the part uncounted: what is emitted must be what was validated.
+    const contradicts =
+      noOutput &&
+      ((countOf(counters.completion_tokens) ?? 0) > 0 ||
+        (countOf(counters.total_tokens) !== undefined &&
+          counters.total_tokens !== mapped?.promptTokens));
     return {
       usage: mapped,
-      uncounted: !usageCounted({
-        prompt: counters.prompt_tokens,
-        completion: noOutput ? 0 : counters.completion_tokens,
-        supplemental: [counters.total_tokens, cacheRead, cacheWrite],
-      }),
+      uncounted:
+        contradicts ||
+        !usageCounted({
+          prompt: counters.prompt_tokens,
+          completion: noOutput ? 0 : counters.completion_tokens,
+          supplemental: [
+            cacheRead,
+            cacheWrite,
+            ...(noOutput ? [counters.completion_tokens] : []),
+          ],
+          // prompt_tokens includes cache reads and writes.
+          promptIncludes: [cacheRead, cacheWrite],
+          total: counters.total_tokens,
+        }),
     };
   }
 

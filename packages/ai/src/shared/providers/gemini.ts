@@ -1707,8 +1707,18 @@ function geminiUncounted(metadata: any): boolean {
       prompt: metadata.promptTokenCount,
       completion: metadata.candidatesTokenCount,
       supplemental: [
-        metadata.totalTokenCount,
         metadata.toolUsePromptTokenCount,
+        metadata.thoughtsTokenCount,
+        metadata.cachedContentTokenCount,
+      ],
+      // promptTokenCount includes cached content; the total includes the
+      // prompt, tool-use prompt, candidates and thoughts.
+      promptIncludes: [metadata.cachedContentTokenCount],
+      total: metadata.totalTokenCount,
+      totalIncludes: [
+        metadata.promptTokenCount,
+        metadata.toolUsePromptTokenCount,
+        metadata.candidatesTokenCount,
         metadata.thoughtsTokenCount,
       ],
     })
@@ -1724,15 +1734,20 @@ function reportedGeminiUsage(metadata: any): TokenUsage | undefined {
       metadata.totalTokenCount,
       metadata.toolUsePromptTokenCount,
       metadata.thoughtsTokenCount,
+      metadata.cachedContentTokenCount,
     )
   ) {
     return undefined;
   }
   // Google's accounting: total = prompt + tool-use prompt + candidates +
   // thoughts. Tool-use prompt tokens are input; thought tokens are output.
+  // `cachedContentTokenCount` is already part of `promptTokenCount`, so it
+  // is reported as `cacheReadInputTokens` and never added again; without a
+  // prompt count, the cached tokens are the known part of the prompt.
   // A malformed counter (for example a string) is treated as not reported.
+  const cacheRead = countOf(metadata.cachedContentTokenCount);
   const promptTokens =
-    (countOf(metadata.promptTokenCount) ?? 0) +
+    (countOf(metadata.promptTokenCount) ?? cacheRead ?? 0) +
     (countOf(metadata.toolUsePromptTokenCount) ?? 0);
   const completionTokens =
     (countOf(metadata.candidatesTokenCount) ?? 0) +
@@ -1745,6 +1760,7 @@ function reportedGeminiUsage(metadata: any): TokenUsage | undefined {
       promptTokens,
       completionTokens,
     ),
+    ...(cacheRead !== undefined ? { cacheReadInputTokens: cacheRead } : {}),
   };
 }
 

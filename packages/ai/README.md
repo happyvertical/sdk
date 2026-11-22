@@ -1391,8 +1391,12 @@ result.usageParts;
 - A part is **counted** only when its prompt and completion tokens are both
   valid counts, and every supplemental counter the provider reported (a
   total, cache read/write, Gemini thought or tool-use prompt tokens) is
-  valid too. An embedding has no output, so its completion is 0. Every
-  provider applies this one rule.
+  valid too. The counters must also be consistent: counters that the
+  provider includes in its prompt count (OpenAI-compatible cache reads and
+  writes, Gemini `cachedContentTokenCount`) must not exceed the prompt, and
+  a reported total must cover the parts it includes (prompt and completion;
+  for Gemini also tool-use prompt and thought tokens). An embedding has no
+  output, so its completion is 0. Every provider applies this one rule.
 - Anything else that carries a valid figure is emitted with every valid
   figure kept and marked `part.uncounted: true` (and `uncounted` on the
   `usageParts` entry). Examples: a total alone, one side alone, cost or
@@ -1421,13 +1425,13 @@ keeps its earlier behaviour, which on some providers fills zeros.)
 
 | Provider | Operations that emit an event (one per completed request) | Count-less when |
 |----------|-------------------------------|-----------------|
-| OpenAI, LiteLLM, Bifrost | `chat` (also `complete`, `message`, `describeImage`), `embed`, `stream`, `embedImage` (two events: description `chat`, then `embed`), `generateImage` | `stream` unless the server sends a terminal usage chunk; `chat`/`embed` without token counters; `generateImage` except on gpt-image models |
+| OpenAI, LiteLLM, Bifrost | `chat` (also `complete`, `message`, `describeImage`), `embed`, `stream`, `embedImage` (two events: description `chat`, then `embed`), `generateImage` | `stream` unless the server sends a terminal usage chunk; `chat`/`embed` without token counters; `generateImage` except on gpt-image models. `embed` usage is always completion 0 and total = prompt; a gateway report that says otherwise is `uncounted` |
 | Anthropic | `chat` (also `complete`, `message`), `stream` | without token counters |
-| Gemini | `chat` (also `complete`, `message`), `stream`, `embed` (one per input), `describeImage`, `embedImage`, `generateImage`, `submitVideoGenerationJob` | without `usageMetadata` counters; `embed`/`embedImage` without `embeddings[].statistics.tokenCount`; `generateImage` and video submit always |
+| Gemini | `chat` (also `complete`, `message`), `stream`, `embed` (one per input), `describeImage`, `embedImage`, `generateImage`, `submitVideoGenerationJob` | without `usageMetadata` counters; `embed`/`embedImage` without `embeddings[].statistics.tokenCount`; `generateImage` and video submit always. `cachedContentTokenCount` is reported as `cacheReadInputTokens` (already inside `promptTokens`) |
 | Ollama | `chat` (also `message`, `describeImage`), `complete`, `embed`, `stream`, `embedImage` (description `chat`, then `embed`), `generateImage` | when the server omits `prompt_eval_count`/`eval_count` (`embed`: `prompt_eval_count`); `generateImage` always |
 | Bedrock | `chat` (also `complete`, `message`, `describeImage`), `stream`, `embed` (one per input), `embedImage`, `generateImage` | `embedImage` and `generateImage` always; `chat`/`stream` without token counters; `embed` without a token count |
 | Hugging Face | `chat` (also `complete`, `message`), `stream`, `embed` | always |
-| Claude CLI | `chat` (also `complete`, `message`), `stream` | `stream` always; `chat` when the CLI result has no counters |
+| Claude CLI | `chat` (also `complete`, `message`), `stream` | `stream` always; `chat` when the CLI result has no counters. Cache reads and writes are added to `promptTokens`, as for Anthropic |
 | ChatGPT plan | `chat` (also `complete`, `message`), `stream` | when the completed event has no usage |
 | WebLLM | `chat` (also `complete`, `message`), `stream` | when the engine reports no counters |
 | TypeSafe, Laya | `decide` | when the server returns no `usage` |
