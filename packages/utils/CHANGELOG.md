@@ -1,5 +1,17 @@
 # @happyvertical/utils
 
+## 0.117.0
+
+### Minor Changes
+
+- ### Breaking Changes
+
+  - usage part identity, response usage parts and a usage capability flag (#1585) (ai)
+
+  ### Features
+
+  - usage part identity, response usage parts and a usage capability flag (#1585) (ai)
+
 ## 0.116.8
 
 ### Patch Changes
