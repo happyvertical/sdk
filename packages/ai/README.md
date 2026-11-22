@@ -1322,7 +1322,8 @@ The `UsageEvent` payload:
   [per-provider table](#what-each-provider-reports) for which operations report.
 - `complete()`, `message()` and `describeImage()` report through their
   underlying `chat()` call (operation `'chat'`), except Ollama's `complete()`
-  without continuation, which reports its own `'complete'` request.
+  without continuation (its own `'complete'` request) and Gemini's
+  `describeImage()` (its own `'describeImage'` request).
 - Errors thrown inside `onUsage` are silently caught and will not affect API results
 - Tags are attached to events only; they are never sent to a provider.
 
@@ -1336,7 +1337,22 @@ carries `part`:
 |-------|---------|
 | `call` | The invocation's id; the same on all of its events. |
 | `index` | 0 for its first event, then 1, 2, ... |
-| `last` | `true` when the SDK knew no further request would follow: always for a call that cannot continue. Never set on the events of a call with `continueOnLength` on. |
+| `last` | `true` when the SDK knew at emission that no further request would follow (see below). |
+
+When `last` is set:
+
+- A call that cannot continue: on its final request. Most methods make one
+  request. Gemini and Bedrock `embed` make one per input, and OpenAI-compatible
+  and Ollama `embedImage` make an image description then an embedding; only
+  the final request is `last`.
+- A call with `continueOnLength` on (`chat`, `complete`, `message`, `stream`,
+  per call or as the client default): on the part whose finish reason is not
+  `'length'`, and on the part at the `maxContinuations` cap.
+- Not set: a continued part that stopped on the limit but was not continued
+  anyway (it had no text to continue from, the caller aborted, or the next
+  request failed), and a batch whose later request failed. Such a call ends
+  without a `last` event. `chat()` and `complete()` still mark the final part
+  in `usageParts`; `message()` and `stream()` have nothing else to mark it on.
 
 `part` is plain JSON, so every copy of an event carries an equal one, and two
 requests with identical counts in the same millisecond still differ by `index`.
@@ -1355,8 +1371,9 @@ result.usageParts;
   `usage`. When it is `false`, `result.usage` (the sum of the parts that
   reported) understates or omits what was used.
 - Parts are recorded even without an `onUsage` callback.
-- A continued `stream()` has no response, so its last part is never marked;
-  treat its total as open-ended.
+- An event is emitted when its provider request completes. That is before
+  `onFinishReason`/`onRefusal` run, so a throwing callback cannot suppress it,
+  and before a simulated stream (Hugging Face) plays its chunks.
 
 Clients built by `getAI()` declare this with
 `usageFeatures: { parts: true }`. An older client has no `usageFeatures`.
@@ -1367,27 +1384,30 @@ not add `usageParts`.
 ### What each provider reports
 
 No adapter reports running totals: each event's `usage` is that one request's
-counts. "Count-less" means the event arrives with `usage: undefined`.
+counts. "Count-less" means the event arrives with `usage: undefined`. A
+response with no usage object, or one with no token counter in it, is
+count-less, never zero; genuinely reported zeros are kept. (`AIResponse.usage`
+keeps its earlier behaviour, which on some providers fills zeros.)
 
-| Provider | Operations that emit an event | Count-less when |
+| Provider | Operations that emit an event (one per completed request) | Count-less when |
 |----------|-------------------------------|-----------------|
-| OpenAI, LiteLLM, Bifrost | `chat` (also `complete`, `message`, `describeImage`), `embed`, `stream` | `stream` always; `chat`/`embed` when the server sends no `usage` |
-| Anthropic | `chat` (also `complete`, `message`), `stream` | `stream` when no usage arrives in the stream. `chat` always reports counts (zeros if the response had no `usage`) |
-| Gemini | `chat` (also `complete`, `message`), `stream`, `embed`, `submitVideoGenerationJob` | `stream` without `usageMetadata`; `embed` when no token count is returned; video submit always. `chat` reports zeros when the response has no `usageMetadata`. `embed` sends one request per input and reports them as one event |
-| Ollama | `chat` (also `message`, `describeImage`), `complete`, `embed`, `stream` | when the server omits `prompt_eval_count`/`eval_count` |
-| Bedrock | `chat` (also `complete`, `message`, `describeImage`), `stream`, `embed`, `embedImage` | `embedImage` always; `chat`/`stream` without `usage`; `embed` without token counts. `embed` sends one request per input and reports them as one event |
+| OpenAI, LiteLLM, Bifrost | `chat` (also `complete`, `message`, `describeImage`), `embed`, `stream`, `embedImage` (two events: description `chat`, then `embed`), `generateImage` | `stream` unless the server sends a terminal usage chunk; `chat`/`embed` without token counters; `generateImage` except on gpt-image models |
+| Anthropic | `chat` (also `complete`, `message`), `stream` | without token counters |
+| Gemini | `chat` (also `complete`, `message`), `stream`, `embed` (one per input), `describeImage`, `embedImage`, `generateImage`, `submitVideoGenerationJob` | without `usageMetadata` counters; `embed`/`embedImage` without `embeddings[].statistics.tokenCount`; `generateImage` and video submit always |
+| Ollama | `chat` (also `message`, `describeImage`), `complete`, `embed`, `stream`, `embedImage` (description `chat`, then `embed`), `generateImage` | when the server omits `prompt_eval_count`/`eval_count` (`embed`: `prompt_eval_count`); `generateImage` always |
+| Bedrock | `chat` (also `complete`, `message`, `describeImage`), `stream`, `embed` (one per input), `embedImage`, `generateImage` | `embedImage` and `generateImage` always; `chat`/`stream` without token counters; `embed` without a token count |
 | Hugging Face | `chat` (also `complete`, `message`), `stream`, `embed` | always |
-| Claude CLI | `chat` (also `complete`, `message`), `stream` | `stream` always; `chat` when the CLI result has no usage |
+| Claude CLI | `chat` (also `complete`, `message`), `stream` | `stream` always; `chat` when the CLI result has no counters |
 | ChatGPT plan | `chat` (also `complete`, `message`), `stream` | when the completed event has no usage |
-| WebLLM | `chat` (also `complete`, `message`), `stream` | when the engine reports no usage |
+| WebLLM | `chat` (also `complete`, `message`), `stream` | when the engine reports no counters |
 | TypeSafe, Laya | `decide` | when the server returns no `usage` |
 | Seevio, BytePlus ModelArk, OpenAI-compatible video | `submitVideoGenerationJob` | always |
-| Qwen3-TTS | none | — |
+| Qwen3-TTS | `synthesizeSpeech`, `streamSpeech` (when the stream ends) | always |
 
-Operations not listed (image generation, OpenAI and Gemini image embedding,
-Gemini image description, job polling, speech, token counting) emit no usage
-event. With `continueOnLength`, every continuation request is its own part;
-a continued stream never marks its last part.
+Requests that are not generation (job polling and cancel, model and voice
+listing, voice cloning and design, token counting, access checks) emit no
+usage event. With `continueOnLength`, every continuation request is its own
+part.
 
 ### Tagging Usage Events
 
