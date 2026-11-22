@@ -53,8 +53,10 @@ import {
 import { ensureUsagePartRecorder, forwardUsageParts } from '../usage-parts';
 import {
   cacheUsageFields,
+  countOf,
   emitUsage,
   hasUsageCount,
+  tokenCountsKnown,
   totalTokensOf,
 } from './usage';
 
@@ -158,7 +160,10 @@ export class BedrockProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason: response.finishReason },
+        {
+          finishReason: response.finishReason,
+          uncounted: bedrockUncounted(raw?.usage),
+        },
       );
       return response;
     } catch (error) {
@@ -532,6 +537,7 @@ export class BedrockProvider implements AIInterface {
       );
 
       let usage: TokenUsage | undefined;
+      let usageUncounted = false;
       let streamStopReason: string | null | undefined;
 
       for await (const event of response.stream || []) {
@@ -548,6 +554,7 @@ export class BedrockProvider implements AIInterface {
 
         if (hasBedrockUsageCount(event.metadata?.usage)) {
           usage = mapBedrockUsage(event.metadata.usage);
+          usageUncounted = bedrockUncounted(event.metadata.usage);
         }
       }
 
@@ -565,7 +572,7 @@ export class BedrockProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason: streamFinish },
+        { finishReason: streamFinish, uncounted: usageUncounted },
       );
       if (streamFinish === 'refusal') {
         // Converse carries no stop_details.
@@ -1372,6 +1379,18 @@ function hasBedrockUsageCount(usage: any): boolean {
  * Token usage from a Converse usage object. `inputTokens` excludes cached
  * tokens, so cache reads and writes are added to `promptTokens`.
  */
+/**
+ * True when a reported Converse usage object has no known token split:
+ * cache counters only, or a malformed token counter.
+ */
+function bedrockUncounted(usage: any): boolean {
+  return !tokenCountsKnown(
+    usage?.inputTokens,
+    usage?.outputTokens,
+    usage?.totalTokens,
+  );
+}
+
 function mapBedrockUsage(usage: {
   inputTokens?: number;
   outputTokens?: number;
@@ -1383,11 +1402,12 @@ function mapBedrockUsage(usage: {
     usage.cacheReadInputTokens,
     usage.cacheWriteInputTokens,
   );
+  // A malformed counter (for example a string) is treated as not reported.
   const promptTokens =
-    (usage.inputTokens || 0) +
+    (countOf(usage.inputTokens) ?? 0) +
     (cache.cacheReadInputTokens || 0) +
     (cache.cacheCreationInputTokens || 0);
-  const completionTokens = usage.outputTokens || 0;
+  const completionTokens = countOf(usage.outputTokens) ?? 0;
   return {
     promptTokens,
     completionTokens,

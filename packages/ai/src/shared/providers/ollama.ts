@@ -59,7 +59,7 @@ import {
   forwardUsageParts,
   withFollowUpRequest,
 } from '../usage-parts';
-import { emitUsage } from './usage';
+import { countOf, emitUsage, tokenCountsKnown } from './usage';
 
 const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
 
@@ -296,15 +296,13 @@ function mapUsage(
   promptTokens?: number,
   completionTokens?: number,
 ): TokenUsage | undefined {
-  if (
-    typeof promptTokens !== 'number' &&
-    typeof completionTokens !== 'number'
-  ) {
+  // No counter, or a malformed one (never used in arithmetic): count-less.
+  if (!tokenCountsKnown(promptTokens, completionTokens)) {
     return undefined;
   }
 
-  const prompt = promptTokens || 0;
-  const completion = completionTokens || 0;
+  const prompt = countOf(promptTokens) ?? 0;
+  const completion = countOf(completionTokens) ?? 0;
   return {
     promptTokens: prompt,
     completionTokens: completion,
@@ -1076,7 +1074,7 @@ export class OllamaProvider implements AIInterface {
         response.model || model,
         // The 0 completion count above is the adapter's, not the server's:
         // without a prompt count the request is count-less.
-        typeof response.prompt_eval_count === 'number' ? usage : undefined,
+        countOf(response.prompt_eval_count) !== undefined ? usage : undefined,
         startTime,
         options.usageTags,
         options,

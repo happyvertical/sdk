@@ -20,6 +20,32 @@ export function hasUsageCount(...counters: unknown[]): boolean {
 }
 
 /**
+ * A token counter as reported: a finite non-negative number, otherwise
+ * undefined (absent, or malformed such as a string, which is never used in
+ * arithmetic).
+ */
+export function countOf(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+/**
+ * True when the token split is known: at least one token counter is a valid
+ * count and none of them is present but malformed. Otherwise a usage event
+ * that still carries other reported figures is marked `uncounted`.
+ */
+export function tokenCountsKnown(...counters: unknown[]): boolean {
+  return (
+    counters.some((value) => countOf(value) !== undefined) &&
+    counters.every(
+      (value) =>
+        value === undefined || value === null || countOf(value) !== undefined,
+    )
+  );
+}
+
+/**
  * A request's total tokens: the provider's total when it reported one that
  * covers its parts, otherwise prompt plus completion. Never a zero (or
  * short) total over nonzero parts.

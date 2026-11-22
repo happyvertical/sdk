@@ -51,7 +51,7 @@ import {
   RateLimitError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { emitUsage, hasUsageCount } from './usage';
+import { countOf, emitUsage, tokenCountsKnown } from './usage';
 
 const execAsync = promisify(exec);
 
@@ -489,13 +489,14 @@ export class ClaudeCliProvider implements AIInterface {
     });
 
     const model = options.model || this.options.defaultModel;
+    // A malformed counter (for example a string) is treated as not reported.
+    const inputTokens = countOf(result.usage?.input_tokens) ?? 0;
+    const outputTokens = countOf(result.usage?.output_tokens) ?? 0;
     const usage: TokenUsage | undefined = result.usage
       ? {
-          promptTokens: result.usage.input_tokens || 0,
-          completionTokens: result.usage.output_tokens || 0,
-          totalTokens:
-            (result.usage.input_tokens || 0) +
-            (result.usage.output_tokens || 0),
+          promptTokens: inputTokens,
+          completionTokens: outputTokens,
+          totalTokens: inputTokens + outputTokens,
         }
       : undefined;
 
@@ -504,7 +505,7 @@ export class ClaudeCliProvider implements AIInterface {
       'claude-cli',
       'chat',
       model!,
-      hasUsageCount(result.usage?.input_tokens, result.usage?.output_tokens)
+      tokenCountsKnown(result.usage?.input_tokens, result.usage?.output_tokens)
         ? usage
         : undefined,
       startTime,

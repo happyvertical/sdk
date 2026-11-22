@@ -56,7 +56,13 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { ensureUsagePartRecorder, forwardUsageParts } from '../usage-parts';
-import { emitUsage, hasUsageCount, totalTokensOf } from './usage';
+import {
+  countOf,
+  emitUsage,
+  hasUsageCount,
+  tokenCountsKnown,
+  totalTokensOf,
+} from './usage';
 
 // Note: This implementation uses the new @google/genai package
 // @google/generative-ai is deprecated - migrated to @google/genai
@@ -254,7 +260,7 @@ export class GeminiProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason },
+        { finishReason, uncounted: geminiUncounted(result.usageMetadata) },
       );
 
       return {
@@ -582,6 +588,7 @@ export class GeminiProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
+        { uncounted: geminiUncounted(response.usageMetadata) },
       );
 
       return response.text || '';
@@ -1191,6 +1198,7 @@ export class GeminiProvider implements AIInterface {
       });
 
       let usage: TokenUsage | undefined;
+      let usageUncounted = false;
       let streamFinish: AIResponse['finishReason'] = 'stop';
 
       for await (const chunk of stream) {
@@ -1198,7 +1206,11 @@ export class GeminiProvider implements AIInterface {
           streamFinish = 'length';
         }
         if (chunk.usageMetadata) {
-          usage = reportedGeminiUsage(chunk.usageMetadata) ?? usage;
+          const reported = reportedGeminiUsage(chunk.usageMetadata);
+          if (reported) {
+            usage = reported;
+            usageUncounted = geminiUncounted(chunk.usageMetadata);
+          }
         }
 
         const text = chunk.text || '';
@@ -1223,7 +1235,7 @@ export class GeminiProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason: streamFinish ?? 'stop' },
+        { finishReason: streamFinish ?? 'stop', uncounted: usageUncounted },
       );
       options.onFinishReason?.(streamFinish ?? 'stop');
     } catch (error) {
@@ -1683,6 +1695,20 @@ export class GeminiProvider implements AIInterface {
  * the response has no metadata or no token counter in it (count-less, not
  * zero).
  */
+/** True when a reported `usageMetadata` has a malformed token counter. */
+function geminiUncounted(metadata: any): boolean {
+  return (
+    !!metadata &&
+    !tokenCountsKnown(
+      metadata.promptTokenCount,
+      metadata.candidatesTokenCount,
+      metadata.totalTokenCount,
+      metadata.toolUsePromptTokenCount,
+      metadata.thoughtsTokenCount,
+    )
+  );
+}
+
 function reportedGeminiUsage(metadata: any): TokenUsage | undefined {
   if (
     !metadata ||
@@ -1694,8 +1720,15 @@ function reportedGeminiUsage(metadata: any): TokenUsage | undefined {
   ) {
     return undefined;
   }
-  const promptTokens = metadata.promptTokenCount || 0;
-  const completionTokens = metadata.candidatesTokenCount || 0;
+  // Google's accounting: total = prompt + tool-use prompt + candidates +
+  // thoughts. Tool-use prompt tokens are input; thought tokens are output.
+  // A malformed counter (for example a string) is treated as not reported.
+  const promptTokens =
+    (countOf(metadata.promptTokenCount) ?? 0) +
+    (countOf(metadata.toolUsePromptTokenCount) ?? 0);
+  const completionTokens =
+    (countOf(metadata.candidatesTokenCount) ?? 0) +
+    (countOf(metadata.thoughtsTokenCount) ?? 0);
   return {
     promptTokens,
     completionTokens,

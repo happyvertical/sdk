@@ -65,6 +65,11 @@ export interface UsagePartHints {
   finishReason?: AIFinishReason;
   /** The method makes another request after this one (a batch loop). */
   more?: boolean;
+  /**
+   * `usage` carries reported figures (cost, cache, part of a split) but no
+   * known token counts; the part is marked `uncounted`.
+   */
+  uncounted?: boolean;
 }
 
 /** What clients built by this version declare (R6). */
@@ -284,16 +289,26 @@ export function nextUsagePart(
   hints: UsagePartHints = {},
 ): UsagePart {
   const recorder = usagePartRecorder(options);
+  const uncounted =
+    usage && hints.uncounted ? { uncounted: true as const } : {};
   if (!recorder) {
-    return hints.more
-      ? { call: mintUsageCallId(), index: 0 }
-      : { call: mintUsageCallId(), index: 0, last: true };
+    return {
+      call: mintUsageCallId(),
+      index: 0,
+      ...(hints.more ? {} : { last: true as const }),
+      ...uncounted,
+    };
   }
   const index = recorder.parts.length;
-  recorder.parts.push(usage ? { index, usage: { ...usage } } : { index });
-  return isLastPart(recorder, hints)
-    ? { call: recorder.call, index, last: true }
-    : { call: recorder.call, index };
+  recorder.parts.push(
+    usage ? { index, usage: { ...usage }, ...uncounted } : { index },
+  );
+  return {
+    call: recorder.call,
+    index,
+    ...(isLastPart(recorder, hints) ? { last: true as const } : {}),
+    ...uncounted,
+  };
 }
 
 function isLastPart(
@@ -332,12 +347,14 @@ export function usagePartsOf(recorder: UsagePartRecorder): AIUsageParts {
     index: part.index,
     ...(position === lastIndex ? { last: true as const } : {}),
     ...(part.usage ? { usage: { ...part.usage } } : {}),
+    ...(part.uncounted ? { uncounted: true as const } : {}),
   }));
   return {
     call: recorder.call,
     parts,
     complete:
-      parts.length > 0 && parts.every((part) => part.usage !== undefined),
+      parts.length > 0 &&
+      parts.every((part) => part.usage !== undefined && !part.uncounted),
   };
 }
 
@@ -356,6 +373,45 @@ const OPTIONS_INDEX: Partial<Record<keyof AIInterface, number>> = {
   streamSpeech: 1,
   submitVideoGenerationJob: 0,
 };
+
+/** Methods that return an async iterable. */
+const STREAM_METHODS = new Set<PropertyKey>(['stream', 'streamSpeech']);
+
+/**
+ * An invocation that fails after it already reported usage has billed
+ * parts; replaying it would bill them again. Its error says
+ * `retryable: false`, whatever the failure was (a later request's rate
+ * limit, a caller's callback).
+ */
+function notRetryableAfterUsage(
+  error: unknown,
+  recorder: UsagePartRecorder,
+): unknown {
+  if (
+    recorder.parts.length > 0 &&
+    error &&
+    typeof error === 'object' &&
+    'retryable' in error
+  ) {
+    try {
+      (error as { retryable: boolean }).retryable = false;
+    } catch {
+      // A frozen error keeps its flag.
+    }
+  }
+  return error;
+}
+
+async function* guardStream<C>(
+  source: AsyncIterable<C>,
+  recorder: UsagePartRecorder,
+): AsyncIterable<C> {
+  try {
+    yield* source;
+  } catch (error) {
+    throw notRetryableAfterUsage(error, recorder);
+  }
+}
 
 /** Methods whose result is an {@link AIResponse} that gets `usageParts`. */
 const RESPONSE_METHODS = new Set<PropertyKey>(['chat', 'complete']);
@@ -402,8 +458,14 @@ export function createUsagePartsAI<T extends AIInterface>(client: T): T {
               recorder,
             );
             const result = value.apply(target, next);
-            if (!RESPONSE_METHODS.has(property)) return result;
-            return Promise.resolve(result).then((response: unknown) => {
+            if (STREAM_METHODS.has(property)) {
+              return guardStream(result as AsyncIterable<unknown>, recorder);
+            }
+            const settled = Promise.resolve(result).catch((error: unknown) => {
+              throw notRetryableAfterUsage(error, recorder);
+            });
+            if (!RESPONSE_METHODS.has(property)) return settled;
+            return settled.then((response: unknown) => {
               if (!isResponse(response) || response.usageParts) {
                 return response;
               }

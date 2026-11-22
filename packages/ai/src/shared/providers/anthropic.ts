@@ -65,7 +65,13 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { cacheUsageFields, emitUsage, hasUsageCount } from './usage';
+import {
+  cacheUsageFields,
+  countOf,
+  emitUsage,
+  hasUsageCount,
+  tokenCountsKnown,
+} from './usage';
 
 type AnthropicCacheControl = { cache_control?: CacheControlWire };
 
@@ -300,7 +306,7 @@ export class AnthropicProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason },
+        { finishReason, uncounted: anthropicUncounted(response.usage) },
       );
 
       return {
@@ -553,7 +559,10 @@ export class AnthropicProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason: streamFinish },
+        {
+          finishReason: streamFinish,
+          uncounted: anthropicUncounted(streamUsage),
+        },
       );
       if (streamFinish === 'refusal') {
         options.onRefusal?.(mapRefusal(streamStopDetails));
@@ -1131,16 +1140,25 @@ function reportedAnthropicUsage(usage: any): TokenUsage | undefined {
     : undefined;
 }
 
+/**
+ * True when a reported Anthropic usage object has no known token split:
+ * cache counters only, or a malformed input/output counter.
+ */
+function anthropicUncounted(usage: any): boolean {
+  return !tokenCountsKnown(usage?.input_tokens, usage?.output_tokens);
+}
+
 function mapAnthropicUsage(usage: any): TokenUsage {
   const cache = cacheUsageFields(
     usage?.cache_read_input_tokens,
     usage?.cache_creation_input_tokens,
   );
+  // A malformed counter (for example a string) is treated as not reported.
   const promptTokens =
-    (usage?.input_tokens || 0) +
+    (countOf(usage?.input_tokens) ?? 0) +
     (cache.cacheReadInputTokens || 0) +
     (cache.cacheCreationInputTokens || 0);
-  const completionTokens = usage?.output_tokens || 0;
+  const completionTokens = countOf(usage?.output_tokens) ?? 0;
   return {
     promptTokens,
     completionTokens,

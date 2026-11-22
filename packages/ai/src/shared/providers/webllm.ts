@@ -59,7 +59,7 @@ import {
   WebLLMPeerMissingError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { emitUsage, hasUsageCount, totalTokensOf } from './usage';
+import { countOf, emitUsage, tokenCountsKnown, totalTokensOf } from './usage';
 
 const PROVIDER = 'webllm';
 
@@ -377,7 +377,8 @@ export class WebLLMProvider implements AIInterface {
     mapped: TokenUsage | undefined,
   ): TokenUsage | undefined {
     const counters = (raw ?? {}) as Record<string, unknown>;
-    return hasUsageCount(
+    // No counter, or a malformed one: the split is unknown (count-less).
+    return tokenCountsKnown(
       counters.prompt_tokens,
       counters.completion_tokens,
       counters.total_tokens,
@@ -396,8 +397,8 @@ export class WebLLMProvider implements AIInterface {
       | undefined
       | null;
     if (!raw) return undefined;
-    const promptTokens = raw.prompt_tokens ?? 0;
-    const completionTokens = raw.completion_tokens ?? 0;
+    const promptTokens = countOf(raw.prompt_tokens) ?? 0;
+    const completionTokens = countOf(raw.completion_tokens) ?? 0;
     return {
       promptTokens,
       completionTokens,

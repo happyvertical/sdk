@@ -1669,6 +1669,15 @@ export interface UsagePart {
    * {@link AIResponse.usageParts} still marks it.
    */
   last?: true;
+  /**
+   * Present (and true) when the event's `usage` carries figures the
+   * provider reported (cost, cache counters, a partial split) but its
+   * prompt/completion token counts are not known: the provider sent no
+   * token counter, or sent one that is not a finite non-negative number.
+   * Its token counts must not be treated as reported; such a part never
+   * makes {@link AIUsageParts.complete} true.
+   */
+  uncounted?: true;
 }
 
 /** A {@link UsageEvent} with its {@link UsagePart}, as the SDK emits it. */
@@ -1682,6 +1691,8 @@ export interface AIUsagePart {
   last?: true;
   /** The part's counts; absent when the provider reported none. */
   usage?: TokenUsage;
+  /** As {@link UsagePart.uncounted}: `usage` holds no reported token counts. */
+  uncounted?: true;
 }
 
 /**
@@ -1694,8 +1705,9 @@ export interface AIUsageParts {
   parts: AIUsagePart[];
   /**
    * True only when the list ends with a `last` part and every part has
-   * `usage`. When false, the response's `usage` (the sum of the parts that
-   * reported counts) understates or omits what was used.
+   * `usage` with reported token counts (none is `uncounted`). When false,
+   * the response's `usage` (the sum of the parts that reported counts)
+   * understates or omits what was used.
    */
   complete: boolean;
 }

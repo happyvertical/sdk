@@ -75,8 +75,10 @@ import { attemptRecorderFrom, shouldRetryConnection } from './connection-retry';
 import { loadedOpenAISdk, loadOpenAISdk } from './openai-sdk';
 import {
   cacheUsageFields,
+  countOf,
   emitUsage,
   hasUsageCount,
+  tokenCountsKnown,
   totalTokensOf,
 } from './usage';
 
@@ -450,16 +452,20 @@ export class OpenAIProvider implements AIInterface {
       }
 
       const usage = this.mapUsage(response.usage);
+      const reported = this.reportedUsage(response.usage, usage);
       emitUsage(
         this.options,
         this.profile.providerName,
         'chat',
         response.model || model,
-        this.reportedUsage(response.usage, usage),
+        reported.usage,
         startTime,
         options.usageTags,
         options,
-        { finishReason: this.mapFinishReason(choice.finish_reason) },
+        {
+          finishReason: this.mapFinishReason(choice.finish_reason),
+          uncounted: reported.uncounted,
+        },
       );
 
       const toolCalls = choice.message.tool_calls
@@ -653,15 +659,17 @@ export class OpenAIProvider implements AIInterface {
       });
 
       const usage = this.mapUsage(response.usage);
+      const reported = this.reportedUsage(response.usage, usage);
       emitUsage(
         this.options,
         this.profile.providerName,
         'embed',
         response.model || model,
-        this.reportedUsage(response.usage, usage),
+        reported.usage,
         startTime,
         options.usageTags,
         options,
+        { uncounted: reported.uncounted },
       );
 
       return {
@@ -889,17 +897,27 @@ export class OpenAIProvider implements AIInterface {
         imageUsage &&
           hasUsageCount(imageUsage.input_tokens, imageUsage.output_tokens)
           ? {
-              promptTokens: Number(imageUsage.input_tokens) || 0,
-              completionTokens: Number(imageUsage.output_tokens) || 0,
-              totalTokens:
-                Number(imageUsage.total_tokens) ||
-                (Number(imageUsage.input_tokens) || 0) +
-                  (Number(imageUsage.output_tokens) || 0),
+              promptTokens: countOf(imageUsage.input_tokens) ?? 0,
+              completionTokens: countOf(imageUsage.output_tokens) ?? 0,
+              totalTokens: totalTokensOf(
+                imageUsage.total_tokens,
+                countOf(imageUsage.input_tokens) ?? 0,
+                countOf(imageUsage.output_tokens) ?? 0,
+              ),
             }
           : undefined,
         startTime,
         options.usageTags,
         options,
+        {
+          uncounted:
+            !!imageUsage &&
+            !tokenCountsKnown(
+              imageUsage.input_tokens,
+              imageUsage.output_tokens,
+              imageUsage.total_tokens,
+            ),
+        },
       );
 
       const images = (response.data || []).map((item) => {
@@ -1132,16 +1150,20 @@ export class OpenAIProvider implements AIInterface {
 
       // Reported before the caller's finish callbacks, so a throwing callback
       // cannot suppress the event for a completed request.
+      const reported = this.reportedUsage(
+        streamUsage,
+        this.mapUsage(streamUsage),
+      );
       emitUsage(
         this.options,
         this.profile.providerName,
         'stream',
         model,
-        this.reportedUsage(streamUsage, this.mapUsage(streamUsage)),
+        reported.usage,
         startTime,
         options.usageTags,
         options,
-        { finishReason: finish },
+        { finishReason: finish, uncounted: reported.uncounted },
       );
       if (finish === 'refusal')
         options.onRefusal?.(mapOpenAIRefusal(undefined));
@@ -1494,11 +1516,11 @@ export class OpenAIProvider implements AIInterface {
     const cache = cacheUsageFields(cacheRead, cacheWrite, cost);
     // Prompt tokens include cache reads and writes; a gateway that reports
     // only the cache counters still used at least those prompt tokens.
-    const promptTokens = hasUsageCount(raw.prompt_tokens)
-      ? raw.prompt_tokens
-      : (cache.cacheReadInputTokens || 0) +
-        (cache.cacheCreationInputTokens || 0);
-    const completionTokens = raw.completion_tokens || 0;
+    // A malformed counter (for example a string) is treated as not reported.
+    const promptTokens =
+      countOf(raw.prompt_tokens) ??
+      (cache.cacheReadInputTokens || 0) + (cache.cacheCreationInputTokens || 0);
+    const completionTokens = countOf(raw.completion_tokens) ?? 0;
     return {
       promptTokens,
       completionTokens,
@@ -1520,18 +1542,27 @@ export class OpenAIProvider implements AIInterface {
   private reportedUsage(
     raw: unknown,
     mapped: TokenUsage | undefined,
-  ): TokenUsage | undefined {
+  ): { usage?: TokenUsage; uncounted: boolean } {
     const counters = (raw ?? {}) as Record<string, unknown>;
-    return hasUsageCount(
+    const reported = hasUsageCount(
       counters.prompt_tokens,
       counters.completion_tokens,
       counters.total_tokens,
       mapped?.cacheReadInputTokens,
       mapped?.cacheCreationInputTokens,
       mapped?.costUsd,
-    )
-      ? mapped
-      : undefined;
+    );
+    if (!reported) return { uncounted: false };
+    // Cost or cache figures alone, or a malformed counter, leave the token
+    // split unknown: reported, but not counted.
+    return {
+      usage: mapped,
+      uncounted: !tokenCountsKnown(
+        counters.prompt_tokens,
+        counters.completion_tokens,
+        counters.total_tokens,
+      ),
+    };
   }
 
   /**

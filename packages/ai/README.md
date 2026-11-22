@@ -1192,7 +1192,12 @@ responses identifying an exceeded input token or context window limit. Other
 HTTP 400 failures remain API errors; callers can use the error type to skip or
 shorten oversized inputs without treating unrelated provider failures as overflow.
 
-- `AIError.retryable` distinguishes retryable failures from terminal ones
+- `AIError.retryable` distinguishes retryable failures from terminal ones.
+  On a `getAI()` client, a call that fails after it already reported usage
+  (a part was billed, see [Usage parts](#usage-parts)) always has
+  `retryable: false`, so replaying it cannot bill those parts twice. This
+  holds even for a short-window rate limit on a later request; reset hints
+  such as `retryAfterMs` are kept.
 - `RateLimitError.retryAfter` exposes provider retry hints in seconds when available
 - `RateLimitError.reason` keeps the provider's own text (for example
   `token limit exceeded (277867/250000, resets every 1h)`), and the message
@@ -1368,7 +1373,7 @@ result.usageParts;
 
 - The final part is marked `last` (the call has returned).
 - `complete` is `true` only when the list ends with `last` and every part has
-  `usage`. When it is `false`, `result.usage` (the sum of the parts that
+  `usage` with known token counts (none is `uncounted`). When it is `false`, `result.usage` (the sum of the parts that
   reported) understates or omits what was used.
 - Parts are recorded even without an `onUsage` callback.
 - An event is emitted when its provider request completes. That is before
@@ -1379,8 +1384,15 @@ result.usageParts;
   example by a caller's callback) is thrown instead of sending the request
   again.
 - When a provider reports token parts without a total, `totalTokens` is
-  prompt plus completion, never a zero total over nonzero parts. A usage
-  object carrying only gateway cost or cache figures is reported, not dropped.
+  prompt plus completion, never a zero total over nonzero parts. Gemini
+  counts tool-use prompt tokens as prompt and thought tokens as completion,
+  matching Google's total.
+- A token counter is used only if it is a finite non-negative number.
+- `part.uncounted: true` (and `uncounted` on the `usageParts` entry) marks
+  usage that carries reported figures but no known token split. That covers
+  a usage object with only gateway cost or cache figures, and one with a
+  malformed token counter. The figures are kept, but such a part never
+  makes `usageParts.complete` true.
 
 Clients built by `getAI()` declare this with
 `usageFeatures: { parts: true }`. An older client has no `usageFeatures`.
