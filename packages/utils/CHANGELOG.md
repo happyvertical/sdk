@@ -1,5 +1,17 @@
 # @happyvertical/utils
 
+## 0.118.0
+
+### Minor Changes
+
+- ### Breaking Changes
+
+  - mark transaction handles and describe handle roles (#1588) (sql)
+
+  ### Features
+
+  - mark transaction handles and describe handle roles (#1588) (sql)
+
 ## 0.117.0
 
 ### Minor Changes
