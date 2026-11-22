@@ -58,7 +58,14 @@ import {
   WebGPUUnavailableError,
   WebLLMPeerMissingError,
 } from '../types';
-import { emitUsage } from './usage';
+import { forwardUsageParts } from '../usage-parts';
+import {
+  countOf,
+  emitUsage,
+  totalTokensOf,
+  usageCounted,
+  usageReported,
+} from './usage';
 
 const PROVIDER = 'webllm';
 
@@ -370,6 +377,35 @@ export class WebLLMProvider implements AIInterface {
     return options.model ?? this.explicitModel;
   }
 
+  /** `mapped` only when the engine sent a token counter. */
+  private reportedUsage(
+    raw: unknown,
+    mapped: TokenUsage | undefined,
+  ): { usage?: TokenUsage; uncounted: boolean } {
+    const counters = (raw ?? {}) as Record<string, unknown>;
+    if (
+      !usageReported(
+        counters.prompt_tokens,
+        counters.completion_tokens,
+        counters.total_tokens,
+      )
+    ) {
+      // Nothing valid; a non-empty report still means any earlier snapshot
+      // is not counted.
+      return { uncounted: Object.keys(counters).length > 0 };
+    }
+    // The shared rule: valid figures are kept; counted only when prompt and
+    // completion are valid and a reported total is valid.
+    return {
+      usage: mapped,
+      uncounted: !usageCounted({
+        prompt: counters.prompt_tokens,
+        completion: counters.completion_tokens,
+        total: counters.total_tokens,
+      }),
+    };
+  }
+
   private mapUsage(usage: unknown): TokenUsage | undefined {
     const raw = usage as
       | {
@@ -380,10 +416,16 @@ export class WebLLMProvider implements AIInterface {
       | undefined
       | null;
     if (!raw) return undefined;
+    const promptTokens = countOf(raw.prompt_tokens) ?? 0;
+    const completionTokens = countOf(raw.completion_tokens) ?? 0;
     return {
-      promptTokens: raw.prompt_tokens ?? 0,
-      completionTokens: raw.completion_tokens ?? 0,
-      totalTokens: raw.total_tokens ?? 0,
+      promptTokens,
+      completionTokens,
+      totalTokens: totalTokensOf(
+        raw.total_tokens,
+        promptTokens,
+        completionTokens,
+      ),
     };
   }
 
@@ -577,14 +619,20 @@ export class WebLLMProvider implements AIInterface {
         );
       }
       const usage = this.mapUsage(response.usage);
+      const reported = this.reportedUsage(response.usage, usage);
       emitUsage(
         this.options,
         PROVIDER,
         'chat',
         response.model || model,
-        usage,
+        reported.usage,
         startTime,
         options.usageTags,
+        options,
+        {
+          finishReason: this.mapFinishReason(choice.finish_reason),
+          uncounted: reported.uncounted,
+        },
       );
       const toolCalls: AIToolCall[] | undefined =
         choice.message?.tool_calls?.map(
@@ -636,6 +684,7 @@ export class WebLLMProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -664,6 +713,7 @@ export class WebLLMProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
     return response.content;
   }
@@ -723,6 +773,7 @@ export class WebLLMProvider implements AIInterface {
 
       let finishReason: string | null | undefined;
       let usage: TokenUsage | undefined;
+      let usageUncounted = false;
       for (;;) {
         const step = await iterator.next();
         if (step.done) {
@@ -732,7 +783,20 @@ export class WebLLMProvider implements AIInterface {
         const chunk = step.value;
         const choice = chunk.choices?.[0];
         finishReason = choice?.finish_reason ?? finishReason;
-        if (chunk.usage) usage = this.mapUsage(chunk.usage);
+        if (chunk.usage) {
+          const reported = this.reportedUsage(
+            chunk.usage,
+            this.mapUsage(chunk.usage),
+          );
+          if (reported.usage) {
+            usage = reported.usage;
+            usageUncounted = reported.uncounted;
+          } else if (reported.uncounted) {
+            // A malformed later report: the earlier snapshot is kept but no
+            // longer counted.
+            usageUncounted = true;
+          }
+        }
         const content = choice?.delta?.content;
         if (content) {
           options.onProgress?.(content);
@@ -745,7 +809,8 @@ export class WebLLMProvider implements AIInterface {
         );
       }
       this.assertNotInterrupted(finishReason, model);
-      options.onFinishReason?.(this.mapFinishReason(finishReason));
+      // Reported before the caller's finish callback, so a throwing callback
+      // cannot suppress the event for a completed request.
       emitUsage(
         this.options,
         PROVIDER,
@@ -754,7 +819,13 @@ export class WebLLMProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
+        {
+          finishReason: this.mapFinishReason(finishReason),
+          uncounted: usageUncounted,
+        },
       );
+      options.onFinishReason?.(this.mapFinishReason(finishReason));
     } catch (error) {
       throw (
         this.abortError(controls, options, model) ?? this.mapError(error, model)

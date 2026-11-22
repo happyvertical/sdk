@@ -12,6 +12,7 @@ import {
   isRateLimitRetryableSoon,
   RateLimitError,
 } from './types';
+import { usagePartRecorder } from './usage-parts';
 
 const RATE_LIMITED_METHODS = new Set<keyof AIInterface>([
   'decide',
@@ -385,7 +386,7 @@ async function invokeWithPacing<T>(
   coordinator: BudgetCoordinator,
   config: NormalizedRateLimitConfig,
   budget: CallBudget,
-  allowRetry = true,
+  allowRetry: boolean | (() => boolean) = true,
 ): Promise<T> {
   let attempt = 1;
 
@@ -417,7 +418,7 @@ async function invokeWithPacing<T>(
           budget.deadline === undefined ||
           Date.now() + retryDelayMs < budget.deadline;
         if (
-          allowRetry &&
+          (typeof allowRetry === 'function' ? allowRetry() : allowRetry) &&
           error.retryable &&
           fitsDeadline &&
           attempt < config.maxAttempts
@@ -728,10 +729,20 @@ export function createRateLimitedAI<T extends AIInterface>(
               timeoutMs === undefined ? undefined : Date.now() + timeoutMs,
             signal: controls?.signal,
           };
+          // An attempt that already reported usage completed a provider
+          // request; a rate-limit error after that (for example thrown by a
+          // caller's callback) must not send the request again.
+          const recorder = args
+            .map((arg) => usagePartRecorder(arg))
+            .find((found) => found !== undefined);
+          let partsAtAttempt = 0;
+          const retryAllowed =
+            property !== 'submitVideoGenerationJob' || allowSeevioSubmitRetry;
           return coordinator.schedule(
             () =>
               invokeWithPacing(
                 (remainingMs) => {
+                  partsAtAttempt = recorder?.parts.length ?? 0;
                   const callArgs = [...args];
                   if (
                     controlsIndex !== undefined &&
@@ -752,8 +763,9 @@ export function createRateLimitedAI<T extends AIInterface>(
                 coordinator,
                 config,
                 budget,
-                property !== 'submitVideoGenerationJob' ||
-                  allowSeevioSubmitRetry,
+                () =>
+                  retryAllowed &&
+                  (recorder?.parts.length ?? 0) === partsAtAttempt,
               ),
             budget,
           );

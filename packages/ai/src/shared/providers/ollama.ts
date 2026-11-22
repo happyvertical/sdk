@@ -54,7 +54,12 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
-import { emitUsage } from './usage';
+import {
+  ensureUsagePartRecorder,
+  forwardUsageParts,
+  withFollowUpRequest,
+} from '../usage-parts';
+import { countOf, emitUsage, usageCounted, usageReported } from './usage';
 
 const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
 
@@ -287,19 +292,23 @@ function parseContextLength(
   return 32768;
 }
 
+/** The shared rule ({@link usageCounted}): both counters valid. */
+function ollamaUncounted(promptTokens: unknown, completionTokens: unknown) {
+  return !usageCounted({ prompt: promptTokens, completion: completionTokens });
+}
+
 function mapUsage(
   promptTokens?: number,
   completionTokens?: number,
 ): TokenUsage | undefined {
-  if (
-    typeof promptTokens !== 'number' &&
-    typeof completionTokens !== 'number'
-  ) {
+  // No valid counter: count-less. A malformed one is never used in
+  // arithmetic; the valid one is kept (see ollamaUncounted).
+  if (!usageReported(promptTokens, completionTokens)) {
     return undefined;
   }
 
-  const prompt = promptTokens || 0;
-  const completion = completionTokens || 0;
+  const prompt = countOf(promptTokens) ?? 0;
+  const completion = countOf(completionTokens) ?? 0;
   return {
     promptTokens: prompt,
     completionTokens: completion,
@@ -865,6 +874,14 @@ export class OllamaProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
+        {
+          finishReason: mapFinishReason(response.done_reason),
+          uncounted: ollamaUncounted(
+            response.prompt_eval_count,
+            response.eval_count,
+          ),
+        },
       );
 
       const toolCalls =
@@ -934,6 +951,7 @@ export class OllamaProvider implements AIInterface {
         reasoning: options.reasoning,
         usageTags: options.usageTags,
         continueOnLength: options.continueOnLength,
+        ...forwardUsageParts(options),
       });
     }
     const startTime = Date.now();
@@ -969,6 +987,14 @@ export class OllamaProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
+        {
+          finishReason: mapFinishReason(response.done_reason),
+          uncounted: ollamaUncounted(
+            response.prompt_eval_count,
+            response.eval_count,
+          ),
+        },
       );
 
       return {
@@ -1026,6 +1052,7 @@ export class OllamaProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -1063,9 +1090,12 @@ export class OllamaProvider implements AIInterface {
         'ollama',
         'embed',
         response.model || model,
-        usage,
+        // The 0 completion count above is the adapter's, not the server's:
+        // without a prompt count the request is count-less.
+        countOf(response.prompt_eval_count) !== undefined ? usage : undefined,
         startTime,
         options.usageTags,
+        options,
       );
 
       return {
@@ -1082,15 +1112,22 @@ export class OllamaProvider implements AIInterface {
     image: string | Buffer,
     options: ImageEmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
-    const description = await this.describeImage(
-      image,
-      'Describe this image in detail for semantic embedding. Include objects, people, text, setting, colors, composition, and notable visual relationships.',
+    // Both requests are parts of this one call; only the embedding is last.
+    options = ensureUsagePartRecorder(options);
+    const description = await withFollowUpRequest(options, () =>
+      this.describeImage(
+        image,
+        'Describe this image in detail for semantic embedding. Include objects, people, text, setting, colors, composition, and notable visual relationships.',
+        { usageTags: options.usageTags, ...forwardUsageParts(options) },
+      ),
     );
 
     return this.embed(description, {
       model: options.model,
       dimensions: options.dimensions,
       user: options.user,
+      usageTags: options.usageTags,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -1129,6 +1166,7 @@ export class OllamaProvider implements AIInterface {
         signal: options.signal,
         timeout: options.timeout,
         usageTags: options.usageTags,
+        ...forwardUsageParts(options),
       },
     );
 
@@ -1165,6 +1203,7 @@ export class OllamaProvider implements AIInterface {
       }
 
       const model = await this.resolveModel('image_generation', options.model);
+      const startTime = Date.now();
       const response = await this.requestJson<OllamaImageGenerationResponse>(
         '/images/generations',
         {
@@ -1177,6 +1216,17 @@ export class OllamaProvider implements AIInterface {
           style: options.style,
         },
         { compatibility: true, signal: controls.signal },
+      );
+      // The image endpoint reports no token usage.
+      emitUsage(
+        this.options,
+        'ollama',
+        'generateImage',
+        model,
+        undefined,
+        startTime,
+        options.usageTags,
+        options,
       );
 
       const images = (response.data || []).map((item) => {
@@ -1258,6 +1308,7 @@ export class OllamaProvider implements AIInterface {
       );
 
       let finalUsage: TokenUsage | undefined;
+      let finalUncounted = false;
       let finalModel = model;
       let streamFinish: AIResponse['finishReason'] = 'stop';
 
@@ -1284,11 +1335,16 @@ export class OllamaProvider implements AIInterface {
 
         if (chunk.done) {
           finalUsage = mapUsage(chunk.prompt_eval_count, chunk.eval_count);
+          finalUncounted = ollamaUncounted(
+            chunk.prompt_eval_count,
+            chunk.eval_count,
+          );
           streamFinish = mapFinishReason(chunk.done_reason);
         }
       }
-      options.onFinishReason?.(streamFinish ?? 'stop');
 
+      // Reported before the caller's finish callback, so a throwing callback
+      // cannot suppress the event for a completed request.
       emitUsage(
         this.options,
         'ollama',
@@ -1297,7 +1353,10 @@ export class OllamaProvider implements AIInterface {
         finalUsage,
         startTime,
         options.usageTags,
+        options,
+        { finishReason: streamFinish ?? 'stop', uncounted: finalUncounted },
       );
+      options.onFinishReason?.(streamFinish ?? 'stop');
     } catch (error) {
       if (controls?.didTimeout()) {
         throw new AIError(

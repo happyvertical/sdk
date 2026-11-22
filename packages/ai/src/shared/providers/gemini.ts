@@ -55,7 +55,14 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
-import { emitUsage } from './usage';
+import { ensureUsagePartRecorder, forwardUsageParts } from '../usage-parts';
+import {
+  countOf,
+  emitUsage,
+  totalTokensOf,
+  usageCounted,
+  usageReported,
+} from './usage';
 
 // Note: This implementation uses the new @google/genai package
 // @google/generative-ai is deprecated - migrated to @google/genai
@@ -238,25 +245,28 @@ export class GeminiProvider implements AIInterface {
         content = this.stripMarkdownCodeBlock(content);
       }
 
-      const usage: TokenUsage = {
-        promptTokens: result.usageMetadata?.promptTokenCount || 0,
-        completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
-        totalTokens: result.usageMetadata?.totalTokenCount || 0,
+      const usage: TokenUsage = reportedGeminiUsage(result.usageMetadata) ?? {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
       };
+      const finishReason = this.mapFinishReason(result);
       emitUsage(
         this.options,
         'gemini',
         'chat',
         model!,
-        usage,
+        reportedGeminiUsage(result.usageMetadata),
         startTime,
         options.usageTags,
+        options,
+        { finishReason, uncounted: geminiUncounted(result.usageMetadata) },
       );
 
       return {
         content,
         model,
-        finishReason: this.mapFinishReason(result),
+        finishReason,
         usage,
         toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       };
@@ -301,6 +311,7 @@ export class GeminiProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -351,6 +362,7 @@ export class GeminiProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -372,22 +384,26 @@ export class GeminiProvider implements AIInterface {
     text: string | string[],
     options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
-    const startTime = Date.now();
     try {
       await this.ensureClient();
+      // One request per input, each its own part of this one call.
+      options = ensureUsagePartRecorder(options);
 
       const model = options.model || 'text-embedding-004';
-      const input = Array.isArray(text) ? text : [text];
+      // A snapshot: iteration and finality cannot change if the caller's
+      // array changes during the batch (for example from onUsage).
+      const input = Array.isArray(text) ? [...text] : [text];
 
       const embeddings: number[][] = [];
       let totalTokens = 0;
 
-      for (const content of input) {
+      for (const [position, content] of input.entries()) {
         const config: Record<string, any> = {};
         if (options.dimensions) {
           config.outputDimensionality = options.dimensions;
         }
 
+        const startTime = Date.now();
         const result = await this.client.models.embedContent({
           model,
           contents: content,
@@ -397,9 +413,25 @@ export class GeminiProvider implements AIInterface {
         if (result.embeddings?.[0]?.values) {
           embeddings.push(result.embeddings[0].values);
         }
-        if (result.metadata?.tokenCount) {
-          totalTokens += result.metadata.tokenCount;
-        }
+        const tokenCount = geminiEmbeddingTokenCount(result);
+        if (tokenCount !== undefined) totalTokens += tokenCount;
+        emitUsage(
+          this.options,
+          'gemini',
+          'embed',
+          model,
+          tokenCount !== undefined
+            ? {
+                promptTokens: tokenCount,
+                completionTokens: 0,
+                totalTokens: tokenCount,
+              }
+            : undefined,
+          startTime,
+          options.usageTags,
+          options,
+          { more: position < input.length - 1 },
+        );
       }
 
       const usage: TokenUsage | undefined =
@@ -410,15 +442,6 @@ export class GeminiProvider implements AIInterface {
               totalTokens,
             }
           : undefined;
-      emitUsage(
-        this.options,
-        'gemini',
-        'embed',
-        model,
-        usage,
-        startTime,
-        options.usageTags,
-      );
 
       return {
         embeddings,
@@ -533,6 +556,7 @@ export class GeminiProvider implements AIInterface {
     options: ImageDescriptionOptions = {},
   ): Promise<string> {
     let controls: PreparedRequestControls | undefined;
+    const startTime = Date.now();
     try {
       await this.ensureClient();
 
@@ -555,6 +579,17 @@ export class GeminiProvider implements AIInterface {
         contents: [{ text: prompt || defaultPrompt }, imageData],
         config: this.buildGenerateContentConfig(normalized, controls),
       });
+      emitUsage(
+        this.options,
+        'gemini',
+        'describeImage',
+        model,
+        reportedGeminiUsage(response.usageMetadata),
+        startTime,
+        options.usageTags,
+        options,
+        { uncounted: geminiUncounted(response.usageMetadata) },
+      );
 
       return response.text || '';
     } catch (error) {
@@ -607,11 +642,29 @@ export class GeminiProvider implements AIInterface {
         config.outputDimensionality = options.dimensions;
       }
 
+      const startTime = Date.now();
       const result = await this.client.models.embedContent({
         model,
         contents: [imageData],
         config: Object.keys(config).length > 0 ? config : undefined,
       });
+      const tokenCount = geminiEmbeddingTokenCount(result);
+      emitUsage(
+        this.options,
+        'gemini',
+        'embedImage',
+        model,
+        tokenCount !== undefined
+          ? {
+              promptTokens: tokenCount,
+              completionTokens: 0,
+              totalTokens: tokenCount,
+            }
+          : undefined,
+        startTime,
+        options.usageTags,
+        options,
+      );
 
       return {
         embeddings: result.embeddings?.[0]?.values
@@ -666,11 +719,23 @@ export class GeminiProvider implements AIInterface {
         config.aspectRatio = options.aspectRatio;
       }
 
+      const startTime = Date.now();
       const response = await this.client.models.generateImages({
         model,
         prompt,
         config,
       });
+      // Imagen reports no token usage.
+      emitUsage(
+        this.options,
+        'gemini',
+        'generateImage',
+        model,
+        undefined,
+        startTime,
+        options.usageTags,
+        options,
+      );
 
       const images = (response.generatedImages || []).map((img: any) => {
         let data: Buffer | string;
@@ -823,6 +888,7 @@ export class GeminiProvider implements AIInterface {
           ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
           ...options.usageTags,
         },
+        options,
       );
 
       return {
@@ -1132,6 +1198,7 @@ export class GeminiProvider implements AIInterface {
       });
 
       let usage: TokenUsage | undefined;
+      let usageUncounted = false;
       let streamFinish: AIResponse['finishReason'] = 'stop';
 
       for await (const chunk of stream) {
@@ -1139,11 +1206,15 @@ export class GeminiProvider implements AIInterface {
           streamFinish = 'length';
         }
         if (chunk.usageMetadata) {
-          usage = {
-            promptTokens: chunk.usageMetadata.promptTokenCount || 0,
-            completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
-            totalTokens: chunk.usageMetadata.totalTokenCount || 0,
-          };
+          const reported = reportedGeminiUsage(chunk.usageMetadata);
+          if (reported) {
+            usage = reported;
+            usageUncounted = geminiUncounted(chunk.usageMetadata);
+          } else {
+            // A later report with nothing valid in it: an earlier snapshot
+            // must not stand as counted.
+            usageUncounted ||= Object.keys(chunk.usageMetadata).length > 0;
+          }
         }
 
         const text = chunk.text || '';
@@ -1156,8 +1227,9 @@ export class GeminiProvider implements AIInterface {
         }
         yield text;
       }
-      options.onFinishReason?.(streamFinish ?? 'stop');
 
+      // Reported before the caller's finish callback, so a throwing callback
+      // cannot suppress the event for a completed request.
       emitUsage(
         this.options,
         'gemini',
@@ -1166,7 +1238,10 @@ export class GeminiProvider implements AIInterface {
         usage,
         startTime,
         options.usageTags,
+        options,
+        { finishReason: streamFinish ?? 'stop', uncounted: usageUncounted },
       );
+      options.onFinishReason?.(streamFinish ?? 'stop');
     } catch (error) {
       if (controls?.didTimeout()) {
         throw new AIError(
@@ -1617,4 +1692,89 @@ export class GeminiProvider implements AIInterface {
 
     return new AIError(message, 'UNKNOWN_ERROR', 'gemini');
   }
+}
+
+/**
+ * The counts a usage event carries from Gemini `usageMetadata`: none when
+ * the response has no metadata or no token counter in it (count-less, not
+ * zero).
+ */
+/** True when a reported `usageMetadata` has a malformed token counter. */
+function geminiUncounted(metadata: any): boolean {
+  return (
+    !!metadata &&
+    !usageCounted({
+      prompt: metadata.promptTokenCount,
+      completion: metadata.candidatesTokenCount,
+      supplemental: [
+        metadata.toolUsePromptTokenCount,
+        metadata.thoughtsTokenCount,
+        metadata.cachedContentTokenCount,
+      ],
+      // promptTokenCount includes cached content; the total includes the
+      // prompt, tool-use prompt, candidates and thoughts.
+      promptIncludes: [metadata.cachedContentTokenCount],
+      total: metadata.totalTokenCount,
+      totalIncludes: [
+        metadata.promptTokenCount,
+        metadata.toolUsePromptTokenCount,
+        metadata.candidatesTokenCount,
+        metadata.thoughtsTokenCount,
+      ],
+    })
+  );
+}
+
+function reportedGeminiUsage(metadata: any): TokenUsage | undefined {
+  if (
+    !metadata ||
+    !usageReported(
+      metadata.promptTokenCount,
+      metadata.candidatesTokenCount,
+      metadata.totalTokenCount,
+      metadata.toolUsePromptTokenCount,
+      metadata.thoughtsTokenCount,
+      metadata.cachedContentTokenCount,
+    )
+  ) {
+    return undefined;
+  }
+  // Google's accounting: total = prompt + tool-use prompt + candidates +
+  // thoughts. Tool-use prompt tokens are input; thought tokens are output.
+  // `cachedContentTokenCount` is already part of `promptTokenCount`, so it
+  // is reported as `cacheReadInputTokens` and never added again; without a
+  // prompt count, the cached tokens are the known part of the prompt.
+  // A malformed counter (for example a string) is treated as not reported.
+  const cacheRead = countOf(metadata.cachedContentTokenCount);
+  const promptTokens =
+    (countOf(metadata.promptTokenCount) ?? cacheRead ?? 0) +
+    (countOf(metadata.toolUsePromptTokenCount) ?? 0);
+  const completionTokens =
+    (countOf(metadata.candidatesTokenCount) ?? 0) +
+    (countOf(metadata.thoughtsTokenCount) ?? 0);
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: totalTokensOf(
+      metadata.totalTokenCount,
+      promptTokens,
+      completionTokens,
+    ),
+    ...(cacheRead !== undefined ? { cacheReadInputTokens: cacheRead } : {}),
+  };
+}
+
+/**
+ * Input tokens of one `embedContent` response: Vertex reports them per
+ * embedding in `statistics.tokenCount` (older payloads used
+ * `metadata.tokenCount`). Undefined when the response carries none.
+ */
+function geminiEmbeddingTokenCount(result: any): number | undefined {
+  const counts = (result?.embeddings ?? [])
+    .map((embedding: any) => embedding?.statistics?.tokenCount)
+    .filter((count: unknown) => countOf(count) !== undefined) as number[];
+  if (counts.length > 0) {
+    return counts.reduce((sum, count) => sum + count, 0);
+  }
+  return countOf(result?.metadata?.tokenCount);
 }

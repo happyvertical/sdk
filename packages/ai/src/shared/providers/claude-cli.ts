@@ -50,7 +50,14 @@ import {
   extractTextContent,
   RateLimitError,
 } from '../types';
-import { emitUsage } from './usage';
+import { forwardUsageParts } from '../usage-parts';
+import {
+  cacheUsageFields,
+  countOf,
+  emitUsage,
+  usageCounted,
+  usageReported,
+} from './usage';
 
 const execAsync = promisify(exec);
 
@@ -488,13 +495,25 @@ export class ClaudeCliProvider implements AIInterface {
     });
 
     const model = options.model || this.options.defaultModel;
-    const usage: TokenUsage | undefined = result.usage
+    // A malformed counter (for example a string) is treated as not reported.
+    // As with the Anthropic API, `input_tokens` excludes cache reads and
+    // writes, and `promptTokens` includes them.
+    const raw = result.usage;
+    const cache = cacheUsageFields(
+      raw?.cache_read_input_tokens,
+      raw?.cache_creation_input_tokens,
+    );
+    const inputTokens =
+      (countOf(raw?.input_tokens) ?? 0) +
+      (cache.cacheReadInputTokens || 0) +
+      (cache.cacheCreationInputTokens || 0);
+    const outputTokens = countOf(raw?.output_tokens) ?? 0;
+    const usage: TokenUsage | undefined = raw
       ? {
-          promptTokens: result.usage.input_tokens || 0,
-          completionTokens: result.usage.output_tokens || 0,
-          totalTokens:
-            (result.usage.input_tokens || 0) +
-            (result.usage.output_tokens || 0),
+          promptTokens: inputTokens,
+          completionTokens: outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          ...cache,
         }
       : undefined;
 
@@ -503,9 +522,28 @@ export class ClaudeCliProvider implements AIInterface {
       'claude-cli',
       'chat',
       model!,
-      usage,
+      usageReported(
+        raw?.input_tokens,
+        raw?.output_tokens,
+        raw?.cache_read_input_tokens,
+        raw?.cache_creation_input_tokens,
+      )
+        ? usage
+        : undefined,
       startTime,
       options.usageTags,
+      options,
+      {
+        finishReason: 'stop',
+        uncounted: !usageCounted({
+          prompt: raw?.input_tokens,
+          completion: raw?.output_tokens,
+          supplemental: [
+            raw?.cache_read_input_tokens,
+            raw?.cache_creation_input_tokens,
+          ],
+        }),
+      },
     );
 
     // Parse Claude CLI JSON output
@@ -545,6 +583,7 @@ export class ClaudeCliProvider implements AIInterface {
       onProgress: options.onProgress,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -598,6 +637,7 @@ export class ClaudeCliProvider implements AIInterface {
       onProgress: options.onProgress,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -703,6 +743,8 @@ export class ClaudeCliProvider implements AIInterface {
       undefined,
       startTime,
       options.usageTags,
+      options,
+      { finishReason: 'stop' },
     );
   }
 

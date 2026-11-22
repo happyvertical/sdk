@@ -369,6 +369,7 @@ export class OpenAICompatVideoProvider implements AIInterface {
         ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
         ...options.usageTags,
       },
+      options,
     );
 
     return {

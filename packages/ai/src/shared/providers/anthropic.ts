@@ -64,7 +64,14 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
-import { cacheUsageFields, emitUsage } from './usage';
+import { forwardUsageParts } from '../usage-parts';
+import {
+  cacheUsageFields,
+  countOf,
+  emitUsage,
+  usageCounted,
+  usageReported,
+} from './usage';
 
 type AnthropicCacheControl = { cache_control?: CacheControlWire };
 
@@ -289,17 +296,19 @@ export class AnthropicProvider implements AIInterface {
       }
 
       const usage = mapAnthropicUsage(response.usage);
+      const finishReason = this.mapFinishReason(response.stop_reason);
       emitUsage(
         this.options,
         'anthropic',
         'chat',
         response.model || model,
-        usage,
+        reportedAnthropicUsage(response.usage),
         startTime,
         options.usageTags,
+        options,
+        { finishReason, uncounted: anthropicUncounted(response.usage) },
       );
 
-      const finishReason = this.mapFinishReason(response.stop_reason);
       return {
         content: textContent,
         model: response.model,
@@ -351,6 +360,7 @@ export class AnthropicProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -401,6 +411,7 @@ export class AnthropicProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -536,20 +547,27 @@ export class AnthropicProvider implements AIInterface {
         }
       }
       const streamFinish = this.mapFinishReason(streamStopReason) ?? 'stop';
-      if (streamFinish === 'refusal') {
-        options.onRefusal?.(mapRefusal(streamStopDetails));
-      }
-      options.onFinishReason?.(streamFinish);
 
+      // Reported before the caller's finish callbacks, so a throwing callback
+      // cannot suppress the event for a completed request.
       emitUsage(
         this.options,
         'anthropic',
         'stream',
         model!,
-        streamUsage ? mapAnthropicUsage(streamUsage) : undefined,
+        reportedAnthropicUsage(streamUsage),
         startTime,
         options.usageTags,
+        options,
+        {
+          finishReason: streamFinish,
+          uncounted: anthropicUncounted(streamUsage),
+        },
       );
+      if (streamFinish === 'refusal') {
+        options.onRefusal?.(mapRefusal(streamStopDetails));
+      }
+      options.onFinishReason?.(streamFinish);
     } catch (error) {
       if (controls?.didTimeout()) {
         throw new AIError(
@@ -1106,16 +1124,48 @@ function mapRefusal(details: any): AIRefusal {
  * Token usage from an Anthropic usage object. `input_tokens` excludes cached
  * tokens, so cache reads and writes are added to `promptTokens`.
  */
+/**
+ * The counts a usage event carries: none unless Anthropic sent a token
+ * counter (a missing or empty `usage` is count-less, not zero).
+ */
+function reportedAnthropicUsage(usage: any): TokenUsage | undefined {
+  return usage &&
+    usageReported(
+      usage.input_tokens,
+      usage.output_tokens,
+      usage.cache_read_input_tokens,
+      usage.cache_creation_input_tokens,
+    )
+    ? mapAnthropicUsage(usage)
+    : undefined;
+}
+
+/**
+ * The shared rule ({@link usageCounted}) for Anthropic: input and output
+ * both valid, and any reported cache counter (part of billable input) valid.
+ */
+function anthropicUncounted(usage: any): boolean {
+  return !usageCounted({
+    prompt: usage?.input_tokens,
+    completion: usage?.output_tokens,
+    supplemental: [
+      usage?.cache_read_input_tokens,
+      usage?.cache_creation_input_tokens,
+    ],
+  });
+}
+
 function mapAnthropicUsage(usage: any): TokenUsage {
   const cache = cacheUsageFields(
     usage?.cache_read_input_tokens,
     usage?.cache_creation_input_tokens,
   );
+  // A malformed counter (for example a string) is treated as not reported.
   const promptTokens =
-    (usage?.input_tokens || 0) +
+    (countOf(usage?.input_tokens) ?? 0) +
     (cache.cacheReadInputTokens || 0) +
     (cache.cacheCreationInputTokens || 0);
-  const completionTokens = usage?.output_tokens || 0;
+  const completionTokens = countOf(usage?.output_tokens) ?? 0;
   return {
     promptTokens,
     completionTokens,

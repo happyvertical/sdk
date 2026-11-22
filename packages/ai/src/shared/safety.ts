@@ -12,6 +12,7 @@ import type {
   ImageGenerationOptions,
 } from './types';
 import { AIError } from './types';
+import { copyCallOptions } from './usage-parts';
 
 export const DEFAULT_AI_TIMEOUT_MS = 120_000;
 export const DEFAULT_AI_MAX_RETRIES = 0;
@@ -53,7 +54,8 @@ function withAttemptRecorder(
   const recorder: AIAttemptRecorder = { connectionRetries: 0 };
   const next = [...args];
   next[1] = {
-    ...(current as object | undefined),
+    // Keeps option values an options class exposes through its prototype.
+    ...copyCallOptions(current as object | undefined),
     [AI_ATTEMPT_RECORDER]: recorder,
   };
   return { args: next, recorder };

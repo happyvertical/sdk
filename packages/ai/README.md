@@ -1018,7 +1018,9 @@ result.truncated; // true if the reply still ended on the limit
   continuous stream (the first characters of each continuation are held briefly
   so a repeated seam can be trimmed). `onProgress` receives only the stitched text.
 - `usage` on the result is the sum across parts. Provider `onUsage` hooks still
-  fire once per upstream request, so their sum equals the total.
+  fire once per upstream request, so their sum equals the total. Each event's
+  `part` names the request (see [Usage parts](#usage-parts)); `usageParts` on
+  the result lists them and says whether every part reported counts.
 - Tool calls and `responseFormat: { type: 'json_object' }` are never continued
   (stitching them is unsafe); the reply is returned as-is with `truncated: true`.
 - With `rateLimit` pacing, every part is its own paced request: a rate-limit
@@ -1190,7 +1192,12 @@ responses identifying an exceeded input token or context window limit. Other
 HTTP 400 failures remain API errors; callers can use the error type to skip or
 shorten oversized inputs without treating unrelated provider failures as overflow.
 
-- `AIError.retryable` distinguishes retryable failures from terminal ones
+- `AIError.retryable` distinguishes retryable failures from terminal ones.
+  On a `getAI()` client, a call that fails after it already reported usage
+  (a part was billed, see [Usage parts](#usage-parts)) always has
+  `retryable: false`, so replaying it cannot bill those parts twice. This
+  holds even for a short-window rate limit on a later request; reset hints
+  such as `retryAfterMs` are kept.
 - `RateLimitError.retryAfter` exposes provider retry hints in seconds when available
 - `RateLimitError.reason` keeps the provider's own text (for example
   `token limit exceeded (277867/250000, resets every 1h)`), and the message
@@ -1313,10 +1320,128 @@ The `UsageEvent` payload:
 | `duration` | `number` | Wall-clock time in milliseconds |
 | `timestamp` | `Date` | When the call completed |
 | `tags?` | `Record<string, string>` | Merged from global + per-call `usageTags` |
+| `part?` | `UsagePart` | `{ call, index, last? }`: which request of which call (see below). Always set by the SDK; optional so events built elsewhere still type-check |
 
-- Works with all providers and methods (`chat`, `complete`, `message`, `embed`, `stream`)
-- `complete()` and `message()` report through their underlying `chat()` call
+- One event per completed provider request, with or without counts. A failed
+  request, or one the SDK resent transparently, emits none. See the
+  [per-provider table](#what-each-provider-reports) for which operations report.
+- `complete()`, `message()` and `describeImage()` report through their
+  underlying `chat()` call (operation `'chat'`), except Ollama's `complete()`
+  without continuation (its own `'complete'` request) and Gemini's
+  `describeImage()` (its own `'describeImage'` request).
 - Errors thrown inside `onUsage` are silently caught and will not affect API results
+- Tags are attached to events only; they are never sent to a provider.
+
+### Usage parts
+
+Every public method invocation on a client built by `getAI()` gets a call id,
+minted before its first provider request. Each usage event of that invocation
+carries `part`:
+
+| Field | Meaning |
+|-------|---------|
+| `call` | The invocation's id; the same on all of its events. |
+| `index` | 0 for its first event, then 1, 2, ... |
+| `last` | `true` when the SDK knew at emission that no further request would follow (see below). |
+
+When `last` is set:
+
+- A call that cannot continue: on its final request. Most methods make one
+  request. Gemini and Bedrock `embed` make one per input, and OpenAI-compatible
+  and Ollama `embedImage` make an image description then an embedding; only
+  the final request is `last`.
+- A call with `continueOnLength` on (`chat`, `complete`, `message`, `stream`,
+  per call or as the client default): on the part whose finish reason is not
+  `'length'`, and on the part at the `maxContinuations` cap.
+- Not set: a continued part that stopped on the limit but was not continued
+  anyway (it had no text to continue from, the caller aborted, or the next
+  request failed), and a batch whose later request failed. Such a call ends
+  without a `last` event. `chat()` and `complete()` still mark the final part
+  in `usageParts`; `message()` and `stream()` have nothing else to mark it on.
+
+`part` is plain JSON, so every copy of an event carries an equal one, and two
+requests with identical counts in the same millisecond still differ by `index`.
+A consumer that needs identity can narrow to `PartedUsageEvent`.
+
+`chat()` and `complete()` responses carry `usageParts`:
+
+```typescript
+const result = await ai.chat(messages, { continueOnLength: true });
+result.usageParts;
+// { call: '…', parts: [{ index: 0, usage: {…} }, { index: 1, last: true, usage: {…} }], complete: true }
+```
+
+- The final part is marked `last` (the call has returned).
+- `complete` is `true` only when the list ends with `last` and every part has
+  `usage` with known token counts (none is `uncounted`). When it is `false`, `result.usage` (the sum of the parts that
+  reported) understates or omits what was used.
+- Parts are recorded even without an `onUsage` callback.
+- An event is emitted when its provider request completes. That is before
+  `onFinishReason`/`onRefusal` run, so a throwing callback cannot suppress it,
+  and before a simulated stream (Hugging Face) plays its chunks.
+- With `rateLimit` pacing, a call is retried only if the failed attempt
+  reported no usage. A rate-limit error raised after an attempt emitted (for
+  example by a caller's callback) is thrown instead of sending the request
+  again.
+- When a provider reports token parts without a total, `totalTokens` is
+  prompt plus completion, never a zero total over nonzero parts. Gemini
+  counts tool-use prompt tokens as prompt and thought tokens as completion,
+  matching Google's total.
+- A token counter is used only if it is a finite non-negative number.
+- A part is **counted** only when its prompt and completion tokens are both
+  valid counts, and every supplemental counter the provider reported (a
+  total, cache read/write, Gemini thought or tool-use prompt tokens) is
+  valid too. The counters must also be consistent: counters that the
+  provider includes in its prompt count (OpenAI-compatible cache reads and
+  writes, Gemini `cachedContentTokenCount`) must not exceed the prompt, and
+  a reported total must cover the parts it includes (prompt and completion;
+  for Gemini also tool-use prompt and thought tokens). An embedding has no
+  output, so its completion is 0. Every provider applies this one rule.
+- Anything else that carries a valid figure is emitted with every valid
+  figure kept and marked `part.uncounted: true` (and `uncounted` on the
+  `usageParts` entry). Examples: a total alone, one side alone, cost or
+  cache figures alone, Gemini thought-only or tool-only counts, or any
+  malformed counter.
+- An uncounted part never makes `usageParts.complete` true. In a stream, a
+  malformed later usage report also leaves an earlier snapshot uncounted.
+
+Clients built by `getAI()` declare this with
+`usageFeatures: { parts: true }`. An older client has no `usageFeatures`.
+Provider classes constructed directly (without `getAI()`) still set `part` on
+their events and do not add `usageParts`. A direct method that makes one
+request reports it as its own call (`index: 0, last: true`). A direct method
+that makes several requests reports them as one call with indexes `0..n` and
+`last` only on the final one. These are Gemini and Bedrock batch `embed`, and
+OpenAI-compatible and Ollama `embedImage`. Separate direct invocations never
+share a call id.
+
+### What each provider reports
+
+No adapter reports running totals: each event's `usage` is that one request's
+counts. "Count-less" means the event arrives with `usage: undefined`. A
+response with no usage object, or one with no token counter in it, is
+count-less, never zero; genuinely reported zeros are kept. (`AIResponse.usage`
+keeps its earlier behaviour, which on some providers fills zeros.)
+
+| Provider | Operations that emit an event (one per completed request) | Count-less when |
+|----------|-------------------------------|-----------------|
+| OpenAI, LiteLLM, Bifrost | `chat` (also `complete`, `message`, `describeImage`), `embed`, `stream`, `embedImage` (two events: description `chat`, then `embed`), `generateImage` | `stream` unless the server sends a terminal usage chunk; `chat`/`embed` without token counters; `generateImage` except on gpt-image models. `embed` usage is always completion 0 and total = prompt; a gateway report that says otherwise is `uncounted` |
+| Anthropic | `chat` (also `complete`, `message`), `stream` | without token counters |
+| Gemini | `chat` (also `complete`, `message`), `stream`, `embed` (one per input), `describeImage`, `embedImage`, `generateImage`, `submitVideoGenerationJob` | without `usageMetadata` counters; `embed`/`embedImage` without `embeddings[].statistics.tokenCount`; `generateImage` and video submit always. `cachedContentTokenCount` is reported as `cacheReadInputTokens` (already inside `promptTokens`) |
+| Ollama | `chat` (also `message`, `describeImage`), `complete`, `embed`, `stream`, `embedImage` (description `chat`, then `embed`), `generateImage` | when the server omits `prompt_eval_count`/`eval_count` (`embed`: `prompt_eval_count`); `generateImage` always |
+| Bedrock | `chat` (also `complete`, `message`, `describeImage`), `stream`, `embed` (one per input), `embedImage`, `generateImage` | `embedImage` and `generateImage` always; `chat`/`stream` without token counters; `embed` without a token count |
+| Hugging Face | `chat` (also `complete`, `message`), `stream`, `embed` | always |
+| Claude CLI | `chat` (also `complete`, `message`), `stream` | `stream` always; `chat` when the CLI result has no counters. Cache reads and writes are added to `promptTokens`, as for Anthropic |
+| ChatGPT plan | `chat` (also `complete`, `message`), `stream` | when the completed event has no usage |
+| WebLLM | `chat` (also `complete`, `message`), `stream` | when the engine reports no counters |
+| TypeSafe, Laya | `decide` | when the server returns no `usage` |
+| Seevio, BytePlus ModelArk, OpenAI-compatible video | `submitVideoGenerationJob` | always |
+| Qwen3-TTS | `synthesizeSpeech`, `streamSpeech` (when the stream ends) | always |
+
+Requests that are not generation (job polling and cancel, model and voice
+listing, voice cloning and design, token counting, access checks) emit no
+usage event. With `continueOnLength`, every continuation request is its own
+part.
 
 ### Tagging Usage Events
 

@@ -66,9 +66,21 @@ import {
   ContextLengthError,
   ModelNotFoundError,
 } from '../types';
+import {
+  ensureUsagePartRecorder,
+  forwardUsageParts,
+  withFollowUpRequest,
+} from '../usage-parts';
 import { attemptRecorderFrom, shouldRetryConnection } from './connection-retry';
 import { loadedOpenAISdk, loadOpenAISdk } from './openai-sdk';
-import { cacheUsageFields, emitUsage } from './usage';
+import {
+  cacheUsageFields,
+  countOf,
+  emitUsage,
+  totalTokensOf,
+  usageCounted,
+  usageReported,
+} from './usage';
 
 /**
  * Determines whether a model uses OpenAI's newer reasoning-model request
@@ -257,6 +269,38 @@ export interface OpenAICompatibleOptions extends BaseAIOptions {
   retryConnectionErrors?: boolean;
 }
 
+/** The raw cache counters and cost of an OpenAI-compatible usage object. */
+function openAIUsageExtras(raw: Record<string, any>): {
+  cacheRead: unknown;
+  cacheWrite: unknown;
+  cost: unknown;
+} {
+  const details = raw.prompt_tokens_details;
+  return {
+    // Bifrost: cached_read_tokens / cached_write_tokens. OpenAI:
+    // cached_tokens. LiteLLM and Anthropic-shaped gateways: top-level
+    // cache_*_input_tokens.
+    cacheRead:
+      details?.cached_read_tokens ??
+      details?.cached_tokens ??
+      raw.cache_read_input_tokens,
+    cacheWrite: details?.cached_write_tokens ?? raw.cache_creation_input_tokens,
+    // Bifrost reports `cost` as an object with `total_cost`; some gateways
+    // send a bare number.
+    cost: typeof raw.cost === 'number' ? raw.cost : raw.cost?.total_cost,
+  };
+}
+
+/**
+ * Embedding usage: no output, so completion 0 and total = prompt, whatever
+ * a gateway put in those fields.
+ */
+function embeddingUsage(usage: TokenUsage | undefined): TokenUsage | undefined {
+  return usage
+    ? { ...usage, completionTokens: 0, totalTokens: usage.promptTokens }
+    : undefined;
+}
+
 /**
  * OpenAI provider implementation that handles all interactions with OpenAI's API.
  * Supports GPT models, embeddings, function calling, streaming, and vision capabilities.
@@ -440,14 +484,20 @@ export class OpenAIProvider implements AIInterface {
       }
 
       const usage = this.mapUsage(response.usage);
+      const reported = this.reportedUsage(response.usage, usage);
       emitUsage(
         this.options,
         this.profile.providerName,
         'chat',
         response.model || model,
-        usage,
+        reported.usage,
         startTime,
         options.usageTags,
+        options,
+        {
+          finishReason: this.mapFinishReason(choice.finish_reason),
+          uncounted: reported.uncounted,
+        },
       );
 
       const toolCalls = choice.message.tool_calls
@@ -543,6 +593,7 @@ export class OpenAIProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -599,6 +650,7 @@ export class OpenAIProvider implements AIInterface {
       reasoning: options.reasoning,
       usageTags: options.usageTags,
       continueOnLength: options.continueOnLength,
+      ...forwardUsageParts(options),
     });
 
     return response.content;
@@ -638,15 +690,20 @@ export class OpenAIProvider implements AIInterface {
         user: options.user,
       });
 
-      const usage = this.mapUsage(response.usage);
+      // An embedding has no output tokens: its usage is normalized to
+      // completion 0 and total = prompt, the figures the rule validates.
+      const usage = embeddingUsage(this.mapUsage(response.usage));
+      const reported = this.reportedUsage(response.usage, usage, true);
       emitUsage(
         this.options,
         this.profile.providerName,
         'embed',
         response.model || model,
-        usage,
+        reported.usage,
         startTime,
         options.usageTags,
+        options,
+        { uncounted: reported.uncounted },
       );
 
       return {
@@ -741,6 +798,7 @@ export class OpenAIProvider implements AIInterface {
           timeout: controls.timeout,
           reasoning: options.reasoning,
           usageTags: options.usageTags,
+          ...forwardUsageParts(options),
         },
       );
 
@@ -784,16 +842,23 @@ export class OpenAIProvider implements AIInterface {
     options: ImageEmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
     try {
-      // OpenAI doesn't have native image embeddings - use describe-then-embed
-      const description = await this.describeImage(
-        image,
-        'Describe this image in detail for semantic embedding. Include all visible objects, colors, textures, composition, text, people, actions, and overall scene context.',
+      // OpenAI doesn't have native image embeddings - use describe-then-embed.
+      // Both requests are parts of this one call; only the embedding is last.
+      options = ensureUsagePartRecorder(options);
+      const description = await withFollowUpRequest(options, () =>
+        this.describeImage(
+          image,
+          'Describe this image in detail for semantic embedding. Include all visible objects, colors, textures, composition, text, people, actions, and overall scene context.',
+          { usageTags: options.usageTags, ...forwardUsageParts(options) },
+        ),
       );
 
       return this.embed(description, {
         model: options.model || 'text-embedding-3-small',
         dimensions: options.dimensions,
         user: options.user,
+        usageTags: options.usageTags,
+        ...forwardUsageParts(options),
       });
     } catch (error) {
       throw this.mapError(error);
@@ -817,6 +882,7 @@ export class OpenAIProvider implements AIInterface {
     options: ImageGenerationOptions = {},
   ): Promise<ImageGenerationResponse> {
     let controls: PreparedRequestControls | undefined;
+    const startTime = Date.now();
     try {
       const model = options.model || 'dall-e-3';
       options = normalizeImageGenerationOptions(
@@ -852,6 +918,43 @@ export class OpenAIProvider implements AIInterface {
         {
           signal: controls.signal,
           timeout: controls.timeout,
+        },
+      );
+      // gpt-image models report token usage; DALL-E reports none.
+      const imageUsage = (response as { usage?: Record<string, unknown> })
+        .usage;
+      emitUsage(
+        this.options,
+        this.profile.providerName,
+        'generateImage',
+        model,
+        imageUsage &&
+          usageReported(
+            imageUsage.input_tokens,
+            imageUsage.output_tokens,
+            imageUsage.total_tokens,
+          )
+          ? {
+              promptTokens: countOf(imageUsage.input_tokens) ?? 0,
+              completionTokens: countOf(imageUsage.output_tokens) ?? 0,
+              totalTokens: totalTokensOf(
+                imageUsage.total_tokens,
+                countOf(imageUsage.input_tokens) ?? 0,
+                countOf(imageUsage.output_tokens) ?? 0,
+              ),
+            }
+          : undefined,
+        startTime,
+        options.usageTags,
+        options,
+        {
+          uncounted:
+            !!imageUsage &&
+            !usageCounted({
+              prompt: imageUsage.input_tokens,
+              completion: imageUsage.output_tokens,
+              total: imageUsage.total_tokens,
+            }),
         },
       );
 
@@ -1035,6 +1138,7 @@ export class OpenAIProvider implements AIInterface {
         request.chat_template_kwargs = chatTemplateKwargs;
       }
       let streamFinish: string | null = null;
+      let streamUsage: OpenAI.CompletionUsage | undefined;
       // A stale-connection failure before the first yielded chunk is resent
       // once, even after headers: nothing has reached the caller yet, though
       // the server may have started generating. After a chunk is yielded the
@@ -1048,9 +1152,13 @@ export class OpenAIProvider implements AIInterface {
             ...(gatewayHeaders ? { headers: gatewayHeaders } : {}),
           });
           for await (const chunk of stream) {
-            streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
-            reasoning += readReasoningText(chunk.choices[0]?.delta) ?? '';
-            const content = chunk.choices[0]?.delta?.content;
+            // A server may end the stream with a usage chunk (no choices).
+            if (chunk.usage) streamUsage = chunk.usage;
+            // A usage-only chunk may omit `choices` entirely.
+            const choice = chunk.choices?.[0];
+            streamFinish = choice?.finish_reason ?? streamFinish;
+            reasoning += readReasoningText(choice?.delta) ?? '';
+            const content = choice?.delta?.content;
             if (content) {
               if (options.onProgress) {
                 options.onProgress(content);
@@ -1069,6 +1177,7 @@ export class OpenAIProvider implements AIInterface {
           }
           // Drop what the failed attempt streamed before it was resent.
           streamFinish = null;
+          streamUsage = undefined;
           reasoning = '';
         }
       }
@@ -1076,19 +1185,27 @@ export class OpenAIProvider implements AIInterface {
       // the abort or timeout instead of reporting a cut-off reply as 'stop'.
       if (controls.signal.aborted) throw controls.signal.reason;
       const finish = this.mapFinishReason(streamFinish);
-      if (finish === 'refusal')
-        options.onRefusal?.(mapOpenAIRefusal(undefined));
-      options.onFinishReason?.(finish);
 
+      // Reported before the caller's finish callbacks, so a throwing callback
+      // cannot suppress the event for a completed request.
+      const reported = this.reportedUsage(
+        streamUsage,
+        this.mapUsage(streamUsage),
+      );
       emitUsage(
         this.options,
         this.profile.providerName,
         'stream',
         model,
-        undefined,
+        reported.usage,
         startTime,
         options.usageTags,
+        options,
+        { finishReason: finish, uncounted: reported.uncounted },
       );
+      if (finish === 'refusal')
+        options.onRefusal?.(mapOpenAIRefusal(undefined));
+      options.onFinishReason?.(finish);
     } catch (error) {
       if (controls?.didTimeout()) {
         throw new AIError(
@@ -1422,23 +1539,80 @@ export class OpenAIProvider implements AIInterface {
   ): TokenUsage | undefined {
     if (!usage) return undefined;
     const raw = usage as Record<string, any>;
-    const details = raw.prompt_tokens_details;
-    // Bifrost: cached_read_tokens / cached_write_tokens. OpenAI: cached_tokens.
-    // LiteLLM and Anthropic-shaped gateways: top-level cache_*_input_tokens.
-    const cacheRead =
-      details?.cached_read_tokens ??
-      details?.cached_tokens ??
-      raw.cache_read_input_tokens;
-    const cacheWrite =
-      details?.cached_write_tokens ?? raw.cache_creation_input_tokens;
-    // Bifrost reports `cost` as an object with `total_cost`; some gateways
-    // send a bare number.
-    const cost = typeof raw.cost === 'number' ? raw.cost : raw.cost?.total_cost;
+    const { cacheRead, cacheWrite, cost } = openAIUsageExtras(raw);
+    const cache = cacheUsageFields(cacheRead, cacheWrite, cost);
+    // Prompt tokens include cache reads and writes; a gateway that reports
+    // only the cache counters still used at least those prompt tokens.
+    // A malformed counter (for example a string) is treated as not reported.
+    const promptTokens =
+      countOf(raw.prompt_tokens) ??
+      (cache.cacheReadInputTokens || 0) + (cache.cacheCreationInputTokens || 0);
+    const completionTokens = countOf(raw.completion_tokens) ?? 0;
     return {
-      promptTokens: usage.prompt_tokens || 0,
-      completionTokens: (usage as any).completion_tokens || 0,
-      totalTokens: usage.total_tokens || 0,
-      ...cacheUsageFields(cacheRead, cacheWrite, cost),
+      promptTokens,
+      completionTokens,
+      totalTokens: totalTokensOf(
+        raw.total_tokens,
+        promptTokens,
+        completionTokens,
+      ),
+      ...cache,
+    };
+  }
+
+  /**
+   * The counts a usage event carries, under the shared rule
+   * ({@link usageCounted}): `mapped` when the server reported any figure (a
+   * token or cache counter, or a cost), marked `uncounted` unless prompt and
+   * completion are both valid and every reported cache counter and total is
+   * valid. An empty `usage` object is count-less. An embedding has no output,
+   * so its completion is 0 by definition (`noOutput`).
+   * @private
+   */
+  private reportedUsage(
+    raw: unknown,
+    mapped: TokenUsage | undefined,
+    noOutput = false,
+  ): { usage?: TokenUsage; uncounted: boolean } {
+    const counters = (raw ?? {}) as Record<string, any>;
+    const { cacheRead, cacheWrite, cost } = openAIUsageExtras(counters);
+    if (
+      !usageReported(
+        counters.prompt_tokens,
+        counters.completion_tokens,
+        counters.total_tokens,
+        cacheRead,
+        cacheWrite,
+        cost,
+      )
+    ) {
+      return { uncounted: false };
+    }
+    // For an embedding (`noOutput`, `mapped` already normalized to
+    // completion 0 and total = prompt), a server report that contradicts
+    // those figures (output tokens, or a total other than the prompt) leaves
+    // the part uncounted: what is emitted must be what was validated.
+    const contradicts =
+      noOutput &&
+      ((countOf(counters.completion_tokens) ?? 0) > 0 ||
+        (countOf(counters.total_tokens) !== undefined &&
+          counters.total_tokens !== mapped?.promptTokens));
+    return {
+      usage: mapped,
+      uncounted:
+        contradicts ||
+        !usageCounted({
+          prompt: counters.prompt_tokens,
+          completion: noOutput ? 0 : counters.completion_tokens,
+          supplemental: [
+            cacheRead,
+            cacheWrite,
+            ...(noOutput ? [counters.completion_tokens] : []),
+          ],
+          // prompt_tokens includes cache reads and writes.
+          promptIncludes: [cacheRead, cacheWrite],
+          total: counters.total_tokens,
+        }),
     };
   }
 
