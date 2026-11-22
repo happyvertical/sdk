@@ -915,8 +915,10 @@ describe('markTransactionHandle over existing markers', () => {
 });
 
 describe('PGlite ownership follows the client actually used', () => {
-  it('a falsy client counts as none: the adapter opens and owns its own instance', async () => {
-    const db = await getDatabase({ type: 'pglite', client: false } as never);
+  it('a null client counts as none: the adapter opens and owns its own instance', async () => {
+    // A falsy client that is not null (false, 0, '') is refused instead; see
+    // client-option-refusal.spec.ts.
+    const db = await getDatabase({ type: 'pglite', client: null } as never);
     try {
       expect(db.client).toBeTruthy();
       expect(describeHandle(db)).toMatchObject({

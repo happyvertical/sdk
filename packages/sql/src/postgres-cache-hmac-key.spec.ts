@@ -57,7 +57,7 @@ describe('PostgreSQL cache identity HMAC key', () => {
 
     await expect(
       getPostgresConnectionCacheKey({ ...passwordOptions, dbid: 'named' }),
-    ).resolves.toBe('pg:dbid:v2:named');
+    ).resolves.toBe('pg:dbid:v3:named');
     expect(generateKey).not.toHaveBeenCalled();
   });
 
@@ -79,7 +79,7 @@ describe('PostgreSQL cache identity HMAC key', () => {
       ['sign'],
     );
     expect(new Set([...keys, later]).size).toBe(1);
-    expect(later).toMatch(/^pg:hmac-sha256:v2:[0-9a-f]{64}$/);
+    expect(later).toMatch(/^pg:hmac-sha256:v3:[0-9a-f]{64}$/);
   });
 
   it('shares the key with another copy of the module in the same isolate', async () => {
@@ -114,7 +114,7 @@ describe('PostgreSQL cache identity HMAC key', () => {
 
     await expect(
       getPostgresConnectionCacheKey(passwordOptions),
-    ).resolves.toMatch(/^pg:hmac-sha256:v2:/);
+    ).resolves.toMatch(/^pg:hmac-sha256:v3:/);
     expect(generateKey).toHaveBeenCalledTimes(2);
   });
 
@@ -132,7 +132,7 @@ describe('PostgreSQL cache identity HMAC key', () => {
     expect(globalThis.__haveSqlPostgresCacheHmacKey).toBeUndefined();
     await expect(
       getPostgresConnectionCacheKey(passwordOptions),
-    ).resolves.toMatch(/^pg:hmac-sha256:v2:/);
+    ).resolves.toMatch(/^pg:hmac-sha256:v3:/);
     expect(generateKey).toHaveBeenCalledTimes(2);
   });
 });

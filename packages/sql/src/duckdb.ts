@@ -16,6 +16,7 @@ import {
   validatePlainColumnName,
   validateTableName,
 } from './shared/alter-utils';
+import { refuseUnusedClientOption } from './shared/client-option';
 import { validateDatabaseCacheOptions } from './shared/connection-cache';
 import {
   createDuckDBResourceCloser,
@@ -317,6 +318,7 @@ function convertBigInts(obj: any): any {
 export async function getDatabase(
   options: DuckDBOptions = {},
 ): Promise<DatabaseInterface> {
+  refuseUnusedClientOption(options, 'duckdb');
   validateDatabaseCacheOptions(options);
   const { connection, instance } = await createDuckDBConnection(options);
   const writeStrategy = options.writeStrategy || 'none';

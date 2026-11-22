@@ -9,6 +9,7 @@ import pg, {
   type QueryConfig,
 } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
+import { refuseUnusedClientOption } from './shared/client-option';
 import { claimConnectionAffinity } from './shared/connection-affinity';
 import {
   ConnectionCache,
@@ -153,20 +154,22 @@ declare global {
   // eslint-disable-next-line no-var
   var __haveSqlPostgresCacheHmacKey: Promise<CryptoKey> | undefined;
   // eslint-disable-next-line no-var
-  var __haveSqlPostgresConnectionCacheV2:
+  var __haveSqlPostgresConnectionCacheV3:
     | ConnectionCache<DatabaseInterface>
     | undefined;
 }
 
-// Entries live in a slot (and under keys) that copies of this package older
-// than 0.118.0 never read: those copies look up
-// `__haveSqlPostgresConnectionCache` with v1 keys, so an older copy's open
-// (which may carry a `client` it ignores) never returns a pool this copy
-// created and recorded as a root. The cost: a process holding both copies
-// opens one pool per copy.
-globalThis.__haveSqlPostgresConnectionCacheV2 ??=
+// Entries live in a slot (and under keys) that older copies of this package
+// never read: copies before 0.118.0 look up `__haveSqlPostgresConnectionCache`
+// with v1 keys, and 0.118.0 looks up `__haveSqlPostgresConnectionCacheV2`
+// with v2 keys. Both ignore a `client` option, so an older copy's
+// `{ client, url }` open must never return a pool this copy created and
+// recorded as a root. (The provenance registry is versioned for the same
+// reason, so the pools those copies record read `unknown` here.) The cost: a
+// process holding an older and a newer copy opens one pool per copy.
+globalThis.__haveSqlPostgresConnectionCacheV3 ??=
   new ConnectionCache<DatabaseInterface>();
-const connectionCache = globalThis.__haveSqlPostgresConnectionCacheV2;
+const connectionCache = globalThis.__haveSqlPostgresConnectionCacheV3;
 
 /**
  * Returns the process-local cache identity HMAC key, generating it on first
@@ -305,7 +308,7 @@ async function derivePostgresConnectionCacheKey(
   effective: EffectivePostgresConfig,
 ): Promise<string | undefined> {
   if (options.dbid) {
-    return `pg:dbid:v2:${options.dbid}`;
+    return `pg:dbid:v3:${options.dbid}`;
   }
 
   const identity = JSON.stringify({
@@ -324,10 +327,10 @@ async function derivePostgresConnectionCacheKey(
     'HMAC',
     hmacKey,
     new TextEncoder().encode(
-      `@happyvertical/sql:postgres-cache:v2\0${identity}`,
+      `@happyvertical/sql:postgres-cache:v3\0${identity}`,
     ),
   );
-  return `pg:hmac-sha256:v2:${Buffer.from(signature).toString('hex')}`;
+  return `pg:hmac-sha256:v3:${Buffer.from(signature).toString('hex')}`;
 }
 
 /** @internal Exported for adversarial identity tests. */
@@ -363,6 +366,7 @@ export async function getPostgresConnectionCacheKey(
 export async function getDatabase(
   options: PostgresOptions = {},
 ): Promise<DatabaseInterface> {
+  refuseUnusedClientOption(options, 'postgres');
   validateDatabaseCacheOptions(options);
   const effective = resolvePostgresConfig(options);
   const cacheKey = await derivePostgresConnectionCacheKey(options, effective);

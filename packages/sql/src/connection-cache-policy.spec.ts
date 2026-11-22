@@ -571,9 +571,9 @@ describe('PostgreSQL cache identity', () => {
     const firstKey = await getPostgresConnectionCacheKey(firstOptions);
     const rotatedKey = await getPostgresConnectionCacheKey(rotatedOptions);
 
-    expect(explicit).toBe('pg:dbid:v2:caller-owned-identity');
+    expect(explicit).toBe('pg:dbid:v3:caller-owned-identity');
     expect(firstKey).not.toBe(rotatedKey);
-    expect(firstKey).toMatch(/^pg:hmac-sha256:v2:[a-f0-9]{64}$/);
+    expect(firstKey).toMatch(/^pg:hmac-sha256:v3:[a-f0-9]{64}$/);
     expect(firstKey).not.toContain('cache-user');
     expect(firstKey).not.toContain('first-secret');
     expect(firstKey).not.toContain('url');

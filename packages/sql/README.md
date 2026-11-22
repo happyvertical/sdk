@@ -242,20 +242,71 @@ caches only connections with a `dbid` (automatically assigned to the default
 `:memory:` path). JSON derives an identity from its directory and behavior
 options.
 
-The PostgreSQL cache is shared by every copy of `@happyvertical/sql` 0.118.0
-or later in a process, and kept apart from older copies, so an older copy's
-open never returns a pool a newer copy created and recorded as a root (see
+The PostgreSQL cache is shared by every copy of `@happyvertical/sql` that
+refuses a `client` option (the release after 0.118.0 and later) in a process,
+and kept apart from older copies, 0.118.0 included: those copies ignore
+`client`, so an older copy's `{ client, url }` open never returns a pool a
+newer copy created and recorded as a root (see
 [Handle roles](#handle-roles-and-transaction-markers)). A process that loads an
 older and a newer copy therefore opens one pool per copy for the same
 configuration, and each copy's `clearPostgresConnectionCache()` clears only
 its own pools. The JSON adapter's in-memory cache stays shared across copies on
-purpose.
+purpose, so an older copy's `{ type: 'json', client }` open can return a JSON
+root a newer copy recorded; no JSON root ever uses a client, so that caller
+gets the same database it would have got without one.
 
 DuckDB already creates a fresh adapter for every call, so `cache` and
 `clearCache` are accepted for uniform configuration but do not change its
 behavior. Call `close()` on uncached and DuckDB adapters when finished.
 
 Configuration is also loaded from `HAVE_SQL_*` environment variables (e.g. `HAVE_SQL_TYPE`, `HAVE_SQL_URL`). User-provided options take precedence.
+
+Only the PGlite adapter accepts an injected `client`. Every other adapter
+(`postgres`, `sqlite`, `duckdb`, `json`) refuses a `client` option with a
+`DatabaseError` before any cache lookup or connection; earlier releases
+ignored it and opened a connection from the URL, connection fields or
+environment, which on PostgreSQL meant the same cached pool as a plain URL
+open. `client: undefined` and `client: null` count as absent (an explicit
+`client: undefined` still takes precedence over a `HAVE_SQL_CLIENT` value).
+A `HAVE_SQL_CLIENT` environment variable is loaded for options that do not set
+`client` and, being a string, is refused like any other client on every
+adapter (PGlite included): unset it. Remove `client`
+only if connecting from the URL or environment is what you intend; code that
+needs the client it supplied (for example one bound to a role or schema) must
+keep that binding through an integration that supports it, or let the error
+propagate.
+
+`getDatabase()` recognises a database instance with four reads on the
+argument (`client`, `insert`, `get`, `query`) and returns it untouched.
+Because `getDatabase()` is async, returning it also makes the Promise look up
+its `then`: a thenable instance, or one whose `then` getter throws, is
+resolved or rejected by the Promise instead of being returned as is.
+
+For configuration (any object, callable ones included) it reads `client`
+once. A non-null `client` is refused on the adapter type alone: `type`, or
+without one the `HAVE_SQL_TYPE` value and then the type inferred from `url`,
+is read first, and no other option is read before the refusal. Otherwise each
+supported top-level option is read once, by name, when the function is
+called. Later changes to those options on the same object do not affect an
+open already issued; nested option objects (`capabilities`, `secureFile`,
+`pglite`) and the environment are read by the adapter and should not be
+changed while an open is pending. An `onTableLoadError` method is still
+called on the caller's object.
+
+What it resolves (environment values, an inferred `type`, a generated
+in-memory SQLite `dbid`, also when `dbid` is `null`) is written to the
+caller's object afterwards, for keys it did not have; nothing is written for
+a refused open. A key the caller set to `undefined` counts as present, so an
+explicit `type: undefined` keeps its value on the caller's object (the type is
+inferred again on every call), whereas a generated `dbid` replaces a `null`
+one. The generated `dbid` is also remembered by the options object itself, so
+reusing that object reopens the same in-memory database even when it cannot
+keep the value (frozen, non-extensible, or a setter or Proxy that discards
+it), and even after its `dbid` is deleted or set to `null`; pass a new options
+object or an explicit `dbid` for a fresh in-memory database. PGlite reads
+`client` exactly once, refuses a non-null `client` that is not an object (for
+example `false`) before reading any other option, and uses that one value for
+the cache identity, construction, provenance and close.
 
 ### Secure local SQLite acquisition
 
@@ -907,11 +958,14 @@ describeHandle(db);
   `markTransactionHandle(handle, kind)`.
 - **Provenance.** Each adapter records the exact objects it creates (roots,
   sessions, transaction handles) in a registry keyed by object identity, shared
-  by every copy of this package loaded in the same realm. A copy, wrapper,
+  by every copy of this package loaded in the same realm that refuses a
+  `client` option. A copy, wrapper,
   Proxy or derived object of a root is never a root, because nothing on the
-  object carries the record. Objects made by a copy older than 0.118.0, by a
+  object carries the record. Objects made by an older copy (0.118.0, which
+  kept its own registry and ignored `client`, included), by a
   custom adapter, or in another realm (a `vm` context, an iframe) have no
-  record here. They read `unknown`, except that a transaction handle from
+  record here. A mixed process therefore keeps one registry per generation:
+  a newer copy cannot classify an older copy's roots, and the reverse. They read `unknown`, except that a transaction handle from
   another realm still reads `transaction`: the marker's key is a global symbol
   shared across realms.
 - `owner` is an opaque frozen token, one per root, that the root's sessions
@@ -919,11 +973,9 @@ describeHandle(db);
   same database or the same injected client.
 - `clientSource` is `'caller'` for a root built over an injected client
   (PGlite `client`). `isDatabaseRoot(db)` is true only for `role: 'root'` with
-  `clientSource: 'adapter'`. The other adapters ignore a `client` option (a
-  separate change makes them refuse it), so their roots report `'adapter'`
-  even when one was passed: a PostgreSQL `{ client, url }` open returns the
-  same root as `{ url }`, and these helpers cannot tell the two apart. Do not
-  pass `client` to them.
+  `clientSource: 'adapter'`. The other adapters refuse a `client` option (see
+  [Connection caching and cleanup](#connection-caching-and-cleanup)), so an
+  open that supplies one never returns a root that reports `'adapter'`.
 - `rootReads` says what a root statement sees while one of the root's own
   `transaction()` or `beginTransaction()` transactions is open:
   - `isolated`: it runs on another connection and sees committed rows only

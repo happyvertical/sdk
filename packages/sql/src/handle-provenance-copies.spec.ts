@@ -80,7 +80,7 @@ describe('handle provenance across SDK copies', () => {
     });
     expect(Object.isFrozen(host[PROVENANCE_REGISTRY_KEY])).toBe(true);
     expect(PROVENANCE_REGISTRY_KEY).toBe(
-      Symbol.for('@happyvertical/sql/handle-provenance:v1'),
+      Symbol.for('@happyvertical/sql/handle-provenance:v2'),
     );
   });
 
@@ -90,8 +90,8 @@ describe('handle provenance across SDK copies', () => {
     for (const foreign of [
       'foreign',
       { version: 2, records: new WeakMap() },
-      { version: 1, records: new Map() },
-      { version: 1 },
+      { version: 2, records: new Map() },
+      { version: 2 },
     ]) {
       const host: Record<PropertyKey, unknown> = {
         [PROVENANCE_REGISTRY_KEY]: foreign,
@@ -109,7 +109,7 @@ describe('handle provenance across SDK copies', () => {
     const proxiedMap = new Proxy(new WeakMap(), {});
     const occupants: unknown[] = [
       // Passes `instanceof WeakMap` but has no WeakMap internal slot.
-      Object.freeze({ version: 1, records: proxiedMap }),
+      Object.freeze({ version: 2, records: proxiedMap }),
       Object.freeze(
         Object.defineProperty({ records: new WeakMap() }, 'version', {
           get() {
@@ -119,12 +119,12 @@ describe('handle provenance across SDK copies', () => {
         }),
       ),
       Object.freeze(
-        Object.defineProperty({ version: 1 }, 'records', {
+        Object.defineProperty({ version: 2 }, 'records', {
           get: () => new WeakMap(),
           enumerable: true,
         }),
       ),
-      new Proxy(Object.freeze({ version: 1, records: new WeakMap() }), {
+      new Proxy(Object.freeze({ version: 2, records: new WeakMap() }), {
         isExtensible() {
           throw new Error('no');
         },
@@ -161,7 +161,7 @@ describe('handle provenance across SDK copies', () => {
       await freshProvenanceModule();
     const records = new WeakMap();
     const host: Record<PropertyKey, unknown> = {
-      [PROVENANCE_REGISTRY_KEY]: Object.freeze({ version: 1, records }),
+      [PROVENANCE_REGISTRY_KEY]: Object.freeze({ version: 2, records }),
     };
     expect(acquireProvenanceRegistry(host).records).toBe(records);
   });
@@ -198,7 +198,7 @@ describe('handle provenance across SDK copies', () => {
     const { describeHandleIn, TRANSACTION_SCOPE } =
       await freshProvenanceModule();
     const broken = {
-      version: 1 as const,
+      version: 2 as const,
       records: new Proxy(new WeakMap(), {}) as WeakMap<object, never>,
     };
     expect(

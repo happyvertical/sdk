@@ -158,6 +158,34 @@ describe('JSON adapter observable data-load errors (Issue #1139)', () => {
   });
 
   describe('onTableLoadError callback', () => {
+    it('is called on the caller’s options object, so a class method keeps its receiver', async () => {
+      writeData('items', raggedNotNull);
+      writeSchema('items', NOT_NULL_DDL);
+      class Config {
+        readonly type = 'json';
+        readonly url = dir;
+        #seen: string[] = [];
+        onTableLoadError(info: JSONTableLoadError) {
+          this.#seen.push(info.table);
+        }
+        get seen() {
+          return this.#seen;
+        }
+      }
+      const config = new Config();
+
+      const db = await getDatabase(config as never);
+
+      expect(config.seen).toEqual(['items']);
+      expect(
+        db.getTableLoadErrors().map((e: JSONTableLoadError) => e.table),
+      ).toEqual(['items']);
+      expect(errorSpy).not.toHaveBeenCalledWith(
+        '[json-adapter] onTableLoadError callback threw:',
+        expect.anything(),
+      );
+    });
+
     it('fires with the same info for a connection-time failure', async () => {
       writeData('items', raggedNotNull);
       writeSchema('items', NOT_NULL_DDL);

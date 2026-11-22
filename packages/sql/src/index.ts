@@ -1,6 +1,14 @@
 import { loadEnvConfig } from '@happyvertical/utils';
 import type { PGliteOptions } from './pglite';
 import type { PostgresOptions } from './postgres';
+import {
+  generateMemoryDbId,
+  type ReadOption,
+  readOpenOptions,
+  readOption,
+  refuseInvalidPGliteClient,
+  refuseUnusedClientOption,
+} from './shared/client-option';
 import type {
   DatabaseInterface,
   DuckDBOptions,
@@ -20,20 +28,53 @@ export type GetDatabaseOptions =
   | JSONOptions;
 
 /**
- * Checks if the provided value is a database instance rather than configuration options
- *
- * @param value - Value to check
- * @returns True if the value appears to be a DatabaseInterface instance
+ * In-memory SQLite identities generated for options objects (see
+ * `getDatabase`), whether or not the object could store them. Keyed weakly by
+ * the caller's object.
  */
-function isDatabaseInstance(value: any): value is DatabaseInterface {
-  return (
-    value &&
-    typeof value === 'object' &&
-    typeof value.client !== 'undefined' &&
-    typeof value.insert === 'function' &&
-    typeof value.get === 'function' &&
-    typeof value.query === 'function'
-  );
+const retainedMemoryDbids = new WeakMap<object, string>();
+
+/**
+ * Decides the refusal of a caller-supplied (non-null) `client` from the
+ * adapter type, reading only `type` and, when no type is set, `url`; those
+ * reads go into `preread` so the snapshot does not repeat them.
+ */
+function refuseClientEarly(
+  source: object,
+  client: unknown,
+  preread: Record<string, ReadOption>,
+): void {
+  let environment: Record<string, unknown> | undefined;
+  const fromEnvironment = (key: 'type' | 'url') => {
+    environment ??= loadEnvConfig(
+      {},
+      { packageName: 'sql', schema: { type: 'string', url: 'string' } },
+    ) as Record<string, unknown>;
+    return environment[key];
+  };
+  const typeRead = readOption(source, 'type');
+  preread.type = typeRead;
+  let type = typeRead.present ? typeRead.value : fromEnvironment('type');
+  if (!type) {
+    const urlRead = readOption(source, 'url');
+    preread.url = urlRead;
+    const url = urlRead.present ? urlRead.value : fromEnvironment('url');
+    if (
+      typeof url === 'string' &&
+      (url.startsWith('file:') || url === ':memory:')
+    ) {
+      type = 'sqlite';
+    }
+  }
+  if (
+    type === 'postgres' ||
+    type === 'sqlite' ||
+    type === 'duckdb' ||
+    type === 'json'
+  ) {
+    refuseUnusedClientOption({ client }, type);
+  }
+  if (type === 'pglite') refuseInvalidPGliteClient(client);
 }
 
 /**
@@ -73,56 +114,158 @@ function isDatabaseInstance(value: any): value is DatabaseInterface {
 export async function getDatabase(
   options: GetDatabaseOptions | ReopenOptions | DatabaseInterface = {},
 ): Promise<DatabaseInterface> {
-  // If a database instance is passed, return it directly
-  if (isDatabaseInstance(options)) {
-    return options;
+  // A database instance passes through untouched. Only the four members the
+  // check needs are read, each once, on the argument itself (returning it
+  // from this async function also makes the Promise read its `then`): nothing is
+  // enumerated and no environment is merged, so a wrapper (a Proxy over a
+  // transaction handle, an instance with unrelated getters) comes back as it
+  // went in. `client` is read here once and reused as configuration below.
+  const source = (options ?? {}) as Record<string, unknown>;
+  // Functions are objects too: a callable configuration is read like any
+  // other, never mistaken for an empty one.
+  const isObject =
+    source !== null &&
+    (typeof source === 'object' || typeof source === 'function');
+  const client = isObject ? source.client : undefined;
+  if (
+    isObject &&
+    typeof client !== 'undefined' &&
+    typeof source.insert === 'function' &&
+    typeof source.get === 'function' &&
+    typeof source.query === 'function'
+  ) {
+    return options as DatabaseInterface;
   }
 
-  // Load HAVE_SQL_* environment variables and merge into options
-  // This ensures options object is mutated (needed for dbid propagation)
-  Object.assign(
-    options,
-    loadEnvConfig(options as any, {
-      packageName: 'sql',
-      schema: {
-        type: 'string',
-        url: 'string',
-        host: 'string',
-        port: 'number',
-        database: 'string',
-        user: 'string',
-        password: 'string',
-      },
-    }) as Partial<GetDatabaseOptions>,
-  );
+  // A supplied client is refused on `type` alone, read first: nothing else on
+  // the caller's object is read before that decision, so an unrelated option
+  // (a throwing getter, a Proxy trap) cannot replace the refusal. Without an
+  // explicit type, the environment's type and then the URL's inference
+  // decide it, as they do below. Values read here are not read again.
+  const preread: Record<string, ReadOption> = {};
+  if (isObject && client !== undefined && client !== null) {
+    refuseClientEarly(source, client, preread);
+  }
+
+  // Configuration is captured once, before the first await, by reading the
+  // supported option names directly (see `readOpenOptions`). Everything below
+  // works on this snapshot.
+  const snapshot = (
+    isObject ? readOpenOptions(source, client, preread) : {}
+  ) as GetDatabaseOptions & { dbid?: string | null; cache?: boolean };
+
+  // What this call resolves (HAVE_SQL_* values, an inferred type, a generated
+  // in-memory SQLite dbid) is written to the caller's object afterwards, as
+  // it always has been, for keys it did not have: later opens with the same
+  // options object depend on it (dbid propagation). Nothing is written for a
+  // refused open.
+  const resolved: Array<[string, unknown]> = [];
+  const resolve = (key: string, value: unknown) => {
+    (snapshot as Record<string, unknown>)[key] = value;
+    resolved.push([key, value]);
+  };
+
+  // Load HAVE_SQL_* environment variables; user-provided options win.
+  const environment = loadEnvConfig(snapshot as any, {
+    packageName: 'sql',
+    schema: {
+      type: 'string',
+      url: 'string',
+      host: 'string',
+      port: 'number',
+      database: 'string',
+      user: 'string',
+      password: 'string',
+    },
+  }) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(environment)) {
+    if (!(key in snapshot)) resolve(key, value);
+  }
 
   // if no type but url starts with file:, set to sqlite
   if (
-    !options.type &&
-    (options.url?.startsWith('file:') || options.url === ':memory:')
+    !snapshot.type &&
+    (snapshot.url?.startsWith('file:') || snapshot.url === ':memory:')
   ) {
-    options.type = 'sqlite';
+    resolve('type', 'sqlite');
   }
 
-  if (options.type === 'postgres') {
-    const postgres = await import('./postgres.js');
-    return postgres.getDatabase(options as PostgresOptions);
+  // An adapter that does not use `client` refuses it, before anything is
+  // generated or written to the caller's object.
+  if (
+    snapshot.type === 'postgres' ||
+    snapshot.type === 'sqlite' ||
+    snapshot.type === 'duckdb' ||
+    snapshot.type === 'json'
+  ) {
+    refuseUnusedClientOption(snapshot, snapshot.type);
   }
-  if (options.type === 'pglite') {
+  if (snapshot.type === 'pglite') {
+    refuseInvalidPGliteClient((snapshot as { client?: unknown }).client);
+  }
+
+  // SQLite gives an in-memory database a generated identity so that later
+  // opens with the same options object reuse the connection. Absent means
+  // undefined or null; an explicit empty dbid is refused by the adapter.
+  let generatedDbid: string | undefined;
+  if (
+    snapshot.type === 'sqlite' &&
+    (snapshot.url || ':memory:') === ':memory:' &&
+    (snapshot.dbid === undefined || snapshot.dbid === null) &&
+    snapshot.cache !== false
+  ) {
+    // The identity generated for an options object is remembered by the
+    // object itself, before (and whatever the outcome of) the write-back
+    // below: an object that cannot keep it (frozen, non-extensible, a setter
+    // or Proxy that discards it) still reopens the same database, never a
+    // fresh one. A nullish dbid on a later open with that object reuses it.
+    generatedDbid =
+      (isObject ? retainedMemoryDbids.get(source) : undefined) ??
+      generateMemoryDbId();
+    snapshot.dbid = generatedDbid;
+    if (isObject) retainedMemoryDbids.set(source, generatedDbid);
+  }
+
+  if (isObject) {
+    for (const [key, value] of resolved) {
+      if (!(key in source)) {
+        try {
+          source[key] = value;
+        } catch {
+          // A frozen or non-extensible options object keeps its shape.
+        }
+      }
+    }
+    if (generatedDbid !== undefined) {
+      try {
+        source.dbid = generatedDbid;
+      } catch {
+        // Propagation through the object is impossible; the identity is
+        // already remembered by the object itself.
+      }
+    }
+  }
+
+  if (snapshot.type === 'pglite') {
     const pglite = await import('./pglite.js');
-    return pglite.getDatabase(options as PGliteOptions);
+    return pglite.getDatabase(snapshot as PGliteOptions);
   }
-  if (options.type === 'sqlite') {
+
+  if (snapshot.type === 'postgres') {
+    const postgres = await import('./postgres.js');
+    return postgres.getDatabase(snapshot as PostgresOptions);
+  }
+  if (snapshot.type === 'sqlite') {
     const sqlite = await import('./sqlite.js');
-    return sqlite.getDatabase(options as SqliteOptions);
+    return sqlite.getDatabase(snapshot as SqliteOptions);
   }
-  if (options.type === 'duckdb') {
+  if (snapshot.type === 'duckdb') {
     const duckdb = await import('./duckdb.js');
-    return duckdb.getDatabase(options as DuckDBOptions);
+    return duckdb.getDatabase(snapshot as DuckDBOptions);
   }
-  if (options.type === 'json') {
+  if (snapshot.type === 'json') {
     const json = await import('./json.js');
-    return json.getDatabase(options as JSONOptions);
+    return json.getDatabase(snapshot as JSONOptions);
   }
   throw new Error('Invalid database type');
 }

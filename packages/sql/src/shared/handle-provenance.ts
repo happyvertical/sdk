@@ -86,13 +86,18 @@ export interface HandleProvenanceRecord {
 
 /** @internal */
 export interface ProvenanceRegistry {
-  readonly version: 1;
+  readonly version: 2;
   readonly records: WeakMap<object, HandleProvenanceRecord>;
 }
 
-/** @internal Global slot holding the registry shared by copies in a realm. */
+/**
+ * @internal Global slot holding the registry shared by copies in a realm.
+ * Version 2: 0.118.0 shared `…:v1` but ignored a `client` option on the
+ * non-PGlite adapters, so the roots it recorded may sit over a connection a
+ * caller asked to replace; they are unknown here, which fails closed.
+ */
 export const PROVENANCE_REGISTRY_KEY: unique symbol = Symbol.for(
-  '@happyvertical/sql/handle-provenance:v1',
+  '@happyvertical/sql/handle-provenance:v2',
 );
 
 const KINDS: ReadonlySet<unknown> = new Set([
@@ -153,7 +158,7 @@ function isRealWeakMap(value: unknown): value is WeakMap<object, unknown> {
 
 function privateRegistry(): ProvenanceRegistry {
   return Object.freeze({
-    version: 1 as const,
+    version: 2 as const,
     records: new WeakMap<object, HandleProvenanceRecord>(),
   });
 }
@@ -161,7 +166,7 @@ function privateRegistry(): ProvenanceRegistry {
 /**
  * @internal Returns the registry in `host`'s slot, defining it when the slot
  * is empty. The occupant is accepted only when the slot is a data property
- * holding a frozen object whose own data properties are `version: 1` and a
+ * holding a frozen object whose own data properties are `version: 2` and a
  * real `WeakMap` `records`; the returned registry is rebuilt from those
  * captured values, so the occupant is never consulted again. Anything else (a
  * future layout, a foreign value, a Proxy, an accessor, a read that throws)
@@ -192,11 +197,11 @@ export function acquireProvenanceRegistry(host: object): ProvenanceRegistry {
     }
     const version = ownData(occupant, 'version');
     const map = ownData(occupant, 'records');
-    if (version?.value !== 1 || !map || !isRealWeakMap(map.value)) {
+    if (version?.value !== 2 || !map || !isRealWeakMap(map.value)) {
       return privateRegistry();
     }
     return Object.freeze({
-      version: 1 as const,
+      version: 2 as const,
       records: map.value as WeakMap<object, HandleProvenanceRecord>,
     });
   } catch {
