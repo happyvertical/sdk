@@ -682,4 +682,46 @@ describe('round-1 review cases (sdk#1587)', () => {
     );
     expect(postgresCache().size).toBe(before);
   });
+
+  it('reopens the same in-memory SQLite database through an options object whose dbid setter discards the value', async () => {
+    const options = Object.freeze(
+      Object.defineProperty({ type: 'sqlite', url: ':memory:' }, 'dbid', {
+        get: () => undefined,
+        set: () => {},
+        enumerable: true,
+      }),
+    );
+    const first = await getDatabase(options as never);
+    try {
+      await first.query('CREATE TABLE discarded_dbid (id INTEGER PRIMARY KEY)');
+      const [second, third] = await Promise.all([
+        getDatabase(options as never),
+        getDatabase(options as never),
+      ]);
+      expect(second).toBe(first);
+      expect(third).toBe(first);
+      await second.query('SELECT * FROM discarded_dbid');
+    } finally {
+      await first.close?.();
+    }
+  });
+
+  it('reopens the same in-memory SQLite database through a Proxy whose set trap stores nothing', async () => {
+    const options = new Proxy(
+      { type: 'sqlite', url: ':memory:' } as Record<string, unknown>,
+      { set: () => true },
+    );
+    const [first, second] = await Promise.all([
+      getDatabase(options as never),
+      getDatabase(options as never),
+    ]);
+    try {
+      expect(second).toBe(first);
+      await first.query('CREATE TABLE unstored_dbid (id INTEGER PRIMARY KEY)');
+      const third = await getDatabase(options as never);
+      expect(third).toBe(first);
+    } finally {
+      await first.close?.();
+    }
+  });
 });

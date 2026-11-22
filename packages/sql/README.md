@@ -280,9 +280,11 @@ open already issued; nested option objects (`capabilities`, `secureFile`,
 pending. What it resolves (environment values, an inferred `type`, a generated
 in-memory SQLite `dbid`, also when `dbid` is `null`) is written to the
 caller's object afterwards, for keys it did not have; nothing is written for a
-refused open. An options object that cannot take the generated `dbid` (frozen,
-non-extensible) keeps it by identity, so reusing it reopens the same in-memory
-database. PGlite reads `client` exactly once and refuses a non-null
+refused open. The generated `dbid` is also remembered by the options object
+itself, so reusing that object reopens the same in-memory database even when
+it cannot keep the value (frozen, non-extensible, or a setter or Proxy that
+discards it), and even after its `dbid` is deleted or set to `null`; pass a
+new options object or an explicit `dbid` for a fresh in-memory database. PGlite reads `client` exactly once and refuses a non-null
 `client` that is not an object (for example `false`).
 
 ### Secure local SQLite acquisition

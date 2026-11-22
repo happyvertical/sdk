@@ -28,8 +28,9 @@ export type GetDatabaseOptions =
   | JSONOptions;
 
 /**
- * In-memory SQLite identities generated for options objects that could not
- * store them (see `getDatabase`). Keyed weakly by the caller's object.
+ * In-memory SQLite identities generated for options objects (see
+ * `getDatabase`), whether or not the object could store them. Keyed weakly by
+ * the caller's object.
  */
 const retainedMemoryDbids = new WeakMap<object, string>();
 
@@ -212,13 +213,16 @@ export async function getDatabase(
     (snapshot.dbid === undefined || snapshot.dbid === null) &&
     snapshot.cache !== false
   ) {
-    // An options object that could not take the identity last time (frozen,
-    // non-extensible, read-only dbid) keeps the one generated for it then, so
-    // reusing it reopens the same database instead of a fresh one.
+    // The identity generated for an options object is remembered by the
+    // object itself, before (and whatever the outcome of) the write-back
+    // below: an object that cannot keep it (frozen, non-extensible, a setter
+    // or Proxy that discards it) still reopens the same database, never a
+    // fresh one. A nullish dbid on a later open with that object reuses it.
     generatedDbid =
       (isObject ? retainedMemoryDbids.get(source) : undefined) ??
       generateMemoryDbId();
     snapshot.dbid = generatedDbid;
+    if (isObject) retainedMemoryDbids.set(source, generatedDbid);
   }
 
   if (isObject) {
@@ -235,9 +239,8 @@ export async function getDatabase(
       try {
         source.dbid = generatedDbid;
       } catch {
-        // Propagation through the object is impossible; remember the
-        // identity by the object itself instead.
-        retainedMemoryDbids.set(source, generatedDbid);
+        // Propagation through the object is impossible; the identity is
+        // already remembered by the object itself.
       }
     }
   }
