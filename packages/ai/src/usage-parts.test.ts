@@ -101,10 +101,11 @@ describe('usage parts on a continued reply', () => {
     const call = events[0].part.call;
     expect(typeof call).toBe('string');
     expect(call.length).toBeGreaterThan(0);
-    // A continued reply's events never carry `last`.
+    // A part that stopped on the limit is not last; the one that stopped
+    // for another reason is.
     expect(events.map((event) => event.part)).toEqual([
       { call, index: 0 },
-      { call, index: 1 },
+      { call, index: 1, last: true },
     ]);
     expect(result.usageParts).toEqual({
       call,
@@ -128,7 +129,7 @@ describe('usage parts on a continued reply', () => {
     });
   });
 
-  it('names both parts of a two-part stream, count-less, never marking the last', async () => {
+  it('names both parts of a two-part count-less stream and marks the one that stopped last', async () => {
     const create = vi
       .fn()
       .mockResolvedValueOnce(openAIStream([`one ${SEAM}`], 'length'))
@@ -144,9 +145,9 @@ describe('usage parts on a continued reply', () => {
     const call = events[0].part.call;
     expect(events.map((event) => event.part)).toEqual([
       { call, index: 0 },
-      { call, index: 1 },
+      { call, index: 1, last: true },
     ]);
-    // OpenAI-compatible streams report no counts; the events still arrive.
+    // These streams send no usage chunk; the events still arrive.
     expect(events.every((event) => event.usage === undefined)).toBe(true);
   });
 
@@ -163,7 +164,11 @@ describe('usage parts on a continued reply', () => {
 
     expect(events).toHaveLength(2);
     expect(events[1].usage).toBeUndefined();
-    expect(events[1].part).toEqual({ call: events[0].part.call, index: 1 });
+    expect(events[1].part).toEqual({
+      call: events[0].part.call,
+      index: 1,
+      last: true,
+    });
     expect(result.usageParts?.complete).toBe(false);
     expect(result.usageParts?.parts).toEqual([
       {
@@ -232,7 +237,7 @@ describe('usage parts on a continued reply', () => {
     const call = result.usageParts?.call;
     expect(events.map((event) => event.part)).toEqual([
       { call, index: 0 },
-      { call, index: 1 },
+      { call, index: 1, last: true },
     ]);
     expect(result.usageParts?.parts.map((part) => part.last)).toEqual([
       undefined,
@@ -594,7 +599,7 @@ describe('getAI() clients', () => {
     const call = result.usageParts?.call;
     expect(events.map((event) => event.part)).toEqual([
       { call, index: 0 },
-      { call, index: 1 },
+      { call, index: 1, last: true },
     ]);
     expect(result.usageParts?.complete).toBe(true);
     expect(bodies).toHaveLength(2);

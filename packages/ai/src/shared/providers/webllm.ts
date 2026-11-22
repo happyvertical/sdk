@@ -59,7 +59,7 @@ import {
   WebLLMPeerMissingError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { emitUsage } from './usage';
+import { emitUsage, hasUsageCount } from './usage';
 
 const PROVIDER = 'webllm';
 
@@ -371,6 +371,21 @@ export class WebLLMProvider implements AIInterface {
     return options.model ?? this.explicitModel;
   }
 
+  /** `mapped` only when the engine sent a token counter. */
+  private reportedUsage(
+    raw: unknown,
+    mapped: TokenUsage | undefined,
+  ): TokenUsage | undefined {
+    const counters = (raw ?? {}) as Record<string, unknown>;
+    return hasUsageCount(
+      counters.prompt_tokens,
+      counters.completion_tokens,
+      counters.total_tokens,
+    )
+      ? mapped
+      : undefined;
+  }
+
   private mapUsage(usage: unknown): TokenUsage | undefined {
     const raw = usage as
       | {
@@ -583,10 +598,11 @@ export class WebLLMProvider implements AIInterface {
         PROVIDER,
         'chat',
         response.model || model,
-        usage,
+        this.reportedUsage(response.usage, usage),
         startTime,
         options.usageTags,
         options,
+        { finishReason: this.mapFinishReason(choice.finish_reason) },
       );
       const toolCalls: AIToolCall[] | undefined =
         choice.message?.tool_calls?.map(
@@ -736,7 +752,11 @@ export class WebLLMProvider implements AIInterface {
         const chunk = step.value;
         const choice = chunk.choices?.[0];
         finishReason = choice?.finish_reason ?? finishReason;
-        if (chunk.usage) usage = this.mapUsage(chunk.usage);
+        if (chunk.usage) {
+          usage =
+            this.reportedUsage(chunk.usage, this.mapUsage(chunk.usage)) ??
+            usage;
+        }
         const content = choice?.delta?.content;
         if (content) {
           options.onProgress?.(content);
@@ -749,7 +769,8 @@ export class WebLLMProvider implements AIInterface {
         );
       }
       this.assertNotInterrupted(finishReason, model);
-      options.onFinishReason?.(this.mapFinishReason(finishReason));
+      // Reported before the caller's finish callback, so a throwing callback
+      // cannot suppress the event for a completed request.
       emitUsage(
         this.options,
         PROVIDER,
@@ -759,7 +780,9 @@ export class WebLLMProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
+        { finishReason: this.mapFinishReason(finishReason) },
       );
+      options.onFinishReason?.(this.mapFinishReason(finishReason));
     } catch (error) {
       throw (
         this.abortError(controls, options, model) ?? this.mapError(error, model)

@@ -66,10 +66,14 @@ import {
   ContextLengthError,
   ModelNotFoundError,
 } from '../types';
-import { forwardUsageParts } from '../usage-parts';
+import {
+  ensureUsagePartRecorder,
+  forwardUsageParts,
+  withFollowUpRequest,
+} from '../usage-parts';
 import { attemptRecorderFrom, shouldRetryConnection } from './connection-retry';
 import { loadedOpenAISdk, loadOpenAISdk } from './openai-sdk';
-import { cacheUsageFields, emitUsage } from './usage';
+import { cacheUsageFields, emitUsage, hasUsageCount } from './usage';
 
 /**
  * Determines whether a model uses OpenAI's newer reasoning-model request
@@ -446,10 +450,11 @@ export class OpenAIProvider implements AIInterface {
         this.profile.providerName,
         'chat',
         response.model || model,
-        usage,
+        this.reportedUsage(response.usage, usage),
         startTime,
         options.usageTags,
         options,
+        { finishReason: this.mapFinishReason(choice.finish_reason) },
       );
 
       const toolCalls = choice.message.tool_calls
@@ -648,7 +653,7 @@ export class OpenAIProvider implements AIInterface {
         this.profile.providerName,
         'embed',
         response.model || model,
-        usage,
+        this.reportedUsage(response.usage, usage),
         startTime,
         options.usageTags,
         options,
@@ -790,16 +795,23 @@ export class OpenAIProvider implements AIInterface {
     options: ImageEmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
     try {
-      // OpenAI doesn't have native image embeddings - use describe-then-embed
-      const description = await this.describeImage(
-        image,
-        'Describe this image in detail for semantic embedding. Include all visible objects, colors, textures, composition, text, people, actions, and overall scene context.',
+      // OpenAI doesn't have native image embeddings - use describe-then-embed.
+      // Both requests are parts of this one call; only the embedding is last.
+      options = ensureUsagePartRecorder(options);
+      const description = await withFollowUpRequest(options, () =>
+        this.describeImage(
+          image,
+          'Describe this image in detail for semantic embedding. Include all visible objects, colors, textures, composition, text, people, actions, and overall scene context.',
+          { usageTags: options.usageTags, ...forwardUsageParts(options) },
+        ),
       );
 
       return this.embed(description, {
         model: options.model || 'text-embedding-3-small',
         dimensions: options.dimensions,
         user: options.user,
+        usageTags: options.usageTags,
+        ...forwardUsageParts(options),
       });
     } catch (error) {
       throw this.mapError(error);
@@ -823,6 +835,7 @@ export class OpenAIProvider implements AIInterface {
     options: ImageGenerationOptions = {},
   ): Promise<ImageGenerationResponse> {
     let controls: PreparedRequestControls | undefined;
+    const startTime = Date.now();
     try {
       const model = options.model || 'dall-e-3';
       options = normalizeImageGenerationOptions(
@@ -859,6 +872,29 @@ export class OpenAIProvider implements AIInterface {
           signal: controls.signal,
           timeout: controls.timeout,
         },
+      );
+      // gpt-image models report token usage; DALL-E reports none.
+      const imageUsage = (response as { usage?: Record<string, unknown> })
+        .usage;
+      emitUsage(
+        this.options,
+        this.profile.providerName,
+        'generateImage',
+        model,
+        imageUsage &&
+          hasUsageCount(imageUsage.input_tokens, imageUsage.output_tokens)
+          ? {
+              promptTokens: Number(imageUsage.input_tokens) || 0,
+              completionTokens: Number(imageUsage.output_tokens) || 0,
+              totalTokens:
+                Number(imageUsage.total_tokens) ||
+                (Number(imageUsage.input_tokens) || 0) +
+                  (Number(imageUsage.output_tokens) || 0),
+            }
+          : undefined,
+        startTime,
+        options.usageTags,
+        options,
       );
 
       const images = (response.data || []).map((item) => {
@@ -1041,6 +1077,7 @@ export class OpenAIProvider implements AIInterface {
         request.chat_template_kwargs = chatTemplateKwargs;
       }
       let streamFinish: string | null = null;
+      let streamUsage: OpenAI.CompletionUsage | undefined;
       // A stale-connection failure before the first yielded chunk is resent
       // once, even after headers: nothing has reached the caller yet, though
       // the server may have started generating. After a chunk is yielded the
@@ -1054,7 +1091,9 @@ export class OpenAIProvider implements AIInterface {
             ...(gatewayHeaders ? { headers: gatewayHeaders } : {}),
           });
           for await (const chunk of stream) {
-            streamFinish = chunk.choices[0]?.finish_reason ?? streamFinish;
+            // A server may end the stream with a usage chunk (no choices).
+            if (chunk.usage) streamUsage = chunk.usage;
+            streamFinish = chunk.choices?.[0]?.finish_reason ?? streamFinish;
             reasoning += readReasoningText(chunk.choices[0]?.delta) ?? '';
             const content = chunk.choices[0]?.delta?.content;
             if (content) {
@@ -1075,6 +1114,7 @@ export class OpenAIProvider implements AIInterface {
           }
           // Drop what the failed attempt streamed before it was resent.
           streamFinish = null;
+          streamUsage = undefined;
           reasoning = '';
         }
       }
@@ -1082,20 +1122,23 @@ export class OpenAIProvider implements AIInterface {
       // the abort or timeout instead of reporting a cut-off reply as 'stop'.
       if (controls.signal.aborted) throw controls.signal.reason;
       const finish = this.mapFinishReason(streamFinish);
-      if (finish === 'refusal')
-        options.onRefusal?.(mapOpenAIRefusal(undefined));
-      options.onFinishReason?.(finish);
 
+      // Reported before the caller's finish callbacks, so a throwing callback
+      // cannot suppress the event for a completed request.
       emitUsage(
         this.options,
         this.profile.providerName,
         'stream',
         model,
-        undefined,
+        this.reportedUsage(streamUsage, this.mapUsage(streamUsage)),
         startTime,
         options.usageTags,
         options,
+        { finishReason: finish },
       );
+      if (finish === 'refusal')
+        options.onRefusal?.(mapOpenAIRefusal(undefined));
+      options.onFinishReason?.(finish);
     } catch (error) {
       if (controls?.didTimeout()) {
         throw new AIError(
@@ -1447,6 +1490,25 @@ export class OpenAIProvider implements AIInterface {
       totalTokens: usage.total_tokens || 0,
       ...cacheUsageFields(cacheRead, cacheWrite, cost),
     };
+  }
+
+  /**
+   * The counts a usage event carries: `mapped` only when the server sent at
+   * least one token counter (an empty `usage` object is count-less, not zero).
+   * @private
+   */
+  private reportedUsage(
+    raw: unknown,
+    mapped: TokenUsage | undefined,
+  ): TokenUsage | undefined {
+    const counters = (raw ?? {}) as Record<string, unknown>;
+    return hasUsageCount(
+      counters.prompt_tokens,
+      counters.completion_tokens,
+      counters.total_tokens,
+    )
+      ? mapped
+      : undefined;
   }
 
   /**

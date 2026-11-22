@@ -38,6 +38,7 @@ import type {
   VoiceListOptions,
 } from '../types';
 import { AIError } from '../types';
+import { emitUsage } from './usage';
 
 /**
  * Request body for TTS synthesis
@@ -278,12 +279,24 @@ export class Qwen3TTSProvider implements AIInterface {
       include_word_timings: options.includeWordTimings,
     };
 
+    const startTime = Date.now();
     const response = await this.request<TTSSynthesizeResponse>(
       '/v1/tts/synthesize',
       {
         method: 'POST',
         body: request,
       },
+    );
+    // The TTS server reports no token usage.
+    emitUsage(
+      this.options,
+      'qwen3-tts',
+      'synthesizeSpeech',
+      options.model || this.options.defaultModel || 'qwen3-tts',
+      undefined,
+      startTime,
+      undefined,
+      options,
     );
 
     return {
@@ -320,6 +333,7 @@ export class Qwen3TTSProvider implements AIInterface {
       };
 
       const url = `${this.endpoint}/v1/tts/stream`;
+      const startTime = Date.now();
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -354,7 +368,19 @@ export class Qwen3TTSProvider implements AIInterface {
       try {
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            emitUsage(
+              this.options,
+              'qwen3-tts',
+              'streamSpeech',
+              options.model || this.options.defaultModel || 'qwen3-tts',
+              undefined,
+              startTime,
+              undefined,
+              options,
+            );
+            break;
+          }
           yield Buffer.from(value);
         }
       } finally {

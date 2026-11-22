@@ -122,6 +122,7 @@ export class HuggingFaceProvider implements AIInterface {
             startTime,
             options.usageTags,
             options,
+            { finishReason: 'stop' },
           );
         }
 
@@ -324,6 +325,19 @@ export class HuggingFaceProvider implements AIInterface {
       ...options,
       _skipUsage: true,
     } as any);
+    // The one upstream request is complete: report it now, so a consumer
+    // that stops reading early still gets its event.
+    emitUsage(
+      this.options,
+      'huggingface',
+      'stream',
+      options.model || this.options.defaultModel || 'gpt2',
+      undefined,
+      startTime,
+      options.usageTags,
+      options,
+      { finishReason: 'stop' },
+    );
 
     // Simulate streaming by yielding chunks
     const content = response.content;
@@ -347,18 +361,6 @@ export class HuggingFaceProvider implements AIInterface {
       // Add small delay to simulate streaming
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-
-    const model = options.model || this.options.defaultModel || 'gpt2';
-    emitUsage(
-      this.options,
-      'huggingface',
-      'stream',
-      model,
-      undefined,
-      startTime,
-      options.usageTags,
-      options,
-    );
   }
 
   async countTokens(text: string): Promise<number> {

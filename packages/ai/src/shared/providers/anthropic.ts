@@ -65,7 +65,7 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { cacheUsageFields, emitUsage } from './usage';
+import { cacheUsageFields, emitUsage, hasUsageCount } from './usage';
 
 type AnthropicCacheControl = { cache_control?: CacheControlWire };
 
@@ -290,18 +290,19 @@ export class AnthropicProvider implements AIInterface {
       }
 
       const usage = mapAnthropicUsage(response.usage);
+      const finishReason = this.mapFinishReason(response.stop_reason);
       emitUsage(
         this.options,
         'anthropic',
         'chat',
         response.model || model,
-        usage,
+        reportedAnthropicUsage(response.usage),
         startTime,
         options.usageTags,
         options,
+        { finishReason },
       );
 
-      const finishReason = this.mapFinishReason(response.stop_reason);
       return {
         content: textContent,
         model: response.model,
@@ -540,21 +541,24 @@ export class AnthropicProvider implements AIInterface {
         }
       }
       const streamFinish = this.mapFinishReason(streamStopReason) ?? 'stop';
-      if (streamFinish === 'refusal') {
-        options.onRefusal?.(mapRefusal(streamStopDetails));
-      }
-      options.onFinishReason?.(streamFinish);
 
+      // Reported before the caller's finish callbacks, so a throwing callback
+      // cannot suppress the event for a completed request.
       emitUsage(
         this.options,
         'anthropic',
         'stream',
         model!,
-        streamUsage ? mapAnthropicUsage(streamUsage) : undefined,
+        reportedAnthropicUsage(streamUsage),
         startTime,
         options.usageTags,
         options,
+        { finishReason: streamFinish },
       );
+      if (streamFinish === 'refusal') {
+        options.onRefusal?.(mapRefusal(streamStopDetails));
+      }
+      options.onFinishReason?.(streamFinish);
     } catch (error) {
       if (controls?.didTimeout()) {
         throw new AIError(
@@ -1111,6 +1115,22 @@ function mapRefusal(details: any): AIRefusal {
  * Token usage from an Anthropic usage object. `input_tokens` excludes cached
  * tokens, so cache reads and writes are added to `promptTokens`.
  */
+/**
+ * The counts a usage event carries: none unless Anthropic sent a token
+ * counter (a missing or empty `usage` is count-less, not zero).
+ */
+function reportedAnthropicUsage(usage: any): TokenUsage | undefined {
+  return usage &&
+    hasUsageCount(
+      usage.input_tokens,
+      usage.output_tokens,
+      usage.cache_read_input_tokens,
+      usage.cache_creation_input_tokens,
+    )
+    ? mapAnthropicUsage(usage)
+    : undefined;
+}
+
 function mapAnthropicUsage(usage: any): TokenUsage {
   const cache = cacheUsageFields(
     usage?.cache_read_input_tokens,

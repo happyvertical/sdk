@@ -51,7 +51,7 @@ import {
   RateLimitError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { emitUsage } from './usage';
+import { emitUsage, hasUsageCount } from './usage';
 
 const execAsync = promisify(exec);
 
@@ -504,10 +504,13 @@ export class ClaudeCliProvider implements AIInterface {
       'claude-cli',
       'chat',
       model!,
-      usage,
+      hasUsageCount(result.usage?.input_tokens, result.usage?.output_tokens)
+        ? usage
+        : undefined,
       startTime,
       options.usageTags,
       options,
+      { finishReason: 'stop' },
     );
 
     // Parse Claude CLI JSON output
@@ -708,6 +711,7 @@ export class ClaudeCliProvider implements AIInterface {
       startTime,
       options.usageTags,
       options,
+      { finishReason: 'stop' },
     );
   }
 

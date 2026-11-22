@@ -6,7 +6,18 @@
  */
 
 import type { BaseAIOptions, TokenUsage, UsageEvent } from '../types';
-import { nextUsagePart } from '../usage-parts';
+import { nextUsagePart, type UsagePartHints } from '../usage-parts';
+
+/**
+ * True when the provider reported at least one token counter. A missing or
+ * empty usage object is not a report of zero tokens.
+ */
+export function hasUsageCount(...counters: unknown[]): boolean {
+  return counters.some(
+    (value) =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0,
+  );
+}
 
 /**
  * Emit a usage event to the `onUsage` callback configured on provider options.
@@ -22,6 +33,9 @@ import { nextUsagePart } from '../usage-parts';
  * @param callOptions      - The method's call options, which carry the
  *   invocation's usage-part recorder. The part is recorded even when no
  *   `onUsage` is configured, so the response's `usageParts` stays complete.
+ * @param hints            - What the provider knows about this request: its
+ *   finish reason (call this before `onFinishReason`, so a throwing callback
+ *   cannot suppress the event) and whether the method sends another request.
  */
 export function emitUsage(
   providerOptions: BaseAIOptions,
@@ -32,8 +46,9 @@ export function emitUsage(
   startTime: number,
   callTags?: Record<string, string>,
   callOptions?: unknown,
+  hints?: UsagePartHints,
 ): void {
-  const part = nextUsagePart(callOptions, usage);
+  const part = nextUsagePart(callOptions, usage, hints);
   if (!providerOptions.onUsage) return;
 
   const globalTags = providerOptions.usageTags;

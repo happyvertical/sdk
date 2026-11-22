@@ -50,8 +50,8 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
-import { forwardUsageParts } from '../usage-parts';
-import { cacheUsageFields, emitUsage } from './usage';
+import { ensureUsagePartRecorder, forwardUsageParts } from '../usage-parts';
+import { cacheUsageFields, emitUsage, hasUsageCount } from './usage';
 
 const BEDROCK_DEFAULT_CHAT_MODEL = 'anthropic.claude-3-5-sonnet-20241022-v2:0';
 const BEDROCK_TEXT_EMBEDDING_MODEL = 'amazon.titan-embed-text-v2:0';
@@ -133,28 +133,27 @@ export class BedrockProvider implements AIInterface {
       const modelId = options.model || this.options.defaultModel;
       options = normalizeChatOptions(this.options, options, 'bedrock', modelId);
       controls = prepareRequestControls(this.options, options);
-      const response = this.mapConverseResponse(
-        await this.client.converse(
-          await this.buildConverseRequest(
-            messages,
-            options,
-            modelId!,
-            controls.signal,
-          ),
-          { abortSignal: controls.signal },
+      const raw = await this.client.converse(
+        await this.buildConverseRequest(
+          messages,
+          options,
+          modelId!,
+          controls.signal,
         ),
-        modelId!,
+        { abortSignal: controls.signal },
       );
+      const response = this.mapConverseResponse(raw, modelId!);
 
       emitUsage(
         this.options,
         'bedrock',
         'chat',
         response.model || modelId || 'unknown',
-        response.usage,
+        hasBedrockUsageCount(raw?.usage) ? response.usage : undefined,
         startTime,
         options.usageTags,
         options,
+        { finishReason: response.finishReason },
       );
       return response;
     } catch (error) {
@@ -245,16 +244,18 @@ export class BedrockProvider implements AIInterface {
     text: string | string[],
     options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
-    const startTime = Date.now();
     try {
       await this.ensureClient();
+      // One request per input, each its own part of this one call.
+      options = ensureUsagePartRecorder(options);
 
       const model = options.model || BEDROCK_TEXT_EMBEDDING_MODEL;
       const inputs = Array.isArray(text) ? text : [text];
       const embeddings: number[][] = [];
       let totalTokens = 0;
 
-      for (const inputText of inputs) {
+      for (const [position, inputText] of inputs.entries()) {
+        const startTime = Date.now();
         const response = await this.client.invokeModel({
           modelId: model,
           contentType: 'application/json',
@@ -272,11 +273,29 @@ export class BedrockProvider implements AIInterface {
           embeddings.push(embedding);
         }
 
-        totalTokens +=
-          payload.inputTextTokenCount ||
-          payload.inputTokenCount ||
-          payload.tokenCount ||
-          0;
+        const tokenCount = [
+          payload.inputTextTokenCount,
+          payload.inputTokenCount,
+          payload.tokenCount,
+        ].find((count) => hasUsageCount(count)) as number | undefined;
+        totalTokens += tokenCount || 0;
+        emitUsage(
+          this.options,
+          'bedrock',
+          'embed',
+          model,
+          tokenCount !== undefined
+            ? {
+                promptTokens: tokenCount,
+                completionTokens: 0,
+                totalTokens: tokenCount,
+              }
+            : undefined,
+          startTime,
+          options.usageTags,
+          options,
+          { more: position < inputs.length - 1 },
+        );
       }
 
       const usage: TokenUsage | undefined =
@@ -287,17 +306,6 @@ export class BedrockProvider implements AIInterface {
               totalTokens,
             }
           : undefined;
-
-      emitUsage(
-        this.options,
-        'bedrock',
-        'embed',
-        model,
-        usage,
-        startTime,
-        options.usageTags,
-        options,
-      );
 
       return {
         embeddings,
@@ -410,6 +418,7 @@ export class BedrockProvider implements AIInterface {
       );
       controls = prepareRequestControls(this.options, options);
       const size = this.resolveImageSize(options);
+      const startTime = Date.now();
       const response = await this.client.invokeModel(
         {
           modelId: model,
@@ -440,6 +449,17 @@ export class BedrockProvider implements AIInterface {
       if (payload.error) {
         throw new AIError(payload.error, 'API_ERROR', 'bedrock');
       }
+      // Image models report no token usage.
+      emitUsage(
+        this.options,
+        'bedrock',
+        'generateImage',
+        model,
+        undefined,
+        startTime,
+        options.usageTags,
+        options,
+      );
 
       const images = (payload.images || []).map((encoded: string) => {
         const mimeType = 'image/png';
@@ -519,19 +539,16 @@ export class BedrockProvider implements AIInterface {
           yield text;
         }
 
-        if (event.metadata?.usage) {
+        if (hasBedrockUsageCount(event.metadata?.usage)) {
           usage = mapBedrockUsage(event.metadata.usage);
         }
       }
 
       const streamFinish =
         this.mapBedrockFinishReason(streamStopReason) ?? 'stop';
-      if (streamFinish === 'refusal') {
-        // Converse carries no stop_details.
-        options.onRefusal?.({ category: null, explanation: null });
-      }
-      options.onFinishReason?.(streamFinish);
 
+      // Reported before the caller's finish callbacks, so a throwing callback
+      // cannot suppress the event for a completed request.
       emitUsage(
         this.options,
         'bedrock',
@@ -541,7 +558,13 @@ export class BedrockProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
+        { finishReason: streamFinish },
       );
+      if (streamFinish === 'refusal') {
+        // Converse carries no stop_details.
+        options.onRefusal?.({ category: null, explanation: null });
+      }
+      options.onFinishReason?.(streamFinish);
     } catch (error) {
       if (controls?.didTimeout()) {
         throw new AIError(
@@ -1319,6 +1342,23 @@ export class BedrockProvider implements AIInterface {
       error instanceof Error ? error.message : 'Unknown Bedrock error occurred';
     return new AIError(errorMessage, 'UNKNOWN_ERROR', 'bedrock');
   }
+}
+
+/**
+ * True when a Converse usage object carries a token counter; a missing or
+ * empty one makes the request count-less, not zero.
+ */
+function hasBedrockUsageCount(usage: any): boolean {
+  return (
+    !!usage &&
+    hasUsageCount(
+      usage.inputTokens,
+      usage.outputTokens,
+      usage.totalTokens,
+      usage.cacheReadInputTokens,
+      usage.cacheWriteInputTokens,
+    )
+  );
 }
 
 /**

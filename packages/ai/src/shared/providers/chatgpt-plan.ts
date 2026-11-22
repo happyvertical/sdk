@@ -846,9 +846,10 @@ export class ChatGPTPlanProvider implements AIInterface {
       if (event.completed) completed = event.completed;
     }
     const finishReason = toolCalls.length ? 'tool_calls' : 'stop';
-    options.onFinishReason?.(finishReason);
     const model =
       completed?.model || options.model || this.options.defaultModel || '';
+    // Reported before the caller's finish callback, so a throwing callback
+    // cannot suppress the event for a completed request.
     emitUsage(
       this.options,
       PROVIDER,
@@ -858,7 +859,9 @@ export class ChatGPTPlanProvider implements AIInterface {
       startedAt,
       options.usageTags,
       options,
+      { finishReason },
     );
+    options.onFinishReason?.(finishReason);
     return {
       content,
       model,
@@ -901,7 +904,6 @@ export class ChatGPTPlanProvider implements AIInterface {
         );
       if (event.completed) completed = event.completed;
     }
-    options.onFinishReason?.('stop');
     emitUsage(
       this.options,
       PROVIDER,
@@ -911,7 +913,9 @@ export class ChatGPTPlanProvider implements AIInterface {
       startedAt,
       options.usageTags,
       options,
+      { finishReason: 'stop' },
     );
+    options.onFinishReason?.('stop');
   }
 
   async complete(

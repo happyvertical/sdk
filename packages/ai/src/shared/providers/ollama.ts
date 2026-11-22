@@ -54,7 +54,11 @@ import {
   extractTextContent,
   ModelNotFoundError,
 } from '../types';
-import { forwardUsageParts } from '../usage-parts';
+import {
+  ensureUsagePartRecorder,
+  forwardUsageParts,
+  withFollowUpRequest,
+} from '../usage-parts';
 import { emitUsage } from './usage';
 
 const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
@@ -867,6 +871,7 @@ export class OllamaProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
+        { finishReason: mapFinishReason(response.done_reason) },
       );
 
       const toolCalls =
@@ -973,6 +978,7 @@ export class OllamaProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
+        { finishReason: mapFinishReason(response.done_reason) },
       );
 
       return {
@@ -1068,7 +1074,9 @@ export class OllamaProvider implements AIInterface {
         'ollama',
         'embed',
         response.model || model,
-        usage,
+        // The 0 completion count above is the adapter's, not the server's:
+        // without a prompt count the request is count-less.
+        typeof response.prompt_eval_count === 'number' ? usage : undefined,
         startTime,
         options.usageTags,
         options,
@@ -1088,15 +1096,22 @@ export class OllamaProvider implements AIInterface {
     image: string | Buffer,
     options: ImageEmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
-    const description = await this.describeImage(
-      image,
-      'Describe this image in detail for semantic embedding. Include objects, people, text, setting, colors, composition, and notable visual relationships.',
+    // Both requests are parts of this one call; only the embedding is last.
+    options = ensureUsagePartRecorder(options);
+    const description = await withFollowUpRequest(options, () =>
+      this.describeImage(
+        image,
+        'Describe this image in detail for semantic embedding. Include objects, people, text, setting, colors, composition, and notable visual relationships.',
+        { usageTags: options.usageTags, ...forwardUsageParts(options) },
+      ),
     );
 
     return this.embed(description, {
       model: options.model,
       dimensions: options.dimensions,
       user: options.user,
+      usageTags: options.usageTags,
+      ...forwardUsageParts(options),
     });
   }
 
@@ -1172,6 +1187,7 @@ export class OllamaProvider implements AIInterface {
       }
 
       const model = await this.resolveModel('image_generation', options.model);
+      const startTime = Date.now();
       const response = await this.requestJson<OllamaImageGenerationResponse>(
         '/images/generations',
         {
@@ -1184,6 +1200,17 @@ export class OllamaProvider implements AIInterface {
           style: options.style,
         },
         { compatibility: true, signal: controls.signal },
+      );
+      // The image endpoint reports no token usage.
+      emitUsage(
+        this.options,
+        'ollama',
+        'generateImage',
+        model,
+        undefined,
+        startTime,
+        options.usageTags,
+        options,
       );
 
       const images = (response.data || []).map((item) => {
@@ -1294,8 +1321,9 @@ export class OllamaProvider implements AIInterface {
           streamFinish = mapFinishReason(chunk.done_reason);
         }
       }
-      options.onFinishReason?.(streamFinish ?? 'stop');
 
+      // Reported before the caller's finish callback, so a throwing callback
+      // cannot suppress the event for a completed request.
       emitUsage(
         this.options,
         'ollama',
@@ -1305,7 +1333,9 @@ export class OllamaProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
+        { finishReason: streamFinish ?? 'stop' },
       );
+      options.onFinishReason?.(streamFinish ?? 'stop');
     } catch (error) {
       if (controls?.didTimeout()) {
         throw new AIError(

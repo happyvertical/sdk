@@ -10,6 +10,7 @@
  */
 
 import type {
+  AIFinishReason,
   AIInterface,
   AIResponse,
   AIUsageFeatures,
@@ -36,8 +37,33 @@ export interface UsagePartRecorder {
    * request; while false, every event is marked `last`.
    */
   mayContinue: boolean;
+  /**
+   * With continuation on: the highest index a further request can reach
+   * (the `maxContinuations` cap). A part at this index is known to be last.
+   */
+  maxIndex?: number;
+  /**
+   * Requests the current method still has to make after the one in flight
+   * (for example `embedImage()`'s embedding after its image description).
+   * While above zero, no event is marked `last`.
+   */
+  followers: number;
   /** Parts recorded so far, in index order, without `last`. */
   readonly parts: AIUsagePart[];
+}
+
+/**
+ * What the emitting provider knows about the request it reports. @internal
+ */
+export interface UsagePartHints {
+  /**
+   * The finish reason the provider reports for this request (the same value
+   * it passes to `onFinishReason`). Anything but `'length'` means a continued
+   * reply stops here.
+   */
+  finishReason?: AIFinishReason;
+  /** The method makes another request after this one (a batch loop). */
+  more?: boolean;
 }
 
 /** What clients built by this version declare (R6). */
@@ -72,7 +98,12 @@ export function mintUsageCallId(): string {
 
 /** @internal */
 export function createUsagePartRecorder(): UsagePartRecorder {
-  return { call: mintUsageCallId(), mayContinue: false, parts: [] };
+  return {
+    call: mintUsageCallId(),
+    mayContinue: false,
+    followers: 0,
+    parts: [],
+  };
 }
 
 function isRecorder(value: unknown): value is UsagePartRecorder {
@@ -106,12 +137,67 @@ export function forwardUsageParts(options: unknown): {
   return recorder ? { [AI_USAGE_PARTS]: recorder } : {};
 }
 
+/**
+ * A plain copy of an options object. Besides its own enumerable properties
+ * it keeps values an options class exposes through prototype getters or
+ * inherited fields (`model`, `usageTags`, ...), which a spread would drop.
+ */
+function copyOptions<T extends object>(options: T | undefined): T {
+  const copy: Record<PropertyKey, unknown> = { ...(options as object) };
+  if (!options) return copy as T;
+  let proto = Object.getPrototypeOf(options);
+  while (proto && proto !== Object.prototype) {
+    for (const key of Object.getOwnPropertyNames(proto)) {
+      if (key === 'constructor' || key in copy) continue;
+      const descriptor = Object.getOwnPropertyDescriptor(proto, key);
+      if (!descriptor) continue;
+      if (!descriptor.get && typeof descriptor.value === 'function') continue;
+      const value = (options as Record<string, unknown>)[key];
+      if (value !== undefined) copy[key] = value;
+    }
+    proto = Object.getPrototypeOf(proto);
+  }
+  return copy as T;
+}
+
 /** A copy of `options` carrying `recorder`. @internal */
 export function withUsagePartRecorder<T extends object>(
   options: T | undefined,
   recorder: UsagePartRecorder,
 ): T {
-  return { ...(options as T), [AI_USAGE_PARTS]: recorder };
+  return { ...copyOptions(options), [AI_USAGE_PARTS]: recorder };
+}
+
+/**
+ * `options` carrying a recorder: the one it already has, or a new one. A
+ * method that makes several requests calls this first, so a provider used
+ * without `getAI()` still reports them as one call.
+ * @internal
+ */
+export function ensureUsagePartRecorder<T extends object>(
+  options: T | undefined,
+): T {
+  return usagePartRecorder(options)
+    ? (options as T)
+    : withUsagePartRecorder(options, createUsagePartRecorder());
+}
+
+/**
+ * Hold `last` off the events of the request(s) run inside `run`, because the
+ * calling method makes another request afterwards.
+ * @internal
+ */
+export async function withFollowUpRequest<R>(
+  options: unknown,
+  run: () => Promise<R>,
+): Promise<R> {
+  const recorder = usagePartRecorder(options);
+  if (recorder) recorder.followers++;
+  try {
+    return await run();
+  } finally {
+    if (recorder) recorder.followers--;
+  }
 }
 
 /**
@@ -136,14 +222,34 @@ export function adoptUsagePartRecorder(options: unknown): UsagePartRecorder {
 export function nextUsagePart(
   options: unknown,
   usage: TokenUsage | undefined,
+  hints: UsagePartHints = {},
 ): UsagePart {
   const recorder = usagePartRecorder(options);
-  if (!recorder) return { call: mintUsageCallId(), index: 0, last: true };
+  if (!recorder) {
+    return hints.more
+      ? { call: mintUsageCallId(), index: 0 }
+      : { call: mintUsageCallId(), index: 0, last: true };
+  }
   const index = recorder.parts.length;
   recorder.parts.push(usage ? { index, usage: { ...usage } } : { index });
-  return recorder.mayContinue
-    ? { call: recorder.call, index }
-    : { call: recorder.call, index, last: true };
+  return isLastPart(recorder, index, hints)
+    ? { call: recorder.call, index, last: true }
+    : { call: recorder.call, index };
+}
+
+function isLastPart(
+  recorder: UsagePartRecorder,
+  index: number,
+  hints: UsagePartHints,
+): boolean {
+  if (hints.more || recorder.followers > 0) return false;
+  if (!recorder.mayContinue) return true;
+  // A continued reply requests another part only after a part that stopped
+  // on the output limit, and never beyond the cap.
+  if (hints.finishReason !== undefined && hints.finishReason !== 'length') {
+    return true;
+  }
+  return recorder.maxIndex !== undefined && index >= recorder.maxIndex;
 }
 
 /**
@@ -187,6 +293,8 @@ const OPTIONS_INDEX: Partial<Record<keyof AIInterface, number>> = {
   describeImage: 2,
   generateImage: 1,
   decide: 1,
+  synthesizeSpeech: 1,
+  streamSpeech: 1,
   submitVideoGenerationJob: 0,
 };
 

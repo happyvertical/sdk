@@ -161,9 +161,12 @@ export async function chatWithContinuation(
 ): Promise<AIResponse> {
   const config = resolveContinuation(providerOptions, options);
   // One recorder names every part of this invocation. While continuation is
-  // on, no event can know it is the last; the response marks it instead.
+  // on, an event is marked last only when its provider reports a finish
+  // reason other than 'length' or it sits at the cap; the response always
+  // marks its final part.
   const recorder = adoptUsagePartRecorder(options);
   recorder.mayContinue = config !== undefined;
+  recorder.maxIndex = config?.maxContinuations;
   options = withUsagePartRecorder(options, recorder);
   const request = async (m: AIMessage[], o: ChatOptions) => {
     const recorded = recorder.parts.length;
@@ -241,10 +244,12 @@ export async function* streamWithContinuation(
   options: ChatOptions & { continueOnLength?: ContinueOnLengthOption } = {},
 ): AsyncIterable<string> {
   const config = resolveContinuation(providerOptions, options);
-  // A stream has no response to mark its last part on, so a continued
-  // stream's events never carry `last`.
+  // A stream has no response to mark its last part on: a continued stream's
+  // last part is marked only on its event (a finish reason other than
+  // 'length', or the cap).
   const recorder = adoptUsagePartRecorder(options);
   recorder.mayContinue = config !== undefined;
+  recorder.maxIndex = config?.maxContinuations;
   options = withUsagePartRecorder(options, recorder);
   if (!config) {
     yield* stream(messages, options);
