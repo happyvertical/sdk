@@ -1454,6 +1454,11 @@ await db.notifications!.waitForUpdate({ timeoutMs: 5000 });
 await db.close?.();
 ```
 
+Transaction handles from this path (the `transaction(cb)` argument, nested
+savepoint arguments and `beginTransaction()` handles) have no `close`, like
+every other adapter's: close the root. Before 0.118.0 they carried the root's
+`close`, which shut the connection under the open transaction.
+
 `@sqliteai/sqlite-vector` is loaded lazily through `getExtensionPath()` and only
 mutates schema when `ensureColumn()` or `ensureIndex()` is called. SQLite vector
 search uses the same `db.vector` API as PostgreSQL. `ensureIndex()` creates a

@@ -1787,7 +1787,10 @@ async function createNativeSqliteDatabase(
         beginTransaction: beginTransactionImpl,
         getTableSchema,
         alterTable,
-        close,
+        // Closing belongs to the root. A transaction handle that carried the
+        // root's close could shut the connection under its own open
+        // transaction; no other adapter's transaction handles expose it.
+        ...(transactionKind ? {} : { close }),
         ...(vectorCapabilities ? { vector: vectorCapabilities } : {}),
         ...(notificationCapabilities
           ? { notifications: notificationCapabilities }
