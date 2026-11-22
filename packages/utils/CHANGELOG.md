@@ -1,5 +1,17 @@
 # @happyvertical/utils
 
+## 0.119.0
+
+### Minor Changes
+
+- ### Breaking Changes
+
+  - refuse a client option on adapters that do not use one (#1590) (sql)
+
+  ### Bug Fixes
+
+  - refuse a client option on adapters that do not use one (#1590) (sql)
+
 ## 0.118.0
 
 ### Minor Changes
