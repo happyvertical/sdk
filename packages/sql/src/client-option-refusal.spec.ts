@@ -389,6 +389,49 @@ describe('options are captured once, at the call', () => {
     }
   });
 
+  it('uses the client read at the call for cache identity, ownership and close, even when a getter would answer differently later (root and pglite entries)', async () => {
+    const pg = await callerPGlite();
+    for (const [entry, open] of [
+      ['root', (o: object) => getDatabase(o as never)],
+      ['pglite', (o: object) => getPGliteDatabase(o as never)],
+    ] as const) {
+      const dbid = randomUUID();
+      let reads = 0;
+      const options = Object.defineProperty(
+        entry === 'root' ? { type: 'pglite', dbid } : { dbid },
+        'client',
+        {
+          // No client at the call; the caller's instance on any later read.
+          get() {
+            reads += 1;
+            return reads === 1 ? undefined : pg;
+          },
+          enumerable: true,
+        },
+      );
+      const db = await open(options);
+      try {
+        expect(reads, entry).toBe(1);
+        expect(db.client, entry).not.toBe(pg);
+        expect(describeHandle(db).clientSource, entry).toBe('adapter');
+        expect(isDatabaseRoot(db), entry).toBe(true);
+        // The plain identity holds the adapter's own root, never the caller's.
+        const plain = await open(
+          entry === 'root' ? { type: 'pglite', dbid } : { dbid },
+        );
+        expect(plain, entry).toBe(db);
+        expect(plain.client, entry).not.toBe(pg);
+      } finally {
+        await db.close?.();
+      }
+      // Closing the adapter's root leaves the caller's client open.
+      expect((await pg.query('SELECT 1 AS one')).rows[0], entry).toEqual({
+        one: 1,
+      });
+    }
+    // Three PGlite instances start here; each takes seconds on a loaded host.
+  }, 30_000);
+
   it('keeps an inherited PGlite dataDir (pglite entry)', async () => {
     const dataDir = `memory://inherited-${randomUUID()}`;
     const db = await getPGliteDatabase(Object.create({ dataDir }) as never);
