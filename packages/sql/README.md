@@ -242,6 +242,15 @@ caches only connections with a `dbid` (automatically assigned to the default
 `:memory:` path). JSON derives an identity from its directory and behavior
 options.
 
+The PostgreSQL cache is shared by every copy of `@happyvertical/sql` 0.118.0
+or later in a process, and kept apart from older copies, so an older copy's
+open never returns a pool a newer copy created and recorded as a root (see
+[Handle roles](#handle-roles-and-transaction-markers)). A process that loads an
+older and a newer copy therefore opens one pool per copy for the same
+configuration, and each copy's `clearPostgresConnectionCache()` clears only
+its own pools. The JSON adapter's in-memory cache stays shared across copies on
+purpose.
+
 DuckDB already creates a fresh adapter for every call, so `cache` and
 `clearCache` are accepted for uniform configuration but do not change its
 behavior. Call `close()` on uncached and DuckDB adapters when finished.

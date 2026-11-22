@@ -153,14 +153,20 @@ declare global {
   // eslint-disable-next-line no-var
   var __haveSqlPostgresCacheHmacKey: Promise<CryptoKey> | undefined;
   // eslint-disable-next-line no-var
-  var __haveSqlPostgresConnectionCache:
+  var __haveSqlPostgresConnectionCacheV2:
     | ConnectionCache<DatabaseInterface>
     | undefined;
 }
 
-globalThis.__haveSqlPostgresConnectionCache ??=
+// Entries live in a slot (and under keys) that copies of this package older
+// than 0.118.0 never read: those copies look up
+// `__haveSqlPostgresConnectionCache` with v1 keys, so an older copy's open
+// (which may carry a `client` it ignores) never returns a pool this copy
+// created and recorded as a root. The cost: a process holding both copies
+// opens one pool per copy.
+globalThis.__haveSqlPostgresConnectionCacheV2 ??=
   new ConnectionCache<DatabaseInterface>();
-const connectionCache = globalThis.__haveSqlPostgresConnectionCache;
+const connectionCache = globalThis.__haveSqlPostgresConnectionCacheV2;
 
 /**
  * Returns the process-local cache identity HMAC key, generating it on first
@@ -299,7 +305,7 @@ async function derivePostgresConnectionCacheKey(
   effective: EffectivePostgresConfig,
 ): Promise<string | undefined> {
   if (options.dbid) {
-    return options.dbid;
+    return `pg:dbid:v2:${options.dbid}`;
   }
 
   const identity = JSON.stringify({
@@ -318,10 +324,10 @@ async function derivePostgresConnectionCacheKey(
     'HMAC',
     hmacKey,
     new TextEncoder().encode(
-      `@happyvertical/sql:postgres-cache:v1\0${identity}`,
+      `@happyvertical/sql:postgres-cache:v2\0${identity}`,
     ),
   );
-  return `pg:hmac-sha256:v1:${Buffer.from(signature).toString('hex')}`;
+  return `pg:hmac-sha256:v2:${Buffer.from(signature).toString('hex')}`;
 }
 
 /** @internal Exported for adversarial identity tests. */
