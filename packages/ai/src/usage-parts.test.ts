@@ -15,6 +15,7 @@ import {
 import { getAI } from './index';
 import { createContinuingAI } from './shared/continuation';
 import { AnthropicProvider } from './shared/providers/anthropic';
+import { HuggingFaceProvider } from './shared/providers/huggingface';
 import { OllamaProvider } from './shared/providers/ollama';
 import { OpenAIProvider } from './shared/providers/openai';
 import type { AIInterface, PartedUsageEvent, UsageEvent } from './shared/types';
@@ -447,6 +448,36 @@ describe('usage parts on a single request', () => {
     expect(events[0].part).toMatchObject({ index: 0, last: true });
     expect(events[1].part).toMatchObject({ index: 0, last: true });
     expect(events[0].part.call).not.toBe(events[1].part.call);
+  });
+});
+
+describe('Hugging Face stream', () => {
+  it('reports its one request once', async () => {
+    vi.useFakeTimers();
+    try {
+      const events: PartedUsageEvent[] = [];
+      const provider = new HuggingFaceProvider({
+        type: 'huggingface',
+        apiToken: 'test',
+        defaultModel: 'gpt2',
+        onUsage: (event) => events.push(event as PartedUsageEvent),
+      });
+      (provider as any).makeRequest = vi
+        .fn()
+        .mockResolvedValue([{ generated_text: 'User: go\nshort reply' }]);
+      const pending = collect(
+        wrap(provider as AIInterface).stream([{ role: 'user', content: 'go' }]),
+      );
+      await vi.runAllTimersAsync();
+      await pending;
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        operation: 'stream',
+        part: { index: 0, last: true },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

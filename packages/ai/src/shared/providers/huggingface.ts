@@ -111,16 +111,19 @@ export class HuggingFaceProvider implements AIInterface {
         // Remove the input prompt from the response
         const content = generatedText.replace(prompt, '').trim();
 
-        emitUsage(
-          this.options,
-          'huggingface',
-          'chat',
-          model!,
-          undefined,
-          startTime,
-          options.usageTags,
-          options,
-        );
+        // stream() runs on chat() and reports the request itself.
+        if (!(options as { _skipUsage?: boolean })._skipUsage) {
+          emitUsage(
+            this.options,
+            'huggingface',
+            'chat',
+            model!,
+            undefined,
+            startTime,
+            options.usageTags,
+            options,
+          );
+        }
 
         return {
           content,
