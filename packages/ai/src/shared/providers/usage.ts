@@ -20,6 +20,24 @@ export function hasUsageCount(...counters: unknown[]): boolean {
 }
 
 /**
+ * A request's total tokens: the provider's total when it reported one that
+ * covers its parts, otherwise prompt plus completion. Never a zero (or
+ * short) total over nonzero parts.
+ */
+export function totalTokensOf(
+  reported: unknown,
+  promptTokens: number,
+  completionTokens: number,
+): number {
+  const sum = promptTokens + completionTokens;
+  return typeof reported === 'number' &&
+    Number.isFinite(reported) &&
+    reported >= sum
+    ? reported
+    : sum;
+}
+
+/**
  * Emit a usage event to the `onUsage` callback configured on provider options.
  * Call it once per completed provider request, with or without counts.
  *

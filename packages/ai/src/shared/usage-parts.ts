@@ -38,10 +38,11 @@ export interface UsagePartRecorder {
    */
   mayContinue: boolean;
   /**
-   * With continuation on: the highest index a further request can reach
-   * (the `maxContinuations` cap). A part at this index is known to be last.
+   * With continuation on: set by the continuation layer before the final
+   * request it may make (the `maxContinuations` cap), so that request's
+   * part is known to be last.
    */
-  maxIndex?: number;
+  capped?: boolean;
   /**
    * Requests the current method still has to make after the one in flight
    * (for example `embedImage()`'s embedding after its image description).
@@ -138,24 +139,82 @@ export function forwardUsageParts(options: unknown): {
 }
 
 /**
- * A plain copy of an options object. Besides its own enumerable properties
- * it keeps values an options class exposes through prototype getters or
- * inherited fields (`model`, `usageTags`, ...), which a spread would drop.
+ * Every option name a public method of this package reads (from the
+ * `*Options` interfaces and `AIRequestControls`). Only these are read from
+ * an options object's prototype chain, so unrelated getters never run.
  */
-function copyOptions<T extends object>(options: T | undefined): T {
+const OPTION_KEYS: readonly string[] = [
+  'aspectRatio',
+  'chatTemplateKwargs',
+  'continueOnLength',
+  'detail',
+  'dimensions',
+  'durationSeconds',
+  'encodingFormat',
+  'fps',
+  'frequencyPenalty',
+  'generateAudio',
+  'history',
+  'imageInput',
+  'includeThoughts',
+  'includeWordTimings',
+  'language',
+  'maxLen',
+  'maxTokens',
+  'model',
+  'n',
+  'negativePrompt',
+  'onFinishReason',
+  'onProgress',
+  'onReasoning',
+  'onRefusal',
+  'outputFormat',
+  'pitch',
+  'presencePenalty',
+  'prompt',
+  'quality',
+  'reasoning',
+  'referenceImages',
+  'referenceMedia',
+  'resolution',
+  'responseFormat',
+  'responseSchema',
+  'returnLastFrame',
+  'role',
+  'seed',
+  'signal',
+  'size',
+  'speed',
+  'stop',
+  'stream',
+  'style',
+  'temperature',
+  'thinkingLevel',
+  'timeout',
+  'toolChoice',
+  'tools',
+  'topP',
+  'usageTags',
+  'user',
+  'voice',
+];
+
+/**
+ * A plain copy of a call's options. Besides its own enumerable properties
+ * (a spread) it keeps the recognised option values an options class
+ * exposes through its prototype (getters, inherited fields, and methods used
+ * as callbacks, bound to the original object), which a spread would drop.
+ * Other prototype members are never read. The original is not modified.
+ * @internal
+ */
+export function copyCallOptions<T extends object>(options: T | undefined): T {
   const copy: Record<PropertyKey, unknown> = { ...(options as object) };
-  if (!options) return copy as T;
-  let proto = Object.getPrototypeOf(options);
-  while (proto && proto !== Object.prototype) {
-    for (const key of Object.getOwnPropertyNames(proto)) {
-      if (key === 'constructor' || key in copy) continue;
-      const descriptor = Object.getOwnPropertyDescriptor(proto, key);
-      if (!descriptor) continue;
-      if (!descriptor.get && typeof descriptor.value === 'function') continue;
-      const value = (options as Record<string, unknown>)[key];
-      if (value !== undefined) copy[key] = value;
-    }
-    proto = Object.getPrototypeOf(proto);
+  if (!options || typeof options !== 'object') return copy as T;
+  for (const key of OPTION_KEYS) {
+    if (Object.hasOwn(copy, key) || !(key in options)) continue;
+    const value = (options as Record<string, unknown>)[key];
+    if (value === undefined) continue;
+    copy[key] = typeof value === 'function' ? value.bind(options) : value;
   }
   return copy as T;
 }
@@ -165,7 +224,7 @@ export function withUsagePartRecorder<T extends object>(
   options: T | undefined,
   recorder: UsagePartRecorder,
 ): T {
-  return { ...copyOptions(options), [AI_USAGE_PARTS]: recorder };
+  return { ...copyCallOptions(options), [AI_USAGE_PARTS]: recorder };
 }
 
 /**
@@ -232,24 +291,24 @@ export function nextUsagePart(
   }
   const index = recorder.parts.length;
   recorder.parts.push(usage ? { index, usage: { ...usage } } : { index });
-  return isLastPart(recorder, index, hints)
+  return isLastPart(recorder, hints)
     ? { call: recorder.call, index, last: true }
     : { call: recorder.call, index };
 }
 
 function isLastPart(
   recorder: UsagePartRecorder,
-  index: number,
   hints: UsagePartHints,
 ): boolean {
   if (hints.more || recorder.followers > 0) return false;
   if (!recorder.mayContinue) return true;
   // A continued reply requests another part only after a part that stopped
-  // on the output limit, and never beyond the cap.
+  // on the output limit, and never after the request the continuation layer
+  // flagged as its final permitted one.
   if (hints.finishReason !== undefined && hints.finishReason !== 'length') {
     return true;
   }
-  return recorder.maxIndex !== undefined && index >= recorder.maxIndex;
+  return recorder.capped === true;
 }
 
 /**

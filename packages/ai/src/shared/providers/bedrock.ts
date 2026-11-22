@@ -51,7 +51,12 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { ensureUsagePartRecorder, forwardUsageParts } from '../usage-parts';
-import { cacheUsageFields, emitUsage, hasUsageCount } from './usage';
+import {
+  cacheUsageFields,
+  emitUsage,
+  hasUsageCount,
+  totalTokensOf,
+} from './usage';
 
 const BEDROCK_DEFAULT_CHAT_MODEL = 'anthropic.claude-3-5-sonnet-20241022-v2:0';
 const BEDROCK_TEXT_EMBEDDING_MODEL = 'amazon.titan-embed-text-v2:0';
@@ -250,7 +255,9 @@ export class BedrockProvider implements AIInterface {
       options = ensureUsagePartRecorder(options);
 
       const model = options.model || BEDROCK_TEXT_EMBEDDING_MODEL;
-      const inputs = Array.isArray(text) ? text : [text];
+      // A snapshot: iteration and finality cannot change if the caller's
+      // array changes during the batch (for example from onUsage).
+      const inputs = Array.isArray(text) ? [...text] : [text];
       const embeddings: number[][] = [];
       let totalTokens = 0;
 
@@ -350,7 +357,7 @@ export class BedrockProvider implements AIInterface {
         model,
         undefined,
         startTime,
-        undefined,
+        options.usageTags,
         options,
       );
 
@@ -1376,13 +1383,19 @@ function mapBedrockUsage(usage: {
     usage.cacheReadInputTokens,
     usage.cacheWriteInputTokens,
   );
+  const promptTokens =
+    (usage.inputTokens || 0) +
+    (cache.cacheReadInputTokens || 0) +
+    (cache.cacheCreationInputTokens || 0);
+  const completionTokens = usage.outputTokens || 0;
   return {
-    promptTokens:
-      (usage.inputTokens || 0) +
-      (cache.cacheReadInputTokens || 0) +
-      (cache.cacheCreationInputTokens || 0),
-    completionTokens: usage.outputTokens || 0,
-    totalTokens: usage.totalTokens || 0,
+    promptTokens,
+    completionTokens,
+    totalTokens: totalTokensOf(
+      usage.totalTokens,
+      promptTokens,
+      completionTokens,
+    ),
     ...cache,
   };
 }

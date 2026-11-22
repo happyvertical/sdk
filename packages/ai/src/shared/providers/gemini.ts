@@ -56,7 +56,7 @@ import {
   ModelNotFoundError,
 } from '../types';
 import { ensureUsagePartRecorder, forwardUsageParts } from '../usage-parts';
-import { emitUsage, hasUsageCount } from './usage';
+import { emitUsage, hasUsageCount, totalTokensOf } from './usage';
 
 // Note: This implementation uses the new @google/genai package
 // @google/generative-ai is deprecated - migrated to @google/genai
@@ -239,10 +239,10 @@ export class GeminiProvider implements AIInterface {
         content = this.stripMarkdownCodeBlock(content);
       }
 
-      const usage: TokenUsage = {
-        promptTokens: result.usageMetadata?.promptTokenCount || 0,
-        completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
-        totalTokens: result.usageMetadata?.totalTokenCount || 0,
+      const usage: TokenUsage = reportedGeminiUsage(result.usageMetadata) ?? {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
       };
       const finishReason = this.mapFinishReason(result);
       emitUsage(
@@ -384,7 +384,9 @@ export class GeminiProvider implements AIInterface {
       options = ensureUsagePartRecorder(options);
 
       const model = options.model || 'text-embedding-004';
-      const input = Array.isArray(text) ? text : [text];
+      // A snapshot: iteration and finality cannot change if the caller's
+      // array changes during the batch (for example from onUsage).
+      const input = Array.isArray(text) ? [...text] : [text];
 
       const embeddings: number[][] = [];
       let totalTokens = 0;
@@ -1692,10 +1694,16 @@ function reportedGeminiUsage(metadata: any): TokenUsage | undefined {
   ) {
     return undefined;
   }
+  const promptTokens = metadata.promptTokenCount || 0;
+  const completionTokens = metadata.candidatesTokenCount || 0;
   return {
-    promptTokens: metadata.promptTokenCount || 0,
-    completionTokens: metadata.candidatesTokenCount || 0,
-    totalTokens: metadata.totalTokenCount || 0,
+    promptTokens,
+    completionTokens,
+    totalTokens: totalTokensOf(
+      metadata.totalTokenCount,
+      promptTokens,
+      completionTokens,
+    ),
   };
 }
 

@@ -728,7 +728,7 @@ describe('pacing retries', () => {
     __resetAIRateLimitStateForTests();
   });
 
-  it('never reuse an index, even if a request emitted before a rate-limit error', async () => {
+  it('do not replay a request that emitted before a rate-limit error', async () => {
     const { events, onUsage } = recorder();
     const providerOptions = { onUsage };
     let attempts = 0;
@@ -764,10 +764,14 @@ describe('pacing retries', () => {
     } as any);
     const ai = createUsagePartsAI(createContinuingAI(paced, {}, fake));
 
-    await ai.chat([{ role: 'user', content: 'go' }]);
+    await expect(
+      ai.chat([{ role: 'user', content: 'go' }]),
+    ).rejects.toBeInstanceOf(RateLimitError);
 
-    expect(attempts).toBe(2);
-    expect(events.map((event) => event.part.index)).toEqual([0, 1]);
-    expect(new Set(events.map((event) => event.part.call)).size).toBe(1);
+    // One request, one terminal event: no second `last` under the same call.
+    expect(attempts).toBe(1);
+    expect(events.map((event) => event.part)).toEqual([
+      { call: events[0].part.call, index: 0, last: true },
+    ]);
   });
 });

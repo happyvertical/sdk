@@ -166,9 +166,10 @@ export async function chatWithContinuation(
   // marks its final part.
   const recorder = adoptUsagePartRecorder(options);
   recorder.mayContinue = config !== undefined;
-  recorder.maxIndex = config?.maxContinuations;
   options = withUsagePartRecorder(options, recorder);
-  const request = async (m: AIMessage[], o: ChatOptions) => {
+  // `capped`: this is the final request the cap allows, so its part is last.
+  const request = async (m: AIMessage[], o: ChatOptions, capped: boolean) => {
+    recorder.capped = capped;
     const recorded = recorder.parts.length;
     const response = await chat(m, o);
     // A completed request whose provider path emitted nothing still counts
@@ -177,7 +178,7 @@ export async function chatWithContinuation(
     return response;
   };
 
-  const first = await request(messages, options);
+  const first = await request(messages, options, false);
   const hitLimit = (response: AIResponse) =>
     response.finishReason === 'length' && !response.toolCalls?.length;
 
@@ -202,10 +203,11 @@ export async function chatWithContinuation(
 
   while (parts <= config.maxContinuations && hitLimit(last)) {
     throwIfAborted(options.signal);
-    const next = await request(continuationMessages(messages, content), {
-      ...partOptions,
-      stream: false,
-    });
+    const next = await request(
+      continuationMessages(messages, content),
+      { ...partOptions, stream: false },
+      parts === config.maxContinuations,
+    );
     parts++;
     usage = addUsage(usage, next.usage);
     reasoning += next.reasoning ?? '';
@@ -249,7 +251,6 @@ export async function* streamWithContinuation(
   // 'length', or the cap).
   const recorder = adoptUsagePartRecorder(options);
   recorder.mayContinue = config !== undefined;
-  recorder.maxIndex = config?.maxContinuations;
   options = withUsagePartRecorder(options, recorder);
   if (!config) {
     yield* stream(messages, options);
@@ -276,6 +277,8 @@ export async function* streamWithContinuation(
         },
       };
       if (part > 0) throwIfAborted(options.signal);
+      // The final request the cap allows: its part is last.
+      recorder.capped = part === config.maxContinuations;
       const source = stream(
         part === 0 ? messages : continuationMessages(messages, accumulated),
         partOptions,

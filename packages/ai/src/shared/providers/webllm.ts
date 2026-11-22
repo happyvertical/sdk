@@ -59,7 +59,7 @@ import {
   WebLLMPeerMissingError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { emitUsage, hasUsageCount } from './usage';
+import { emitUsage, hasUsageCount, totalTokensOf } from './usage';
 
 const PROVIDER = 'webllm';
 
@@ -396,10 +396,16 @@ export class WebLLMProvider implements AIInterface {
       | undefined
       | null;
     if (!raw) return undefined;
+    const promptTokens = raw.prompt_tokens ?? 0;
+    const completionTokens = raw.completion_tokens ?? 0;
     return {
-      promptTokens: raw.prompt_tokens ?? 0,
-      completionTokens: raw.completion_tokens ?? 0,
-      totalTokens: raw.total_tokens ?? 0,
+      promptTokens,
+      completionTokens,
+      totalTokens: totalTokensOf(
+        raw.total_tokens,
+        promptTokens,
+        completionTokens,
+      ),
     };
   }
 

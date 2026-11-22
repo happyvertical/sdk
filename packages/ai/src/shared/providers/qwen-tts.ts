@@ -218,6 +218,15 @@ export class Qwen3TTSProvider implements AIInterface {
   }
 
   /**
+   * The model the endpoint serves, as configured on this client. Speech
+   * requests carry no model selector, so a per-call `model` cannot change
+   * it and is not used to label usage.
+   */
+  private endpointModel(): string {
+    return this.options.defaultModel || 'qwen3-tts';
+  }
+
+  /**
    * Make an HTTP request to the TTS service
    */
   private async request<T>(
@@ -287,15 +296,17 @@ export class Qwen3TTSProvider implements AIInterface {
         body: request,
       },
     );
-    // The TTS server reports no token usage.
+    // The TTS server reports no token usage. The request sends no model
+    // selector, so the event names the endpoint's configured model, not a
+    // per-call `model` the server never saw.
     emitUsage(
       this.options,
       'qwen3-tts',
       'synthesizeSpeech',
-      options.model || this.options.defaultModel || 'qwen3-tts',
+      this.endpointModel(),
       undefined,
       startTime,
-      undefined,
+      options.usageTags,
       options,
     );
 
@@ -373,10 +384,10 @@ export class Qwen3TTSProvider implements AIInterface {
               this.options,
               'qwen3-tts',
               'streamSpeech',
-              options.model || this.options.defaultModel || 'qwen3-tts',
+              this.endpointModel(),
               undefined,
               startTime,
-              undefined,
+              options.usageTags,
               options,
             );
             break;

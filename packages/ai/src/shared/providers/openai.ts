@@ -73,7 +73,12 @@ import {
 } from '../usage-parts';
 import { attemptRecorderFrom, shouldRetryConnection } from './connection-retry';
 import { loadedOpenAISdk, loadOpenAISdk } from './openai-sdk';
-import { cacheUsageFields, emitUsage, hasUsageCount } from './usage';
+import {
+  cacheUsageFields,
+  emitUsage,
+  hasUsageCount,
+  totalTokensOf,
+} from './usage';
 
 /**
  * Determines whether a model uses OpenAI's newer reasoning-model request
@@ -1093,9 +1098,11 @@ export class OpenAIProvider implements AIInterface {
           for await (const chunk of stream) {
             // A server may end the stream with a usage chunk (no choices).
             if (chunk.usage) streamUsage = chunk.usage;
-            streamFinish = chunk.choices?.[0]?.finish_reason ?? streamFinish;
-            reasoning += readReasoningText(chunk.choices[0]?.delta) ?? '';
-            const content = chunk.choices[0]?.delta?.content;
+            // A usage-only chunk may omit `choices` entirely.
+            const choice = chunk.choices?.[0];
+            streamFinish = choice?.finish_reason ?? streamFinish;
+            reasoning += readReasoningText(choice?.delta) ?? '';
+            const content = choice?.delta?.content;
             if (content) {
               if (options.onProgress) {
                 options.onProgress(content);
@@ -1484,17 +1491,30 @@ export class OpenAIProvider implements AIInterface {
     // Bifrost reports `cost` as an object with `total_cost`; some gateways
     // send a bare number.
     const cost = typeof raw.cost === 'number' ? raw.cost : raw.cost?.total_cost;
+    const cache = cacheUsageFields(cacheRead, cacheWrite, cost);
+    // Prompt tokens include cache reads and writes; a gateway that reports
+    // only the cache counters still used at least those prompt tokens.
+    const promptTokens = hasUsageCount(raw.prompt_tokens)
+      ? raw.prompt_tokens
+      : (cache.cacheReadInputTokens || 0) +
+        (cache.cacheCreationInputTokens || 0);
+    const completionTokens = raw.completion_tokens || 0;
     return {
-      promptTokens: usage.prompt_tokens || 0,
-      completionTokens: (usage as any).completion_tokens || 0,
-      totalTokens: usage.total_tokens || 0,
-      ...cacheUsageFields(cacheRead, cacheWrite, cost),
+      promptTokens,
+      completionTokens,
+      totalTokens: totalTokensOf(
+        raw.total_tokens,
+        promptTokens,
+        completionTokens,
+      ),
+      ...cache,
     };
   }
 
   /**
-   * The counts a usage event carries: `mapped` only when the server sent at
-   * least one token counter (an empty `usage` object is count-less, not zero).
+   * The counts a usage event carries: `mapped` only when the server reported
+   * something, a token counter or a cache or cost figure (an empty `usage`
+   * object is count-less, not zero).
    * @private
    */
   private reportedUsage(
@@ -1506,6 +1526,9 @@ export class OpenAIProvider implements AIInterface {
       counters.prompt_tokens,
       counters.completion_tokens,
       counters.total_tokens,
+      mapped?.cacheReadInputTokens,
+      mapped?.cacheCreationInputTokens,
+      mapped?.costUsd,
     )
       ? mapped
       : undefined;
