@@ -66,14 +66,33 @@ export const OPEN_OPTION_NAMES = [
   'pglite',
 ] as const;
 
+/** One option read once: its value and whether the caller supplied the key. */
+export interface ReadOption {
+  readonly value: unknown;
+  readonly present: boolean;
+}
+
+/**
+ * Reads one option once. `present` is true for a defined value without
+ * asking the object anything else; only an `undefined` value is followed by
+ * an `in` check, so an explicitly present `undefined` still shadows an
+ * environment value.
+ */
+export function readOption(options: object, name: string): ReadOption {
+  const value = (options as Record<string, unknown>)[name];
+  return { value, present: value !== undefined || name in options };
+}
+
 /**
  * Captures the options of one `getDatabase()` call as a plain object, before
  * the call yields. Each supported option is read directly by name, once,
  * without enumerating the caller's object, so a getter, an inherited
  * property, a non-enumerable property or a Proxy `get` trap supplies its
  * value exactly as the caller exposes it. `client` is passed in, already read
- * once by the caller. Nothing the caller does to its object afterwards
- * (adding `client`, changing `url` or `dbid`) changes this open.
+ * once by the caller, and so is any option in `preread` (the caller read it
+ * to decide a refusal): none of those is read again. Nothing the caller does
+ * to its object afterwards (adding `client`, changing `url` or `dbid`)
+ * changes this open.
  *
  * Nested option objects (`capabilities`, `secureFile`, `pglite`) are kept by
  * reference.
@@ -81,12 +100,15 @@ export const OPEN_OPTION_NAMES = [
 export function readOpenOptions(
   options: object,
   client: unknown,
+  preread: Readonly<Record<string, ReadOption>> = {},
 ): Record<string, unknown> {
   const source = options as Record<string, unknown>;
   const captured: Record<string, unknown> = {};
   for (const name of OPEN_OPTION_NAMES) {
-    const value = source[name];
-    if (value !== undefined || name in source) captured[name] = value;
+    const read = Object.hasOwn(preread, name)
+      ? preread[name]
+      : readOption(source, name);
+    if (read.present) captured[name] = read.value;
   }
   // An explicitly present `client: undefined` is kept, so it still shadows a
   // HAVE_SQL_CLIENT environment value as a user-supplied option does.

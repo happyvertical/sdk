@@ -250,14 +250,15 @@ export async function getDatabase(
   input: PGliteOptions = {},
 ): Promise<DatabaseInterface> {
   // `client` decides cache identity, construction and ownership, so it is
-  // read exactly once and the supported options are captured by name, here:
+  // read exactly once, an invalid one is refused before any other option is
+  // read, and the supported options are captured by name, here:
   // a caller editing the options object while the peer loads cannot cache an
   // injected client under a plain identity. Anything other
   // than an object is refused rather than treated as "no client" (`false`
   // would otherwise mark the root as adapter-owned without opening anything).
   const client = (input as { client?: unknown }).client;
-  const captured = readOpenOptions(input, client);
   refuseInvalidPGliteClient(client);
+  const captured = readOpenOptions(input, client);
   const options: PGliteOptions = {
     ...captured,
     client: (client ?? undefined) as PGliteLike | undefined,

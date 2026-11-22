@@ -633,3 +633,53 @@ describe('round-5 review cases', () => {
     }
   });
 });
+
+describe('round-1 review cases (sdk#1587)', () => {
+  const throwingOption = (base: Record<string, unknown>) =>
+    Object.defineProperty(base, 'extensions', {
+      get() {
+        throw new Error('extensions getter must not run');
+      },
+      enumerable: true,
+    });
+
+  it('refuses a PostgreSQL client before reading any other option', async () => {
+    await expectRefused(
+      throwingOption({ type: 'postgres', url: pgUrl, client: injected }),
+    );
+  });
+
+  it('refuses a PostgreSQL client from a Proxy whose has trap throws for absent options', async () => {
+    const target = { type: 'postgres', url: pgUrl, client: injected };
+    const options = new Proxy(target, {
+      has(t, key) {
+        if (!(key in t)) throw new Error(`has(${String(key)}) must not run`);
+        return true;
+      },
+    });
+    await expectRefused(options as never);
+  });
+
+  it('refuses a non-object PGlite client before reading any other option (root and pglite entries)', async () => {
+    await expect(
+      getDatabase(throwingOption({ type: 'pglite', client: false }) as never),
+    ).rejects.toBeInstanceOf(DatabaseError);
+    await expect(
+      getPGliteDatabase(throwingOption({ client: false }) as never),
+    ).rejects.toBeInstanceOf(DatabaseError);
+  });
+
+  it('rejects a revoked Proxy configuration with the trap’s TypeError, opening nothing', async () => {
+    const { proxy, revoke } = Proxy.revocable(
+      { type: 'postgres', url: pgUrl },
+      {},
+    );
+    revoke();
+    const before = postgresCache().size;
+    await expect(getDatabase(proxy as never)).rejects.toBeInstanceOf(TypeError);
+    await expect(getPGliteDatabase(proxy as never)).rejects.toBeInstanceOf(
+      TypeError,
+    );
+    expect(postgresCache().size).toBe(before);
+  });
+});

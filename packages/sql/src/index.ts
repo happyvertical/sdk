@@ -3,7 +3,9 @@ import type { PGliteOptions } from './pglite';
 import type { PostgresOptions } from './postgres';
 import {
   generateMemoryDbId,
+  type ReadOption,
   readOpenOptions,
+  readOption,
   refuseInvalidPGliteClient,
   refuseUnusedClientOption,
 } from './shared/client-option';
@@ -30,6 +32,49 @@ export type GetDatabaseOptions =
  * store them (see `getDatabase`). Keyed weakly by the caller's object.
  */
 const retainedMemoryDbids = new WeakMap<object, string>();
+
+/**
+ * Decides the refusal of a caller-supplied (non-null) `client` from the
+ * adapter type, reading only `type` and, when no type is set, `url`; those
+ * reads go into `preread` so the snapshot does not repeat them.
+ */
+function refuseClientEarly(
+  source: object,
+  client: unknown,
+  preread: Record<string, ReadOption>,
+): void {
+  let environment: Record<string, unknown> | undefined;
+  const fromEnvironment = (key: 'type' | 'url') => {
+    environment ??= loadEnvConfig(
+      {},
+      { packageName: 'sql', schema: { type: 'string', url: 'string' } },
+    ) as Record<string, unknown>;
+    return environment[key];
+  };
+  const typeRead = readOption(source, 'type');
+  preread.type = typeRead;
+  let type = typeRead.present ? typeRead.value : fromEnvironment('type');
+  if (!type) {
+    const urlRead = readOption(source, 'url');
+    preread.url = urlRead;
+    const url = urlRead.present ? urlRead.value : fromEnvironment('url');
+    if (
+      typeof url === 'string' &&
+      (url.startsWith('file:') || url === ':memory:')
+    ) {
+      type = 'sqlite';
+    }
+  }
+  if (
+    type === 'postgres' ||
+    type === 'sqlite' ||
+    type === 'duckdb' ||
+    type === 'json'
+  ) {
+    refuseUnusedClientOption({ client }, type);
+  }
+  if (type === 'pglite') refuseInvalidPGliteClient(client);
+}
 
 /**
  * Creates a database connection based on the provided options, or returns an existing database instance
@@ -90,11 +135,21 @@ export async function getDatabase(
     return options as DatabaseInterface;
   }
 
+  // A supplied client is refused on `type` alone, read first: nothing else on
+  // the caller's object is read before that decision, so an unrelated option
+  // (a throwing getter, a Proxy trap) cannot replace the refusal. Without an
+  // explicit type, the environment's type and then the URL's inference
+  // decide it, as they do below. Values read here are not read again.
+  const preread: Record<string, ReadOption> = {};
+  if (isObject && client !== undefined && client !== null) {
+    refuseClientEarly(source, client, preread);
+  }
+
   // Configuration is captured once, before the first await, by reading the
   // supported option names directly (see `readOpenOptions`). Everything below
   // works on this snapshot.
   const snapshot = (
-    isObject ? readOpenOptions(source, client) : {}
+    isObject ? readOpenOptions(source, client, preread) : {}
   ) as GetDatabaseOptions & { dbid?: string | null; cache?: boolean };
 
   // What this call resolves (HAVE_SQL_* values, an inferred type, a generated
