@@ -242,6 +242,15 @@ caches only connections with a `dbid` (automatically assigned to the default
 `:memory:` path). JSON derives an identity from its directory and behavior
 options.
 
+The PostgreSQL cache is shared by every copy of `@happyvertical/sql` 0.118.0
+or later in a process, and kept apart from older copies, so an older copy's
+open never returns a pool a newer copy created and recorded as a root (see
+[Handle roles](#handle-roles-and-transaction-markers)). A process that loads an
+older and a newer copy therefore opens one pool per copy for the same
+configuration, and each copy's `clearPostgresConnectionCache()` clears only
+its own pools. The JSON adapter's in-memory cache stays shared across copies on
+purpose.
+
 DuckDB already creates a fresh adapter for every call, so `cache` and
 `clearCache` are accepted for uniform configuration but do not change its
 behavior. Call `close()` on uncached and DuckDB adapters when finished.
@@ -855,14 +864,92 @@ only when `claim.handle === db`;
 `getConnectionAffinity(db)` does that check. A spread copy has no claim, and a
 proxy or derived object reads one naming its target, so neither inherits it.
 Other adapters set no claim. The key is a global symbol, so a handle made by
-any copy of the package at or above 0.117.0 is recognised.
+any copy of the package at or above 0.116.7 is recognised.
 
 `session.database()`, `session.destroy()` and the affinity claims were added in
-`@happyvertical/sql` 0.117.0. The session members are optional on the
+`@happyvertical/sql` 0.116.7. The session members are optional on the
 `SessionHandle` type, and all three are absent on handles created by an earlier
 copy of the package, so a consumer that
 needs them must require that the copy which created its `db` is at least
-0.117.0, and feature-detect them.
+0.116.7, and feature-detect them.
+
+#### Handle roles and transaction markers
+
+`@happyvertical/sql` hands out three kinds of object that all satisfy
+`DatabaseInterface`: roots (what `getDatabase()` returns), PostgreSQL pinned
+session databases (`session.database()`), and transaction-bound handles (the
+`transaction(cb)` argument, nested savepoint arguments, `beginTransaction()`
+handles). Do not tell them apart by their members; ask:
+
+```typescript
+import { describeHandle, isDatabaseRoot, isTransactionHandle } from '@happyvertical/sql';
+
+describeHandle(db);
+// { role: 'root', engine: 'libsql', owner, clientSource: 'adapter', rootReads: 'shared' }
+// { role: 'transaction', transactionKind: 'callback' | 'savepoint' | 'manual', engine, owner }
+// { role: 'session', engine: 'postgres', owner, rootReads: 'serialized' }
+// { role: 'unknown' }
+```
+
+- **Transaction marker.** Every transaction-bound handle that a shipped adapter
+  creates carries an enumerable, non-writable, non-configurable property keyed
+  by `Symbol.for('@happyvertical/sql/transaction-scope')` (exported as
+  `TRANSACTION_SCOPE`), whose value is its kind. A spread copy,
+  `Object.assign`, `Object.create` and a Proxy over the handle all keep it. A
+  Proxy over the handle cannot hide it: a `get` or `has` trap that lies about a
+  non-configurable property throws, and a throwing read counts as a
+  transaction. A Proxy over another target, or a wrapper that copies only some
+  methods, does not inherit the marker: it reads `transaction` if its traps
+  report the marker key or throw when it is read, and `unknown` otherwise.
+  Either way it has no provenance record, so it is never a root. Every kind means the same
+  thing; on PostgreSQL a savepoint callback receives its parent handle, so it
+  reports the parent's kind. A custom adapter can mark its own handles with
+  `markTransactionHandle(handle, kind)`.
+- **Provenance.** Each adapter records the exact objects it creates (roots,
+  sessions, transaction handles) in a registry keyed by object identity, shared
+  by every copy of this package loaded in the same realm. A copy, wrapper,
+  Proxy or derived object of a root is never a root, because nothing on the
+  object carries the record. Objects made by a copy older than 0.118.0, by a
+  custom adapter, or in another realm (a `vm` context, an iframe) have no
+  record here. They read `unknown`, except that a transaction handle from
+  another realm still reads `transaction`: the marker's key is a global symbol
+  shared across realms.
+- `owner` is an opaque frozen token, one per root, that the root's sessions
+  and transaction handles share. Two roots never share an owner, even over the
+  same database or the same injected client.
+- `clientSource` is `'caller'` for a root built over an injected client
+  (PGlite `client`). `isDatabaseRoot(db)` is true only for `role: 'root'` with
+  `clientSource: 'adapter'`. The other adapters ignore a `client` option (a
+  separate change makes them refuse it), so their roots report `'adapter'`
+  even when one was passed: a PostgreSQL `{ client, url }` open returns the
+  same root as `{ url }`, and these helpers cannot tell the two apart. Do not
+  pass `client` to them.
+- `rootReads` says what a root statement sees while one of the root's own
+  `transaction()` or `beginTransaction()` transactions is open:
+  - `isolated`: it runs on another connection and sees committed rows only
+    (PostgreSQL pool).
+  - `serialized`: it waits until the transaction ends (PGlite, `secureFile`
+    and remote libsql, PostgreSQL session database).
+  - `shared`: it runs on the one connection, inside the open transaction, and
+    sees its uncommitted rows (local libsql, native SQLite, DuckDB, JSON).
+
+  Transaction control issued as raw SQL through `query()`/`execute()`
+  (`BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`) is outside this claim on every
+  adapter. A consumer that accepts raw transaction control on a root must
+  establish committed-read safety itself.
+
+Gate acceptance on `isDatabaseRoot(db)`, never on `!isTransactionHandle(db)`:
+a transaction handle made by an older copy carries no marker. A long-lived
+reader that must not see rows that later roll back must also check
+`rootReads`. Note that the marker is non-configurable: a Proxy over a dummy
+target that forwards `ownKeys` and `getOwnPropertyDescriptor` to a transaction
+handle throws on spread or `Object.assign` (as it already did for the `pg`
+affinity claim).
+
+These helpers are also exported from the browser-safe entries
+`@happyvertical/sql/query` and `@happyvertical/sql/pglite`.
+
+Handle roles were added in `@happyvertical/sql` 0.118.0.
 
 ### Identifiers
 
@@ -1366,6 +1453,11 @@ for await (const message of listener) {
 await db.notifications!.waitForUpdate({ timeoutMs: 5000 });
 await db.close?.();
 ```
+
+Transaction handles from this path (the `transaction(cb)` argument, nested
+savepoint arguments and `beginTransaction()` handles) have no `close`, like
+every other adapter's: close the root. Before 0.118.0 they carried the root's
+`close`, which shut the connection under the open transaction.
 
 `@sqliteai/sqlite-vector` is loaded lazily through `getExtensionPath()` and only
 mutates schema when `ensureColumn()` or `ensureIndex()` is called. SQLite vector

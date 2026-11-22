@@ -22,6 +22,10 @@ import {
   describeDuckDBTable,
 } from './shared/duckdb-schema-utils';
 import { serializeDuckDBStatements } from './shared/duckdb-statement-queue';
+import {
+  createHandleProvenance,
+  type TransactionScopeKind,
+} from './shared/handle-provenance';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { refuseReopen } from './shared/reopen';
 import { createTransactionLock } from './shared/transaction-lock';
@@ -1169,6 +1173,10 @@ async function createJSONDatabase(
       'json',
       options.transactionQueueTimeout,
     );
+    const provenance = createHandleProvenance({
+      engine: 'json',
+      rootReads: 'shared',
+    });
 
     /**
      * Inserts one or more records into a table
@@ -2440,7 +2448,7 @@ async function createJSONDatabase(
         try {
           await connection.run('BEGIN TRANSACTION');
 
-          const result = await callback(createTransactionScope());
+          const result = await callback(createTransactionScope('callback'));
           await connection.run('COMMIT');
           return result;
         } catch (error) {
@@ -2466,7 +2474,9 @@ async function createJSONDatabase(
      * BEGIN on the same connection, which throws and then rolls back the
      * *enclosing* transaction, silently discarding its work.
      */
-    const createTransactionScope = (): DatabaseInterface => {
+    const createTransactionScope = (
+      kind: TransactionScopeKind,
+    ): DatabaseInterface => {
       const txDb: DatabaseInterface = {
         url,
         engine: 'json',
@@ -2500,7 +2510,7 @@ async function createJSONDatabase(
         },
       };
 
-      return txDb;
+      return provenance.transaction(txDb, kind);
     };
 
     /**
@@ -2565,13 +2575,13 @@ async function createJSONDatabase(
       // The handle is inside a transaction for the same reason a callback
       // scope is, so it gets the same non-nesting `transaction`.
       const txHandle: TransactionHandle = {
-        ...createTransactionScope(),
+        ...createTransactionScope('manual'),
         commit,
         rollback,
         isActive,
       };
 
-      return txHandle;
+      return provenance.transaction(txHandle, 'manual');
     };
 
     const closeResources = createDuckDBResourceCloser(connection, instance);
@@ -2626,6 +2636,6 @@ async function createJSONDatabase(
       ) => Promise<void>;
       getTableLoadErrors: () => JSONTableLoadError[];
     };
-    return db;
+    return provenance.root(db);
   })();
 }

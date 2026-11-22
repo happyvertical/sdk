@@ -15,6 +15,10 @@ import {
   validateDatabaseCacheOptions,
 } from './shared/connection-cache';
 import {
+  createHandleProvenance,
+  type TransactionScopeKind,
+} from './shared/handle-provenance';
+import {
   createAlterTable,
   createPostgresDialect,
   createTransactionErrorTracker,
@@ -149,14 +153,20 @@ declare global {
   // eslint-disable-next-line no-var
   var __haveSqlPostgresCacheHmacKey: Promise<CryptoKey> | undefined;
   // eslint-disable-next-line no-var
-  var __haveSqlPostgresConnectionCache:
+  var __haveSqlPostgresConnectionCacheV2:
     | ConnectionCache<DatabaseInterface>
     | undefined;
 }
 
-globalThis.__haveSqlPostgresConnectionCache ??=
+// Entries live in a slot (and under keys) that copies of this package older
+// than 0.118.0 never read: those copies look up
+// `__haveSqlPostgresConnectionCache` with v1 keys, so an older copy's open
+// (which may carry a `client` it ignores) never returns a pool this copy
+// created and recorded as a root. The cost: a process holding both copies
+// opens one pool per copy.
+globalThis.__haveSqlPostgresConnectionCacheV2 ??=
   new ConnectionCache<DatabaseInterface>();
-const connectionCache = globalThis.__haveSqlPostgresConnectionCache;
+const connectionCache = globalThis.__haveSqlPostgresConnectionCacheV2;
 
 /**
  * Returns the process-local cache identity HMAC key, generating it on first
@@ -295,7 +305,7 @@ async function derivePostgresConnectionCacheKey(
   effective: EffectivePostgresConfig,
 ): Promise<string | undefined> {
   if (options.dbid) {
-    return options.dbid;
+    return `pg:dbid:v2:${options.dbid}`;
   }
 
   const identity = JSON.stringify({
@@ -314,10 +324,10 @@ async function derivePostgresConnectionCacheKey(
     'HMAC',
     hmacKey,
     new TextEncoder().encode(
-      `@happyvertical/sql:postgres-cache:v1\0${identity}`,
+      `@happyvertical/sql:postgres-cache:v2\0${identity}`,
     ),
   );
-  return `pg:hmac-sha256:v1:${Buffer.from(signature).toString('hex')}`;
+  return `pg:hmac-sha256:v2:${Buffer.from(signature).toString('hex')}`;
 }
 
 /** @internal Exported for adversarial identity tests. */
@@ -457,6 +467,10 @@ async function createDatabase(
   };
 
   const client = pool;
+  const provenance = createHandleProvenance({
+    engine: 'postgres',
+    rootReads: 'isolated',
+  });
 
   /**
    * Absorbs 'error' events for the clients currently checked out for a
@@ -1217,6 +1231,7 @@ async function createDatabase(
      * there is refused rather than self-waiting.
      */
     const createSessionTransaction = (
+      kind: TransactionScopeKind,
       transactionOptions: TransactionOptions | undefined,
     ) => {
       const scope = { open: true };
@@ -1278,6 +1293,7 @@ async function createDatabase(
       };
       // Nested savepoint callbacks receive this same object.
       claimConnectionAffinity(scoped, 'transaction');
+      provenance.transaction(scoped, kind);
       current = {
         invalidate: (error) => {
           active = false;
@@ -1310,7 +1326,7 @@ async function createDatabase(
       refuseInsideOwnTransaction();
       const { endTurn } = await openTransaction();
       const { scope, transactionState, nested, scoped, finish } =
-        createSessionTransaction(transactionOptions);
+        createSessionTransaction('callback', transactionOptions);
       try {
         const result = await callbackScope.run(scope, () => callback(scoped));
         await nested.drain();
@@ -1341,7 +1357,7 @@ async function createDatabase(
       refuseInsideOwnTransaction();
       const { endTurn } = await openTransaction();
       const { transactionState, nested, scoped, isActive, finish } =
-        createSessionTransaction(transactionOptions);
+        createSessionTransaction('manual', transactionOptions);
       let ending = false;
 
       // The transaction is over however this ends, so the session's
@@ -1480,6 +1496,7 @@ async function createDatabase(
       alterTable: createAlterTable(outside),
       vector: createVectorCapabilities(outside),
     };
+    provenance.session(sessionDb);
     return claimConnectionAffinity(sessionDb, 'session');
   };
 
@@ -2047,6 +2064,7 @@ async function createDatabase(
       };
       // Nested savepoint callbacks receive this same object.
       claimConnectionAffinity(txDb, 'transaction');
+      provenance.transaction(txDb, 'callback');
 
       const result = await callback(txDb);
       await nestedTransaction.drain();
@@ -2165,6 +2183,7 @@ async function createDatabase(
       isActive,
     };
 
+    provenance.transaction(txHandle, 'manual');
     return claimConnectionAffinity(txHandle, 'transaction');
   };
 
@@ -2249,5 +2268,6 @@ async function createDatabase(
     },
   };
 
+  provenance.root(db);
   return claimConnectionAffinity(db, 'pool');
 }

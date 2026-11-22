@@ -552,7 +552,7 @@ describe('shared connection cache policy', () => {
 });
 
 describe('PostgreSQL cache identity', () => {
-  it('uses explicit opaque dbid unchanged and a keyed secret-sensitive implicit identity', async () => {
+  it('uses explicit opaque dbid under a versioned prefix and a keyed secret-sensitive implicit identity', async () => {
     const explicit = await getPostgresConnectionCacheKey({
       dbid: 'caller-owned-identity',
       password: 'ignored-by-explicit-id',
@@ -571,9 +571,9 @@ describe('PostgreSQL cache identity', () => {
     const firstKey = await getPostgresConnectionCacheKey(firstOptions);
     const rotatedKey = await getPostgresConnectionCacheKey(rotatedOptions);
 
-    expect(explicit).toBe('caller-owned-identity');
+    expect(explicit).toBe('pg:dbid:v2:caller-owned-identity');
     expect(firstKey).not.toBe(rotatedKey);
-    expect(firstKey).toMatch(/^pg:hmac-sha256:v1:[a-f0-9]{64}$/);
+    expect(firstKey).toMatch(/^pg:hmac-sha256:v2:[a-f0-9]{64}$/);
     expect(firstKey).not.toContain('cache-user');
     expect(firstKey).not.toContain('first-secret');
     expect(firstKey).not.toContain('url');

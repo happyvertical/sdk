@@ -230,6 +230,19 @@ export {
   validateColumnName,
 } from './query.js';
 export type { SecureSqliteWindowsCustody } from './secure-sqlite-client.js';
+// Handle roles and transaction markers (sdk#1249)
+export {
+  type ClientSource,
+  describeHandle,
+  type HandleDescription,
+  type HandleRole,
+  isDatabaseRoot,
+  isTransactionHandle,
+  markTransactionHandle,
+  type RootReads,
+  TRANSACTION_SCOPE,
+  type TransactionScopeKind,
+} from './shared/handle-provenance.js';
 export * from './shared/types';
 export type { SecureSqliteFileOptions, SqliteOptions } from './sqlite.js';
 

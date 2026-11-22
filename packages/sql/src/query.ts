@@ -126,6 +126,19 @@ export type { SchemaInitializationResult } from './schema-manager.js';
 export { DatabaseSchemaManager } from './schema-manager.js';
 export type { IdentifierOptions } from './shared/alter-utils.js';
 export { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils.js';
+// Handle roles (sdk#1249): driver-independent, so also on this subpath.
+export {
+  type ClientSource,
+  describeHandle,
+  type HandleDescription,
+  type HandleRole,
+  isDatabaseRoot,
+  isTransactionHandle,
+  markTransactionHandle,
+  type RootReads,
+  TRANSACTION_SCOPE,
+  type TransactionScopeKind,
+} from './shared/handle-provenance.js';
 export * from './shared/types.js';
 export type { RawSqlKey, SqlAdapterType } from './shared/utils.js';
 export { buildWhere, formatDbError, raw } from './shared/utils.js';

@@ -22,6 +22,10 @@ import {
   validateDatabaseCacheOptions,
 } from './shared/connection-cache';
 import {
+  createHandleProvenance,
+  type TransactionScopeKind,
+} from './shared/handle-provenance';
+import {
   createAlterTable,
   createPostgresDialect,
   createTransactionErrorTracker,
@@ -45,6 +49,20 @@ const PGLITE_PACKAGE = '@electric-sql/pglite';
 /**
  * Thrown when the optional `@electric-sql/pglite` peer cannot be imported.
  */
+// Handle roles for browser bundles that load only this entry (sdk#1249).
+export {
+  type ClientSource,
+  describeHandle,
+  type HandleDescription,
+  type HandleRole,
+  isDatabaseRoot,
+  isTransactionHandle,
+  markTransactionHandle,
+  type RootReads,
+  TRANSACTION_SCOPE,
+  type TransactionScopeKind,
+} from './shared/handle-provenance';
+
 export class PGlitePeerMissingError extends DatabaseError {
   constructor(cause?: unknown) {
     super(
@@ -263,8 +281,15 @@ async function createDatabase(
     error instanceof pglite.messages.DatabaseError;
 
   const ownsClient = !options.client;
+  const provenance = createHandleProvenance({
+    engine: 'pglite',
+    rootReads: 'serialized',
+    clientSource: ownsClient ? 'adapter' : 'caller',
+  });
   const pg: PGliteLike =
-    options.client ??
+    // Any falsy client counts as none, matching `ownsClient`: the adapter
+    // then opens and owns its own instance.
+    options.client ||
     (await pglite.PGlite.create(dataDir, {
       ...options.pglite,
       ...(options.extensions ? { extensions: options.extensions } : {}),
@@ -398,6 +423,7 @@ async function createDatabase(
    */
   const createScopedDatabase = (
     pgTx: PGliteTransactionLike,
+    kind: TransactionScopeKind,
     extra: (scoped: DatabaseInterface) => Record<string, unknown> = () => ({}),
     introspection = false,
   ) => {
@@ -405,7 +431,15 @@ async function createDatabase(
     let scoped!: DatabaseInterface;
     const nested = createNestedTransaction(
       state.executor,
-      (override) => (override ? { ...scoped, transaction: override } : scoped),
+      // A savepoint callback gets a copy bound to its own savepoint; the copy
+      // carries a configurable marker from the spread, replaced by its own.
+      (override) =>
+        override
+          ? provenance.transaction(
+              { ...scoped, transaction: override },
+              'savepoint',
+            )
+          : scoped,
       state.tracker.clearError,
     );
     scoped = {
@@ -423,6 +457,7 @@ async function createDatabase(
       transaction: nested,
     } as DatabaseInterface;
     Object.assign(scoped, extra(scoped));
+    provenance.transaction(scoped, kind);
     return { state, nested, scoped };
   };
 
@@ -439,6 +474,7 @@ async function createDatabase(
       return await pg.transaction(async (pgTx) => {
         const { state, nested, scoped } = createScopedDatabase(
           pgTx,
+          'callback',
           undefined,
           transactionOptions?.introspection === true,
         );
@@ -492,6 +528,7 @@ async function createDatabase(
       let active = true;
       const { state, nested, scoped } = createScopedDatabase(
         pgTx,
+        'manual',
         () => ({
           commit: () => end('COMMIT'),
           rollback: () => end('ROLLBACK'),
@@ -609,5 +646,5 @@ async function createDatabase(
     },
   };
 
-  return db;
+  return provenance.root(db);
 }

@@ -25,6 +25,10 @@ import {
   validateTableName,
 } from './shared/alter-utils';
 import { validateDatabaseCacheOptions } from './shared/connection-cache';
+import {
+  createHandleProvenance,
+  type TransactionScopeKind,
+} from './shared/handle-provenance';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache';
 import {
@@ -1489,6 +1493,12 @@ async function createDatabase(
     const remote = remoteLibSqlUrl(url) !== undefined;
     const reservesTransaction =
       remote || client.transactionReservation === 'exclusive';
+    const provenance = createHandleProvenance({
+      engine,
+      // A reserved root waits for (or refuses inside) an open transaction;
+      // a local libsql root shares the one connection with it.
+      rootReads: reservesTransaction ? 'serialized' : 'shared',
+    });
     const prepareStatement = (statement: InStatement | [string, InArgs?]) => {
       const normalized =
         remote && Array.isArray(statement)
@@ -2445,6 +2455,7 @@ async function createDatabase(
         const callbackScope = createTransactionScope(
           transactionClient,
           nestedTransaction,
+          'savepoint',
           (operation) => runBoundOperation(scope, operation),
           (nestedCallback) => {
             try {
@@ -2592,6 +2603,7 @@ async function createDatabase(
             transactionScope = createTransactionScope(
               client,
               nestedTransaction,
+              'callback',
             );
             const activeScope = transactionScope;
             const result = await transactionCallbackContext.run(true, () =>
@@ -2634,6 +2646,7 @@ async function createDatabase(
           transactionScope = createTransactionScope(
             transactionClient,
             nestedTransaction,
+            'callback',
           );
           const activeScope = transactionScope;
           const result = await transactionCallbackContext.run(true, () =>
@@ -2694,6 +2707,7 @@ async function createDatabase(
     const createTransactionScope = (
       transactionClient: SqliteExecutor,
       nestedTransaction: NestedTransaction,
+      kind: TransactionScopeKind,
       runOperation: TransactionOperationRunner = nestedTransaction.runOperation,
       runNested: NestedTransactionRunner = nestedTransaction.runNested,
     ): TransactionScope => {
@@ -2838,6 +2852,7 @@ async function createDatabase(
         syncSchema: scopedSyncSchema,
         transaction: scopedTransaction,
       };
+      provenance.transaction(txDb, kind);
 
       return {
         database: txDb,
@@ -2985,7 +3000,11 @@ async function createDatabase(
       // top-level `transaction`.
       const executor = transactionClient ?? client;
       nestedTransaction = createNestedTransaction(executor);
-      transactionScope = createTransactionScope(executor, nestedTransaction);
+      transactionScope = createTransactionScope(
+        executor,
+        nestedTransaction,
+        'manual',
+      );
       const txHandle: TransactionHandle = {
         ...transactionScope.database,
         commit,
@@ -2993,7 +3012,7 @@ async function createDatabase(
         isActive,
       };
 
-      return txHandle;
+      return provenance.transaction(txHandle, 'manual');
     };
 
     /**
@@ -3435,7 +3454,10 @@ async function createDatabase(
       close: rawClose,
     };
 
-    if (!reservesTransaction) return db;
+    // The raw root is returned only when nothing reserves the connection;
+    // otherwise the reserved spread below is the root and this object stays
+    // internal.
+    if (!reservesTransaction) return provenance.root(db);
 
     const barrier = createInvocationBarrier();
     const managedRootExecutor: SqliteExecutor = {
@@ -3620,7 +3642,7 @@ async function createDatabase(
         })
       : reservedClient;
 
-    return {
+    return provenance.root({
       ...db,
       client: publicClient,
       query: reserveManaged(query),
@@ -3649,6 +3671,6 @@ async function createDatabase(
       getTableSchema: reserveManaged(getTableSchema),
       alterTable: reservedAlterTable,
       close: reservedClose,
-    };
+    });
   })();
 }

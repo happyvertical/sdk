@@ -15,6 +15,10 @@ import {
   validatePlainColumnName,
   validateTableName,
 } from './shared/alter-utils.js';
+import {
+  createHandleProvenance,
+  type TransactionScopeKind,
+} from './shared/handle-provenance.js';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache.js';
 import {
   createSqliteReopenOptions,
@@ -859,6 +863,10 @@ async function createNativeSqliteDatabase(
   // One lock per connection. `getNativeSqliteDatabase` hands cached callers
   // this same closure, so "created here" and "per connection" are the same
   // scope.
+  const provenance = createHandleProvenance({
+    engine: 'node-sqlite',
+    rootReads: 'shared',
+  });
   const connectionLock = createTransactionLock(
     'sqlite (native)',
     options.transactionQueueTimeout,
@@ -1447,6 +1455,7 @@ async function createNativeSqliteDatabase(
             upsertInCurrentTransaction,
             nestedTransaction,
             refuseNestedBeginTransaction,
+            'savepoint',
           ),
         );
         database.exec(`RELEASE SAVEPOINT ${name}`);
@@ -1480,6 +1489,7 @@ async function createNativeSqliteDatabase(
             upsertInCurrentTransaction,
             nestedTransaction,
             refuseNestedBeginTransaction,
+            'callback',
           );
           const result = await callback(txDb);
           database.exec('COMMIT');
@@ -1561,18 +1571,22 @@ async function createNativeSqliteDatabase(
 
       const rollback = async (): Promise<void> => end('ROLLBACK');
 
-      return {
-        // The handle is inside a transaction for the same reason a callback
-        // scope is, so it re-enters via savepoint too.
-        ...buildDatabaseInterface(
-          upsertInCurrentTransaction,
-          nestedTransaction,
-          refuseNestedBeginTransaction,
-        ),
-        commit,
-        rollback,
-        isActive: () => active,
-      };
+      return provenance.transaction(
+        {
+          // The handle is inside a transaction for the same reason a callback
+          // scope is, so it re-enters via savepoint too.
+          ...buildDatabaseInterface(
+            upsertInCurrentTransaction,
+            nestedTransaction,
+            refuseNestedBeginTransaction,
+            'manual',
+          ),
+          commit,
+          rollback,
+          isActive: () => active,
+        },
+        'manual',
+      );
     };
 
     const initializeSchemas = async (
@@ -1741,8 +1755,9 @@ async function createNativeSqliteDatabase(
       upsertImpl: DatabaseInterface['upsert'],
       transactionImpl: DatabaseInterface['transaction'] = transaction,
       beginTransactionImpl: DatabaseInterface['beginTransaction'] = beginTransaction,
+      transactionKind?: TransactionScopeKind,
     ): DatabaseInterface {
-      return {
+      const handle: DatabaseInterface = {
         url,
         engine: 'node-sqlite',
         reopenOptions,
@@ -1772,15 +1787,21 @@ async function createNativeSqliteDatabase(
         beginTransaction: beginTransactionImpl,
         getTableSchema,
         alterTable,
-        close,
+        // Closing belongs to the root. A transaction handle that carried the
+        // root's close could shut the connection under its own open
+        // transaction; no other adapter's transaction handles expose it.
+        ...(transactionKind ? {} : { close }),
         ...(vectorCapabilities ? { vector: vectorCapabilities } : {}),
         ...(notificationCapabilities
           ? { notifications: notificationCapabilities }
           : {}),
       };
+      return transactionKind
+        ? provenance.transaction(handle, transactionKind)
+        : handle;
     }
 
-    const db = buildDatabaseInterface(upsert);
+    const db = provenance.root(buildDatabaseInterface(upsert));
     const resolvedSchemas = resolveSchemas(options.schemas);
     if (resolvedSchemas && Object.keys(resolvedSchemas).length > 0) {
       createNativeTablesFromSchemas(database, resolvedSchemas);
