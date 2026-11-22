@@ -132,6 +132,8 @@ export type AIRequestOperation =
   | 'describeImage'
   | 'generateImage'
   | 'stream'
+  | 'synthesizeSpeech'
+  | 'streamSpeech'
   | 'submitVideoGenerationJob'
   | 'getVideoGenerationJob'
   | 'fetchVideoGenerationResult'
@@ -660,6 +662,12 @@ export interface ImageEmbeddingOptions {
    * User identifier for monitoring
    */
   user?: string;
+
+  /**
+   * Per-call tags for usage events.
+   * Merged over any global `usageTags` from provider options.
+   */
+  usageTags?: Record<string, string>;
 }
 
 /**
@@ -1652,10 +1660,13 @@ export interface UsagePart {
   index: number;
   /**
    * Present (and true) when the SDK knew at emission that no further
-   * request of this invocation follows: always for an invocation that cannot
-   * continue. A continued reply's events never carry it; the response's
-   * {@link AIResponse.usageParts} marks the last part instead, and a
-   * continued stream has no response, so its last part is never marked.
+   * request of this invocation follows: on the final request of a call
+   * that cannot continue, and on a continued reply's part that stopped for
+   * a reason other than the output limit or sits at the `maxContinuations`
+   * cap. A continued part that stopped on the limit but was not continued
+   * anyway (no text to continue from, an abort, or a failed next request)
+   * is not marked; for `chat()`/`complete()` the response's
+   * {@link AIResponse.usageParts} still marks it.
    */
   last?: true;
 }
