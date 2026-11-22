@@ -44,7 +44,7 @@ afterEach(async () => {
 
 function postgresCache(): ConnectionCache<DatabaseInterface> {
   const cache = (globalThis as Record<string, unknown>)
-    .__haveSqlPostgresConnectionCacheV2 as
+    .__haveSqlPostgresConnectionCacheV3 as
     | ConnectionCache<DatabaseInterface>
     | undefined;
   if (!cache) throw new Error('PostgreSQL cache not initialised');

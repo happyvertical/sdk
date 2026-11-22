@@ -242,14 +242,18 @@ caches only connections with a `dbid` (automatically assigned to the default
 `:memory:` path). JSON derives an identity from its directory and behavior
 options.
 
-The PostgreSQL cache is shared by every copy of `@happyvertical/sql` 0.118.0
-or later in a process, and kept apart from older copies, so an older copy's
-open never returns a pool a newer copy created and recorded as a root (see
+The PostgreSQL cache is shared by every copy of `@happyvertical/sql` that
+refuses a `client` option (the release after 0.118.0 and later) in a process,
+and kept apart from older copies, 0.118.0 included: those copies ignore
+`client`, so an older copy's `{ client, url }` open never returns a pool a
+newer copy created and recorded as a root (see
 [Handle roles](#handle-roles-and-transaction-markers)). A process that loads an
 older and a newer copy therefore opens one pool per copy for the same
 configuration, and each copy's `clearPostgresConnectionCache()` clears only
 its own pools. The JSON adapter's in-memory cache stays shared across copies on
-purpose.
+purpose, so an older copy's `{ type: 'json', client }` open can return a JSON
+root a newer copy recorded; no JSON root ever uses a client, so that caller
+gets the same database it would have got without one.
 
 DuckDB already creates a fresh adapter for every call, so `cache` and
 `clearCache` are accepted for uniform configuration but do not change its
@@ -931,11 +935,14 @@ describeHandle(db);
   `markTransactionHandle(handle, kind)`.
 - **Provenance.** Each adapter records the exact objects it creates (roots,
   sessions, transaction handles) in a registry keyed by object identity, shared
-  by every copy of this package loaded in the same realm. A copy, wrapper,
+  by every copy of this package loaded in the same realm that refuses a
+  `client` option. A copy, wrapper,
   Proxy or derived object of a root is never a root, because nothing on the
-  object carries the record. Objects made by a copy older than 0.118.0, by a
+  object carries the record. Objects made by an older copy (0.118.0, which
+  kept its own registry and ignored `client`, included), by a
   custom adapter, or in another realm (a `vm` context, an iframe) have no
-  record here. They read `unknown`, except that a transaction handle from
+  record here. A mixed process therefore keeps one registry per generation:
+  a newer copy cannot classify an older copy's roots, and the reverse. They read `unknown`, except that a transaction handle from
   another realm still reads `transaction`: the marker's key is a global symbol
   shared across realms.
 - `owner` is an opaque frozen token, one per root, that the root's sessions
