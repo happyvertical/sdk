@@ -1,5 +1,5 @@
 # Use Debian base image for the pnpm-based workspace environment
-FROM mcr.microsoft.com/devcontainers/base:bookworm@sha256:17e6cc517b483d1108b333d4c34352b0a21617f0117052e9b259d47113a9dc37
+FROM mcr.microsoft.com/devcontainers/base:bookworm@sha256:06701e75787b0b948709e803f95b42cabf37607b1c308c57471d6f0252149d87
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
