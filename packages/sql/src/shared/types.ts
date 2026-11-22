@@ -90,7 +90,7 @@ export type ConnectionAffinityKind = 'pool' | 'session' | 'transaction';
  * `handle` is not the copy, so neither inherits the promise.
  *
  * The PostgreSQL adapter (`pg`) sets it on every handle it creates, from
- * `@happyvertical/sql` 0.117.0. Other adapters do not set it. A hand-written
+ * `@happyvertical/sql` 0.116.7. Other adapters do not set it. A hand-written
  * adapter may set it on its own handles; the claim is then its promise.
  */
 export interface ConnectionAffinityClaim {
@@ -1690,7 +1690,7 @@ export interface SessionHandle {
    * (PostgreSQL 14+) on the session or the server bounds that to the
    * interval; the adapter does not set it.
    *
-   * Added to the PostgreSQL adapter in `@happyvertical/sql` 0.117.0. Optional
+   * Added to the PostgreSQL adapter in `@happyvertical/sql` 0.116.7. Optional
    * so that other implementations of this interface keep compiling; check
    * for it before calling.
    */
@@ -1749,7 +1749,7 @@ export interface SessionHandle {
    *   queue but not the transaction turn: issued while a transaction of this
    *   database is open, it runs inside that transaction.
    *
-   * Added to the PostgreSQL adapter in `@happyvertical/sql` 0.117.0; a handle
+   * Added to the PostgreSQL adapter in `@happyvertical/sql` 0.116.7; a handle
    * created by an earlier copy of the package has no `database`. Optional so
    * that other implementations of this interface keep compiling; check for it
    * before calling.

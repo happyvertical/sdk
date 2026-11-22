@@ -864,14 +864,14 @@ only when `claim.handle === db`;
 `getConnectionAffinity(db)` does that check. A spread copy has no claim, and a
 proxy or derived object reads one naming its target, so neither inherits it.
 Other adapters set no claim. The key is a global symbol, so a handle made by
-any copy of the package at or above 0.117.0 is recognised.
+any copy of the package at or above 0.116.7 is recognised.
 
 `session.database()`, `session.destroy()` and the affinity claims were added in
-`@happyvertical/sql` 0.117.0. The session members are optional on the
+`@happyvertical/sql` 0.116.7. The session members are optional on the
 `SessionHandle` type, and all three are absent on handles created by an earlier
 copy of the package, so a consumer that
 needs them must require that the copy which created its `db` is at least
-0.117.0, and feature-detect them.
+0.116.7, and feature-detect them.
 
 #### Handle roles and transaction markers
 
