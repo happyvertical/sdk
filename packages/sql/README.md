@@ -274,21 +274,39 @@ adapter (PGlite included): unset it. Remove `client`
 only if connecting from the URL or environment is what you intend; code that
 needs the client it supplied (for example one bound to a role or schema) must
 keep that binding through an integration that supports it, or let the error
-propagate. `getDatabase()` returns a database instance untouched (it reads only
-`client`, `insert`, `get` and `query` to recognise one). For configuration
-(any object, callable ones included) it reads `client` once and each supported top-level option once, by name, when it
-is called. Later changes to those options on the same object do not affect an
+propagate.
+
+`getDatabase()` recognises a database instance with four reads on the
+argument (`client`, `insert`, `get`, `query`) and returns it untouched.
+Because `getDatabase()` is async, returning it also makes the Promise look up
+its `then`: a thenable instance, or one whose `then` getter throws, is
+resolved or rejected by the Promise instead of being returned as is.
+
+For configuration (any object, callable ones included) it reads `client`
+once. A non-null `client` is refused on the adapter type alone: `type`, or
+without one the `HAVE_SQL_TYPE` value and then the type inferred from `url`,
+is read first, and no other option is read before the refusal. Otherwise each
+supported top-level option is read once, by name, when the function is
+called. Later changes to those options on the same object do not affect an
 open already issued; nested option objects (`capabilities`, `secureFile`,
-`pglite`) are read by the adapter and should not be edited while an open is
-pending. What it resolves (environment values, an inferred `type`, a generated
+`pglite`) and the environment are read by the adapter and should not be
+changed while an open is pending. An `onTableLoadError` method is still
+called on the caller's object.
+
+What it resolves (environment values, an inferred `type`, a generated
 in-memory SQLite `dbid`, also when `dbid` is `null`) is written to the
-caller's object afterwards, for keys it did not have; nothing is written for a
-refused open. The generated `dbid` is also remembered by the options object
-itself, so reusing that object reopens the same in-memory database even when
-it cannot keep the value (frozen, non-extensible, or a setter or Proxy that
-discards it), and even after its `dbid` is deleted or set to `null`; pass a
-new options object or an explicit `dbid` for a fresh in-memory database. PGlite reads `client` exactly once and refuses a non-null
-`client` that is not an object (for example `false`).
+caller's object afterwards, for keys it did not have; nothing is written for
+a refused open. A key the caller set to `undefined` counts as present, so an
+explicit `type: undefined` keeps its value on the caller's object (the type is
+inferred again on every call), whereas a generated `dbid` replaces a `null`
+one. The generated `dbid` is also remembered by the options object itself, so
+reusing that object reopens the same in-memory database even when it cannot
+keep the value (frozen, non-extensible, or a setter or Proxy that discards
+it), and even after its `dbid` is deleted or set to `null`; pass a new options
+object or an explicit `dbid` for a fresh in-memory database. PGlite reads
+`client` exactly once, refuses a non-null `client` that is not an object (for
+example `false`) before reading any other option, and uses that one value for
+the cache identity, construction, provenance and close.
 
 ### Secure local SQLite acquisition
 

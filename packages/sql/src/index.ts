@@ -115,7 +115,8 @@ export async function getDatabase(
   options: GetDatabaseOptions | ReopenOptions | DatabaseInterface = {},
 ): Promise<DatabaseInterface> {
   // A database instance passes through untouched. Only the four members the
-  // check needs are read, each once, on the argument itself: nothing is
+  // check needs are read, each once, on the argument itself (returning it
+  // from this async function also makes the Promise read its `then`): nothing is
   // enumerated and no environment is merged, so a wrapper (a Proxy over a
   // transaction handle, an instance with unrelated getters) comes back as it
   // went in. `client` is read here once and reused as configuration below.
