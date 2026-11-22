@@ -1374,12 +1374,23 @@ result.usageParts;
 - An event is emitted when its provider request completes. That is before
   `onFinishReason`/`onRefusal` run, so a throwing callback cannot suppress it,
   and before a simulated stream (Hugging Face) plays its chunks.
+- With `rateLimit` pacing, a call is retried only if the failed attempt
+  reported no usage. A rate-limit error raised after an attempt emitted (for
+  example by a caller's callback) is thrown instead of sending the request
+  again.
+- When a provider reports token parts without a total, `totalTokens` is
+  prompt plus completion, never a zero total over nonzero parts. A usage
+  object carrying only gateway cost or cache figures is reported, not dropped.
 
 Clients built by `getAI()` declare this with
 `usageFeatures: { parts: true }`. An older client has no `usageFeatures`.
 Provider classes constructed directly (without `getAI()`) still set `part` on
-their events, each event being its own call (`index: 0, last: true`), and do
-not add `usageParts`.
+their events and do not add `usageParts`. A direct method that makes one
+request reports it as its own call (`index: 0, last: true`). A direct method
+that makes several requests reports them as one call with indexes `0..n` and
+`last` only on the final one. These are Gemini and Bedrock batch `embed`, and
+OpenAI-compatible and Ollama `embedImage`. Separate direct invocations never
+share a call id.
 
 ### What each provider reports
 
