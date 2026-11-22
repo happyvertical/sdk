@@ -15,6 +15,10 @@ import {
   validateDatabaseCacheOptions,
 } from './shared/connection-cache';
 import {
+  createHandleProvenance,
+  type TransactionScopeKind,
+} from './shared/handle-provenance';
+import {
   createAlterTable,
   createPostgresDialect,
   createTransactionErrorTracker,
@@ -457,6 +461,10 @@ async function createDatabase(
   };
 
   const client = pool;
+  const provenance = createHandleProvenance({
+    engine: 'postgres',
+    rootReads: 'isolated',
+  });
 
   /**
    * Absorbs 'error' events for the clients currently checked out for a
@@ -1217,6 +1225,7 @@ async function createDatabase(
      * there is refused rather than self-waiting.
      */
     const createSessionTransaction = (
+      kind: TransactionScopeKind,
       transactionOptions: TransactionOptions | undefined,
     ) => {
       const scope = { open: true };
@@ -1278,6 +1287,7 @@ async function createDatabase(
       };
       // Nested savepoint callbacks receive this same object.
       claimConnectionAffinity(scoped, 'transaction');
+      provenance.transaction(scoped, kind);
       current = {
         invalidate: (error) => {
           active = false;
@@ -1310,7 +1320,7 @@ async function createDatabase(
       refuseInsideOwnTransaction();
       const { endTurn } = await openTransaction();
       const { scope, transactionState, nested, scoped, finish } =
-        createSessionTransaction(transactionOptions);
+        createSessionTransaction('callback', transactionOptions);
       try {
         const result = await callbackScope.run(scope, () => callback(scoped));
         await nested.drain();
@@ -1341,7 +1351,7 @@ async function createDatabase(
       refuseInsideOwnTransaction();
       const { endTurn } = await openTransaction();
       const { transactionState, nested, scoped, isActive, finish } =
-        createSessionTransaction(transactionOptions);
+        createSessionTransaction('manual', transactionOptions);
       let ending = false;
 
       // The transaction is over however this ends, so the session's
@@ -1480,6 +1490,7 @@ async function createDatabase(
       alterTable: createAlterTable(outside),
       vector: createVectorCapabilities(outside),
     };
+    provenance.session(sessionDb);
     return claimConnectionAffinity(sessionDb, 'session');
   };
 
@@ -2047,6 +2058,7 @@ async function createDatabase(
       };
       // Nested savepoint callbacks receive this same object.
       claimConnectionAffinity(txDb, 'transaction');
+      provenance.transaction(txDb, 'callback');
 
       const result = await callback(txDb);
       await nestedTransaction.drain();
@@ -2165,6 +2177,7 @@ async function createDatabase(
       isActive,
     };
 
+    provenance.transaction(txHandle, 'manual');
     return claimConnectionAffinity(txHandle, 'transaction');
   };
 
@@ -2249,5 +2262,6 @@ async function createDatabase(
     },
   };
 
+  provenance.root(db);
   return claimConnectionAffinity(db, 'pool');
 }

@@ -26,6 +26,10 @@ import {
   describeDuckDBTable,
 } from './shared/duckdb-schema-utils';
 import { serializeDuckDBStatements } from './shared/duckdb-statement-queue';
+import {
+  createHandleProvenance,
+  type TransactionScopeKind,
+} from './shared/handle-provenance';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { refuseReopen } from './shared/reopen';
 import { createTransactionLock } from './shared/transaction-lock';
@@ -328,6 +332,10 @@ export async function getDatabase(
     options.transactionQueueTimeout,
   );
   const closeResources = createDuckDBResourceCloser(connection, instance);
+  const provenance = createHandleProvenance({
+    engine: 'duckdb',
+    rootReads: 'shared',
+  });
   const reopenOptions = refuseReopen(
     'duckdb',
     'DuckDB allows one instance per database file in a process, so a second thread cannot open it',
@@ -1316,7 +1324,7 @@ export async function getDatabase(
       try {
         await connection.run('BEGIN TRANSACTION');
 
-        const result = await callback(createTransactionScope());
+        const result = await callback(createTransactionScope('callback'));
         await connection.run('COMMIT');
         return result;
       } catch (error) {
@@ -1342,7 +1350,9 @@ export async function getDatabase(
    * BEGIN on the same connection, which throws and then rolls back the
    * *enclosing* transaction, silently discarding its work.
    */
-  const createTransactionScope = (): DatabaseInterface => {
+  const createTransactionScope = (
+    kind: TransactionScopeKind,
+  ): DatabaseInterface => {
     const txDb: DatabaseInterface = {
       url,
       engine: 'duckdb',
@@ -1377,7 +1387,7 @@ export async function getDatabase(
       },
     };
 
-    return txDb;
+    return provenance.transaction(txDb, kind);
   };
 
   /**
@@ -1442,16 +1452,16 @@ export async function getDatabase(
     // The handle is inside a transaction for the same reason a callback
     // scope is, so it gets the same non-nesting `transaction`.
     const txHandle: TransactionHandle = {
-      ...createTransactionScope(),
+      ...createTransactionScope('manual'),
       commit,
       rollback,
       isActive,
     };
 
-    return txHandle;
+    return provenance.transaction(txHandle, 'manual');
   };
 
-  return {
+  const db = {
     url,
     engine: 'duckdb',
     reopenOptions,
@@ -1488,4 +1498,5 @@ export async function getDatabase(
     // DuckDB-specific export method
     exportTable,
   } as DatabaseInterface & { exportTable: (table: string) => Promise<void> };
+  return provenance.root(db);
 }
