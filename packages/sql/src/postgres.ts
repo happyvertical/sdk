@@ -9,6 +9,7 @@ import pg, {
   type QueryConfig,
 } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
+import { refuseUnusedClientOption } from './shared/client-option';
 import { claimConnectionAffinity } from './shared/connection-affinity';
 import {
   ConnectionCache,
@@ -363,6 +364,7 @@ export async function getPostgresConnectionCacheKey(
 export async function getDatabase(
   options: PostgresOptions = {},
 ): Promise<DatabaseInterface> {
+  refuseUnusedClientOption(options, 'postgres');
   validateDatabaseCacheOptions(options);
   const effective = resolvePostgresConfig(options);
   const cacheKey = await derivePostgresConnectionCacheKey(options, effective);

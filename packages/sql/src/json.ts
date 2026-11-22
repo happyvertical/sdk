@@ -9,6 +9,7 @@ import {
   quoteLiteralIdentifier,
   validateColumnNames,
 } from './shared/alter-utils';
+import { refuseUnusedClientOption } from './shared/client-option';
 import {
   ConnectionCache,
   enableCachedValidation,
@@ -1081,6 +1082,7 @@ function validateTableName(table: string): void {
 export async function getDatabase(
   options: JSONOptions,
 ): Promise<DatabaseInterface> {
+  refuseUnusedClientOption(options, 'json');
   // Generate cache key from URL and options that affect database behavior
   // FIX for issues #533/#534: Auto-generate dbid from URL when schemas provided
   // This ensures connection caching ALWAYS happens for the same URL, preventing

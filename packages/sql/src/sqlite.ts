@@ -24,6 +24,10 @@ import {
   validatePlainColumnName,
   validateTableName,
 } from './shared/alter-utils';
+import {
+  generateMemoryDbId,
+  refuseUnusedClientOption,
+} from './shared/client-option';
 import { validateDatabaseCacheOptions } from './shared/connection-cache';
 import {
   createHandleProvenance,
@@ -1060,7 +1064,7 @@ async function withNullAwareUpsertLock<T>(
  * @returns A unique database identifier string
  */
 function generateDbId(): string {
-  return `memory-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  return generateMemoryDbId();
 }
 
 /**
@@ -1398,6 +1402,7 @@ async function createTablesFromSchemas(
 export async function getDatabase(
   options: SqliteOptions = {},
 ): Promise<DatabaseInterface> {
+  refuseUnusedClientOption(options, 'sqlite');
   validateDatabaseCacheOptions(options);
   const url = options.url || ':memory:';
 

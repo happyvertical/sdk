@@ -257,6 +257,30 @@ behavior. Call `close()` on uncached and DuckDB adapters when finished.
 
 Configuration is also loaded from `HAVE_SQL_*` environment variables (e.g. `HAVE_SQL_TYPE`, `HAVE_SQL_URL`). User-provided options take precedence.
 
+Only the PGlite adapter accepts an injected `client`. Every other adapter
+(`postgres`, `sqlite`, `duckdb`, `json`) refuses a `client` option with a
+`DatabaseError` before any cache lookup or connection; earlier releases
+ignored it and opened a connection from the URL, connection fields or
+environment, which on PostgreSQL meant the same cached pool as a plain URL
+open. `client: undefined` and `client: null` count as absent (an explicit
+`client: undefined` still takes precedence over a `HAVE_SQL_CLIENT` value). Remove `client`
+only if connecting from the URL or environment is what you intend; code that
+needs the client it supplied (for example one bound to a role or schema) must
+keep that binding through an integration that supports it, or let the error
+propagate. `getDatabase()` returns a database instance untouched (it reads only
+`client`, `insert`, `get` and `query` to recognise one). For configuration
+(any object, callable ones included) it reads `client` once and each supported top-level option once, by name, when it
+is called. Later changes to those options on the same object do not affect an
+open already issued; nested option objects (`capabilities`, `secureFile`,
+`pglite`) are read by the adapter and should not be edited while an open is
+pending. What it resolves (environment values, an inferred `type`, a generated
+in-memory SQLite `dbid`, also when `dbid` is `null`) is written to the
+caller's object afterwards, for keys it did not have; nothing is written for a
+refused open. An options object that cannot take the generated `dbid` (frozen,
+non-extensible) keeps it by identity, so reusing it reopens the same in-memory
+database. PGlite reads `client` exactly once and refuses a non-null
+`client` that is not an object (for example `false`).
+
 ### Secure local SQLite acquisition
 
 Secure mode requires an explicit custody contract:
@@ -919,11 +943,9 @@ describeHandle(db);
   same database or the same injected client.
 - `clientSource` is `'caller'` for a root built over an injected client
   (PGlite `client`). `isDatabaseRoot(db)` is true only for `role: 'root'` with
-  `clientSource: 'adapter'`. The other adapters ignore a `client` option (a
-  separate change makes them refuse it), so their roots report `'adapter'`
-  even when one was passed: a PostgreSQL `{ client, url }` open returns the
-  same root as `{ url }`, and these helpers cannot tell the two apart. Do not
-  pass `client` to them.
+  `clientSource: 'adapter'`. The other adapters refuse a `client` option (see
+  below), so an open that supplies one never returns a root that reports
+  `'adapter'`.
 - `rootReads` says what a root statement sees while one of the root's own
   `transaction()` or `beginTransaction()` transactions is open:
   - `isolated`: it runs on another connection and sees committed rows only
