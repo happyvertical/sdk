@@ -51,7 +51,7 @@ import {
   RateLimitError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { countOf, emitUsage, tokenCountsKnown } from './usage';
+import { countOf, emitUsage, usageCounted, usageReported } from './usage';
 
 const execAsync = promisify(exec);
 
@@ -505,13 +505,19 @@ export class ClaudeCliProvider implements AIInterface {
       'claude-cli',
       'chat',
       model!,
-      tokenCountsKnown(result.usage?.input_tokens, result.usage?.output_tokens)
+      usageReported(result.usage?.input_tokens, result.usage?.output_tokens)
         ? usage
         : undefined,
       startTime,
       options.usageTags,
       options,
-      { finishReason: 'stop' },
+      {
+        finishReason: 'stop',
+        uncounted: !usageCounted({
+          prompt: result.usage?.input_tokens,
+          completion: result.usage?.output_tokens,
+        }),
+      },
     );
 
     // Parse Claude CLI JSON output

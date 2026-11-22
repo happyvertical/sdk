@@ -59,7 +59,13 @@ import {
   WebLLMPeerMissingError,
 } from '../types';
 import { forwardUsageParts } from '../usage-parts';
-import { countOf, emitUsage, tokenCountsKnown, totalTokensOf } from './usage';
+import {
+  countOf,
+  emitUsage,
+  totalTokensOf,
+  usageCounted,
+  usageReported,
+} from './usage';
 
 const PROVIDER = 'webllm';
 
@@ -375,16 +381,29 @@ export class WebLLMProvider implements AIInterface {
   private reportedUsage(
     raw: unknown,
     mapped: TokenUsage | undefined,
-  ): TokenUsage | undefined {
+  ): { usage?: TokenUsage; uncounted: boolean } {
     const counters = (raw ?? {}) as Record<string, unknown>;
-    // No counter, or a malformed one: the split is unknown (count-less).
-    return tokenCountsKnown(
-      counters.prompt_tokens,
-      counters.completion_tokens,
-      counters.total_tokens,
-    )
-      ? mapped
-      : undefined;
+    if (
+      !usageReported(
+        counters.prompt_tokens,
+        counters.completion_tokens,
+        counters.total_tokens,
+      )
+    ) {
+      // Nothing valid; a non-empty report still means any earlier snapshot
+      // is not counted.
+      return { uncounted: Object.keys(counters).length > 0 };
+    }
+    // The shared rule: valid figures are kept; counted only when prompt and
+    // completion are valid and a reported total is valid.
+    return {
+      usage: mapped,
+      uncounted: !usageCounted({
+        prompt: counters.prompt_tokens,
+        completion: counters.completion_tokens,
+        supplemental: [counters.total_tokens],
+      }),
+    };
   }
 
   private mapUsage(usage: unknown): TokenUsage | undefined {
@@ -600,16 +619,20 @@ export class WebLLMProvider implements AIInterface {
         );
       }
       const usage = this.mapUsage(response.usage);
+      const reported = this.reportedUsage(response.usage, usage);
       emitUsage(
         this.options,
         PROVIDER,
         'chat',
         response.model || model,
-        this.reportedUsage(response.usage, usage),
+        reported.usage,
         startTime,
         options.usageTags,
         options,
-        { finishReason: this.mapFinishReason(choice.finish_reason) },
+        {
+          finishReason: this.mapFinishReason(choice.finish_reason),
+          uncounted: reported.uncounted,
+        },
       );
       const toolCalls: AIToolCall[] | undefined =
         choice.message?.tool_calls?.map(
@@ -750,6 +773,7 @@ export class WebLLMProvider implements AIInterface {
 
       let finishReason: string | null | undefined;
       let usage: TokenUsage | undefined;
+      let usageUncounted = false;
       for (;;) {
         const step = await iterator.next();
         if (step.done) {
@@ -760,9 +784,18 @@ export class WebLLMProvider implements AIInterface {
         const choice = chunk.choices?.[0];
         finishReason = choice?.finish_reason ?? finishReason;
         if (chunk.usage) {
-          usage =
-            this.reportedUsage(chunk.usage, this.mapUsage(chunk.usage)) ??
-            usage;
+          const reported = this.reportedUsage(
+            chunk.usage,
+            this.mapUsage(chunk.usage),
+          );
+          if (reported.usage) {
+            usage = reported.usage;
+            usageUncounted = reported.uncounted;
+          } else if (reported.uncounted) {
+            // A malformed later report: the earlier snapshot is kept but no
+            // longer counted.
+            usageUncounted = true;
+          }
         }
         const content = choice?.delta?.content;
         if (content) {
@@ -787,7 +820,10 @@ export class WebLLMProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason: this.mapFinishReason(finishReason) },
+        {
+          finishReason: this.mapFinishReason(finishReason),
+          uncounted: usageUncounted,
+        },
       );
       options.onFinishReason?.(this.mapFinishReason(finishReason));
     } catch (error) {

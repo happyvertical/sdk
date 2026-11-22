@@ -69,8 +69,8 @@ import {
   cacheUsageFields,
   countOf,
   emitUsage,
-  hasUsageCount,
-  tokenCountsKnown,
+  usageCounted,
+  usageReported,
 } from './usage';
 
 type AnthropicCacheControl = { cache_control?: CacheControlWire };
@@ -1130,7 +1130,7 @@ function mapRefusal(details: any): AIRefusal {
  */
 function reportedAnthropicUsage(usage: any): TokenUsage | undefined {
   return usage &&
-    hasUsageCount(
+    usageReported(
       usage.input_tokens,
       usage.output_tokens,
       usage.cache_read_input_tokens,
@@ -1141,11 +1141,18 @@ function reportedAnthropicUsage(usage: any): TokenUsage | undefined {
 }
 
 /**
- * True when a reported Anthropic usage object has no known token split:
- * cache counters only, or a malformed input/output counter.
+ * The shared rule ({@link usageCounted}) for Anthropic: input and output
+ * both valid, and any reported cache counter (part of billable input) valid.
  */
 function anthropicUncounted(usage: any): boolean {
-  return !tokenCountsKnown(usage?.input_tokens, usage?.output_tokens);
+  return !usageCounted({
+    prompt: usage?.input_tokens,
+    completion: usage?.output_tokens,
+    supplemental: [
+      usage?.cache_read_input_tokens,
+      usage?.cache_creation_input_tokens,
+    ],
+  });
 }
 
 function mapAnthropicUsage(usage: any): TokenUsage {

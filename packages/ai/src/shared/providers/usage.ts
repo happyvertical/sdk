@@ -9,17 +9,6 @@ import type { BaseAIOptions, TokenUsage, UsageEvent } from '../types';
 import { nextUsagePart, type UsagePartHints } from '../usage-parts';
 
 /**
- * True when the provider reported at least one token counter. A missing or
- * empty usage object is not a report of zero tokens.
- */
-export function hasUsageCount(...counters: unknown[]): boolean {
-  return counters.some(
-    (value) =>
-      typeof value === 'number' && Number.isFinite(value) && value >= 0,
-  );
-}
-
-/**
  * A token counter as reported: a finite non-negative number, otherwise
  * undefined (absent, or malformed such as a string, which is never used in
  * arithmetic).
@@ -31,18 +20,40 @@ export function countOf(value: unknown): number | undefined {
 }
 
 /**
- * True when the token split is known: at least one token counter is a valid
- * count and none of them is present but malformed. Otherwise a usage event
- * that still carries other reported figures is marked `uncounted`.
+ * The one rule for whether a request's usage is **counted** (its token
+ * split is known, so it can complete a call):
+ *
+ * - `prompt` and `completion` are both valid counts (an operation with no
+ *   output, such as an embedding, passes `0` for `completion`), and
+ * - every supplemental counter the provider reported (cache read/write,
+ *   thoughts, tool-use prompt, a total) is valid too. An absent one is fine;
+ *   a present but malformed one is not.
+ *
+ * Anything else that still carries a valid figure is reported `uncounted`,
+ * keeping every valid figure.
  */
-export function tokenCountsKnown(...counters: unknown[]): boolean {
+export function usageCounted(split: {
+  prompt: unknown;
+  completion: unknown;
+  supplemental?: unknown[];
+}): boolean {
   return (
-    counters.some((value) => countOf(value) !== undefined) &&
-    counters.every(
+    countOf(split.prompt) !== undefined &&
+    countOf(split.completion) !== undefined &&
+    (split.supplemental ?? []).every(
       (value) =>
         value === undefined || value === null || countOf(value) !== undefined,
     )
   );
+}
+
+/**
+ * True when a usage report holds a figure worth emitting: any valid counter
+ * (token, cache) or cost. Otherwise the request is count-less (`usage:
+ * undefined`).
+ */
+export function usageReported(...figures: unknown[]): boolean {
+  return figures.some((value) => countOf(value) !== undefined);
 }
 
 /**

@@ -59,9 +59,9 @@ import { ensureUsagePartRecorder, forwardUsageParts } from '../usage-parts';
 import {
   countOf,
   emitUsage,
-  hasUsageCount,
-  tokenCountsKnown,
   totalTokensOf,
+  usageCounted,
+  usageReported,
 } from './usage';
 
 // Note: This implementation uses the new @google/genai package
@@ -1210,6 +1210,10 @@ export class GeminiProvider implements AIInterface {
           if (reported) {
             usage = reported;
             usageUncounted = geminiUncounted(chunk.usageMetadata);
+          } else {
+            // A later report with nothing valid in it: an earlier snapshot
+            // must not stand as counted.
+            usageUncounted ||= Object.keys(chunk.usageMetadata).length > 0;
           }
         }
 
@@ -1699,23 +1703,27 @@ export class GeminiProvider implements AIInterface {
 function geminiUncounted(metadata: any): boolean {
   return (
     !!metadata &&
-    !tokenCountsKnown(
-      metadata.promptTokenCount,
-      metadata.candidatesTokenCount,
-      metadata.totalTokenCount,
-      metadata.toolUsePromptTokenCount,
-      metadata.thoughtsTokenCount,
-    )
+    !usageCounted({
+      prompt: metadata.promptTokenCount,
+      completion: metadata.candidatesTokenCount,
+      supplemental: [
+        metadata.totalTokenCount,
+        metadata.toolUsePromptTokenCount,
+        metadata.thoughtsTokenCount,
+      ],
+    })
   );
 }
 
 function reportedGeminiUsage(metadata: any): TokenUsage | undefined {
   if (
     !metadata ||
-    !hasUsageCount(
+    !usageReported(
       metadata.promptTokenCount,
       metadata.candidatesTokenCount,
       metadata.totalTokenCount,
+      metadata.toolUsePromptTokenCount,
+      metadata.thoughtsTokenCount,
     )
   ) {
     return undefined;
@@ -1748,10 +1756,9 @@ function reportedGeminiUsage(metadata: any): TokenUsage | undefined {
 function geminiEmbeddingTokenCount(result: any): number | undefined {
   const counts = (result?.embeddings ?? [])
     .map((embedding: any) => embedding?.statistics?.tokenCount)
-    .filter((count: unknown) => hasUsageCount(count)) as number[];
+    .filter((count: unknown) => countOf(count) !== undefined) as number[];
   if (counts.length > 0) {
     return counts.reduce((sum, count) => sum + count, 0);
   }
-  const legacy = result?.metadata?.tokenCount;
-  return hasUsageCount(legacy) ? legacy : undefined;
+  return countOf(result?.metadata?.tokenCount);
 }

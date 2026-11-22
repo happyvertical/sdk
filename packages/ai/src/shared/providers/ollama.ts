@@ -59,7 +59,7 @@ import {
   forwardUsageParts,
   withFollowUpRequest,
 } from '../usage-parts';
-import { countOf, emitUsage, tokenCountsKnown } from './usage';
+import { countOf, emitUsage, usageCounted, usageReported } from './usage';
 
 const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
 
@@ -292,12 +292,18 @@ function parseContextLength(
   return 32768;
 }
 
+/** The shared rule ({@link usageCounted}): both counters valid. */
+function ollamaUncounted(promptTokens: unknown, completionTokens: unknown) {
+  return !usageCounted({ prompt: promptTokens, completion: completionTokens });
+}
+
 function mapUsage(
   promptTokens?: number,
   completionTokens?: number,
 ): TokenUsage | undefined {
-  // No counter, or a malformed one (never used in arithmetic): count-less.
-  if (!tokenCountsKnown(promptTokens, completionTokens)) {
+  // No valid counter: count-less. A malformed one is never used in
+  // arithmetic; the valid one is kept (see ollamaUncounted).
+  if (!usageReported(promptTokens, completionTokens)) {
     return undefined;
   }
 
@@ -869,7 +875,13 @@ export class OllamaProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason: mapFinishReason(response.done_reason) },
+        {
+          finishReason: mapFinishReason(response.done_reason),
+          uncounted: ollamaUncounted(
+            response.prompt_eval_count,
+            response.eval_count,
+          ),
+        },
       );
 
       const toolCalls =
@@ -976,7 +988,13 @@ export class OllamaProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason: mapFinishReason(response.done_reason) },
+        {
+          finishReason: mapFinishReason(response.done_reason),
+          uncounted: ollamaUncounted(
+            response.prompt_eval_count,
+            response.eval_count,
+          ),
+        },
       );
 
       return {
@@ -1290,6 +1308,7 @@ export class OllamaProvider implements AIInterface {
       );
 
       let finalUsage: TokenUsage | undefined;
+      let finalUncounted = false;
       let finalModel = model;
       let streamFinish: AIResponse['finishReason'] = 'stop';
 
@@ -1316,6 +1335,10 @@ export class OllamaProvider implements AIInterface {
 
         if (chunk.done) {
           finalUsage = mapUsage(chunk.prompt_eval_count, chunk.eval_count);
+          finalUncounted = ollamaUncounted(
+            chunk.prompt_eval_count,
+            chunk.eval_count,
+          );
           streamFinish = mapFinishReason(chunk.done_reason);
         }
       }
@@ -1331,7 +1354,7 @@ export class OllamaProvider implements AIInterface {
         startTime,
         options.usageTags,
         options,
-        { finishReason: streamFinish ?? 'stop' },
+        { finishReason: streamFinish ?? 'stop', uncounted: finalUncounted },
       );
       options.onFinishReason?.(streamFinish ?? 'stop');
     } catch (error) {

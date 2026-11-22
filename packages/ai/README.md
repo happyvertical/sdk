@@ -1388,11 +1388,18 @@ result.usageParts;
   counts tool-use prompt tokens as prompt and thought tokens as completion,
   matching Google's total.
 - A token counter is used only if it is a finite non-negative number.
-- `part.uncounted: true` (and `uncounted` on the `usageParts` entry) marks
-  usage that carries reported figures but no known token split. That covers
-  a usage object with only gateway cost or cache figures, and one with a
-  malformed token counter. The figures are kept, but such a part never
-  makes `usageParts.complete` true.
+- A part is **counted** only when its prompt and completion tokens are both
+  valid counts, and every supplemental counter the provider reported (a
+  total, cache read/write, Gemini thought or tool-use prompt tokens) is
+  valid too. An embedding has no output, so its completion is 0. Every
+  provider applies this one rule.
+- Anything else that carries a valid figure is emitted with every valid
+  figure kept and marked `part.uncounted: true` (and `uncounted` on the
+  `usageParts` entry). Examples: a total alone, one side alone, cost or
+  cache figures alone, Gemini thought-only or tool-only counts, or any
+  malformed counter.
+- An uncounted part never makes `usageParts.complete` true. In a stream, a
+  malformed later usage report also leaves an earlier snapshot uncounted.
 
 Clients built by `getAI()` declare this with
 `usageFeatures: { parts: true }`. An older client has no `usageFeatures`.

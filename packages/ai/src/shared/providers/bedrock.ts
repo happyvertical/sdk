@@ -55,9 +55,9 @@ import {
   cacheUsageFields,
   countOf,
   emitUsage,
-  hasUsageCount,
-  tokenCountsKnown,
   totalTokensOf,
+  usageCounted,
+  usageReported,
 } from './usage';
 
 const BEDROCK_DEFAULT_CHAT_MODEL = 'anthropic.claude-3-5-sonnet-20241022-v2:0';
@@ -289,7 +289,7 @@ export class BedrockProvider implements AIInterface {
           payload.inputTextTokenCount,
           payload.inputTokenCount,
           payload.tokenCount,
-        ].find((count) => hasUsageCount(count)) as number | undefined;
+        ].find((count) => countOf(count) !== undefined) as number | undefined;
         totalTokens += tokenCount || 0;
         emitUsage(
           this.options,
@@ -555,6 +555,10 @@ export class BedrockProvider implements AIInterface {
         if (hasBedrockUsageCount(event.metadata?.usage)) {
           usage = mapBedrockUsage(event.metadata.usage);
           usageUncounted = bedrockUncounted(event.metadata.usage);
+        } else if (event.metadata?.usage) {
+          // A later report with nothing valid in it: an earlier snapshot
+          // must not stand as counted.
+          usageUncounted ||= Object.keys(event.metadata.usage).length > 0;
         }
       }
 
@@ -1365,7 +1369,7 @@ export class BedrockProvider implements AIInterface {
 function hasBedrockUsageCount(usage: any): boolean {
   return (
     !!usage &&
-    hasUsageCount(
+    usageReported(
       usage.inputTokens,
       usage.outputTokens,
       usage.totalTokens,
@@ -1380,15 +1384,20 @@ function hasBedrockUsageCount(usage: any): boolean {
  * tokens, so cache reads and writes are added to `promptTokens`.
  */
 /**
- * True when a reported Converse usage object has no known token split:
- * cache counters only, or a malformed token counter.
+ * The shared rule ({@link usageCounted}) for Converse: input and output both
+ * valid, and any reported total or cache counter (part of billable input)
+ * valid.
  */
 function bedrockUncounted(usage: any): boolean {
-  return !tokenCountsKnown(
-    usage?.inputTokens,
-    usage?.outputTokens,
-    usage?.totalTokens,
-  );
+  return !usageCounted({
+    prompt: usage?.inputTokens,
+    completion: usage?.outputTokens,
+    supplemental: [
+      usage?.totalTokens,
+      usage?.cacheReadInputTokens,
+      usage?.cacheWriteInputTokens,
+    ],
+  });
 }
 
 function mapBedrockUsage(usage: {

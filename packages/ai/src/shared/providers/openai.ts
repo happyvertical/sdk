@@ -77,9 +77,9 @@ import {
   cacheUsageFields,
   countOf,
   emitUsage,
-  hasUsageCount,
-  tokenCountsKnown,
   totalTokensOf,
+  usageCounted,
+  usageReported,
 } from './usage';
 
 /**
@@ -267,6 +267,28 @@ export interface OpenAICompatibleOptions extends BaseAIOptions {
   organization?: string;
   /** See {@link OpenAIOptions.retryConnectionErrors}. @default true */
   retryConnectionErrors?: boolean;
+}
+
+/** The raw cache counters and cost of an OpenAI-compatible usage object. */
+function openAIUsageExtras(raw: Record<string, any>): {
+  cacheRead: unknown;
+  cacheWrite: unknown;
+  cost: unknown;
+} {
+  const details = raw.prompt_tokens_details;
+  return {
+    // Bifrost: cached_read_tokens / cached_write_tokens. OpenAI:
+    // cached_tokens. LiteLLM and Anthropic-shaped gateways: top-level
+    // cache_*_input_tokens.
+    cacheRead:
+      details?.cached_read_tokens ??
+      details?.cached_tokens ??
+      raw.cache_read_input_tokens,
+    cacheWrite: details?.cached_write_tokens ?? raw.cache_creation_input_tokens,
+    // Bifrost reports `cost` as an object with `total_cost`; some gateways
+    // send a bare number.
+    cost: typeof raw.cost === 'number' ? raw.cost : raw.cost?.total_cost,
+  };
 }
 
 /**
@@ -659,7 +681,8 @@ export class OpenAIProvider implements AIInterface {
       });
 
       const usage = this.mapUsage(response.usage);
-      const reported = this.reportedUsage(response.usage, usage);
+      // An embedding has no output tokens.
+      const reported = this.reportedUsage(response.usage, usage, true);
       emitUsage(
         this.options,
         this.profile.providerName,
@@ -895,7 +918,11 @@ export class OpenAIProvider implements AIInterface {
         'generateImage',
         model,
         imageUsage &&
-          hasUsageCount(imageUsage.input_tokens, imageUsage.output_tokens)
+          usageReported(
+            imageUsage.input_tokens,
+            imageUsage.output_tokens,
+            imageUsage.total_tokens,
+          )
           ? {
               promptTokens: countOf(imageUsage.input_tokens) ?? 0,
               completionTokens: countOf(imageUsage.output_tokens) ?? 0,
@@ -912,11 +939,11 @@ export class OpenAIProvider implements AIInterface {
         {
           uncounted:
             !!imageUsage &&
-            !tokenCountsKnown(
-              imageUsage.input_tokens,
-              imageUsage.output_tokens,
-              imageUsage.total_tokens,
-            ),
+            !usageCounted({
+              prompt: imageUsage.input_tokens,
+              completion: imageUsage.output_tokens,
+              supplemental: [imageUsage.total_tokens],
+            }),
         },
       );
 
@@ -1501,18 +1528,7 @@ export class OpenAIProvider implements AIInterface {
   ): TokenUsage | undefined {
     if (!usage) return undefined;
     const raw = usage as Record<string, any>;
-    const details = raw.prompt_tokens_details;
-    // Bifrost: cached_read_tokens / cached_write_tokens. OpenAI: cached_tokens.
-    // LiteLLM and Anthropic-shaped gateways: top-level cache_*_input_tokens.
-    const cacheRead =
-      details?.cached_read_tokens ??
-      details?.cached_tokens ??
-      raw.cache_read_input_tokens;
-    const cacheWrite =
-      details?.cached_write_tokens ?? raw.cache_creation_input_tokens;
-    // Bifrost reports `cost` as an object with `total_cost`; some gateways
-    // send a bare number.
-    const cost = typeof raw.cost === 'number' ? raw.cost : raw.cost?.total_cost;
+    const { cacheRead, cacheWrite, cost } = openAIUsageExtras(raw);
     const cache = cacheUsageFields(cacheRead, cacheWrite, cost);
     // Prompt tokens include cache reads and writes; a gateway that reports
     // only the cache counters still used at least those prompt tokens.
@@ -1534,34 +1550,40 @@ export class OpenAIProvider implements AIInterface {
   }
 
   /**
-   * The counts a usage event carries: `mapped` only when the server reported
-   * something, a token counter or a cache or cost figure (an empty `usage`
-   * object is count-less, not zero).
+   * The counts a usage event carries, under the shared rule
+   * ({@link usageCounted}): `mapped` when the server reported any figure (a
+   * token or cache counter, or a cost), marked `uncounted` unless prompt and
+   * completion are both valid and every reported cache counter and total is
+   * valid. An empty `usage` object is count-less. An embedding has no output,
+   * so its completion is 0 by definition (`noOutput`).
    * @private
    */
   private reportedUsage(
     raw: unknown,
     mapped: TokenUsage | undefined,
+    noOutput = false,
   ): { usage?: TokenUsage; uncounted: boolean } {
-    const counters = (raw ?? {}) as Record<string, unknown>;
-    const reported = hasUsageCount(
-      counters.prompt_tokens,
-      counters.completion_tokens,
-      counters.total_tokens,
-      mapped?.cacheReadInputTokens,
-      mapped?.cacheCreationInputTokens,
-      mapped?.costUsd,
-    );
-    if (!reported) return { uncounted: false };
-    // Cost or cache figures alone, or a malformed counter, leave the token
-    // split unknown: reported, but not counted.
-    return {
-      usage: mapped,
-      uncounted: !tokenCountsKnown(
+    const counters = (raw ?? {}) as Record<string, any>;
+    const { cacheRead, cacheWrite, cost } = openAIUsageExtras(counters);
+    if (
+      !usageReported(
         counters.prompt_tokens,
         counters.completion_tokens,
         counters.total_tokens,
-      ),
+        cacheRead,
+        cacheWrite,
+        cost,
+      )
+    ) {
+      return { uncounted: false };
+    }
+    return {
+      usage: mapped,
+      uncounted: !usageCounted({
+        prompt: counters.prompt_tokens,
+        completion: noOutput ? 0 : counters.completion_tokens,
+        supplemental: [counters.total_tokens, cacheRead, cacheWrite],
+      }),
     };
   }
 
