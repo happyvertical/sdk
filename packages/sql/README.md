@@ -267,7 +267,10 @@ Only the PGlite adapter accepts an injected `client`. Every other adapter
 ignored it and opened a connection from the URL, connection fields or
 environment, which on PostgreSQL meant the same cached pool as a plain URL
 open. `client: undefined` and `client: null` count as absent (an explicit
-`client: undefined` still takes precedence over a `HAVE_SQL_CLIENT` value). Remove `client`
+`client: undefined` still takes precedence over a `HAVE_SQL_CLIENT` value).
+A `HAVE_SQL_CLIENT` environment variable is loaded for options that do not set
+`client` and, being a string, is refused like any other client on every
+adapter (PGlite included): unset it. Remove `client`
 only if connecting from the URL or environment is what you intend; code that
 needs the client it supplied (for example one bound to a role or schema) must
 keep that binding through an integration that supports it, or let the error

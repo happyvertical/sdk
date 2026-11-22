@@ -1,6 +1,14 @@
 import { DatabaseError } from '@happyvertical/utils';
 
 /**
+ * `getDatabase()` loads `HAVE_SQL_*` environment values, `HAVE_SQL_CLIENT`
+ * included, for options the caller did not set; that value is a string, so it
+ * is refused like any other client. The hint says where it can come from.
+ */
+const ENVIRONMENT_HINT =
+  'A client can also come from the HAVE_SQL_CLIENT environment variable when the options do not set client: unset it, or pass client: undefined.';
+
+/**
  * Refuses a `client` option on an adapter that does not use one.
  *
  * Only PGlite uses an injected client. The other adapters used to drop the
@@ -22,8 +30,8 @@ export function refuseUnusedClientOption(
       adapter,
       hint:
         adapter === 'postgres'
-          ? 'Remove client only if connecting from url, the connection fields or the environment is what you intend. If your code needs the client it supplied (for example one bound to a role or schema), keep that binding through an integration that supports it, such as type: "pglite" with client for PGlite, or let this error propagate.'
-          : 'Remove client only if opening the database from its url is what you intend; otherwise let this error propagate. Only the PGlite adapter (type: "pglite") accepts an injected client.',
+          ? `Remove client only if connecting from url, the connection fields or the environment is what you intend. If your code needs the client it supplied (for example one bound to a role or schema), keep that binding through an integration that supports it, such as type: "pglite" with client for PGlite, or let this error propagate. ${ENVIRONMENT_HINT}`
+          : `Remove client only if opening the database from its url is what you intend; otherwise let this error propagate. Only the PGlite adapter (type: "pglite") accepts an injected client. ${ENVIRONMENT_HINT}`,
     },
   );
 }
@@ -148,7 +156,7 @@ export function refuseInvalidPGliteClient(client: unknown): void {
     'PGlite client must be a PGlite instance, or omitted',
     {
       adapter: 'pglite',
-      hint: 'Pass a PGlite instance as client, or leave client out to let the adapter open its own.',
+      hint: `Pass a PGlite instance as client, or leave client out to let the adapter open its own. ${ENVIRONMENT_HINT}`,
     },
   );
 }

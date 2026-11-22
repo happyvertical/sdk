@@ -724,4 +724,29 @@ describe('round-1 review cases (sdk#1587)', () => {
       await first.close?.();
     }
   });
+
+  it('names HAVE_SQL_CLIENT when that environment value alone is refused (non-PGlite and PGlite)', async () => {
+    const saved = process.env.HAVE_SQL_CLIENT;
+    process.env.HAVE_SQL_CLIENT = 'from-environment';
+    try {
+      for (const options of [
+        { type: 'postgres', url: pgUrl },
+        { type: 'sqlite', url: ':memory:' },
+        { type: 'pglite' },
+      ]) {
+        const error = await getDatabase(options as never).then(
+          () => undefined,
+          (reason: unknown) => reason,
+        );
+        expect(error, options.type).toBeInstanceOf(DatabaseError);
+        expect(
+          String((error as DatabaseError).context?.hint),
+          options.type,
+        ).toMatch(/HAVE_SQL_CLIENT/);
+      }
+    } finally {
+      if (saved === undefined) delete process.env.HAVE_SQL_CLIENT;
+      else process.env.HAVE_SQL_CLIENT = saved;
+    }
+  });
 });
