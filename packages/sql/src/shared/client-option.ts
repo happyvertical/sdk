@@ -66,6 +66,13 @@ export const OPEN_OPTION_NAMES = [
   'pglite',
 ] as const;
 
+/**
+ * Options an adapter calls as methods of its options object
+ * (`options.onTableLoadError?.(info)` in the JSON adapter). Every other
+ * function-valued option (`schemas`) is called as a plain function.
+ */
+const METHOD_OPTION_NAMES: ReadonlySet<string> = new Set(['onTableLoadError']);
+
 /** One option read once: its value and whether the caller supplied the key. */
 export interface ReadOption {
   readonly value: unknown;
@@ -95,7 +102,9 @@ export function readOption(options: object, name: string): ReadOption {
  * changes this open.
  *
  * Nested option objects (`capabilities`, `secureFile`, `pglite`) are kept by
- * reference.
+ * reference. A function-valued option that an adapter calls as a method of
+ * its options (`onTableLoadError`) is captured as a function that calls it on
+ * the caller's object, so a class method keeps its receiver.
  */
 export function readOpenOptions(
   options: object,
@@ -108,7 +117,12 @@ export function readOpenOptions(
     const read = Object.hasOwn(preread, name)
       ? preread[name]
       : readOption(source, name);
-    if (read.present) captured[name] = read.value;
+    if (!read.present) continue;
+    const value = read.value;
+    captured[name] =
+      typeof value === 'function' && METHOD_OPTION_NAMES.has(name)
+        ? (...args: unknown[]) => Reflect.apply(value, source, args)
+        : value;
   }
   // An explicitly present `client: undefined` is kept, so it still shadows a
   // HAVE_SQL_CLIENT environment value as a user-supplied option does.
