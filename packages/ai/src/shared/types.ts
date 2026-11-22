@@ -3383,6 +3383,12 @@ export interface TTSOptions {
    * Whether to include word-level timing information for lip-sync
    */
   includeWordTimings?: boolean;
+
+  /**
+   * Per-call tags for usage events.
+   * Merged over any global `usageTags` from provider options.
+   */
+  usageTags?: Record<string, string>;
 }
 
 /**
